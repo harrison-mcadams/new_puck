@@ -95,6 +95,16 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     event_types = []
     teams_list = []
 
+    # initialize per-class lists so they exist even if no events are plotted
+    home_shot_xs = []
+    home_shot_ys = []
+    away_shot_xs = []
+    away_shot_ys = []
+    home_goal_xs = []
+    home_goal_ys = []
+    away_goal_xs = []
+    away_goal_ys = []
+
     for e in events:
         raw_x = e.get('x')
         raw_y = e.get('y')
@@ -169,6 +179,13 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
             ax.scatter(away_goal_xs, away_goal_ys, c='orange', s=100, marker='x', linewidths=2)
     else:
         print('No coordinates to plot after parsing.')
+
+    # --- compute goal tallies for titles ---
+    # ensure variables exist even if xs was empty
+    home_goals = len(home_goal_xs) if 'home_goal_xs' in locals() else 0
+    away_goals = len(away_goal_xs) if 'away_goal_xs' in locals() else 0
+
+    goals_line = f"{home_goals}  -  {away_goals}"
 
     # --- Title and subtitle (home vs away and shot totals/percentages) ---
     # Determine display names for home/away
@@ -245,15 +262,19 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     else:
         home_pct = away_pct = 0.0
 
-    main_title = f"{home_name} vs. {away_name}"
-    subtitle = (f"{home_shots} ({home_pct:.1f}%) - {away_shots} "
+    main_title = f"{home_name}  vs  {away_name}"
+    subtitle = (f"{home_shots} ({home_pct:.1f}%)  -  {away_shots} "
                 f"({away_pct:.1f}%)")
 
     # Small nudge down so the title block sits a smidge closer to the rink.
     # Main title stays bold; subtitle is unbolded (normal) and slightly dimmer.
-    fig.suptitle(main_title, fontsize=13, fontweight='bold', ha='center', y=0.855)
-    # subtitle unbolded and slightly dim
-    fig.text(0.5, 0.79, subtitle, ha='center', fontsize=9,
+    fig.suptitle(main_title, fontsize=13, fontweight='bold', ha='center',
+                 y=0.877)
+    # goals subtitle (bold) placed between main title and shot stats
+    fig.text(0.5, 0.809, goals_line, ha='center', fontsize=11,
+             fontweight='bold')
+    # subtitle unbolded and slightly dim (placed below the goals line)
+    fig.text(0.5, 0.78, subtitle, ha='center', fontsize=9,
              fontweight='normal', color='black', alpha=0.95)
     # Adjust subplot top to give the title block room but keep it close to the plot
     fig.subplots_adjust(top=0.80)
