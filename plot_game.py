@@ -92,7 +92,7 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     # prepare plotted points
     xs = []
     ys = []
-    colors = []
+    event_types = []
     teams_list = []
 
     for e in events:
@@ -123,14 +123,50 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
         xs.append(x)
         ys.append(y)
         teams_list.append(team)
-        colors.append('red' if ev_type and ev_type.upper().startswith('GOAL') else 'blue')
+        event_types.append(ev_type.upper() if ev_type else '')
 
     # draw
     fig, ax = plt.subplots(figsize=(8, 4.2))
     draw_rink(ax, mirror=False, show_goals=show_goals)  # draw_rink mirror handled via x flipping above
 
     if xs:
-        ax.scatter(xs, ys, c=colors, s=40, edgecolor='k', alpha=0.8)
+        # Separate points into shots vs goals and home vs away so we can color/mark them.
+        home_shot_xs = []
+        home_shot_ys = []
+        away_shot_xs = []
+        away_shot_ys = []
+        home_goal_xs = []
+        home_goal_ys = []
+        away_goal_xs = []
+        away_goal_ys = []
+
+        for i, x in enumerate(xs):
+            y = ys[i]
+            team = teams_list[i]
+            et = event_types[i]
+            is_home = (home_id is not None and str(team) == str(home_id))
+            # classify
+            if et and et.upper().startswith('GOAL'):
+                if is_home:
+                    home_goal_xs.append(x); home_goal_ys.append(y)
+                else:
+                    away_goal_xs.append(x); away_goal_ys.append(y)
+            else:
+                # treat as shot
+                if is_home:
+                    home_shot_xs.append(x); home_shot_ys.append(y)
+                else:
+                    away_shot_xs.append(x); away_shot_ys.append(y)
+
+        # plot: home shots black, away shots orange; goals as 'x' markers
+        if home_shot_xs:
+            ax.scatter(home_shot_xs, home_shot_ys, c='black', s=40, marker='o', edgecolor='k', alpha=0.9)
+        if away_shot_xs:
+            ax.scatter(away_shot_xs, away_shot_ys, c='orange', s=40, marker='o', edgecolor='k', alpha=0.9)
+        if home_goal_xs:
+            ax.scatter(home_goal_xs, home_goal_ys, c='black', s=100, marker='x', linewidths=2)
+        if away_goal_xs:
+            ax.scatter(away_goal_xs, away_goal_ys, c='orange', s=100, marker='x', linewidths=2)
     else:
         print('No coordinates to plot after parsing.')
 
