@@ -2,19 +2,38 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Hockey analytics — shot plot</title>
+    <title>Shot Plot</title>
     <style>
       body { font-family: Arial, sans-serif; margin: 2rem; }
-      img { max-width: 100%; height: auto; border: 1px solid #ddd; }
+      /* remove default image border so the plot has no gray outline */
+      img { max-width: 100%; height: auto; border: none; }
+      .controls { margin-top: 1rem; display: flex; justify-content: center; align-items: center; }
+      .controls form { display: flex; gap: 0.5rem; align-items: center; }
+      .controls input[type="text"] { padding: 0.4rem 0.6rem; font-size: 0.95rem; }
+      .controls button { padding: 0.45rem 0.8rem; font-size: 0.95rem; cursor: pointer; }
+      /* Center the main plot image */
+      .plot { display: flex; justify-content: center; align-items: center; margin-top: 1rem; }
+      /* remove any shadow/outline for a clean image */
+      .plot img { max-width: 900px; width: 100%; box-shadow: none; border: none; }
     </style>
   </head>
   <body>
-    <h1>Most recent Flyers game — shot plot</h1>
+
+
     {% if exists %}
-      <img src="{{ url_for('static', filename=img) }}" alt="shot plot" />
+      <div class="plot">
+        <img src="{{ url_for('static', filename=img) }}" alt="shot plot" />
+      </div>
     {% else %}
       <p>No plot found. Run <code>python demo_plot.py</code> to fetch data and generate the plot.</p>
     {% endif %}
+
+    <div class="controls">
+      <form action="{{ url_for('replot') }}" method="post">
+        <label for="game">Game ID:</label>
+        <input type="text" id="game" name="game" placeholder="12345" />
+        <button type="submit">Plot</button>
+      </form>
+    </div>
   </body>
 </html>
-
