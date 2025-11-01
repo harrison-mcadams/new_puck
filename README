@@ -1,0 +1,62 @@
+## new_puck — hockey analytics starter project
+
+This repository is a small Python-based starter for a hockey analytics project. It implements the initial tasks described in the original project notes: drawing a rink, fetching the most recent Philadelphia Flyers game from the NHL API, parsing events (shots/goals), producing a shot-location plot, and serving a tiny demo website that displays the plot.
+
+Goals and scope
+- Provide a reusable rink plotting module so other visualizations (shot plots, heatmaps, movement traces) can be layered on top.
+- Provide a lightweight NHL API client that can fetch a recent Flyers game for debugging.
+- Parse a single game's live feed into a simple list of event objects.
+- Produce a demo plot of shot locations from that game and save it to `static/shot_plot.png`.
+- Serve a minimal Flask site that shows the generated plot.
+
+Quickstart (macOS / bash)
+1. Create and activate a virtual environment (recommended):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+2. Install dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+3. Generate the demo shot plot (this will call the NHL public API):
+
+```bash
+python demo_plot.py
+```
+
+4. Run the demo website and open http://127.0.0.1:5000:
+
+```bash
+python app.py
+```
+
+Project layout
+- `requirements.txt` — minimal Python dependencies (Flask, requests, matplotlib)
+- `rink.py` — code to draw a hockey rink using matplotlib
+- `nhl_api.py` — small client to fetch the most recent Flyers game and its live feed
+- `parse_events.py` — parse the game's events into a normalized structure
+- `demo_plot.py` — script that fetches a game, parses shot/goal events, and creates a shot plot saved to `static/shot_plot.png`
+- `app.py` — minimal Flask app that serves a page with the generated plot
+- `templates/index.html` — simple template for the web UI
+
+Initial tasks mapping (status: implemented)
+1) Rink plotting code — Done (`rink.py`).
+2) NHL API client (most recent Flyers game) — Done (`nhl_api.py`).
+3) Game -> events parser — Done (`parse_events.py`).
+4) Demo: shot location plot — Done (`demo_plot.py`).
+5) Basic website — Done (`app.py`, `templates/index.html`).
+
+Notes and next steps
+- This is a starter implementation to get a working pipeline. Improvements to consider:
+  - Add caching of API responses to avoid repeated network calls.
+  - Add unit tests for parsing and plotting.
+  - Add support for team selection and date ranges.
+  - Add a small CLI and better logging.
+
+License
+- Add a license file when you decide on a license.
