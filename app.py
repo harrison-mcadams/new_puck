@@ -1,3 +1,19 @@
+"""Minimal Flask web UI for the demo shot-plot.
+
+This module provides two simple routes:
+- GET / : render a page that displays the currently-generated static plot
+  saved at `static/shot_plot.png`.
+- POST /replot : trigger regeneration of the plot by calling into
+  `plot_game.plot_shots` and then redirecting back to the index page.
+
+Notes:
+- The current /replot implementation calls the plotting function *synchronously*,
+  which means the HTTP request blocks until the plot is generated. For long
+  running plotting tasks you should move that work into a background job queue
+  (RQ/Celery) or a separate worker process and return a quick response to the
+  client instead.
+"""
+
 from flask import Flask, render_template, redirect, url_for, request
 import os
 
@@ -15,12 +31,16 @@ def index():
 
 @app.route("/replot", methods=["POST"])
 def replot():
-    """Endpoint to trigger re-plotting from the web UI.
+    """Trigger re-generation of the plot and redirect back to index.
 
-    Accepts optional form field 'game' (integer). Calls plot_game.plot_shots synchronously
-    and redirects back to the index page when finished.
+    Accepts an optional form field `game` (integer). If omitted the code will
+    attempt to use `plot_game.get_gameID(method='most_recent')` as a sensible
+    default. Errors are returned as 500 responses for easier debugging.
+
+    See module docstring for notes on improving this to a background job.
     """
-    # import here to avoid import-time side-effects if Flask isn't used
+    # import here to avoid import-time side-effects when importing this module
+    # for tests or other tooling
     try:
         import plot_game
     except Exception as e:
@@ -42,7 +62,7 @@ def replot():
                 game = plot_game.get_gameID(method='most_recent')
             except Exception:
                 game = None
-        # call the plotting routine (may fetch data) and save to static/shot_plot.png
+        # Synchronous call that will block the request until finished.
         plot_game.plot_shots(game if game is not None else None, output_file=out_path)
     except Exception as e:
         return (f"Error generating plot: {e}", 500)
@@ -52,5 +72,5 @@ def replot():
 
 
 if __name__ == "__main__":
-    # Run development server for local testing
+    # Run development server for local testing (do not use in production)
     app.run(host="127.0.0.1", port=5000, debug=True)

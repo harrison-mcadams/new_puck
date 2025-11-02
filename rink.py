@@ -1,3 +1,10 @@
+"""Helpers to draw a schematic NHL rink with matplotlib.
+
+The drawing is intentionally schematic (approximate measurements in feet) and
+uses a rectangle + semicircular endcaps. The helper returns the matplotlib
+`Axes` so callers can overlay additional marks (shots, heatmaps, traces).
+"""
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt

@@ -1,11 +1,32 @@
+"""Shot-plot generation utilities.
+
+This module exposes `plot_shots(gameID, output_file, ...)` which fetches a game's
+play-by-play feed (via `nhl_api.get_game_feed`), parses SHOT/GOAL events using
+`parse_events.parse_shot_and_goal_events`, and renders shot locations onto the
+schematic rink provided by `rink.draw_rink`.
+
+Coordinate / convention notes:
+- The NHL rink coordinate system used by many feeds places the center at (0,0),
+  x-axis running from left (negative) to right (positive), and y-axis across
+  the rink width. The plotting function enforces the following visual rule:
+    - Home team attempts are displayed toward the left goal (negative x).
+    - Away team attempts are displayed toward the right goal (positive x).
+  To guarantee this visual convention the code flips shot x-values based on the
+  detected `home_id` from the feed.
+
+Colors / markers used:
+- Home shots: black circles
+- Away shots: orange circles
+- Goals: plotted as 'x' markers (black for home, orange for away)
+"""
+
 import os
 import argparse
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-#from nhl_api import get_most_recent_flyers_game_pk, get_game_feed
-from nhl_api import get_gameID, get_game_feed
-from parse_events import parse_shot_and_goal_events
+from nhl_api import get_game_ID, get_game_feed
+from parse import game
 from rink import draw_rink
 
 OUTPUT_DIR = "static"
@@ -69,7 +90,7 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     print(f"Fetching game feed for gameID={gameID}...")
     feed = get_game_feed(gameID)
 
-    events = parse_shot_and_goal_events(feed)
+    events = parse.game(feed)
     if not events:
         print("parse_shot_and_goal_events: no events parsed; nothing to plot")
 
