@@ -9,9 +9,20 @@ timestamp formats and return the most-recent past game (or the next future
 one if no past games are available).
 """
 
+import logging
 import requests
+import random
+import time
 from datetime import datetime, timezone, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+import email.utils as email_utils
+
+
+# module-level session for connection reuse and default headers
+SESSION = requests.Session()
+SESSION.headers.update({
+    'User-Agent': 'new_puck/0.1 (+https://github.com/harrisonmcadams/new_puck)'
+})
 
 
 def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, Any]]:
@@ -46,7 +57,7 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
             url = f'https://api-web.nhle.com/v1/schedule/{date_str}'
 
             try:
-                resp = requests.get(url, timeout=10)
+                resp = SESSION.get(url, timeout=10)
                 resp.raise_for_status()
                 data = resp.json()
             except Exception:
@@ -87,7 +98,7 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
     url = (f"https://api-web.nhle.com/v1/club-schedule-season/"
            f"{TEAM_ABB}/{season}")
 
-    resp = requests.get(url, timeout=10)
+    resp = SESSION.get(url, timeout=10)
     resp.raise_for_status()
 
     # be defensive about the JSON shape
@@ -181,17 +192,66 @@ def get_game_ID(method: str = 'most_recent', team: str = 'PHI') -> int:
     raise RuntimeError("No games found in api-web schedule response.")
 
 
-def get_game_feed(game_ID: int) -> Dict[str, Any]:
+def get_game_feed(game_ID: int, max_retries: int = 8, backoff_base: float = 1.0, max_backoff: float = 300.0) -> Dict[str, Any]:
     """Fetch and return the play-by-play feed JSON for the requested game.
 
-    The returned value is the parsed JSON response from the NHL `api-web`
-    play-by-play endpoint. Callers should be defensive about the structure as
-    the NHL has historically varied response shapes across endpoints.
+    The function retries on 429 responses honoring Retry-After headers when
+    present, and performs exponential backoff on transient network errors.
     """
     url = f'https://api-web.nhle.com/v1/gamecenter/{game_ID}/play-by-play'
-    resp = requests.get(url, timeout=10)
-    resp.raise_for_status()
-    return resp.json()
+
+    backoff = backoff_base
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = SESSION.get(url, timeout=10)
+            resp.raise_for_status()
+            return resp.json()
+        except requests.exceptions.HTTPError as he:
+            resp = getattr(he, 'response', None) or (locals().get('resp') if 'resp' in locals() else None)
+            status = getattr(resp, 'status_code', None)
+            if status == 429:
+                # parse Retry-After header if present
+                ra_hdr = None
+                try:
+                    ra_hdr = resp.headers.get('Retry-After') if resp is not None and resp.headers is not None else None
+                except Exception:
+                    ra_hdr = None
+
+                sleep_for = None
+                if ra_hdr:
+                    try:
+                        sleep_for = float(ra_hdr)
+                    except Exception:
+                        try:
+                            parsed = email_utils.parsedate_to_datetime(ra_hdr)
+                            if parsed.tzinfo is None:
+                                parsed = parsed.replace(tzinfo=timezone.utc)
+                            delta = (parsed - datetime.now(timezone.utc)).total_seconds()
+                            sleep_for = max(0.0, delta)
+                        except Exception:
+                            sleep_for = None
+
+                if sleep_for is None:
+                    sleep_for = backoff
+                sleep_for = min(max_backoff, float(sleep_for)) + random.uniform(0, 1.0)
+                logging.warning('get_game_feed: 429 for game %s, attempt %d/%d; sleeping %.1fs (Retry-After=%s)', game_ID, attempt, max_retries, sleep_for, ra_hdr)
+                time.sleep(sleep_for)
+                backoff = min(max_backoff, backoff * 2)
+                continue
+            else:
+                # non-retryable HTTP error — re-raise for caller to handle
+                logging.warning('get_game_feed HTTP error for game %s: %s', game_ID, he)
+                raise
+        except requests.exceptions.RequestException as re:
+            logging.warning('get_game_feed network error for game %s: %s — attempt %d/%d, sleeping %.1fs', game_ID, re, attempt, max_retries, backoff)
+            time.sleep(backoff + random.uniform(0, 1.0))
+            backoff = min(max_backoff, backoff * 2)
+            continue
+        except Exception as e:
+            logging.warning('get_game_feed unexpected error for game %s: %s', game_ID, e)
+            raise
+
+    raise requests.exceptions.HTTPError(f'Failed to fetch game feed for {game_ID} after {max_retries} attempts')
 
 
 if __name__ == "__main__":
