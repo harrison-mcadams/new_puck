@@ -87,6 +87,7 @@ def load_data(path: str = 'static/20252026.csv', feature_col: str = 'dist_center
     return df
 
 
+
 def fit_model(
     df: pd.DataFrame,
     feature_col: str = 'dist_center',
