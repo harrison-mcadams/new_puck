@@ -50,6 +50,9 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
         logging.debug('_game(): no plays list found in feed; keys=%s', list(game_feed.keys()) if isinstance(game_feed, dict) else type(game_feed))
         return events
 
+    home_id = game_feed['homeTeam']['id']
+    away_id = game_feed['awayTeam']['id']
+
     for p in plays:
         if not isinstance(p, dict):
             continue
@@ -87,7 +90,19 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
             period = p.get('periodDescriptor', {}).get('number')
         else:
             period = p.get('period') or p.get('periodNumber')
-        period_time = p.get('timeRemaining') or p.get('timeInPeriod') or None
+        # Capture period time and whether it's 'remaining' or 'elapsed'. The
+        # api-web feeds sometimes expose either `timeRemaining` or
+        # `timeInPeriod`; keep track of which was present so downstream logic
+        # can interpret the value correctly.
+        time_remaining = p.get('timeRemaining') if 'timeRemaining' in p else None
+        time_in_period = p.get('timeInPeriod') if 'timeInPeriod' in p else None
+        period_time = time_remaining or time_in_period or None
+        if time_remaining is not None:
+            period_time_type = 'remaining'
+        elif time_in_period is not None:
+            period_time_type = 'elapsed'
+        else:
+            period_time_type = None
 
         player_id = None
         if isinstance(details, dict):
@@ -108,12 +123,14 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
                 'x': float(x),
                 'y': float(y),
                 'period': period,
-                'periodTime': period_time,
-                'playerID': player_id,
-                'teamID': team_id,
-                'teamAbbrev': team_abbrev,
-                'homeTeamDefendingSide': home_side,
-                'gameID': game_feed.get('id') or game_feed.get('gamePk')
+                'period_time': period_time,
+                'player_id': player_id,
+                'team_id': team_id,
+                'home_id': home_id,
+                'away_id': away_id,
+                'home_team_defending_side': home_side,
+                'game_id': game_feed.get('id') or game_feed.get('gamePk'),
+                'periodTimeType': period_time_type
             })
         except Exception:
             # skip rows that fail numeric conversion
@@ -192,7 +209,7 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
         in a thread pool. It honors optional caching when enabled.
         """
         game_id = gm.get('id') or gm.get('gamePk') or gm.get('gameID')
-        if game_ID is None:
+        if game_id is None:
             return None
 
         cache_file = cache_dir / f'game_{game_id}.json' if cache_dir else None
@@ -213,7 +230,7 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
         backoff = 1.0
         for attempt in range(1, max_retries + 1):
             try:
-                feed = nhl_api.get_game_feed(game_ID)
+                feed = nhl_api.get_game_feed(game_id)
                 # save to cache if requested
                 if cache_file:
                     try:
@@ -246,20 +263,20 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
                                 ra = None
                     sleep_for = ra if ra is not None else backoff
                     sleep_for = min(max_backoff, float(sleep_for)) + random.uniform(0, 1.0)
-                    logging.warning('429 fetching game %s; attempt %d/%d; sleeping %.1fs', game_ID, attempt, max_retries, sleep_for)
+                    logging.warning('429 fetching game %s; attempt %d/%d; sleeping %.1fs', game_id, attempt, max_retries, sleep_for)
                     time.sleep(sleep_for)
                     backoff = min(max_backoff, backoff * 2)
                     continue
                 else:
-                    logging.debug('Non-retryable HTTP error for game %s: %s', game_ID, he)
+                    logging.debug('Non-retryable HTTP error for game %s: %s', game_id, he)
                     return None
             except requests.exceptions.RequestException as re:
-                logging.warning('Network error fetching game %s: %s — attempt %d/%d, sleeping %.1fs', game_ID, re, attempt, max_retries, backoff)
+                logging.warning('Network error fetching game %s: %s — attempt %d/%d, sleeping %.1fs', game_id, re, attempt, max_retries, backoff)
                 time.sleep(backoff + random.uniform(0, 0.5))
                 backoff = min(max_backoff, backoff * 2)
                 continue
             except Exception as e:
-                logging.warning('Unexpected error fetching game %s: %s', game_ID, e)
+                logging.warning('Unexpected error fetching game %s: %s', game_id, e)
                 return None
         return None
 
@@ -350,12 +367,66 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         rec = dict(ev)  # shallow copy
 
         # Book-keeping stuff
-        # ensure numeric period when possible
+        # normalize period to integer when possible
         try:
-            rec['period'] = int(rec['period']) if rec.get('period') is not None else None
+            rec['period'] = int(rec.get('period')) if rec.get('period') is not None else None
         except Exception:
             rec['period'] = None
-        rec['periodTime_seconds'] = _period_time_to_seconds(rec.get('periodTime'))
+
+        # Compute two time-derived columns:
+        # - periodTime_seconds_elapsed: seconds elapsed within the period
+        # - total_time_elapsed_seconds: seconds elapsed since game start
+        #
+        # Assumptions:
+        # * Regulation periods (1-3) are 20 minutes (1200s)
+        # * Overtime periods (4+) are treated as 5 minutes (300s)
+        period_time_str = rec.get('periodTime')
+        period_time_type = rec.get('periodTimeType')  # 'remaining' or 'elapsed' or None
+
+        period_elapsed = None
+        if period_time_str is not None:
+            # numeric input
+            if isinstance(period_time_str, (int, float)):
+                try:
+                    val = int(period_time_str)
+                    if period_time_type == 'remaining':
+                        per_len = 1200 if (rec.get('period') is None or rec.get('period') <= 3) else 300
+                        period_elapsed = max(0, per_len - val)
+                    else:
+                        period_elapsed = val
+                except Exception:
+                    period_elapsed = None
+            else:
+                # parse mm:ss style strings or plain numeric strings
+                try:
+                    s = str(period_time_str).strip()
+                    if ':' in s:
+                        mm, ss = s.split(':')
+                        seconds = int(mm) * 60 + int(ss)
+                    else:
+                        seconds = int(float(s))
+                    if period_time_type == 'remaining':
+                        per_len = 1200 if (rec.get('period') is None or rec.get('period') <= 3) else 300
+                        period_elapsed = max(0, per_len - seconds)
+                    else:
+                        period_elapsed = seconds
+                except Exception:
+                    period_elapsed = None
+
+        rec['periodTime_seconds_elapsed'] = int(period_elapsed) if period_elapsed is not None else None
+
+        # compute total time elapsed since game start (seconds)
+        total_elapsed = None
+        if rec.get('period') is not None and rec.get('period') >= 1 and period_elapsed is not None:
+            p = int(rec['period'])
+            if p <= 3:
+                total_elapsed = (p - 1) * 1200 + period_elapsed
+            else:
+                # period 4 == first overtime: add three regulation periods + (p-4)*OT + elapsed
+                total_elapsed = 3 * 1200 + (p - 4) * 300 + period_elapsed
+
+        rec['total_time_elapsed_seconds'] = int(total_elapsed) if total_elapsed is not None else None
+
         # x/y to numeric
         try:
             x = float(rec.get('x'))
@@ -368,6 +439,65 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
         ## Basic analysis stuff
 
+        if x is not None and y is not None:
+            # calculate distance to the attacked goal
+            # Determine which goal the shooter is attacking. The feed includes
+            # `home_team_defending_side` which indicates the side the home team
+            # is defending; the attacking goal is the opposite side.
+            if rec.get('team_id') == rec.get('home_id'):
+                # shooter is home -> attacking goal is the side opposite
+                if rec.get('home_team_defending_side') == 'left':
+                    goal_x = 89.0
+                elif rec.get('home_team_defending_side') == 'right':
+                    goal_x = -89.0
+                else:
+                    goal_x = 89.0
+            elif rec.get('team_id') == rec.get('away_id'):
+                # shooter is away -> attacking goal is the side not defended by home
+                if rec.get('home_team_defending_side') == 'left':
+                    goal_x = -89.0
+                elif rec.get('home_team_defending_side') == 'right':
+                    goal_x = 89.0
+                else:
+                    goal_x = -89.0
+            else:
+                # fallback
+                goal_x = 89.0
+
+            goal_y = 0.0
+            distance = math.hypot(x - goal_x, y - goal_y)
+            rec['distance'] = distance
+
+            # Calculate angle such that:
+            # - angle = 0° along the goal-line vector pointing toward the
+            #   goalie's left (i.e. along +y for left-side goal, along -y for right-side goal)
+            # - angle increases clockwise
+            #
+            # Vector from goal center to shot:
+            vx = x - goal_x
+            vy = y - goal_y
+
+            # Reference vector along goal line pointing toward goalie's left:
+            # If goal_x < 0 (left goal), goalie faces +x so his left is +y.
+            # If goal_x > 0 (right goal), goalie faces -x so his left is -y.
+            if goal_x < 0:
+                rx, ry = 0.0, 1.0
+            else:
+                rx, ry = 0.0, -1.0
+
+            # Signed angle from ref r to vector v (CCW positive): atan2(cross, dot)
+            cross = rx * vy - ry * vx
+            dot = rx * vx + ry * vy
+            angle_rad_ccw = math.atan2(cross, dot)
+
+            # We want clockwise positive, so invert sign, convert to degrees
+            angle_deg = ( -math.degrees(angle_rad_ccw) ) % 360.0
+
+            rec['angle_deg'] = angle_deg
+
+        else:
+            rec['dist_center'] = None
+            rec['angle_deg'] = None
         # Calculate distance from goal
 
         # Calculate angle
@@ -378,12 +508,11 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 
-        if x is not None and y is not None:
-            rec['dist_center'] = math.hypot(x, y)
-            rec['angle_deg'] = math.degrees(math.atan2(y, x))
-        else:
-            rec['dist_center'] = None
-            rec['angle_deg'] = None
+
+
+        # periodTimeType was only needed to compute elapsed seconds earlier;
+        # remove it so final records do not include this transient field.
+        rec.pop('periodTimeType', None)
 
         elaborated_game_feed.append(rec)
 
@@ -391,9 +520,12 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 
 if __name__ == '__main__':
-    df = _season(out_path='/Users/harrisonmcadams/PycharmProjects/new_puck/static')
-    print('Season dataframe shape:', df.shape)
-    if not df.empty:
-        print(df.head())
-    else:
-        print('No events found for season')
+
+    debug_season = False
+    if debug_season:
+        df = _season(out_path='/Users/harrisonmcadams/PycharmProjects/new_puck/static')
+        print('Season dataframe shape:', df.shape)
+        if not df.empty:
+            print(df.head())
+        else:
+            print('No events found for season')

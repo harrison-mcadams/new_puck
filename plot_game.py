@@ -25,8 +25,8 @@ import argparse
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from nhl_api import get_game_ID, get_game_feed
-from parse import game
+from nhl_api import get_game_id, get_game_feed
+from parse import _game
 from rink import draw_rink
 
 OUTPUT_DIR = "static"
@@ -90,7 +90,7 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     print(f"Fetching game feed for gameID={gameID}...")
     feed = get_game_feed(gameID)
 
-    events = parse.game(feed)
+    events = _game(feed)
     if not events:
         print("parse_shot_and_goal_events: no events parsed; nothing to plot")
 
@@ -129,8 +129,9 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     for e in events:
         raw_x = e.get('x')
         raw_y = e.get('y')
-        team = e.get('teamID')
+        team = e.get('team_id')
         ev_type = e.get('event')
+        home_id = e.get('home_id')
 
         # default coordinates
         x = raw_x
@@ -341,7 +342,7 @@ def main(argv=None):
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     if args.game is None:
         print("Finding most recent Flyers game...")
-        gameID = get_gameID(method='most_recent')
+        gameID = get_game_id(method='most_recent')
     else:
         gameID = args.game
 

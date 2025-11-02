@@ -116,7 +116,7 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
     return games
 
 
-def get_game_ID(method: str = 'most_recent', team: str = 'PHI') -> int:
+def get_game_id(method: str = 'most_recent', team: str = 'PHI') -> int:
     """Return a game ID for the team's schedule found in the api-web response.
 
     Parameters
@@ -192,13 +192,14 @@ def get_game_ID(method: str = 'most_recent', team: str = 'PHI') -> int:
     raise RuntimeError("No games found in api-web schedule response.")
 
 
-def get_game_feed(game_ID: int, max_retries: int = 8, backoff_base: float = 1.0, max_backoff: float = 300.0) -> Dict[str, Any]:
+def get_game_feed(game_id: int, max_retries: int = 8, backoff_base: float =
+1.0, max_backoff: float = 300.0) -> Dict[str, Any]:
     """Fetch and return the play-by-play feed JSON for the requested game.
 
     The function retries on 429 responses honoring Retry-After headers when
     present, and performs exponential backoff on transient network errors.
     """
-    url = f'https://api-web.nhle.com/v1/gamecenter/{game_ID}/play-by-play'
+    url = f'https://api-web.nhle.com/v1/gamecenter/{game_id}/play-by-play'
 
     backoff = backoff_base
     for attempt in range(1, max_retries + 1):
