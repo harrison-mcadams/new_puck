@@ -58,7 +58,17 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
 
             try:
                 resp = SESSION.get(url, timeout=10)
-                resp.raise_for_status()
+                try:
+                    resp.raise_for_status()
+                except Exception as he:
+                    # If the API explicitly denies access (403) or is rate-limiting (429),
+                    # return an empty list so callers can handle the absence of data
+                    status = getattr(resp, 'status_code', None)
+                    if status in (403, 429):
+                        logging.warning('get_season: HTTP %s received for %s; returning empty games list', status, url)
+                        return []
+                    # otherwise re-raise
+                    raise
                 data = resp.json()
             except Exception:
                 # stop on any network or parsing error — we've gathered what we can
@@ -99,7 +109,17 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
            f"{TEAM_ABB}/{season}")
 
     resp = SESSION.get(url, timeout=10)
-    resp.raise_for_status()
+    try:
+        resp.raise_for_status()
+    except Exception as he:
+        # If the API explicitly denies access (403) or is rate-limiting (429),
+        # return an empty list so callers can handle the absence of data
+        status = getattr(resp, 'status_code', None)
+        if status in (403, 429):
+            logging.warning('get_season: HTTP %s received for %s; returning empty games list', status, url)
+            return []
+        # otherwise re-raise
+        raise
 
     # be defensive about the JSON shape
     data = resp.json()
@@ -207,9 +227,13 @@ def get_game_feed(game_id: int, max_retries: int = 8, backoff_base: float =
             resp = SESSION.get(url, timeout=10)
             resp.raise_for_status()
             return resp.json()
+
         except requests.exceptions.HTTPError as he:
             resp = getattr(he, 'response', None) or (locals().get('resp') if 'resp' in locals() else None)
-            status = getattr(resp, 'status_code', None)
+            status = getattr(resp, 'status_code', None) if resp is not None else None
+
+            # Treat 429 (rate-limited) specially and retry with backoff. If 403
+            # (forbidden), log and return empty dict so callers can handle it.
             if status == 429:
                 # parse Retry-After header if present
                 ra_hdr = None
@@ -235,24 +259,31 @@ def get_game_feed(game_id: int, max_retries: int = 8, backoff_base: float =
                 if sleep_for is None:
                     sleep_for = backoff
                 sleep_for = min(max_backoff, float(sleep_for)) + random.uniform(0, 1.0)
-                logging.warning('get_game_feed: 429 for game %s, attempt %d/%d; sleeping %.1fs (Retry-After=%s)', game_ID, attempt, max_retries, sleep_for, ra_hdr)
+                logging.warning('get_game_feed: 429 for game %s, attempt %d/%d; sleeping %.1fs (Retry-After=%s)', game_id, attempt, max_retries, sleep_for, ra_hdr)
                 time.sleep(sleep_for)
                 backoff = min(max_backoff, backoff * 2)
                 continue
+
+            elif status == 403:
+                logging.warning('get_game_feed: access denied (403) for game %s; returning empty feed', game_id)
+                return {}
+
             else:
                 # non-retryable HTTP error — re-raise for caller to handle
-                logging.warning('get_game_feed HTTP error for game %s: %s', game_ID, he)
+                logging.warning('get_game_feed HTTP error for game %s: %s', game_id, he)
                 raise
+
         except requests.exceptions.RequestException as re:
-            logging.warning('get_game_feed network error for game %s: %s — attempt %d/%d, sleeping %.1fs', game_ID, re, attempt, max_retries, backoff)
+            logging.warning('get_game_feed network error for game %s: %s — attempt %d/%d, sleeping %.1fs', game_id, re, attempt, max_retries, backoff)
             time.sleep(backoff + random.uniform(0, 1.0))
             backoff = min(max_backoff, backoff * 2)
             continue
+
         except Exception as e:
-            logging.warning('get_game_feed unexpected error for game %s: %s', game_ID, e)
+            logging.warning('get_game_feed unexpected error for game %s: %s', game_id, e)
             raise
 
-    raise requests.exceptions.HTTPError(f'Failed to fetch game feed for {game_ID} after {max_retries} attempts')
+    raise requests.exceptions.HTTPError(f'Failed to fetch game feed for {game_id} after {max_retries} attempts')
 
 
 if __name__ == "__main__":
@@ -260,9 +291,9 @@ if __name__ == "__main__":
     # show the most-recent PHI game by default
     #games = get_season(team='all')
 
-    game_ID = get_game_ID(method='most_recent', team='PHI')
-    feed = get_game_feed(game_ID)
-    print('GameID:', game_ID)
+    game_id = get_game_id(method='most_recent', team='PHI')
+    feed = get_game_feed(game_id)
+    print('GameID:', game_id)
     # print a small summary
     if isinstance(feed, dict):
         print('Feed keys:', list(feed.keys())[:10])
