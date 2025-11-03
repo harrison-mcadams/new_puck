@@ -272,16 +272,25 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
                     x_res: float = 2.0, y_res: float = 2.0,
                     out_path: str = 'static/xg_heatmap.png', cmap='viridis',
                     alpha: float = 0.8, verbose: bool = True,
-                    fixed_game_state='5v5', fixed_is_net_empty=0, categorical_dummies_map=None,
+                    game_state_values=None, is_net_empty_values=None,
+                    categorical_levels_map: dict = None,
                     fixed_category_values: dict = None):
-    """Simulate shots across the rink, predict xG using clf, and plot heatmap.
+    """Simulate shots across the rink, predict xG using clf, and plot heatmaps for
+    multiple combinations of non-location features.
 
-    Parameters:
-    - clf: trained classifier with predict_proba
-    - feature_cols: list of feature names; default ['distance','angle_deg']
+    Parameters
+    - clf: trained classifier with `predict_proba`
+    - feature_cols: list of feature names (for example ['distance','angle_deg','game_state_code','is_net_empty'])
     - goal_side: 'left' or 'right' — which goal the shots are directed at
     - x_res, y_res: grid resolution in feet
-    - out_path: file path to save image
+    - out_path: base path to save images; the function will append suffixes for combos
+    - cmap, alpha: retained for compatibility (not used when producing RGBA overlays)
+    - game_state_values: iterable of game_state values to evaluate (strings)
+    - is_net_empty_values: iterable of values to evaluate (e.g., [0,1])
+    - categorical_levels_map: mapping from categorical name -> list of levels (used to convert category -> code index)
+    - fixed_category_values: deprecated alias; kept for backward compatibility
+
+    Returns dict mapping (game_state, is_net_empty) -> heat (2D numpy array)
     """
     import matplotlib.pyplot as plt
     from rink import draw_rink, rink_half_height_at_x, rink_bounds, rink_goal_xs
@@ -291,34 +300,46 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
     if isinstance(feature_cols, str):
         feature_cols = [feature_cols]
 
-    # get rink bounds from rink.py to avoid hard-coded geometry
+    # normalize combination value inputs to lists
+    if game_state_values is None:
+        game_state_values = ['5v5']
+    elif isinstance(game_state_values, (str, int)):
+        game_state_values = [game_state_values]
+    if is_net_empty_values is None:
+        is_net_empty_values = [0]
+    elif isinstance(is_net_empty_values, (str, int)):
+        is_net_empty_values = [is_net_empty_values]
+
+    # allow legacy fixed_category_values to populate a single-value run
+    fixed_map = fixed_category_values or {}
+
+    # get rink bounds
     xmin, xmax, ymin, ymax = rink_bounds()
 
-    xs = np.arange(xmin, xmax + x_res, x_res)
-    ys = np.arange(ymin, ymax + y_res, y_res)
-    xx, yy = np.meshgrid(xs, ys)
+    gx = np.arange(xmin, xmax + x_res, x_res)
+    gy = np.arange(ymin, ymax + y_res, y_res)
+    XX, YY = np.meshgrid(gx, gy)
 
-    # mask points outside rink using the canonical rink helper (vectorized)
-    mask = np.vectorize(rink_half_height_at_x)(xx) >= np.abs(yy)
+    # mask outside rink
+    mask = np.vectorize(rink_half_height_at_x)(XX) >= np.abs(YY)
 
     # choose attacked goal x-coordinate using rink helper
     left_goal_x, right_goal_x = rink_goal_xs()
     goal_x = left_goal_x if goal_side == 'left' else right_goal_x
 
-    # prepare feature matrix
+    # precompute distances and angles for all valid grid points (flattened)
     pts = []
-    coords = []
-    for i in range(xx.shape[0]):
-        for j in range(xx.shape[1]):
+    coord_indices = []  # list of (i,j)
+    for i in range(XX.shape[0]):
+        for j in range(XX.shape[1]):
             if not mask[i, j]:
                 continue
-            x = float(xx[i, j])
-            y = float(yy[i, j])
-            # distance to goal
+            x = float(XX[i, j])
+            y = float(YY[i, j])
             dist = math.hypot(x - goal_x, y - 0.0)
-            # angle: same convention as parse._elaborate
             vx = x - goal_x
             vy = y - 0.0
+            # rotate reference depending on goal side so angle convention matches parse
             if goal_x < 0:
                 rx, ry = 0.0, 1.0
             else:
@@ -327,76 +348,108 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
             dot = rx * vx + ry * vy
             angle_rad_ccw = math.atan2(cross, dot)
             angle_deg = (-math.degrees(angle_rad_ccw)) % 360.0
-            feat = []
-            for f in feature_cols:
-                if f == 'distance':
-                    feat.append(dist)
-                elif f in ('angle_deg', 'angle'):
-                    feat.append(angle_deg)
-                elif f == 'dist_center':
-                    feat.append(math.hypot(x, y))
-                elif f == 'is_net_empty':
-                    try:
-                        nne = int(fixed_is_net_empty)
-                    except Exception:
-                        nne = 0
-                    feat.append(nne)
-                elif categorical_dummies_map and any(f in lst for lst in categorical_dummies_map.values()):
-                    # determine which categorical variable this dummy belongs to
-                    dummy_to_cat = {d: cat for cat, lst in categorical_dummies_map.items() for d in lst}
-                    cat = dummy_to_cat.get(f)
-                    # determine the fixed category value for this categorical variable
-                    fixed_map = fixed_category_values or {}
-                    if cat and cat not in fixed_map:
-                        # provide backwards-compatible default for 'game_state'
-                        if cat == 'game_state':
-                            fixed_map[cat] = fixed_game_state
-                    fixed_val = fixed_map.get(cat)
-                    # build expected dummy name for the fixed value
-                    expected_dummy = f"{cat}_{fixed_val}" if fixed_val is not None else None
-                    if expected_dummy is not None and f == expected_dummy:
-                        feat.append(1)
+            pts.append({'x': x, 'y': y, 'distance': dist, 'angle_deg': angle_deg})
+            coord_indices.append((i, j))
+
+    if len(pts) == 0:
+        raise RuntimeError('No valid grid points found inside rink for heatmap generation.')
+
+    # Convert pts to arrays for fast vectorized feature construction
+    xs = np.array([p['x'] for p in pts])
+    ys = np.array([p['y'] for p in pts])
+    dists = np.array([p['distance'] for p in pts])
+    angles = np.array([p['angle_deg'] for p in pts])
+
+    results = {}
+
+    # helper to convert categorical value to code index when feature uses *_code naming
+    def category_value_to_code(feature_name: str, cat_value):
+        # feature_name expected like 'game_state_code' -> base 'game_state'
+        if not feature_name.endswith('_code'):
+            # not a categorical code col
+            return None
+        base = feature_name[:-5]
+        if categorical_levels_map and base in categorical_levels_map:
+            levels = list(categorical_levels_map[base])
+            try:
+                return int(levels.index(str(cat_value)))
+            except ValueError:
+                # fallback to '__other__' if present
+                if '__other__' in levels:
+                    return int(levels.index('__other__'))
+                # else fallback to 0
+                return 0
+        # if no mapping provided, try to cast directly
+        try:
+            return int(cat_value)
+        except Exception:
+            return 0
+
+    # iterate combinations
+    for gs in game_state_values:
+        for nne in is_net_empty_values:
+            # build feature matrix for each grid point according to feature_cols ordering
+            Xgrid = []
+            for k in range(len(xs)):
+                row_feats = []
+                for f in feature_cols:
+                    if f == 'distance':
+                        row_feats.append(dists[k])
+                    elif f in ('angle_deg', 'angle'):
+                        row_feats.append(angles[k])
+                    elif f == 'dist_center':
+                        row_feats.append(math.hypot(xs[k], ys[k]))
+                    elif f == 'is_net_empty':
+                        row_feats.append(int(nne))
+                    elif f.endswith('_code'):
+                        # determine categorical code for this combo
+                        base = f[:-5]
+                        if base == 'game_state':
+                            code = category_value_to_code(f, gs)
+                            row_feats.append(code)
+                        else:
+                            # no specific combo specified for this categorical variable
+                            # try to use fixed_map or 0
+                            val = fixed_map.get(base, None)
+                            code = category_value_to_code(f, val) if val is not None else 0
+                            row_feats.append(code)
                     else:
-                        feat.append(0)
-                else:
-                    # unknown feature; try to default to NaN
-                    feat.append(float('nan'))
-            pts.append(feat)
-            coords.append((i, j))
+                        # unknown feature: try to default to NaN
+                        row_feats.append(float('nan'))
+                Xgrid.append(row_feats)
+            Xgrid = np.array(Xgrid)
 
-    if not pts:
-        raise RuntimeError('No valid grid points found inside rink.')
+            # predict probabilities
+            try:
+                probs = clf.predict_proba(Xgrid)[:, 1]
+            except Exception as e:
+                raise RuntimeError('Model does not support predict_proba or X shape mismatch: ' + str(e))
 
-    Xgrid = np.array(pts)
-    try:
-        probs = clf.predict_proba(Xgrid)[:, 1]
-    except Exception as e:
-        raise RuntimeError('Model does not support predict_proba or X shape mismatch: ' + str(e))
+            # fill heat grid
+            heat = np.full(XX.shape, np.nan)
+            for (i, j), p in zip(coord_indices, probs):
+                heat[i, j] = p
 
-    # fill heat array
-    heat = np.full(xx.shape, np.nan)
-    for (i, j), p in zip(coords, probs):
-        heat[i, j] = p
+            # Save image for this combination
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+            draw_rink(ax=ax)
+            extent = (gx[0] - x_res / 2.0, gx[-1] + x_res / 2.0, gy[0] - y_res / 2.0, gy[-1] + y_res / 2.0)
+            im = ax.imshow(heat, extent=extent, origin='lower', cmap=cmap, alpha=alpha, zorder=1)
+            ax.set_title(f'xG heatmap — game_state={gs} is_net_empty={nne}')
+            ax.axis('off')
+            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+            # sanitize gs for filename
+            gs_tag = str(gs).replace(' ', '_')
+            base, ext = (out_path, '') if out_path.endswith('.png') else (out_path + '.png', '')
+            save_path = out_path.replace('.png', f'_gs-{gs_tag}_net-{nne}.png')
+            fig.savefig(save_path, dpi=150)
+            plt.close(fig)
+            if verbose:
+                print('Saved xG heatmap to', save_path)
 
-    # Plot
-    fig, ax = plt.subplots(figsize=(8, 4.5))
-    draw_rink(ax=ax)
+            results[(gs, nne)] = heat
 
-    # Overlay heatmap; set extent to match xs, ys
-    extent = (xs[0] - x_res/2.0, xs[-1] + x_res/2.0, ys[0] - y_res/2.0, ys[-1] + y_res/2.0)
-    im = ax.imshow(heat, extent=extent, origin='lower', cmap=cmap, alpha=alpha, zorder=1)
-    cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
-    cbar.set_label('xG')
-
-    plt.title('xG heatmap (simulated shots)')
-    plt.tight_layout()
-    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-    plt.savefig(out_path, dpi=150)
-    plt.close(fig)
-    if verbose:
-        print('Saved xG heatmap to', out_path)
-
-
+    return results
 def analyze_game(game_id, clf=None):
     import nhl_api
     import parse
