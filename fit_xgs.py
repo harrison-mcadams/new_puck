@@ -308,7 +308,7 @@ def _rink_half_height_at_x(x: float) -> float:
     return math.sqrt(max(0.0, R * R - dx * dx))
 
 
-def plot_xg_heatmap(clf, feature_cols=None, goal_side: str = 'left',
+def debug_model(clf, feature_cols=None, goal_side: str = 'left',
                     x_res: float = 2.0, y_res: float = 2.0,
                     out_path: str = 'static/xg_heatmap.png', cmap='viridis',
                     alpha: float = 0.8, verbose: bool = True,
@@ -451,10 +451,48 @@ def train_and_plot_xg_heatmap(csv_path: str = 'static/20252026.csv', feature_col
     plot_xg_heatmap(clf, feature_cols=final_features, goal_side=goal_side, x_res=grid_res, y_res=grid_res, out_path=plot_path, verbose=verbose,
                     fixed_game_state=fixed_game_state, fixed_is_net_empty=fixed_is_net_empty, categorical_dummies_map=gs_dummies)
 
+## New section i want to work on. i ultimately want this to replace train_and_plot_xg_heatmap
+#
+def debug_model2(clf):
+
+    # Generate array corresponding to shot locations that tile the available
+# rink
+    5
+
+    # At each array position, create a dummies events
 
 if __name__ == '__main__':
+
+    debug = True
+    if debug:
+
+        # Load data
+        csv_path = 'static/20252026.csv'
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+        print('Demo: loading data from', csv_path)
+        df, final_features, gs_dummies = load_data(csv_path, feature_cols=features)
+        print('Demo: data shape after cleaning', df.shape)
+
+        # Fit model
+        print('Demo: fitting model...')
+        clf, X_test, y_test = fit_model(df, feature_cols=final_features)
+
+        # Evaluate model
+        print('Demo: evaluating model...')
+        y_prob, y_pred, metrics = evaluate_model(clf, X_test, y_test)
+        print('Demo: metrics:')
+        for k, v in metrics.items():
+            try:
+                print(f'  {k}: {v:.4f}')
+            except Exception:
+                print(f'  {k}: {v}')
+
+        # Debug model
+        print('Demo: debugging model...')
+        debug_model(clf, feature_cols=final_features)
+
     # Demo: train on default CSV and produce an xG heatmap
-    try:
+    else:
         csv_path = 'static/20252026.csv'
         features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
         print('Demo: loading data from', csv_path)
@@ -473,5 +511,4 @@ if __name__ == '__main__':
         print('Demo: generating xG heatmap...')
         train_and_plot_xg_heatmap(csv_path=csv_path, feature_cols=features, plot_path='static/xg_heatmap.png', model_kwargs={'n_estimators':200}, grid_res=2.0, goal_side='left', verbose=True)
         print('Demo completed.')
-    except Exception as e:
-        print('Demo failed:', e)
+
