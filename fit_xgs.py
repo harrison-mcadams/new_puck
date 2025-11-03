@@ -41,7 +41,7 @@ except Exception:  # pragma: no cover - graceful fallback for environment missin
     calibration_curve = None
 
 
-def load_data(path: str = 'static/20252026.csv', feature_cols=None) -> pd.DataFrame:
+def load_data(path: str = 'static/20252026.csv', feature_cols=None):
     """Load the season CSV and return a cleaned DataFrame.
 
     Parameters
@@ -61,51 +61,44 @@ def load_data(path: str = 'static/20252026.csv', feature_cols=None) -> pd.DataFr
     if isinstance(feature_cols, str):
         feature_cols = [feature_cols]
 
-    # Map of canonical feature -> possible alternate names to try
-    alternates = {
-        'dist_center': ['dist_center', 'distance', 'distance_to_goal', 'dist', 'distance_m'],
-        'angle_deg': ['angle_deg', 'angle', 'angle_degree', 'angle_degs'],
-    }
+    # Select only necessary columns and drop NA after preprocessing
+    cols_to_use = list(feature_cols) + ['is_goal']
+    # ensure any missing contextual columns are added as defaults
+    for c in cols_to_use:
+        if c not in df.columns and c != 'is_goal':
+            # default game_state -> '5v5', is_net_empty -> 0, others -> NaN
+            if c == 'game_state':
+                df[c] = '5v5'
+            elif c == 'is_net_empty':
+                df[c] = 0
+            else:
+                df[c] = pd.NA
 
-    found_cols = []
-    for feat in feature_cols:
-        # prefer exact match first
-        if feat in df.columns:
-            found_cols.append(feat)
-            continue
-        # look up alternates if we have a mapping
-        alt_names = alternates.get(feat, [feat])
-        found = None
-        for n in alt_names:
-            if n in df.columns:
-                found = n
-                break
-        if found is None:
-            raise ValueError(f'Could not find feature column for {feat}. Tried: {alt_names}')
-        # copy into canonical name so downstream code can rely on standard names
-        if found != feat:
-            df[feat] = df[found]
-        found_cols.append(feat)
-
-    # target expected as 'is_goal' (0/1)
-    if 'is_goal' not in df.columns:
-        for alt in ('goal', 'isGoal', 'is_goal_flag'):
-            if alt in df.columns:
-                df['is_goal'] = df[alt]
-                break
-    if 'is_goal' not in df.columns:
-        raise ValueError('Could not find target column `is_goal` in CSV')
-
-    # Select only necessary columns and drop NA
-    cols_to_use = list(found_cols) + ['is_goal']
     df = df[cols_to_use].copy()
-    # Ensure numeric types for features
-    df[found_cols] = df[found_cols].apply(pd.to_numeric, errors='coerce')
+
+    # One-hot encode game_state if requested
+    final_feature_cols = list(feature_cols)
+    game_state_dummies = []
+    if 'game_state' in feature_cols:
+        # create dummies with prefix 'gs_' to be stable and compact
+        dummies = pd.get_dummies(df['game_state'].fillna('5v5').astype(str), prefix='gs')
+        # concatenate and drop original column
+        df = pd.concat([df.drop(columns=['game_state']), dummies], axis=1)
+        # replace 'game_state' in final_feature_cols with the new dummy names
+        idx = final_feature_cols.index('game_state')
+        final_feature_cols = final_feature_cols[:idx] + list(dummies.columns) + final_feature_cols[idx+1:]
+        game_state_dummies = list(dummies.columns)
+
+    # Ensure numeric types for remaining (non-dummy) features
+    numeric_cols = [c for c in final_feature_cols if not str(c).startswith('gs_')]
+    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
     df['is_goal'] = pd.to_numeric(df['is_goal'], errors='coerce').astype('Int64')
-    df = df.dropna()
+
+    # Drop rows with missing required values
+    df = df[final_feature_cols + ['is_goal']].dropna().copy()
     df['is_goal'] = df['is_goal'].astype(int)
 
-    return df
+    return df, final_feature_cols, game_state_dummies
 
 
 def fit_model(
@@ -125,7 +118,7 @@ def fit_model(
 
     # default feature set if not provided
     if feature_cols is None:
-        feature_cols = ['distance', 'angle_deg']
+        feature_cols = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
     if isinstance(feature_cols, str):
         feature_cols = [feature_cols]
 
@@ -133,7 +126,8 @@ def fit_model(
     y = df['is_goal'].values
 
     X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=y if len(np.unique(y)) > 1 else None
+        X, y, test_size=test_size, random_state=random_state,
+        stratify=(y if len(np.unique(y)) > 1 else None),
     )
 
     clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
@@ -251,11 +245,11 @@ def run(
     Returns the training results dictionary from `fit_and_evaluate`.
     """
     print(f'Loading data from: {csv_path}')
-    df = load_data(csv_path, feature_cols=feature_cols)
+    df, final_features, gs_dummies = load_data(csv_path, feature_cols=feature_cols)
     print('Data shape (after cleaning):', df.shape)
 
-    print('Features used:', feature_cols or ['distance', 'angle_deg'])
-    results = fit_and_evaluate(df, feature_cols=feature_cols, **fit_kwargs)
+    print('Features used:', final_features)
+    results = fit_and_evaluate(df, feature_cols=final_features, **fit_kwargs)
 
     print('Metrics:')
     for k, v in results['metrics'].items():
@@ -293,7 +287,8 @@ def _rink_half_height_at_x(x: float) -> float:
 def plot_xg_heatmap(clf, feature_cols=None, goal_side: str = 'left',
                     x_res: float = 2.0, y_res: float = 2.0,
                     out_path: str = 'static/xg_heatmap.png', cmap='viridis',
-                    alpha: float = 0.8, verbose: bool = True):
+                    alpha: float = 0.8, verbose: bool = True,
+                    fixed_game_state='5v5', fixed_is_net_empty=0, game_state_dummies=None):
     """Simulate shots across the rink, predict xG using clf, and plot heatmap.
 
     Parameters:
@@ -355,6 +350,19 @@ def plot_xg_heatmap(clf, feature_cols=None, goal_side: str = 'left',
                     feat.append(angle_deg)
                 elif f == 'dist_center':
                     feat.append(math.hypot(x, y))
+                elif f == 'is_net_empty':
+                    try:
+                        nne = int(fixed_is_net_empty)
+                    except Exception:
+                        nne = 0
+                    feat.append(nne)
+                elif game_state_dummies and f in game_state_dummies:
+                    # set 1 for the dummy matching fixed_game_state, else 0
+                    target_dummy = f'gs_{fixed_game_state}'
+                    if f == target_dummy:
+                        feat.append(1)
+                    else:
+                        feat.append(0)
                 else:
                     # unknown feature; try to default to NaN
                     feat.append(float('nan'))
@@ -395,25 +403,31 @@ def plot_xg_heatmap(clf, feature_cols=None, goal_side: str = 'left',
 
 
 def train_and_plot_xg_heatmap(csv_path: str = 'static/20252026.csv', feature_cols=None, plot_path: str = 'static/xg_heatmap.png',
-                              model_kwargs=None, grid_res: float = 2.0, goal_side: str = 'left', verbose: bool = True):
-    """Convenience: train model on CSV then plot heatmap using trained model."""
+                               model_kwargs=None, grid_res: float = 2.0, goal_side: str = 'left', verbose: bool = True,
+                               fixed_game_state='5v5', fixed_is_net_empty=0):
+    """Convenience: train model on CSV then plot heatmap using trained model.
+
+    fixed_game_state and fixed_is_net_empty will be used when simulating the
+    grid so the model receives consistent contextual feature values.
+    """
     model_kwargs = model_kwargs or {}
-    df = load_data(csv_path, feature_cols=feature_cols)
-    clf, X_test, y_test = fit_model(df, feature_cols=feature_cols, **model_kwargs)
-    plot_xg_heatmap(clf, feature_cols=feature_cols, goal_side=goal_side, x_res=grid_res, y_res=grid_res, out_path=plot_path, verbose=verbose)
+    df, final_features, gs_dummies = load_data(csv_path, feature_cols=feature_cols)
+    clf, X_test, y_test = fit_model(df, feature_cols=final_features, **model_kwargs)
+    plot_xg_heatmap(clf, feature_cols=final_features, goal_side=goal_side, x_res=grid_res, y_res=grid_res, out_path=plot_path, verbose=verbose,
+                    fixed_game_state=fixed_game_state, fixed_is_net_empty=fixed_is_net_empty, game_state_dummies=gs_dummies)
 
 
 if __name__ == '__main__':
     # Demo: train on default CSV and produce an xG heatmap
     try:
         csv_path = 'static/20252026.csv'
-        features = ['distance', 'angle_deg']
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
         print('Demo: loading data from', csv_path)
-        df = load_data(csv_path, feature_cols=features)
+        df, final_features, gs_dummies = load_data(csv_path, feature_cols=features)
         print('Demo: data shape after cleaning', df.shape)
 
         print('Demo: fitting model...')
-        results = fit_and_evaluate(df, feature_cols=features, n_estimators=200)
+        results = fit_and_evaluate(df, feature_cols=final_features, n_estimators=200)
         print('Demo: metrics:')
         for k, v in results['metrics'].items():
             try:
