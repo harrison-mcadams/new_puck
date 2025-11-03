@@ -203,11 +203,18 @@ def plot_events(
     if 'x' not in df.columns or 'y' not in df.columns:
         raise KeyError("events DataFrame must contain numeric 'x' and 'y' columns")
 
-    # Prepare plotting axes
+    # Prepare plotting axes. If caller supplied an `ax`, use it. Otherwise create
+    # a single figure/axes and reserve a small top margin for the text block.
     if ax is None:
         fig, ax = plt.subplots(figsize=figsize)
+        # Reserve a little area at the top for the summary text. Increasing
+        # `top` pulls the rink up; decreasing it leaves more room for text.
+        top = 0.82
+        fig.subplots_adjust(top=top)
+        _text_ax = None
     else:
         fig = ax.figure
+        _text_ax = None
 
     if rink:
         try:
@@ -273,12 +280,123 @@ def plot_events(
     ax.set_aspect('equal', adjustable='box')
     ax.axis('off')
 
-    # Title and legend
-    if title:
-        ax.set_title(title)
-    if handles:
-        # show a compact legend; convert labels to Title case for readability
-        ax.legend(handles, [lab.title() for lab in labels], loc='upper right', fontsize='small')
+    # Title and legend intentionally suppressed here; summary text above the rink
+    # is used instead (suptitle + stacked summary lines). Do not set an axes title
+    # and do not show the legend to keep the image clean.
+
+    # --- SUMMARY TEXT BLOCK ---
+    # compute home/away ids (prefer explicit columns from filtered df)
+    home_id = None
+    away_id = None
+    if 'home_id' in df.columns:
+        vals = df['home_id'].dropna().unique()
+        if len(vals) > 0:
+            home_id = vals[0]
+    if 'away_id' in df.columns:
+        vals = df['away_id'].dropna().unique()
+        if len(vals) > 0:
+            away_id = vals[0]
+
+    # helper to get a team abbrev from DataFrame
+    def _team_abbrev_frame(dframe, side_id):
+        # try common abbrev columns
+        for col in ('team_abbrev', 'teamAbbrev', 'triCode', 'abbrev', 'team', 'team_name', 'teamName'):
+            if col in dframe.columns:
+                if 'team_id' in dframe.columns and side_id is not None:
+                    row = dframe[dframe['team_id'].astype(str) == str(side_id)]
+                    if not row.empty and col in row.columns:
+                        val = row.iloc[0].get(col)
+                        if pd.notna(val):
+                            return str(val)
+                val = dframe.iloc[0].get(col)
+                if pd.notna(val):
+                    return str(val)
+        return str(side_id) if side_id is not None else 'UNK'
+
+    home_name = _team_abbrev_frame(df, home_id)
+    away_name = _team_abbrev_frame(df, away_id)
+
+    # compute goals (count events with 'goal')
+    ev_lc = df['event'].astype(str).str.strip().str.lower() if 'event' in df.columns else pd.Series([], dtype=object)
+    is_goal = ev_lc == 'goal'
+    home_goals = int(((df['team_id'].astype(str) == str(home_id)) & is_goal).sum()) if 'team_id' in df.columns and home_id is not None else int(is_goal.sum())
+    away_goals = int(((df['team_id'].astype(str) != str(home_id)) & is_goal).sum()) if 'team_id' in df.columns and home_id is not None else 0
+
+    # shots totals (count all plotted events per team)
+    if 'team_id' in df.columns and home_id is not None:
+        home_shots = int((df['team_id'].astype(str) == str(home_id)).sum())
+        away_shots = int((df['team_id'].astype(str) != str(home_id)).sum())
+    else:
+        xs_series = df['x_a'] if 'x_a' in df.columns else df['x'] if 'x' in df.columns else pd.Series([])
+        home_shots = int((xs_series < 0).sum())
+        away_shots = int((xs_series >= 0).sum())
+
+    total_shots = home_shots + away_shots
+    if total_shots > 0:
+        home_shot_pct = 100.0 * home_shots / total_shots
+        away_shot_pct = 100.0 * away_shots / total_shots
+    else:
+        home_shot_pct = away_shot_pct = 0.0
+
+    # xG totals if available (column 'xgs')
+    home_xg = 0.0
+    away_xg = 0.0
+    have_xg = False
+    if 'xgs' in df.columns:
+        try:
+            have_xg = True
+            for _, r in df.iterrows():
+                val = r.get('xgs')
+                try:
+                    xv = float(val)
+                except Exception:
+                    continue
+                if 'team_id' in df.columns and home_id is not None and str(r.get('team_id')) == str(home_id):
+                    home_xg += xv
+                else:
+                    away_xg += xv
+        except Exception:
+            have_xg = False
+
+    # Format text lines: main title, score, xG line, shots line
+    main_title = f"{home_name} vs {away_name}"
+    score_line = f"{home_goals} - {away_goals}"
+    if have_xg and (home_xg or away_xg):
+        total_xg = home_xg + away_xg
+        if total_xg > 0:
+            hx_pct = 100.0 * home_xg / total_xg
+            ax_pct = 100.0 * away_xg / total_xg
+        else:
+            hx_pct = ax_pct = 0.0
+        xg_line = f"{home_xg:.2f} ({hx_pct:.1f}%) - xG - {away_xg:.2f} ({ax_pct:.1f}%)"
+    else:
+        xg_line = "xG: N/A"
+    shots_line = f"{home_shots} ({home_shot_pct:.1f}%) - shots - {away_shots} ({away_shot_pct:.1f}%)"
+
+    # Derive positions from the axes bounding box so the shots line sits just
+    # above the rink. Use a larger inter-line gap to avoid overlap.
+    bbox = ax.get_position()
+    axes_top = bbox.y1
+
+    # place shots line slightly above axes top
+    shots_y = axes_top + 0.006
+    # inter-line gap (increase by ~5% relative to earlier small gaps)
+    gap = 0.035
+    xg_y = shots_y + gap
+    score_y = xg_y + gap
+    main_y = score_y + gap
+
+    # clamp to figure
+    shots_y = max(0.0, min(0.995, shots_y))
+    xg_y = max(0.0, min(0.995, xg_y))
+    score_y = max(0.0, min(0.995, score_y))
+    main_y = max(0.0, min(0.995, main_y))
+
+    # Slightly reduce main/score fonts to help avoid overlap at small figure sizes
+    fig.text(0.5, main_y, main_title, fontsize=11, fontweight='bold', ha='center')
+    fig.text(0.5, score_y, score_line, fontsize=10, fontweight='bold', ha='center')
+    fig.text(0.5, xg_y, xg_line, fontsize=9, fontweight='normal', ha='center')
+    fig.text(0.5, shots_y, shots_line, fontsize=9, fontweight='normal', ha='center')
 
     if out_path:
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
@@ -303,16 +421,14 @@ if __name__ == '__main__':
     # produces an image for inspection.
     import nhl_api
     import parse
+    import fit_xgs
 
     game_id = '2025020196'
     out_file = f'static/example_game_{game_id}.png'
 
     try:
-        print(f'Attempting to fetch game feed for {game_id}...')
-        feed = nhl_api.get_game_feed(game_id)
-        events = parse._game(feed)
-        events = parse._elaborate(events)
-        df = pd.DataFrame.from_records(events)
+        df = fit_xgs.analyze_game(game_id)
+
         print(f'Parsed {len(df)} events from game {game_id}')
     except Exception as e:
         print('Failed to fetch/parse game feed — using synthetic demo data. Error:', e)

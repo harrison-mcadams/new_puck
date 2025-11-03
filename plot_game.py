@@ -285,20 +285,52 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
         home_pct = away_pct = 0.0
 
     main_title = f"{home_name}  vs  {away_name}"
-    subtitle = (f"{home_shots} ({home_pct:.1f}%)  -  {away_shots} "
-                f"({away_pct:.1f}%)")
+    # Prepare the shots subtitle text
+    subtitle_shots = (f"{home_shots} ({home_pct:.1f}%)  -  {away_shots} "
+                      f"({away_pct:.1f}%)")
 
-    # Small nudge down so the title block sits a smidge closer to the rink.
-    # Main title stays bold; subtitle is unbolded (normal) and slightly dimmer.
-    fig.suptitle(main_title, fontsize=13, fontweight='bold', ha='center',
-                 y=0.877)
-    # goals subtitle (bold) placed between main title and shot stats
-    fig.text(0.5, 0.809, goals_line, ha='center', fontsize=11,
-             fontweight='bold')
-    # subtitle unbolded and slightly dim (placed below the goals line)
-    fig.text(0.5, 0.78, subtitle, ha='center', fontsize=9,
-             fontweight='normal', color='black', alpha=0.95)
-    # Adjust subplot top to give the title block room but keep it close to the plot
+    # Compute xG totals if available in parsed events (some code paths add 'xgs')
+    home_xg = 0.0
+    away_xg = 0.0
+    have_xg = False
+    try:
+        for ev in events:
+            xgval = ev.get('xgs') if isinstance(ev, dict) else None
+            if xgval is None:
+                continue
+            have_xg = True
+            t = ev.get('team_id') or ev.get('teamID')
+            if t is not None and str(t) == str(home_id):
+                home_xg += float(xgval)
+            else:
+                away_xg += float(xgval)
+    except Exception:
+        have_xg = False
+
+    xg_line = ''
+    if have_xg and (home_xg or away_xg):
+        total_xg = home_xg + away_xg
+        if total_xg > 0:
+            home_xg_pct = 100.0 * home_xg / total_xg
+            away_xg_pct = 100.0 * away_xg / total_xg
+        else:
+            home_xg_pct = away_xg_pct = 0.0
+        xg_line = (f"{home_xg:.2f} ({home_xg_pct:.1f}%)  -  xG  -  {away_xg:.2f} ({away_xg_pct:.1f}%)")
+    else:
+        # If no xG info present, render a placeholder
+        xg_line = "xG: N/A"
+
+    # Now render four stacked lines directly above the rink. Layout y values tuned
+    # to sit tightly above the rink without overlapping.
+    fig.suptitle(main_title, fontsize=13, fontweight='bold', ha='center', y=0.895)
+    # Score line (bold)
+    fig.text(0.5, 0.865, goals_line, ha='center', fontsize=11, fontweight='bold')
+    # xG line (normal weight)
+    fig.text(0.5, 0.840, xg_line, ha='center', fontsize=9, fontweight='normal')
+    # shots line (normal weight)
+    fig.text(0.5, 0.815, subtitle_shots, ha='center', fontsize=9, fontweight='normal')
+
+    # Tighten the subplot top so the title block sits close to the rink
     fig.subplots_adjust(top=0.80)
 
 
