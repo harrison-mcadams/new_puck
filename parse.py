@@ -117,11 +117,36 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         home_side = p.get('homeTeamDefendingSide') or p.get('home_team_defending_side')
 
+        # figure out game situation (e.g. even-strength, PP, SH) if possible
+        situation_code = p['situationCode'] if 'situationCode' in p else None
+
+        home_skaters = situation_code[2]
+        home_goalie_in_net = situation_code[3]
+        away_skaters = situation_code[1]
+        away_goalie_in_net = situation_code[0]
+
+        # define game state
+        if team_id == home_id:
+            game_state = f"{home_skaters}v{away_skaters}"
+        elif team_id == away_id:
+            game_state = f"{away_skaters}v{home_skaters}"
+
+        # define is_net_empty
+        is_net_empty = 0
+        if team_id == home_id and away_goalie_in_net == '0':
+            is_net_empty = 1
+
+        if team_id == away_id and home_goalie_in_net == '0':
+            is_net_empty = 1
+
+
         try:
             events.append({
                 'event': ev_norm,
                 'x': float(x),
                 'y': float(y),
+                'game_state': game_state,
+                'is_net_empty': is_net_empty,
                 'period': period,
                 'period_time': period_time,
                 'player_id': player_id,
@@ -521,7 +546,7 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 if __name__ == '__main__':
 
-    debug_season = False
+    debug_season = True
     if debug_season:
         df = _season(out_path='/Users/harrisonmcadams/PycharmProjects/new_puck/static')
         print('Season dataframe shape:', df.shape)
