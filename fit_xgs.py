@@ -41,6 +41,42 @@ except Exception:  # pragma: no cover - graceful fallback for environment missin
     calibration_curve = None
 
 
+def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fill_value: str = ''):
+    """One-hot encode the specified categorical columns in `df`.
+
+    Parameters
+    - df: DataFrame containing the categorical columns
+    - categorical_cols: list of column names to encode
+    - prefix_sep: separator between column name and category in dummy names
+    - fill_value: value to replace NA with before encoding
+
+    Returns (df_out, categorical_dummies_map)
+    - df_out: DataFrame with categorical columns removed and dummy columns added
+    - categorical_dummies_map: dict mapping categorical column -> list of dummy column names
+    """
+    if isinstance(categorical_cols, str):
+        categorical_cols = [categorical_cols]
+    # ensure requested columns are present; if missing, create empty string column
+    for c in categorical_cols:
+        if c not in df.columns:
+            df[c] = fill_value
+
+    # create dummies for all categorical_cols at once
+    dummies = pd.get_dummies(df[categorical_cols].fillna(fill_value).astype(str), prefix=categorical_cols, prefix_sep=prefix_sep)
+
+    # concat dummies and drop original categorical columns
+    df_out = pd.concat([df.drop(columns=categorical_cols), dummies], axis=1)
+
+    # build mapping cat -> [dummy columns]
+    categorical_dummies_map = {}
+    for cat in categorical_cols:
+        prefix = f"{cat}{prefix_sep}"
+        cat_dummies = [col for col in dummies.columns if col.startswith(prefix)]
+        categorical_dummies_map[cat] = cat_dummies
+
+    return df_out, categorical_dummies_map
+
+
 def load_data(path: str = 'static/20252026.csv', feature_cols=None, categorical_cols=None):
     """Load the season CSV and return a cleaned DataFrame.
 
@@ -80,6 +116,10 @@ def load_data(path: str = 'static/20252026.csv', feature_cols=None, categorical_
     if categorical_cols is None:
         # auto-detect categorical columns among requested feature_cols by dtype
         categorical_cols = [c for c in feature_cols if c in df.columns and df[c].dtype == object]
+        # include a sensible default categorical column if present
+        if 'game_state' in feature_cols or 'game_state' in df.columns:
+            if 'game_state' not in categorical_cols:
+                categorical_cols.append('game_state')
     else:
         # ensure it's a list
         if isinstance(categorical_cols, str):
@@ -88,29 +128,19 @@ def load_data(path: str = 'static/20252026.csv', feature_cols=None, categorical_
     final_feature_cols = list(feature_cols)
     categorical_dummies_map = {}
     if categorical_cols:
-        # make sure columns exist and fill defaults for known contextual ones
+        # delegate to reusable one-hot encoder
+        # provide sensible fills for known contextual columns
         for c in categorical_cols:
-            if c not in df.columns:
-                if c == 'game_state':
-                    df[c] = '5v5'
-                else:
-                    df[c] = df[c].fillna('') if c in df.columns else ''
-        # create dummies for all categorical_cols at once
-        dummies = pd.get_dummies(df[categorical_cols].fillna(''), prefix=categorical_cols, prefix_sep='_')
-        # concat dummies and drop original categorical columns
-        df = pd.concat([df.drop(columns=categorical_cols), dummies], axis=1)
-        # update final_feature_cols: replace each categorical col with its dummy names
-        for cat in categorical_cols:
-            # find the dummy columns generated for this cat (prefix 'cat_')
-            prefix = f"{cat}_"
-            cat_dummies = [col for col in dummies.columns if col.startswith(prefix)]
+            if c not in df.columns and c == 'game_state':
+                df[c] = '5v5'
+        df, dmap = one_hot_encode(df, categorical_cols, prefix_sep='_', fill_value='')
+        # incorporate returned mapping into our map
+        for cat, cat_dummies in dmap.items():
             categorical_dummies_map[cat] = cat_dummies
             if cat in final_feature_cols:
                 idx = final_feature_cols.index(cat)
                 final_feature_cols = final_feature_cols[:idx] + cat_dummies + final_feature_cols[idx+1:]
             else:
-                # if the categorical column wasn't requested as a feature but dummies exist,
-                # append them to the end of the feature list
                 final_feature_cols.extend(cat_dummies)
 
     # Ensure numeric types for remaining (non-dummy) features
@@ -372,9 +402,74 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
         print('Saved xG heatmap to', out_path)
 
 
+def analyze_game(game_id, clf=None):
+    import nhl_api
+    import parse
+    # Default CSV and feature set for analysis; ensure final_features available
+    csv_path = 'static/20252026.csv'
+    features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+    if clf is None:
+        # Load data and train if no classifier provided
+        print('Demo: loading data from', csv_path)
+        training_df, final_features, gs_dummies = load_data(csv_path,
+                                                    feature_cols=features)
+        print('Demo: data shape after cleaning', training_df.shape)
+
+        # Fit model
+        print('Demo: fitting model...')
+        clf, X_test, y_test = fit_model(training_df,
+                                        feature_cols=final_features)
+    else:
+        # If a classifier is provided, load dataset just to obtain feature ordering
+        # Note: callers providing a pre-fit clf should ensure it was trained on the
+        # same `final_features` ordering; here we derive a compatible ordering from
+        # the canonical CSV using the requested features.
+        df, final_features, gs_dummies = load_data(csv_path, feature_cols=features)
+
+    # Assemble the game data
+    game_feed = nhl_api.get_game_feed(game_id)
+    events = parse._game(game_feed)
+    events = parse._elaborate(events)
+    df = pd.DataFrame.from_records(events)
+
+    df, categorical_cols_dummy_map = one_hot_encode(df, categorical_cols=[
+        'game_state'])
+
+    # Align encoded game DataFrame to training feature ordering:
+    # - add any missing columns expected by final_features with zeros
+    # - convert boolean dummies to int (0/1)
+    for col in final_features:
+        if col not in df.columns:
+            df[col] = 0
+
+    # Ensure is_goal exists (parse._elaborate should set this, but be defensive)
+    if 'is_goal' not in df.columns:
+        df['is_goal'] = 0
+
+    # Convert boolean columns to ints for model compatibility
+    for c in df.columns:
+        if df[c].dtype == bool:
+            df[c] = df[c].astype(int)
+
+    # Now extract feature matrix
+    X = df[final_features].values
+    y = df['is_goal'].values
+
+    # Evaluate model on game in question
+
+    xgs, y_pred, metrics = evaluate_model(clf, X, y)
+
+    # concatenate xG results back to game DataFrame for further analysis if desired
+    df['xG'] = xgs
+
+
+    return df
+    # Here you would load the game data for the given game_id,
 
 
 if __name__ == '__main__':
+
+    analyze_game('2025020150')
 
     debug = True
     if debug:
@@ -403,5 +498,3 @@ if __name__ == '__main__':
         # Debug model
         print('Demo: debugging model...')
         debug_model(clf, feature_cols=final_features)
-
-

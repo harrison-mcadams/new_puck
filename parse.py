@@ -552,6 +552,11 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     return elaborated_game_feed
 
+def events_to_df(events):
+    import pandas as pd
+    # convert events list to pandas DataFrame
+    df = pd.DataFrame.from_records(events)
+
 
 if __name__ == '__main__':
 
