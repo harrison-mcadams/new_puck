@@ -297,24 +297,10 @@ def plot_events(
         if len(vals) > 0:
             away_id = vals[0]
 
-    # helper to get a team abbrev from DataFrame
-    def _team_abbrev_frame(dframe, side_id):
-        # try common abbrev columns
-        for col in ('team_abbrev', 'teamAbbrev', 'triCode', 'abbrev', 'team', 'team_name', 'teamName'):
-            if col in dframe.columns:
-                if 'team_id' in dframe.columns and side_id is not None:
-                    row = dframe[dframe['team_id'].astype(str) == str(side_id)]
-                    if not row.empty and col in row.columns:
-                        val = row.iloc[0].get(col)
-                        if pd.notna(val):
-                            return str(val)
-                val = dframe.iloc[0].get(col)
-                if pd.notna(val):
-                    return str(val)
-        return str(side_id) if side_id is not None else 'UNK'
 
-    home_name = _team_abbrev_frame(df, home_id)
-    away_name = _team_abbrev_frame(df, away_id)
+
+    home_name = df['home_abb'].iloc[0]
+    away_name = df['away_abb'].iloc[0]
 
     # compute goals (count events with 'goal')
     ev_lc = df['event'].astype(str).str.strip().str.lower() if 'event' in df.columns else pd.Series([], dtype=object)

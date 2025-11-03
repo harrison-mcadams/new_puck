@@ -54,6 +54,9 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
     home_id = game_feed['homeTeam']['id']
     away_id = game_feed['awayTeam']['id']
 
+    home_abb = game_feed['homeTeam']['abbrev']
+    away_abb = game_feed['awayTeam']['abbrev']
+
     for p in plays:
         if not isinstance(p, dict):
             continue
@@ -155,6 +158,8 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
                 'team_id': team_id,
                 'home_id': home_id,
                 'away_id': away_id,
+                'home_abb': home_abb,
+                'away_abb': away_abb,
                 'home_team_defending_side': home_side,
                 'game_id': game_feed.get('id') or game_feed.get('gamePk'),
                 'periodTimeType': period_time_type
