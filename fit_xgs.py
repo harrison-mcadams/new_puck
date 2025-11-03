@@ -302,11 +302,14 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
 
     # normalize combination value inputs to lists
     if game_state_values is None:
-        game_state_values = ['5v5']
+        if categorical_levels_map and 'game_state' in categorical_levels_map:
+            game_state_values = list(categorical_levels_map['game_state'])
+        else:
+            game_state_values = ['5v5', '5v4', '4v5']
     elif isinstance(game_state_values, (str, int)):
         game_state_values = [game_state_values]
     if is_net_empty_values is None:
-        is_net_empty_values = [0]
+        is_net_empty_values = [0, 1]
     elif isinstance(is_net_empty_values, (str, int)):
         is_net_empty_values = [is_net_empty_values]
 
@@ -385,69 +388,122 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
         except Exception:
             return 0
 
-    # iterate combinations
-    for gs in game_state_values:
-        for nne in is_net_empty_values:
-            # build feature matrix for each grid point according to feature_cols ordering
-            Xgrid = []
-            for k in range(len(xs)):
-                row_feats = []
-                for f in feature_cols:
-                    if f == 'distance':
-                        row_feats.append(dists[k])
-                    elif f in ('angle_deg', 'angle'):
-                        row_feats.append(angles[k])
-                    elif f == 'dist_center':
-                        row_feats.append(math.hypot(xs[k], ys[k]))
-                    elif f == 'is_net_empty':
-                        row_feats.append(int(nne))
-                    elif f.endswith('_code'):
-                        # determine categorical code for this combo
-                        base = f[:-5]
-                        if base == 'game_state':
-                            code = category_value_to_code(f, gs)
-                            row_feats.append(code)
-                        else:
-                            # no specific combo specified for this categorical variable
-                            # try to use fixed_map or 0
-                            val = fixed_map.get(base, None)
-                            code = category_value_to_code(f, val) if val is not None else 0
-                            row_feats.append(code)
+    # Build explicit list of combinations (cartesian product) so we're sure we
+    # compute and save the same set in order.
+    from itertools import product
+    combos = list(product(game_state_values, is_net_empty_values))
+    if verbose:
+        try:
+            print(f"debug_model: computing heatmaps for {len(combos)} combinations")
+        except Exception:
+            pass
+
+    # First pass: compute heat arrays for all combinations and store them
+    for gs, nne in combos:
+        # build feature matrix for each grid point according to feature_cols ordering
+        Xgrid = []
+        for k in range(len(xs)):
+            row_feats = []
+            for f in feature_cols:
+                if f == 'distance':
+                    row_feats.append(dists[k])
+                elif f in ('angle_deg', 'angle'):
+                    row_feats.append(angles[k])
+                elif f == 'dist_center':
+                    row_feats.append(math.hypot(xs[k], ys[k]))
+                elif f == 'is_net_empty':
+                    row_feats.append(int(nne))
+                elif f.endswith('_code'):
+                    # determine categorical code for this combo
+                    base = f[:-5]
+                    if base == 'game_state':
+                        code = category_value_to_code(f, gs)
+                        row_feats.append(code)
                     else:
-                        # unknown feature: try to default to NaN
-                        row_feats.append(float('nan'))
-                Xgrid.append(row_feats)
-            Xgrid = np.array(Xgrid)
+                        val = fixed_map.get(base, None)
+                        code = category_value_to_code(f, val) if val is not None else 0
+                        row_feats.append(code)
+                else:
+                    row_feats.append(float('nan'))
+            Xgrid.append(row_feats)
+        Xgrid = np.array(Xgrid)
 
-            # predict probabilities
-            try:
-                probs = clf.predict_proba(Xgrid)[:, 1]
-            except Exception as e:
-                raise RuntimeError('Model does not support predict_proba or X shape mismatch: ' + str(e))
+        # predict probabilities
+        try:
+            probs = clf.predict_proba(Xgrid)[:, 1]
+        except Exception as e:
+            raise RuntimeError('Model does not support predict_proba or X shape mismatch: ' + str(e))
 
-            # fill heat grid
+        # fill heat grid
+        heat = np.full(XX.shape, np.nan)
+        for (i, j), p in zip(coord_indices, probs):
+            heat[i, j] = p
+
+        results[(gs, nne)] = heat
+
+    # Determine a common color scale across all combinations.
+    # By default use the reference condition (game_state='5v5', is_net_empty=0)
+    # to set the upper bound — this narrows the colorbar to a meaningful
+    # operational range. If that reference is missing or has zero max, fall
+    # back to the global maximum across all combos.
+    all_max = 0.0
+    for h in results.values():
+        try:
+            mv = float(np.nanmax(h))
+            if mv > all_max:
+                all_max = mv
+        except Exception:
+            continue
+
+    # reference key and its max value (if available)
+    ref_key = ('5v5', 0)
+    ref_max = None
+    if ref_key in results:
+        try:
+            ref_max = float(np.nanmax(results[ref_key]))
+        except Exception:
+            ref_max = None
+
+    vmin = 0.0
+    # Prefer the reference max if it exists and is > 0; otherwise use global max.
+    if ref_max is not None and ref_max > 0:
+        vmax = ref_max
+    else:
+        # ensure a sensible small positive fallback to avoid degenerate range
+        vmax = max(all_max, 1.0e-6)
+
+    # Second pass: render and save each heatmap using the common vmin/vmax and add colorbar
+    for gs, nne in combos:
+        heat = results.get((gs, nne))
+        if heat is None:
+            # if compute failed or missing, create an empty (nan) heat grid to save a placeholder
             heat = np.full(XX.shape, np.nan)
-            for (i, j), p in zip(coord_indices, probs):
-                heat[i, j] = p
 
-            # Save image for this combination
-            fig, ax = plt.subplots(figsize=(8, 4.5))
-            draw_rink(ax=ax)
-            extent = (gx[0] - x_res / 2.0, gx[-1] + x_res / 2.0, gy[0] - y_res / 2.0, gy[-1] + y_res / 2.0)
-            im = ax.imshow(heat, extent=extent, origin='lower', cmap=cmap, alpha=alpha, zorder=1)
-            ax.set_title(f'xG heatmap — game_state={gs} is_net_empty={nne}')
-            ax.axis('off')
-            Path(out_path).parent.mkdir(parents=True, exist_ok=True)
-            # sanitize gs for filename
-            gs_tag = str(gs).replace(' ', '_')
-            base, ext = (out_path, '') if out_path.endswith('.png') else (out_path + '.png', '')
-            save_path = out_path.replace('.png', f'_gs-{gs_tag}_net-{nne}.png')
-            fig.savefig(save_path, dpi=150)
-            plt.close(fig)
-            if verbose:
-                print('Saved xG heatmap to', save_path)
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        draw_rink(ax=ax)
+        extent = (gx[0] - x_res / 2.0, gx[-1] + x_res / 2.0, gy[0] - y_res / 2.0, gy[-1] + y_res / 2.0)
+        im = ax.imshow(heat, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax, zorder=1)
+        # readable title
+        ax.set_title(f'xG heatmap — game_state: {gs}   |   empty net: {nne}', fontsize=10)
+        ax.axis('off')
 
-            results[(gs, nne)] = heat
+        # add colorbar with same scaling across all images
+        cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+        cbar.set_label('xG probability')
+
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        gs_tag = str(gs).replace(' ', '_')
+        # build save path reliably using splitext to avoid accidental replace issues
+        import os
+        base, ext = os.path.splitext(out_path)
+        if ext == '':
+            ext = '.png'
+        save_path = f"{base}_gs-{gs_tag}_net-{nne}{ext}"
+        fig.tight_layout()
+        fig.savefig(save_path, dpi=150)
+        plt.close(fig)
+        if verbose:
+            print('Saved xG heatmap to', save_path)
 
     return results
 def analyze_game(game_id, clf=None):
@@ -530,7 +586,7 @@ if __name__ == '__main__':
         print('Demo: loading data from', csv_path)
         df = load_data(csv_path)
         print('Demo: cleaning data', df.shape)
-        df, final_features, _ = clean_df_for_model(df, features)
+        df, final_features, categorical_map = clean_df_for_model(df, features)
 
         # Fit model
         print('Demo: fitting model...')
@@ -548,4 +604,4 @@ if __name__ == '__main__':
 
         # Debug model
         print('Demo: debugging model...')
-        debug_model(clf, feature_cols=final_features)
+        debug_model(clf, feature_cols=final_features, categorical_levels_map=categorical_map)
