@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
 import numpy as np
-from rink import draw_rink, rink_goal_xs
+from rink import draw_rink, rink_goal_xs, rink_half_height_at_x
+import matplotlib.colors as mcolors
 
 
 def _events(events: pd.DataFrame, events_to_plot: Optional[List[str]] = None) -> pd.DataFrame:
@@ -464,22 +465,86 @@ def plot_events(
                 except Exception:
                     pass
                 XX, YY = np.meshgrid(gx, gy)
-                heat = np.zeros_like(XX, dtype=float)
-                # accumulate gaussian kernels
+                # build two heat arrays: home and away, so we can color them
+                heat_home = np.zeros_like(XX, dtype=float)
+                heat_away = np.zeros_like(XX, dtype=float)
+                # determine which events are home/away using home_id if available
+                # try to get home_id from events_with_xg, else try df
+                home_id_val = None
+                if 'home_id' in events_with_xg.columns:
+                    vals = events_with_xg['home_id'].dropna().unique()
+                    if len(vals) > 0:
+                        home_id_val = vals[0]
+                elif 'home_id' in df.columns:
+                    vals = df['home_id'].dropna().unique()
+                    if len(vals) > 0:
+                        home_id_val = vals[0]
+
                 two_sigma2 = 2.0 * (hm_sigma ** 2)
-                for xi, yi, ai in zip(xs, ys, amps):
+                # iterate over events and add to appropriate heat map
+                for xi, yi, ai, row in zip(xs, ys, amps, events_with_xg.loc[mask].itertuples(index=False)):
                     dx = XX - xi
                     dy = YY - yi
-                    heat += ai * np.exp(-(dx * dx + dy * dy) / two_sigma2)
+                    kern = ai * np.exp(-(dx * dx + dy * dy) / two_sigma2)
+                    try:
+                        # row may have team_id/home_id attributes; compare if present
+                        team_id = getattr(row, 'team_id', None)
+                        h_id = getattr(row, 'home_id', None)
+                        is_home_event = None
+                        if team_id is not None and h_id is not None:
+                            is_home_event = str(team_id) == str(h_id)
+                        elif home_id_val is not None and team_id is not None:
+                            is_home_event = str(team_id) == str(home_id_val)
+                        else:
+                            # fallback: use x-coordinate sign (adjusted coords)
+                            is_home_event = (xi < 0)
+                        if is_home_event:
+                            heat_home += kern
+                        else:
+                            heat_away += kern
+                    except Exception:
+                        # if anything goes wrong, accumulate into combined heat
+                        heat_home += kern
 
-                try:
-                    print(f'heat stats: min={float(np.nanmin(heat))}, max={float(np.nanmax(heat))}, sum={float(np.nansum(heat))}')
-                except Exception:
-                    pass
+                # mask out points outside the rink boundary
+                rink_mask = np.vectorize(rink_half_height_at_x)(XX) >= np.abs(YY)
+                heat_home *= rink_mask
+                heat_away *= rink_mask
 
-                # display heatmap with correct extent (gx, gy)
+                # create RGBA images where rgb is team color and alpha is normalized heat
                 extent = (gx[0] - hm_res / 2.0, gx[-1] + hm_res / 2.0, gy[0] - hm_res / 2.0, gy[-1] + hm_res / 2.0)
-                ax.imshow(heat, extent=extent, origin='lower', cmap=hm_cmap, alpha=hm_alpha, zorder=1)
+
+                # pick colors for home/away (allow overrides)
+                home_color = 'black'
+                away_color = 'orange'
+                if event_styles and isinstance(event_styles, dict):
+                    evx = event_styles.get('xgs') or {}
+                    home_color = evx.get('home_color', home_color)
+                    away_color = evx.get('away_color', away_color)
+
+                # helper to convert heat -> rgba image
+                def heat_to_rgba(h, color, alpha_scale=hm_alpha):
+                    maxv = float(np.nanmax(h)) if np.nanmax(h) > 0 else 0.0
+                    if maxv <= 0:
+                        return None
+                    norm = np.clip(h / maxv, 0.0, 1.0)
+                    rgba = np.zeros((h.shape[0], h.shape[1], 4), dtype=float)
+                    r, g, b, _ = mcolors.to_rgba(color)
+                    rgba[..., 0] = r
+                    rgba[..., 1] = g
+                    rgba[..., 2] = b
+                    # alpha channel is opacity gradient: normalized heat * alpha_scale
+                    rgba[..., 3] = norm * alpha_scale
+                    return rgba
+
+                rgba_home = heat_to_rgba(heat_home, home_color) if heat_home is not None else None
+                rgba_away = heat_to_rgba(heat_away, away_color) if heat_away is not None else None
+
+                # overlay home then away (so away appears on top if overlapping)
+                if rgba_home is not None:
+                    ax.imshow(rgba_home, extent=extent, origin='lower', zorder=1)
+                if rgba_away is not None:
+                    ax.imshow(rgba_away, extent=extent, origin='lower', zorder=2)
 
     # final save (after heatmap overlay)
     if out_path:
