@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover - graceful fallback for environment missin
     accuracy_score = log_loss = roc_auc_score = brier_score_loss = None
     calibration_curve = None
 
-def clean_df_for_model(df: pd.DataFrame, feature_cols):
+def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels: dict = None):
     """Filter events, encode categorical features as integer codes, and
     coerce numeric types. Returns (df_clean, final_feature_cols, categorical_map).
 
@@ -59,9 +59,14 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols):
     categorical_dummies_map = {}
     final_feature_cols = list(feature_cols)
 
-    # Encode categorical columns as integer codes (one column per category)
+    # Encode categorical columns as integer codes (one column per category).
+    # If `fixed_categorical_levels` is provided (mapping cat -> list of levels),
+    # we will use that to ensure encoding is compatible with training.
+    categorical_levels_map = {}
     if categorical_cols:
-        df, categorical_dummies_map = one_hot_encode(df, categorical_cols, prefix_sep='_', fill_value='')
+        df, categorical_dummies_map, categorical_levels_map = one_hot_encode(
+            df, categorical_cols, prefix_sep='_', fill_value='', fixed_mappings=fixed_categorical_levels
+        )
         # Replace categorical names in final_feature_cols with the generated code column names
         for cat in categorical_cols:
             new_cols = categorical_dummies_map.get(cat, [])
@@ -83,9 +88,9 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols):
     df = df[final_feature_cols + ['is_goal']].dropna().copy()
     df['is_goal'] = df['is_goal'].astype(int)
 
-    return df, final_feature_cols, categorical_dummies_map
+    return df, final_feature_cols, categorical_levels_map
 
-def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fill_value: str = ''):
+def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fill_value: str = '', fixed_mappings: dict = None):
     """Encode categorical columns as integer codes instead of binary dummies.
 
     This function keeps the same return shape as before: (df_out, categorical_dummies_map)
@@ -101,22 +106,30 @@ def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fi
             df[c] = fill_value
 
     categorical_dummies_map = {}
+    categorical_levels_map = {}
 
-    # For each categorical column, create an integer code column and drop original
     for cat in categorical_cols:
-        # convert to string and fill missing with fill_value
         ser = df[cat].fillna(fill_value).astype(str)
-        # create a Categorical and use its codes (0..n-1)
-        cat_obj = pd.Categorical(ser)
+        if fixed_mappings and cat in fixed_mappings and fixed_mappings[cat] is not None:
+            # Use the provided training levels. Unknown values become '__other__'
+            allowed = [str(x) for x in fixed_mappings[cat]]
+            ser_clean = ser.where(ser.isin(allowed), other='__other__')
+            levels = allowed + ['__other__']
+            cat_obj = pd.Categorical(ser_clean, categories=levels)
+        else:
+            # build levels from the data (sorted for determinism)
+            levels = sorted(ser.unique().tolist())
+            cat_obj = pd.Categorical(ser, categories=levels)
+
         codes = cat_obj.codes
         new_col = f"{cat}_code"
         df[new_col] = codes
-        # drop the original textual column
         df = df.drop(columns=[cat])
-        # return a list containing the single new column name for compatibility
         categorical_dummies_map[cat] = [new_col]
+        # store the levels used for this categorical column (excluding any placeholder)
+        categorical_levels_map[cat] = [lv for lv in levels if lv is not None]
 
-    return df, categorical_dummies_map
+    return df, categorical_dummies_map, categorical_levels_map
 
 
 def load_data(path: str = 'static/20252026.csv'):
@@ -392,22 +405,22 @@ def analyze_game(game_id, clf=None):
     features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
 
     if clf is None:
-        # Load data and train if no classifier provided
-        print('Demo: loading data from', csv_path)
-        df = load_data(csv_path)
-        print('Demo: cleaning data', df.shape)
-        df, final_features, _ = clean_df_for_model(df, features)
-
-        # Fit model
-        print('Demo: fitting model...')
-        clf, _, _ = fit_model(df, feature_cols=final_features)
-    else:
-        # If a classifier is provided, load dataset just to obtain feature ordering
-        # Note: callers providing a pre-fit clf should ensure it was trained on the
-        # same `final_features` ordering; here we derive a compatible ordering from
-        # the canonical CSV using the requested features.
+        # Load season data and preprocess for training. Capture the categorical
+        # levels map so we can apply the exact same encoding to a single game.
+        print('Demo: loading season data from', csv_path)
         season_df = load_data(csv_path)
-        _, final_features, gs_dummies = clean_df_for_model(season_df, features)
+        print('Demo: cleaning season data', season_df.shape)
+        season_model_df, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
+
+        # Fit model on the cleaned season dataset
+        print('Demo: fitting model...')
+        clf, _, _ = fit_model(season_model_df, feature_cols=final_features)
+    else:
+        # If a classifier is provided, derive the feature ordering and category
+        # levels from the canonical season CSV so we can encode the game data
+        # consistently with the training setup.
+        season_df = load_data(csv_path)
+        _, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
 
     # Assemble the game data and preprocess with the same feature set
     game_feed = nhl_api.get_game_feed(game_id)
@@ -416,8 +429,11 @@ def analyze_game(game_id, clf=None):
     df = pd.DataFrame.from_records(events)
 
     # Use the same `features` list used for training to clean/encode the game df
-    df_model, final_feature_cols_game, categorical_cols_dummy_map = (
-        clean_df_for_model(df, features))
+    # and pass the categorical_levels_map obtained from training so encoding is
+    # stable (unknown categories will be mapped to '__other__').
+    df_model, final_feature_cols_game, categorical_cols_dummy_map = clean_df_for_model(
+        df, features, fixed_categorical_levels=categorical_levels_map
+    )
 
     # Now extract feature matrix
     X = df_model[final_features].values

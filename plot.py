@@ -305,19 +305,25 @@ def plot_events(
     home_goals = int(((df['team_id'].astype(str) == str(home_id)) & is_goal).sum()) if 'team_id' in df.columns and home_id is not None else int(is_goal.sum())
     away_goals = int(((df['team_id'].astype(str) != str(home_id)) & is_goal).sum()) if 'team_id' in df.columns and home_id is not None else 0
 
-    # shots totals (count all plotted events per team)
-    if 'team_id' in df.columns and home_id is not None:
-        home_shots = int((df['team_id'].astype(str) == str(home_id)).sum())
-        away_shots = int((df['team_id'].astype(str) != str(home_id)).sum())
-    else:
-        xs_series = df['x_a'] if 'x_a' in df.columns else df['x'] if 'x' in df.columns else pd.Series([])
-        home_shots = int((xs_series < 0).sum())
-        away_shots = int((xs_series >= 0).sum())
+    # shot attempts totals (shot-on-goal, missed-shot, blocked-shot)
+    # Use the normalized lowercase event column computed earlier (`ev_lc`).
+    shot_attempt_types = {'shot-on-goal', 'missed-shot', 'blocked-shot'}
+    ev_lc = df['event'].astype(str).str.strip().str.lower() if 'event' in df.columns else pd.Series([], dtype=object)
+    attempt_mask = ev_lc.isin(shot_attempt_types)
+    attempts_df = df.loc[attempt_mask]
 
-    total_shots = home_shots + away_shots
-    if total_shots > 0:
-        home_shot_pct = 100.0 * home_shots / total_shots
-        away_shot_pct = 100.0 * away_shots / total_shots
+    if 'team_id' in df.columns and home_id is not None:
+        home_attempts = int((attempts_df['team_id'].astype(str) == str(home_id)).sum())
+        away_attempts = int((attempts_df['team_id'].astype(str) != str(home_id)).sum())
+    else:
+        xs_series = attempts_df['x_a'] if 'x_a' in attempts_df.columns else attempts_df['x'] if 'x' in attempts_df.columns else pd.Series([])
+        home_attempts = int((xs_series < 0).sum())
+        away_attempts = int((xs_series >= 0).sum())
+
+    total_attempts = home_attempts + away_attempts
+    if total_attempts > 0:
+        home_shot_pct = 100.0 * home_attempts / total_attempts
+        away_shot_pct = 100.0 * away_attempts / total_attempts
     else:
         home_shot_pct = away_shot_pct = 0.0
 
@@ -354,7 +360,7 @@ def plot_events(
         xg_line = f"{home_xg:.2f} ({hx_pct:.1f}%) - xG - {away_xg:.2f} ({ax_pct:.1f}%)"
     else:
         xg_line = "xG: N/A"
-    shots_line = f"{home_shots} ({home_shot_pct:.1f}%) - shots - {away_shots} ({away_shot_pct:.1f}%)"
+    shots_line = f"{home_attempts} ({home_shot_pct:.1f}%) - SA - {away_attempts} ({away_shot_pct:.1f}%)"
 
     # Derive positions from the axes bounding box so the shots line sits just
     # above the rink. Use a larger inter-line gap to avoid overlap.
