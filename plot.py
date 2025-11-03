@@ -8,6 +8,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
+import numpy as np
 from rink import draw_rink, rink_goal_xs
 
 
@@ -192,7 +193,22 @@ def plot_events(
                 merged_styles[k].setdefault(fk, fv)
 
     # filter events
-    df = _events(events, events_to_plot)
+    # Normalize requested event types and detect if caller wants an xG heatmap
+    requested = [e.strip().lower() for e in events_to_plot] if events_to_plot is not None else None
+    wants_xgs = (requested is not None and 'xgs' in requested)
+    try:
+        print(f"plot_events called: wants_xgs={wants_xgs}, requested={requested}, events_rows={len(events)}")
+    except Exception:
+        pass
+
+    # Build a filtered list for _events that excludes 'xgs' (it's not an event name)
+    if requested is not None:
+        filtered_events = [e for e in events_to_plot if e.strip().lower() != 'xgs']
+    else:
+        filtered_events = None
+
+    # filter events for normal scatter plotting (exclude 'xgs' token)
+    df = _events(events, filtered_events)
     # compute adjusted coordinates so home events face left and away events face right
     df = adjust_xy_for_homeaway(df)
 
@@ -223,12 +239,12 @@ def plot_events(
             ax.set_aspect('equal', adjustable='box')
             ax.axis('off')
 
-    # If no events to plot, return empty rink
-    if df.shape[0] == 0:
+    # If no events to plot, only return early when the caller did not request
+    # an xG heatmap. If 'xgs' was requested we still want to draw the heatmap
+    # (it uses the original `events` DataFrame), so do not return in that case.
+    if df.shape[0] == 0 and not wants_xgs:
         if title:
             ax.set_title(title)
-        if out_path:
-            fig.savefig(out_path, dpi=150)
         return fig, ax
 
     # Attempt to determine home/away assignment per row
@@ -387,9 +403,92 @@ def plot_events(
     fig.text(0.5, xg_y, xg_line, fontsize=9, fontweight='normal', ha='center')
     fig.text(0.5, shots_y, shots_line, fontsize=9, fontweight='normal', ha='center')
 
+    # NOTE: do not save here — we need to overlay heatmap (if requested)
+    # before writing the final image. Saving occurs after the heatmap block.
+
+    # If an xG heatmap was requested, compute it from the original `events` DataFrame
+    # (not the event-filtered `df`) so we include all shot attempts that have xgs.
+    if wants_xgs:
+        # default heatmap params
+        hm_sigma = 6.0  # feet
+        hm_res = 1.0    # grid resolution in feet
+        hm_cmap = 'viridis'
+        hm_alpha = 0.6
+        # allow overrides via event_styles['xgs']
+        if event_styles and isinstance(event_styles, dict):
+            evx = event_styles.get('xgs') or event_styles.get('xg') or {}
+            try:
+                hm_sigma = float(evx.get('sigma', hm_sigma))
+            except Exception:
+                pass
+            try:
+                hm_res = float(evx.get('res', hm_res))
+            except Exception:
+                pass
+            hm_cmap = evx.get('cmap', hm_cmap)
+            hm_alpha = evx.get('alpha', hm_alpha)
+
+        # select rows with numeric xgs and locations
+        events_with_xg = events.copy()
+        if 'xgs' in events_with_xg.columns:
+            events_with_xg = events_with_xg[pd.to_numeric(events_with_xg['xgs'], errors='coerce').notna()].copy()
+        else:
+            events_with_xg = events_with_xg[[]]
+
+        if not events_with_xg.empty:
+            # ensure adjusted coords exist
+            events_with_xg = adjust_xy_for_homeaway(events_with_xg)
+            try:
+                print('events_with_xg rows after filter:', events_with_xg.shape[0])
+            except Exception:
+                pass
+            xcol = 'x_a' if 'x_a' in events_with_xg.columns else 'x'
+            ycol = 'y_a' if 'y_a' in events_with_xg.columns else 'y'
+            xs = pd.to_numeric(events_with_xg[xcol], errors='coerce')
+            ys = pd.to_numeric(events_with_xg[ycol], errors='coerce')
+            amps = pd.to_numeric(events_with_xg['xgs'], errors='coerce')
+            mask = (~xs.isna()) & (~ys.isna()) & (~amps.isna())
+            xs = xs[mask].values
+            ys = ys[mask].values
+            amps = amps[mask].values
+
+            if len(xs) > 0:
+                # get axes bounds and build grid
+                xmin, xmax = ax.get_xlim()
+                ymin, ymax = ax.get_ylim()
+                # build grid with hm_res
+                gx = np.arange(xmin, xmax + hm_res, hm_res)
+                gy = np.arange(ymin, ymax + hm_res, hm_res)
+                try:
+                    print(f'grid sizes gx={len(gx)}, gy={len(gy)}, xmin={xmin}, xmax={xmax}, ymin={ymin}, ymax={ymax}')
+                except Exception:
+                    pass
+                XX, YY = np.meshgrid(gx, gy)
+                heat = np.zeros_like(XX, dtype=float)
+                # accumulate gaussian kernels
+                two_sigma2 = 2.0 * (hm_sigma ** 2)
+                for xi, yi, ai in zip(xs, ys, amps):
+                    dx = XX - xi
+                    dy = YY - yi
+                    heat += ai * np.exp(-(dx * dx + dy * dy) / two_sigma2)
+
+                try:
+                    print(f'heat stats: min={float(np.nanmin(heat))}, max={float(np.nanmax(heat))}, sum={float(np.nansum(heat))}')
+                except Exception:
+                    pass
+
+                # display heatmap with correct extent (gx, gy)
+                extent = (gx[0] - hm_res / 2.0, gx[-1] + hm_res / 2.0, gy[0] - hm_res / 2.0, gy[-1] + hm_res / 2.0)
+                ax.imshow(heat, extent=extent, origin='lower', cmap=hm_cmap, alpha=hm_alpha, zorder=1)
+
+    # final save (after heatmap overlay)
     if out_path:
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out_path, dpi=150)
+        try:
+            print(f"Saved plot to {out_path}")
+        except Exception:
+            pass
 
     return fig, ax
 
@@ -438,6 +537,7 @@ if __name__ == '__main__':
 
     print('Generating plot to', out_file)
     fig, ax = plot_events(df, events_to_plot=['shot-on-goal', 'goal',
-                                              'blocked-shot', 'missed-shot'],
+                                              'blocked-shot', 'missed-shot',
+                                              'xGs'],
                           out_path=out_file, title=f'Game {game_id} — shots (home left)')
     print('Saved example plot to', out_file)
