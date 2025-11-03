@@ -25,17 +25,9 @@ def _events(events: pd.DataFrame, events_to_plot: Optional[List[str]] = None) ->
         return events.copy()
     # Normalize to set of lowercase names for comparison
     wanted = {e.strip().lower() for e in events_to_plot}
-    # Some feeds use 'event' or 'type'; prefer 'event'
-    if 'event' not in events.columns:
-        # try to be helpful: if there's a 'type' column use it
-        if 'type' in events.columns:
-            ev_col = 'type'
-        else:
-            raise KeyError("events DataFrame must contain an 'event' or 'type' column")
-    else:
-        ev_col = 'event'
+
     # Filter
-    mask = events[ev_col].astype(str).str.strip().str.lower().isin(wanted)
+    mask = events['event'].astype(str).str.strip().str.lower().isin(wanted)
     return events.loc[mask].copy()
 
 def adjust_xy_for_homeaway(df):
@@ -176,7 +168,8 @@ def plot_events(
 
     # Default event styles
     default_styles = {
-        'shot': {'marker': 'o', 'size': 40, 'home_color': 'black', 'away_color': 'orange'},
+        'shot-on-goal': {'marker': 'o', 'size': 40, 'home_color': 'black',
+                  'away_color': 'orange'},
         'goal': {'marker': 'x', 'size': 80, 'home_color': 'black', 'away_color': 'orange'},
     }
     # Merge user-provided event_styles into defaults (case-insensitive keys)
@@ -413,7 +406,11 @@ if __name__ == '__main__':
     out_file = f'static/example_game_{game_id}.png'
 
     try:
+
         df = fit_xgs.analyze_game(game_id)
+        # concatenate xG results back to game DataFrame for further analysis if desired
+
+
 
         print(f'Parsed {len(df)} events from game {game_id}')
     except Exception as e:
@@ -430,5 +427,5 @@ if __name__ == '__main__':
     Path('static').mkdir(parents=True, exist_ok=True)
 
     print('Generating plot to', out_file)
-    fig, ax = plot_events(df, events_to_plot=['SHOT', 'GOAL'], out_path=out_file, title=f'Game {game_id} — shots (home left)')
+    fig, ax = plot_events(df, events_to_plot=['shot-on-goal', 'goal'], out_path=out_file, title=f'Game {game_id} — shots (home left)')
     print('Saved example plot to', out_file)

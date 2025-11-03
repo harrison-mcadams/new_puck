@@ -406,7 +406,8 @@ def analyze_game(game_id, clf=None):
         # Note: callers providing a pre-fit clf should ensure it was trained on the
         # same `final_features` ordering; here we derive a compatible ordering from
         # the canonical CSV using the requested features.
-        _, final_features, gs_dummies = load_data(csv_path, feature_cols=features)
+        season_df = load_data(csv_path)
+        _, final_features, gs_dummies = clean_df_for_model(season_df, features)
 
     # Assemble the game data and preprocess with the same feature set
     game_feed = nhl_api.get_game_feed(game_id)
@@ -415,17 +416,34 @@ def analyze_game(game_id, clf=None):
     df = pd.DataFrame.from_records(events)
 
     # Use the same `features` list used for training to clean/encode the game df
-    df, final_feature_cols_game, categorical_cols_dummy_map = clean_df_for_model(df, features)
+    df_model, final_feature_cols_game, categorical_cols_dummy_map = (
+        clean_df_for_model(df, features))
 
     # Now extract feature matrix
-    X = df[final_features].values
-    y = df['is_goal'].values
+    X = df_model[final_features].values
+    y = df_model['is_goal'].values
 
     # Evaluate model on game in question
     xgs, y_pred, metrics = evaluate_model(clf, X, y)
 
-    # concatenate xG results back to game DataFrame for further analysis if desired
-    df['xgs'] = xgs
+    # Map the predicted xG probabilities back onto the original game-level
+    # DataFrame (`df`) using the index of `df_model`. Rows that were filtered
+    # out during preprocessing will retain NaN for 'xgs'. This preserves the
+    # original event ordering and makes downstream analysis simpler.
+    # ensure original df exists in this scope (it was created earlier)
+    df['xgs'] = np.nan
+    # build a Series indexed by the df_model index so assignment aligns rows
+    xgs_series = pd.Series(xgs, index=df_model.index)
+    df.loc[xgs_series.index, 'xgs'] = xgs_series.values
+
+    # Optionally, also attach predicted label (binary) if desired
+    try:
+        df['xg_pred'] = np.nan
+        y_pred_series = pd.Series(y_pred, index=df_model.index)
+        df.loc[y_pred_series.index, 'xg_pred'] = y_pred_series.values
+    except Exception:
+        # if y_pred isn't available or lengths mismatch, silently continue
+        pass
 
     return df
 
