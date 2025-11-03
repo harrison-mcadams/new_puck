@@ -20,6 +20,7 @@ import pandas as pd
 import requests
 
 import nhl_api
+from rink import rink_goal_xs
 
 
 logging.basicConfig(level=logging.INFO)
@@ -125,7 +126,8 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
         away_skaters = situation_code[1]
         away_goalie_in_net = situation_code[0]
 
-        # define game state
+        # define game state (initialize to None for safety)
+        game_state = None
         if team_id == home_id:
             game_state = f"{home_skaters}v{away_skaters}"
         elif team_id == away_id:
@@ -388,6 +390,13 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     elaborated_game_feed: List[Dict[str, Any]] = []
 
+    # canonical goal positions from rink.py
+    try:
+        left_goal_x, right_goal_x = rink_goal_xs()
+    except Exception:
+        # fallback to historical constants if rink helper unavailable
+        left_goal_x, right_goal_x = -89.0, 89.0
+
     for ev in game_feed:
         rec = dict(ev)  # shallow copy
 
@@ -470,24 +479,24 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             # `home_team_defending_side` which indicates the side the home team
             # is defending; the attacking goal is the opposite side.
             if rec.get('team_id') == rec.get('home_id'):
-                # shooter is home -> attacking goal is the side opposite
+                # shooter is home -> attacking goal is the side opposite what home defends
                 if rec.get('home_team_defending_side') == 'left':
-                    goal_x = 89.0
+                    goal_x = right_goal_x
                 elif rec.get('home_team_defending_side') == 'right':
-                    goal_x = -89.0
+                    goal_x = left_goal_x
                 else:
-                    goal_x = 89.0
+                    goal_x = right_goal_x
             elif rec.get('team_id') == rec.get('away_id'):
                 # shooter is away -> attacking goal is the side not defended by home
                 if rec.get('home_team_defending_side') == 'left':
-                    goal_x = -89.0
+                    goal_x = left_goal_x
                 elif rec.get('home_team_defending_side') == 'right':
-                    goal_x = 89.0
+                    goal_x = right_goal_x
                 else:
-                    goal_x = -89.0
+                    goal_x = left_goal_x
             else:
-                # fallback
-                goal_x = 89.0
+                # fallback to right goal
+                goal_x = right_goal_x
 
             goal_y = 0.0
             distance = math.hypot(x - goal_x, y - goal_y)

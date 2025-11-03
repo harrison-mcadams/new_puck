@@ -201,6 +201,9 @@ def evaluate_model(clf, X_test, y_test):
 
     brier = _safe_call(brier_score_loss, y_test, y_prob) if brier_score_loss is not None else float('nan')
 
+    plot_calibration(y_test, y_prob, path='static/xg_likelihood.png',
+                     n_bins= 10)
+
     metrics = {
         'accuracy': accuracy,
         'log_loss': logloss,
@@ -211,27 +214,7 @@ def evaluate_model(clf, X_test, y_test):
     return y_prob, y_pred, metrics
 
 
-def fit_and_evaluate(
-    df: pd.DataFrame,
-    feature_cols=None,
-    test_size: float = 0.2,
-    random_state: int = 42,
-    n_estimators: int = 200,
-):
-    """Backward compatible wrapper: fits the model and returns the same
-    result dict as before.
-    """
-    clf, X_test, y_test = fit_model(df, feature_cols=feature_cols, test_size=test_size, random_state=random_state, n_estimators=n_estimators)
-    y_prob, y_pred, metrics = evaluate_model(clf, X_test, y_test)
 
-    results = {
-        'model': clf,
-        'X_test': X_test,
-        'y_test': y_test,
-        'y_prob': y_prob,
-        'metrics': metrics,
-    }
-    return results
 
 
 def plot_calibration(y_test, y_prob, path: str = 'static/xg_likelihood.png', n_bins: int = 10):
@@ -258,54 +241,6 @@ def plot_calibration(y_test, y_prob, path: str = 'static/xg_likelihood.png', n_b
     plt.close()
 
 
-def run(
-    csv_path: str = 'static/20252026.csv',
-    feature_cols=None,
-    plot_path: str = 'static/xg_likelihood.png',
-    **fit_kwargs,
-):
-    """Convenience runner: load data, fit, evaluate, and plot results.
-
-    Returns the training results dictionary from `fit_and_evaluate`.
-    """
-    print(f'Loading data from: {csv_path}')
-    df, final_features, gs_dummies = load_data(csv_path, feature_cols=feature_cols)
-    print('Data shape (after cleaning):', df.shape)
-
-    print('Features used:', final_features)
-    results = fit_and_evaluate(df, feature_cols=final_features, **fit_kwargs)
-
-    print('Metrics:')
-    for k, v in results['metrics'].items():
-        print(f'  {k}: {v:.4f}')
-
-    try:
-        plot_calibration(results['y_test'], results['y_prob'], path=plot_path)
-        print('Saved calibration plot to', plot_path)
-    except Exception as e:
-        print('Failed to save calibration plot:', e)
-
-    return results
-
-
-def _rink_half_height_at_x(x: float) -> float:
-    """Return half-height of rink at x (same geometry as rink.draw_rink).
-
-    Uses RINK_LENGTH=200, RINK_WIDTH=85 geometry.
-    """
-    R = 85.0 / 2.0
-    half_length = 200.0 / 2.0
-    straight_half = half_length - R
-    left_center_x = -straight_half
-    right_center_x = straight_half
-    if left_center_x <= x <= right_center_x:
-        return R
-    # else inside semicircle region
-    center = left_center_x if x < left_center_x else right_center_x
-    dx = abs(x - center)
-    if dx > R:
-        return 0.0
-    return math.sqrt(max(0.0, R * R - dx * dx))
 
 
 def debug_model(clf, feature_cols=None, goal_side: str = 'left',
@@ -324,26 +259,26 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
     - out_path: file path to save image
     """
     import matplotlib.pyplot as plt
-    from rink import draw_rink
+    from rink import draw_rink, rink_half_height_at_x, rink_bounds, rink_goal_xs
 
     if feature_cols is None:
         feature_cols = ['distance', 'angle_deg']
     if isinstance(feature_cols, str):
         feature_cols = [feature_cols]
 
-    # define grid bounds roughly matching rink extents
-    xmin, xmax = -89.0, 89.0
-    ymin, ymax = -42.5, 42.5
+    # get rink bounds from rink.py to avoid hard-coded geometry
+    xmin, xmax, ymin, ymax = rink_bounds()
 
     xs = np.arange(xmin, xmax + x_res, x_res)
     ys = np.arange(ymin, ymax + y_res, y_res)
     xx, yy = np.meshgrid(xs, ys)
 
-    # mask points outside rink
-    mask = np.vectorize(lambda x: _rink_half_height_at_x(x))(xx) >= np.abs(yy)
+    # mask points outside rink using the canonical rink helper (vectorized)
+    mask = np.vectorize(rink_half_height_at_x)(xx) >= np.abs(yy)
 
-    # choose goal_x
-    goal_x = -89.0 if goal_side == 'left' else 89.0
+    # choose attacked goal x-coordinate using rink helper
+    left_goal_x, right_goal_x = rink_goal_xs()
+    goal_x = left_goal_x if goal_side == 'left' else right_goal_x
 
     # prepare feature matrix
     pts = []
@@ -423,7 +358,7 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
     draw_rink(ax=ax)
 
     # Overlay heatmap; set extent to match xs, ys
-    extent = [xs[0] - x_res/2.0, xs[-1] + x_res/2.0, ys[0] - y_res/2.0, ys[-1] + y_res/2.0]
+    extent = (xs[0] - x_res/2.0, xs[-1] + x_res/2.0, ys[0] - y_res/2.0, ys[-1] + y_res/2.0)
     im = ax.imshow(heat, extent=extent, origin='lower', cmap=cmap, alpha=alpha, zorder=1)
     cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.set_label('xG')
@@ -437,29 +372,7 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
         print('Saved xG heatmap to', out_path)
 
 
-def train_and_plot_xg_heatmap(csv_path: str = 'static/20252026.csv', feature_cols=None, plot_path: str = 'static/xg_heatmap.png',
-                               model_kwargs=None, grid_res: float = 2.0, goal_side: str = 'left', verbose: bool = True,
-                               fixed_game_state='5v5', fixed_is_net_empty=0):
-    """Convenience: train model on CSV then plot heatmap using trained model.
 
-    fixed_game_state and fixed_is_net_empty will be used when simulating the
-    grid so the model receives consistent contextual feature values.
-    """
-    model_kwargs = model_kwargs or {}
-    df, final_features, gs_dummies = load_data(csv_path, feature_cols=feature_cols)
-    clf, X_test, y_test = fit_model(df, feature_cols=final_features, **model_kwargs)
-    plot_xg_heatmap(clf, feature_cols=final_features, goal_side=goal_side, x_res=grid_res, y_res=grid_res, out_path=plot_path, verbose=verbose,
-                    fixed_game_state=fixed_game_state, fixed_is_net_empty=fixed_is_net_empty, categorical_dummies_map=gs_dummies)
-
-## New section i want to work on. i ultimately want this to replace train_and_plot_xg_heatmap
-#
-def debug_model2(clf):
-
-    # Generate array corresponding to shot locations that tile the available
-# rink
-    5
-
-    # At each array position, create a dummies events
 
 if __name__ == '__main__':
 
@@ -491,24 +404,4 @@ if __name__ == '__main__':
         print('Demo: debugging model...')
         debug_model(clf, feature_cols=final_features)
 
-    # Demo: train on default CSV and produce an xG heatmap
-    else:
-        csv_path = 'static/20252026.csv'
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-        print('Demo: loading data from', csv_path)
-        df, final_features, gs_dummies = load_data(csv_path, feature_cols=features)
-        print('Demo: data shape after cleaning', df.shape)
-
-        print('Demo: fitting model...')
-        results = fit_and_evaluate(df, feature_cols=final_features, n_estimators=200)
-        print('Demo: metrics:')
-        for k, v in results['metrics'].items():
-            try:
-                print(f'  {k}: {v:.4f}')
-            except Exception:
-                print(f'  {k}: {v}')
-
-        print('Demo: generating xG heatmap...')
-        train_and_plot_xg_heatmap(csv_path=csv_path, feature_cols=features, plot_path='static/xg_heatmap.png', model_kwargs={'n_estimators':200}, grid_res=2.0, goal_side='left', verbose=True)
-        print('Demo completed.')
 

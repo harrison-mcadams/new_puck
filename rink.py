@@ -13,6 +13,8 @@ import math
 
 RINK_LENGTH = 200.0
 RINK_WIDTH = 85.0
+# approximate goal x placement used elsewhere (feet from centerline)
+GOAL_X = 89.0
 
 
 def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool = True):
@@ -186,3 +188,54 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
     ax.set_aspect("equal", adjustable="box")
     ax.axis("off")
     return ax
+
+
+def rink_half_height_at_x(x: float) -> float:
+    """Return half-height of the rink at coordinate x.
+
+    This mirrors the internal helper used in draw_rink to determine how far
+    from the center the rink extends vertically at horizontal position x.
+    Useful for masking simulated points to the rink shape.
+    """
+    R = RINK_WIDTH / 2.0
+    half_length = RINK_LENGTH / 2.0
+    straight_half = half_length - R
+
+    left_center_x = -straight_half
+    right_center_x = straight_half
+
+    # if within straight section horizontally, full R applies
+    if left_center_x <= x <= right_center_x:
+        return R
+
+    # else determine which semicircle center is closer (left or right)
+    if x < left_center_x:
+        center = left_center_x
+    else:
+        center = right_center_x
+    dx = abs(x - center)
+    if dx > R:
+        return 0.0
+    return math.sqrt(max(0.0, R * R - dx * dx))
+
+
+def rink_bounds():
+    """Return (xmin, xmax, ymin, ymax) bounds of the rink surface in feet.
+
+    xmin/xmax are along the length axis, ymin/ymax are half-widths along y.
+    """
+    R = RINK_WIDTH / 2.0
+    half_length = RINK_LENGTH / 2.0
+    return -half_length, half_length, -R, R
+
+
+def rink_goal_xs(mirror: bool = False):
+    """Return (left_goal_x, right_goal_x) coordinates.
+
+    If mirror=True the values are flipped.
+    """
+    left_goal_x = -GOAL_X
+    right_goal_x = GOAL_X
+    if mirror:
+        return -left_goal_x, -right_goal_x
+    return left_goal_x, right_goal_x
