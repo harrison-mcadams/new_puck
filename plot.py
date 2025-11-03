@@ -3,8 +3,13 @@
 # are plotted and what plot symbols/colors are used for each event type.
 
 from typing import List, Dict, Optional, Tuple
+import os
 import matplotlib
-matplotlib.use('Agg')
+# Only force the non-interactive 'Agg' backend when explicitly requested
+# (e.g. in headless CI or via `export FORCE_AGG=1`). Otherwise leave the
+# backend selection to matplotlib (which enables interactive backends).
+if os.environ.get('FORCE_AGG', '0') == '1':
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path

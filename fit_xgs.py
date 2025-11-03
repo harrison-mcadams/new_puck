@@ -274,7 +274,8 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
                     alpha: float = 0.8, verbose: bool = True,
                     game_state_values=None, is_net_empty_values=None,
                     categorical_levels_map: dict = None,
-                    fixed_category_values: dict = None):
+                    fixed_category_values: dict = None,
+                    interactive: bool = False):
     """Simulate shots across the rink, predict xG using clf, and plot heatmaps for
     multiple combinations of non-location features.
 
@@ -289,6 +290,7 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
     - is_net_empty_values: iterable of values to evaluate (e.g., [0,1])
     - categorical_levels_map: mapping from categorical name -> list of levels (used to convert category -> code index)
     - fixed_category_values: deprecated alias; kept for backward compatibility
+    - interactive: bool, if True will display an interactive GUI to browse heatmaps
 
     Returns dict mapping (game_state, is_net_empty) -> heat (2D numpy array)
     """
@@ -473,6 +475,7 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
         vmax = max(all_max, 1.0e-6)
 
     # Second pass: render and save each heatmap using the common vmin/vmax and add colorbar
+    saved_paths = []
     for gs, nne in combos:
         heat = results.get((gs, nne))
         if heat is None:
@@ -502,8 +505,134 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
         fig.tight_layout()
         fig.savefig(save_path, dpi=150)
         plt.close(fig)
-        if verbose:
+        # Always print saved path so user can inspect output
+        try:
             print('Saved xG heatmap to', save_path)
+        except Exception:
+            pass
+        saved_paths.append(save_path)
+
+    try:
+        print(f"debug_model: saved {len(saved_paths)} heatmap files")
+    except Exception:
+        pass
+
+    # If interactive mode requested, attempt to open a small matplotlib GUI
+    if interactive:
+        try:
+            # try to ensure an interactive backend is available. If the current
+            # backend is non-interactive (Agg) we attempt to switch to a GUI
+            # backend such as TkAgg, Qt5Agg, or MacOSX. This requires the
+            # relevant GUI bindings (tkinter/Qt) to be installed on the system.
+            import matplotlib as mpl
+            import importlib
+            non_interactive_names = ('agg', 'pdf', 'svg', 'ps')
+            current_backend = mpl.get_backend().lower()
+            if any(n in current_backend for n in non_interactive_names):
+                # Try common interactive backends until one works
+                tried = []
+                success = False
+                for candidate in ('TkAgg', 'Qt5Agg', 'MacOSX'):
+                    try:
+                        mpl.use(candidate, force=True)
+                        # reload pyplot to pick up backend change
+                        importlib.reload(plt)
+                        new_backend = mpl.get_backend().lower()
+                        if not any(n in new_backend for n in non_interactive_names):
+                            success = True
+                            break
+                    except Exception:
+                        tried.append(candidate)
+                        continue
+                if not success:
+                    raise RuntimeError(f'No interactive matplotlib backend available (tried: {tried}). Please install tkinter or Qt and set MPLBACKEND to a GUI backend.')
+
+            # re-check backend: if still non-interactive, bail out with clear message
+            final_backend = mpl.get_backend().lower()
+            if any(n in final_backend for n in non_interactive_names):
+                raise RuntimeError(
+                    "Interactive backend not available (current backend='{}').\n".format(final_backend)
+                    + "To enable interactive mode: set the environment variable MPLBACKEND to a GUI backend (e.g. 'TkAgg') before starting Python,\n"
+                    + "or remove any 'matplotlib.use('Agg')' calls in project modules so a GUI backend can be selected."
+                )
+
+            # Prepare a figure for interactive browsing
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+            draw_rink(ax=ax)
+            extent = (gx[0] - x_res / 2.0, gx[-1] + x_res / 2.0, gy[0] - y_res / 2.0, gy[-1] + y_res / 2.0)
+
+            idx = 0
+            total = len(combos)
+            gs0, nne0 = combos[idx]
+            heat0 = results.get((gs0, nne0), np.full(XX.shape, np.nan))
+            im = ax.imshow(heat0, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax, zorder=1)
+            title = ax.set_title(f'xG heatmap — game_state: {gs0}   |   empty net: {nne0}', fontsize=10)
+            ax.axis('off')
+
+            # colorbar
+            cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label('xG probability')
+
+            # --- INTERACTIVE CONTROLS: RadioButtons for each feature ---
+            # Place the control panel on the left side. Two groups:
+            #  - game_state (list of strings)
+            #  - is_net_empty (list of integers -> convert to str for labels)
+            # import widgets here (after backend check)
+            from matplotlib import widgets
+
+            gs_ax = plt.axes((0.01, 0.3, 0.14, 0.6))
+            net_ax = plt.axes((0.01, 0.15, 0.14, 0.12))
+
+            # convert values to strings for display
+            gs_labels = [str(v) for v in game_state_values]
+            net_labels = [str(v) for v in is_net_empty_values]
+
+            # create RadioButtons; active=0 selects the first item
+            rgs = widgets.RadioButtons(gs_ax, gs_labels, active=0)
+            rnet = widgets.RadioButtons(net_ax, net_labels, active=0)
+
+            # current selections stored in closure
+            selected = {'gs': game_state_values[0], 'net': is_net_empty_values[0]}
+
+            def _show_selection():
+                # fetch heat for currently selected combo and update image/title
+                gs_val = selected['gs']
+                nne_val = selected['net']
+                h = results.get((gs_val, nne_val), np.full(XX.shape, np.nan))
+                im.set_data(h)
+                title.set_text(f'xG heatmap — game_state: {gs_val}   |   empty net: {nne_val}')
+                fig.canvas.draw_idle()
+
+            def _on_gs_clicked(label):
+                # label is string; convert back to original value if needed
+                try:
+                    # if original values are ints, try to cast
+                    idx = gs_labels.index(label)
+                    selected['gs'] = game_state_values[idx]
+                except Exception:
+                    selected['gs'] = label
+                _show_selection()
+
+            def _on_net_clicked(label):
+                try:
+                    idx = net_labels.index(label)
+                    selected['net'] = is_net_empty_values[idx]
+                except Exception:
+                    # fallback: try numeric cast
+                    try:
+                        selected['net'] = int(label)
+                    except Exception:
+                        selected['net'] = label
+                _show_selection()
+
+            rgs.on_clicked(_on_gs_clicked)
+            rnet.on_clicked(_on_net_clicked)
+
+            print('Interactive mode: use RadioButtons to select game_state and is_net_empty values. Heatmap updates automatically.')
+            # Block here until the user closes the figure window so the GUI stays open
+            plt.show(block=True)
+        except Exception as e:
+            print('Interactive mode is unavailable in this environment:', str(e))
 
     return results
 def analyze_game(game_id, clf=None):
@@ -604,4 +733,5 @@ if __name__ == '__main__':
 
         # Debug model
         print('Demo: debugging model...')
-        debug_model(clf, feature_cols=final_features, categorical_levels_map=categorical_map)
+        debug_model(clf, feature_cols=final_features,
+                    categorical_levels_map=categorical_map, interactive=True)
