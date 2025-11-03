@@ -460,16 +460,15 @@ def analyze_game(game_id, clf=None):
     xgs, y_pred, metrics = evaluate_model(clf, X, y)
 
     # concatenate xG results back to game DataFrame for further analysis if desired
-    df['xG'] = xgs
+    df['xgs'] = xgs
 
 
     return df
-    # Here you would load the game data for the given game_id,
 
 
 if __name__ == '__main__':
 
-    analyze_game('2025020150')
+    analyze_game('2025020196')
 
     debug = True
     if debug:
