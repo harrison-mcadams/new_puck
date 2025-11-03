@@ -556,9 +556,12 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
                     + "or remove any 'matplotlib.use('Agg')' calls in project modules so a GUI backend can be selected."
                 )
 
-            # Prepare a figure for interactive browsing
+            # Prepare a figure for interactive browsing. Reserve a larger left
+            # margin so the RadioButtons do not overlap the rink area.
             fig, ax = plt.subplots(figsize=(8, 4.5))
-            draw_rink(ax=ax)
+            # leave more room on the left for controls (increase left margin)
+            fig.subplots_adjust(left=0.22, right=0.95, top=0.92)
+
             extent = (gx[0] - x_res / 2.0, gx[-1] + x_res / 2.0, gy[0] - y_res / 2.0, gy[-1] + y_res / 2.0)
 
             idx = 0
@@ -580,8 +583,10 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
             # import widgets here (after backend check)
             from matplotlib import widgets
 
-            gs_ax = plt.axes((0.01, 0.3, 0.14, 0.6))
-            net_ax = plt.axes((0.01, 0.15, 0.14, 0.12))
+            # move the control panels further left (smaller x) so they do not
+            # overlap with the rink drawing when the left margin is large.
+            gs_ax = plt.axes((0.02, 0.3, 0.16, 0.6))
+            net_ax = plt.axes((0.02, 0.15, 0.16, 0.12))
 
             # convert values to strings for display
             gs_labels = [str(v) for v in game_state_values]
@@ -627,6 +632,53 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
 
             rgs.on_clicked(_on_gs_clicked)
             rnet.on_clicked(_on_net_clicked)
+
+            # Add a small Reset Colorbar button under the colorbar to rescale
+            # the displayed heatmap's color range to its own max. Position it
+            # relative to the colorbar axes so it won't overlap the rink.
+            try:
+                cbbox = cbar.ax.get_position()
+                # place button centered under colorbar, small height
+                bx = cbbox.x0
+                by = max(0.01, cbbox.y0 - 0.055)
+                bwidth = cbbox.width
+                bheight = 0.04
+                reset_ax = plt.axes((bx, by, bwidth, bheight))
+            except Exception:
+                # fallback to a safe right-side position
+                reset_ax = plt.axes((0.88, 0.02, 0.08, 0.04))
+            reset_btn = widgets.Button(reset_ax, 'Reset CB')
+
+            def _reset_colorbar(event):
+                # get current selection
+                gs_val = selected.get('gs', game_state_values[0])
+                nne_val = selected.get('net', is_net_empty_values[0])
+                h = results.get((gs_val, nne_val), None)
+                if h is None:
+                    try:
+                        print('No heat available to reset colorbar')
+                    except Exception:
+                        pass
+                    return
+                try:
+                    new_max = float(np.nanmax(h))
+                except Exception:
+                    new_max = 0.0
+                if not (new_max and new_max > 0):
+                    new_max = 1.0e-6
+                # update mappable and colorbar
+                try:
+                    im.set_clim(0.0, new_max)
+                    try:
+                        cbar.update_normal(im)
+                    except Exception:
+                        pass
+                    fig.canvas.draw_idle()
+                    print(f'Reset colorbar to vmax={new_max:.6g}')
+                except Exception as e:
+                    print('Failed to reset colorbar:', e)
+
+            reset_btn.on_clicked(_reset_colorbar)
 
             print('Interactive mode: use RadioButtons to select game_state and is_net_empty values. Heatmap updates automatically.')
             # Block here until the user closes the figure window so the GUI stays open
