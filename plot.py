@@ -170,6 +170,10 @@ def plot_events(
     default_styles = {
         'shot-on-goal': {'marker': 'o', 'size': 40, 'home_color': 'black',
                   'away_color': 'orange'},
+        'missed-shot': {'marker': 'o', 'size': 40, 'home_color': 'black',
+                         'away_color': 'orange'},
+        'blocked-shot': {'marker': 'o', 'size': 40, 'home_color': 'black',
+                         'away_color': 'orange'},
         'goal': {'marker': 'x', 'size': 80, 'home_color': 'black', 'away_color': 'orange'},
     }
     # Merge user-provided event_styles into defaults (case-insensitive keys)
@@ -427,5 +431,7 @@ if __name__ == '__main__':
     Path('static').mkdir(parents=True, exist_ok=True)
 
     print('Generating plot to', out_file)
-    fig, ax = plot_events(df, events_to_plot=['shot-on-goal', 'goal'], out_path=out_file, title=f'Game {game_id} — shots (home left)')
+    fig, ax = plot_events(df, events_to_plot=['shot-on-goal', 'goal',
+                                              'blocked-shot', 'missed-shot'],
+                          out_path=out_file, title=f'Game {game_id} — shots (home left)')
     print('Saved example plot to', out_file)
