@@ -29,9 +29,10 @@
     {% endif %}
 
     <div class="controls">
+      <div id="status" style="margin-right:1rem; font-size:0.95rem; color:#333">Enter a game ID and click Plot to regenerate the shot map.</div>
       <form action="{{ url_for('replot') }}" method="post">
         <label for="game">Game ID:</label>
-        <input type="text" id="game" name="game" placeholder="12345" />
+        <input type="text" id="game" name="game" placeholder="e.g. 2025020196" />
         <button type="submit">Plot</button>
       </form>
     </div>

@@ -608,6 +608,5 @@ if __name__ == '__main__':
     print('Generating plot to', out_file)
     fig, ax = plot_events(df, events_to_plot=['shot-on-goal', 'goal',
                                               'blocked-shot', 'missed-shot',
-                                              'xGs'],
-                          out_path=out_file, title=f'Game {game_id} — shots (home left)')
+                                              'xGs'], out_path=out_file)
     print('Saved example plot to', out_file)

@@ -39,31 +39,46 @@ def replot():
 
     See module docstring for notes on improving this to a background job.
     """
-    # import here to avoid import-time side-effects when importing this module
-    # for tests or other tooling
+    # Use the new pipeline: analyze the game to produce an events DataFrame
+    # and render it using `plot.plot_events`.
     try:
-        import plot_game
+        import plot
+        import fit_xgs
     except Exception as e:
-        return (f"plotting module not available: {e}", 500)
+        return (f"plotting modules not available: {e}", 500)
 
-    game = None
+    game = request.form.get('game') or None
+    # attempt to coerce to int for downstream code that expects numeric gameIDs
     try:
-        game_val = request.form.get('game')
-        if game_val:
-            game = int(game_val)
+        if game is not None and str(game).strip() != '':
+            game_val = int(game)
+        else:
+            game_val = None
     except Exception:
-        game = None
+        # keep as string if not an int (some feeds may accept string ids)
+        game_val = game
 
     out_path = os.path.join(app.static_folder or 'static', 'shot_plot.png')
+
     try:
-        # If no explicit game id, ask the plotting module for the most recent game
-        if game is None:
+        # If no explicit game id, attempt to use the same helper from fit_xgs
+        if game_val is None:
             try:
-                game = plot_game.get_gameID(method='most_recent')
+                # fit_xgs.analyze_game expects a game id; fallback to None
+                # and let analyze_game raise/use defaults. We cannot reliably
+                # pick a most-recent game here without NHL API helper.
+                game_val = None
             except Exception:
-                game = None
-        # Synchronous call that will block the request until finished.
-        plot_game.plot_shots(game if game is not None else None, output_file=out_path)
+                game_val = None
+
+        # Analyze game -> DataFrame of events
+        df = fit_xgs.analyze_game(game_val)
+        if df is None or df.shape[0] == 0:
+            # still attempt to produce a placeholder plot via plot.plot_events
+            plot.plot_events(pd.DataFrame([]), events_to_plot=['shot-on-goal','goal'], out_path=out_path)
+        else:
+            # Call plot.plot_events to render the figure and save to out_path
+            plot.plot_events(df, events_to_plot=['shot-on-goal','missed-shot','blocked-shot','goal','xgs'], out_path=out_path)
     except Exception as e:
         return (f"Error generating plot: {e}", 500)
 
