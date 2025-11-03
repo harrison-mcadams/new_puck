@@ -41,7 +41,7 @@ except Exception:  # pragma: no cover - graceful fallback for environment missin
     calibration_curve = None
 
 
-def load_data(path: str = 'static/20252026.csv', feature_cols=None):
+def load_data(path: str = 'static/20252026.csv', feature_cols=None, categorical_cols=None):
     """Load the season CSV and return a cleaned DataFrame.
 
     Parameters
@@ -57,7 +57,7 @@ def load_data(path: str = 'static/20252026.csv', feature_cols=None):
 
     # Normalize feature_cols to a list
     if feature_cols is None:
-        feature_cols = ['distance', 'angle_deg']
+        feature_cols = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
     if isinstance(feature_cols, str):
         feature_cols = [feature_cols]
 
@@ -76,21 +76,45 @@ def load_data(path: str = 'static/20252026.csv', feature_cols=None):
 
     df = df[cols_to_use].copy()
 
-    # One-hot encode game_state if requested
+    # Determine categorical columns to one-hot encode
+    if categorical_cols is None:
+        # auto-detect categorical columns among requested feature_cols by dtype
+        categorical_cols = [c for c in feature_cols if c in df.columns and df[c].dtype == object]
+    else:
+        # ensure it's a list
+        if isinstance(categorical_cols, str):
+            categorical_cols = [categorical_cols]
+
     final_feature_cols = list(feature_cols)
-    game_state_dummies = []
-    if 'game_state' in feature_cols:
-        # create dummies with prefix 'gs_' to be stable and compact
-        dummies = pd.get_dummies(df['game_state'].fillna('5v5').astype(str), prefix='gs')
-        # concatenate and drop original column
-        df = pd.concat([df.drop(columns=['game_state']), dummies], axis=1)
-        # replace 'game_state' in final_feature_cols with the new dummy names
-        idx = final_feature_cols.index('game_state')
-        final_feature_cols = final_feature_cols[:idx] + list(dummies.columns) + final_feature_cols[idx+1:]
-        game_state_dummies = list(dummies.columns)
+    categorical_dummies_map = {}
+    if categorical_cols:
+        # make sure columns exist and fill defaults for known contextual ones
+        for c in categorical_cols:
+            if c not in df.columns:
+                if c == 'game_state':
+                    df[c] = '5v5'
+                else:
+                    df[c] = df[c].fillna('') if c in df.columns else ''
+        # create dummies for all categorical_cols at once
+        dummies = pd.get_dummies(df[categorical_cols].fillna(''), prefix=categorical_cols, prefix_sep='_')
+        # concat dummies and drop original categorical columns
+        df = pd.concat([df.drop(columns=categorical_cols), dummies], axis=1)
+        # update final_feature_cols: replace each categorical col with its dummy names
+        for cat in categorical_cols:
+            # find the dummy columns generated for this cat (prefix 'cat_')
+            prefix = f"{cat}_"
+            cat_dummies = [col for col in dummies.columns if col.startswith(prefix)]
+            categorical_dummies_map[cat] = cat_dummies
+            if cat in final_feature_cols:
+                idx = final_feature_cols.index(cat)
+                final_feature_cols = final_feature_cols[:idx] + cat_dummies + final_feature_cols[idx+1:]
+            else:
+                # if the categorical column wasn't requested as a feature but dummies exist,
+                # append them to the end of the feature list
+                final_feature_cols.extend(cat_dummies)
 
     # Ensure numeric types for remaining (non-dummy) features
-    numeric_cols = [c for c in final_feature_cols if not str(c).startswith('gs_')]
+    numeric_cols = [c for c in final_feature_cols if not any(c.startswith(pref + '_') for pref in (categorical_cols or []))]
     df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
     df['is_goal'] = pd.to_numeric(df['is_goal'], errors='coerce').astype('Int64')
 
@@ -98,7 +122,7 @@ def load_data(path: str = 'static/20252026.csv', feature_cols=None):
     df = df[final_feature_cols + ['is_goal']].dropna().copy()
     df['is_goal'] = df['is_goal'].astype(int)
 
-    return df, final_feature_cols, game_state_dummies
+    return df, final_feature_cols, categorical_dummies_map
 
 
 def fit_model(
@@ -288,7 +312,8 @@ def plot_xg_heatmap(clf, feature_cols=None, goal_side: str = 'left',
                     x_res: float = 2.0, y_res: float = 2.0,
                     out_path: str = 'static/xg_heatmap.png', cmap='viridis',
                     alpha: float = 0.8, verbose: bool = True,
-                    fixed_game_state='5v5', fixed_is_net_empty=0, game_state_dummies=None):
+                    fixed_game_state='5v5', fixed_is_net_empty=0, categorical_dummies_map=None,
+                    fixed_category_values: dict = None):
     """Simulate shots across the rink, predict xG using clf, and plot heatmap.
 
     Parameters:
@@ -356,10 +381,20 @@ def plot_xg_heatmap(clf, feature_cols=None, goal_side: str = 'left',
                     except Exception:
                         nne = 0
                     feat.append(nne)
-                elif game_state_dummies and f in game_state_dummies:
-                    # set 1 for the dummy matching fixed_game_state, else 0
-                    target_dummy = f'gs_{fixed_game_state}'
-                    if f == target_dummy:
+                elif categorical_dummies_map and any(f in lst for lst in categorical_dummies_map.values()):
+                    # determine which categorical variable this dummy belongs to
+                    dummy_to_cat = {d: cat for cat, lst in categorical_dummies_map.items() for d in lst}
+                    cat = dummy_to_cat.get(f)
+                    # determine the fixed category value for this categorical variable
+                    fixed_map = fixed_category_values or {}
+                    if cat and cat not in fixed_map:
+                        # provide backwards-compatible default for 'game_state'
+                        if cat == 'game_state':
+                            fixed_map[cat] = fixed_game_state
+                    fixed_val = fixed_map.get(cat)
+                    # build expected dummy name for the fixed value
+                    expected_dummy = f"{cat}_{fixed_val}" if fixed_val is not None else None
+                    if expected_dummy is not None and f == expected_dummy:
                         feat.append(1)
                     else:
                         feat.append(0)
@@ -414,7 +449,7 @@ def train_and_plot_xg_heatmap(csv_path: str = 'static/20252026.csv', feature_col
     df, final_features, gs_dummies = load_data(csv_path, feature_cols=feature_cols)
     clf, X_test, y_test = fit_model(df, feature_cols=final_features, **model_kwargs)
     plot_xg_heatmap(clf, feature_cols=final_features, goal_side=goal_side, x_res=grid_res, y_res=grid_res, out_path=plot_path, verbose=verbose,
-                    fixed_game_state=fixed_game_state, fixed_is_net_empty=fixed_is_net_empty, game_state_dummies=gs_dummies)
+                    fixed_game_state=fixed_game_state, fixed_is_net_empty=fixed_is_net_empty, categorical_dummies_map=gs_dummies)
 
 
 if __name__ == '__main__':
