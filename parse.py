@@ -63,15 +63,7 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
 
         # api-web often uses a textual descriptor key such as 'typeDescKey'
         ev_type = p.get('typeDescKey') or (p.get('type') or {}).get('description') or p.get('typeCode')
-        if not isinstance(ev_type, str):
-            continue
-        r = ev_type.strip().lower()
-        if r in ('shot-on-goal', 'shot_on_goal', 'shot', 'shot on goal'):
-            ev_norm = 'SHOT'
-        elif r == 'goal':
-            ev_norm = 'GOAL'
-        else:
-            continue
+
 
         details = p.get('details') or p.get('detail') or {}
         coords = p.get('coordinates') or {}
@@ -144,10 +136,18 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
         if team_id == away_id and home_goalie_in_net == '0':
             is_net_empty = 1
 
+        # Define whether the event is a shot attempt:
+        shot_attempt_types = ['shot-on-goal', 'missed-shot', 'blocked-shot',
+                              'goal']
+        if ev_type in shot_attempt_types:
+            is_shot_attempt = True
+        else:
+            is_shot_attempt = False
+
 
         try:
             events.append({
-                'event': ev_norm,
+                'event': ev_type,
                 'x': float(x),
                 'y': float(y),
                 'game_state': game_state,
@@ -537,12 +537,9 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         else:
             rec['dist_center'] = None
             rec['angle_deg'] = None
-        # Calculate distance from goal
 
-        # Calculate angle
 
-        # Normalize and derive helpful ML features
-        rec['is_goal'] = 1 if rec.get('event') == 'GOAL' else 0
+
 
 
 
