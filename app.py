@@ -17,8 +17,7 @@ Notes:
 from flask import Flask, render_template, redirect, url_for, request
 import os
 import pandas as pd
-import json
-from pathlib import Path
+
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 
@@ -88,16 +87,42 @@ def replot():
     except Exception as e:
         return (f"plotting modules not available: {e}", 500)
 
-    game = request.form.get('game') or None
-    # attempt to coerce to int for downstream code that expects numeric gameIDs
+    # The frontend sets a single hidden input named 'game' (single source of truth).
+    # Read only that field on the server to avoid mismatches.
     try:
-        if game is not None and str(game).strip() != '':
-            game_val = int(game)
-        else:
-            game_val = None
+        import sys
+        print('replot: received form keys:', file=sys.stderr)
+        for k in request.form.keys():
+            print('  ', k, '=', request.form.get(k), file=sys.stderr)
     except Exception:
-        # keep as string if not an int (some feeds may accept string ids)
-        game_val = game
+        pass
+
+    raw_game = (request.form.get('game') or '').strip()
+    if not raw_game:
+        # Nothing provided — let analyze_game decide, but log the event.
+        try:
+            import sys
+            print('replot: no game provided in form; analyze_game will choose default', file=sys.stderr)
+        except Exception:
+            pass
+        game_val = None
+    else:
+        # normalize and validate
+        cleaned = raw_game.replace(' ', '')
+        if cleaned.isdigit():
+            try:
+                game_val = int(cleaned)
+            except Exception:
+                game_val = cleaned
+        else:
+            # allow non-digit ids as strings but strip whitespace
+            game_val = cleaned
+
+        try:
+            import sys
+            print(f"replot: received game field '{raw_game}' -> normalized '{game_val}'", file=sys.stderr)
+        except Exception:
+            pass
 
     out_path = os.path.join(app.static_folder or 'static', 'shot_plot.png')
 
@@ -150,165 +175,26 @@ def replot():
     return redirect(url_for('index'))
 
 
-@app.route('/api/teams')
-def api_teams():
-    """Return JSON list of known teams for the season.
+# Note: `/api/teams` and `/api/games/<team>` routes have been removed.
+# The frontend now loads `static/teams.json` and `static/games_by_team.json`
+# directly from the `/static` folder. This keeps the app simple and avoids
+# runtime calls to the NHL API or any generation logic.
 
-    Optional query param 'season' may be provided (defaults to '20252026').
+
+@app.route('/admin/flush_cache', methods=['POST'])
+def admin_flush_cache():
+    """Dev-only: clear the in-memory cache so static files are re-read.
+
+    POST /admin/flush_cache
     """
-    from flask import jsonify, request
-    season = request.args.get('season', '20252026')
-    cache_key = f'teams:{season}'
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return jsonify(cached)
-
-    # First: try to serve from a static JSON file if present (no network required)
-    static_teams_path = Path(app.static_folder or 'static') / 'teams.json'
-    if static_teams_path.exists():
-        try:
-            with static_teams_path.open('r', encoding='utf-8') as fh:
-                teams = json.load(fh)
-                _cache_set(cache_key, teams)
-                return jsonify(teams)
-        except Exception as e:
-            print('Failed to read static teams.json:', e, file=sys.stderr)
-
-    # Allow forcing the default local list via environment for offline/dev
-    if os.environ.get('USE_DEFAULT_TEAMS', '') == '1':
-        return jsonify(DEFAULT_TEAMS)
-
+    # In production you should protect this endpoint (auth/token). For local
+    # development this is a convenience to avoid restarting the server.
     try:
-        import nhl_api
-        # get_season('all') pages weeks and returns game dicts containing team info
-        games = nhl_api.get_season(team='all', season=season)
+        _CACHE.clear()
+        print('In-memory cache flushed via /admin/flush_cache')
+        return ('cache flushed', 200)
     except Exception as e:
-        # Log the exception for debugging
-        import sys
-        print(f"Error fetching teams from NHL API: {e}", file=sys.stderr)
-        # Fallback to default teams list
-        return jsonify(DEFAULT_TEAMS)
-
-    # Extract unique teams from games
-    teams_map = {}
-    for g in games or []:
-        try:
-            # defensive paths to find home/away teams in the game dict
-            teams = g.get('teams') or {}
-            if isinstance(teams, dict):
-                for side in ('home','away'):
-                    t = teams.get(side)
-                    if isinstance(t, dict):
-                        # t might be nested under 'team'
-                        if 'team' in t and isinstance(t['team'], dict):
-                            td = t['team']
-                        else:
-                            td = t
-                        abb = td.get('triCode') or td.get('abbrev') or td.get('teamAbbrev') or td.get('abbreviation')
-                        name = td.get('name') or td.get('teamName') or td.get('clubName')
-                        if abb:
-                            teams_map[str(abb).upper()] = {'abbr': str(abb).upper(), 'name': name or str(abb).upper()}
-        except Exception:
-            continue
-
-    teams = sorted(list(teams_map.values()), key=lambda t: t['abbr'])
-    _cache_set(cache_key, teams)
-    return jsonify(teams)
-
-
-@app.route('/api/games/<team>')
-def api_team_games(team):
-    """Return JSON list of games for the given team abbreviation.
-
-    Optional query param 'season' may be provided (defaults to '20252026').
-    """
-    from flask import jsonify, request
-    season = request.args.get('season', '20252026')
-    team_abbr = (team or '').upper()
-    cache_key = f'games:{team_abbr}:{season}'
-    cached = _cache_get(cache_key)
-    if cached is not None:
-        return jsonify(cached)
-
-    # Try static games file first
-    static_games_path = Path(app.static_folder or 'static') / 'games_by_team.json'
-    if static_games_path.exists():
-        try:
-            with static_games_path.open('r', encoding='utf-8') as fh:
-                all_games = json.load(fh)
-                team_games = all_games.get(team_abbr, [])
-                _cache_set(cache_key, team_games)
-                return jsonify(team_games)
-        except Exception as e:
-            import sys
-            print('Failed to read static games_by_team.json:', e, file=sys.stderr)
-
-    try:
-        import nhl_api
-        games = nhl_api.get_season(team=team_abbr, season=season)
-    except Exception as e:
-        # Log the error for diagnostics and return an empty list so the
-        # frontend can still be used with manual Game ID entry.
-        import sys
-        print(f"Error fetching games from NHL API for {team_abbr}: {e}", file=sys.stderr)
-        return jsonify([])
-
-    out = []
-    for g in games or []:
-        try:
-            gid = g.get('id') or g.get('gamePk') or g.get('gameID')
-            if gid is None:
-                continue
-            # normalize id to int when possible
-            try:
-                gid = int(gid)
-            except Exception:
-                gid = str(gid)
-
-            start = g.get('startTimeUTC') or g.get('gameDate') or g.get('startTime') or ''
-            # derive opponent and home/away
-            opp = ''
-            homeaway = ''
-            try:
-                teams = g.get('teams') or {}
-                if isinstance(teams, dict):
-                    home = teams.get('home') or {}
-                    away = teams.get('away') or {}
-                    # extract inner 'team' dict if present
-                    if isinstance(home, dict) and 'team' in home and isinstance(home['team'], dict):
-                        home_team = home['team']
-                    else:
-                        home_team = home if isinstance(home, dict) else {}
-                    if isinstance(away, dict) and 'team' in away and isinstance(away['team'], dict):
-                        away_team = away['team']
-                    else:
-                        away_team = away if isinstance(away, dict) else {}
-
-                    home_ab = (home_team.get('triCode') or home_team.get('abbrev') or home_team.get('teamAbbrev')) if isinstance(home_team, dict) else None
-                    away_ab = (away_team.get('triCode') or away_team.get('abbrev') or away_team.get('teamAbbrev')) if isinstance(away_team, dict) else None
-                    # Determine if requested team is home or away
-                    if str(home_ab).upper() == team_abbr:
-                        opp = away_ab or ''
-                        homeaway = 'home'
-                    elif str(away_ab).upper() == team_abbr:
-                        opp = home_ab or ''
-                        homeaway = 'away'
-            except Exception:
-                pass
-
-            label = f"{start} - vs {opp} ({homeaway})" if opp else f"{start} - id {gid}"
-            out.append({'id': gid, 'label': label, 'start': start})
-        except Exception:
-            continue
-
-    # sort by start time where possible
-    try:
-        out_sorted = sorted(out, key=lambda x: x.get('start') or '')
-    except Exception:
-        out_sorted = out
-
-    _cache_set(cache_key, out_sorted)
-    return jsonify(out_sorted)
+        return (f'failed to flush cache: {e}', 500)
 
 
 if __name__ == '__main__':

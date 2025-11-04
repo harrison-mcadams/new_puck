@@ -581,7 +581,7 @@ if __name__ == '__main__':
     import parse
     import fit_xgs
 
-    game_id = '2025020196'
+    game_id = '2025010036'
     out_file = f'static/example_game_{game_id}.png'
 
     try:

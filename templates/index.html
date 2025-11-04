@@ -30,7 +30,6 @@
 
     <div class="controls">
       <div id="status" style="margin-right:1rem; font-size:0.95rem; color:#333">Enter a game ID and click Plot to regenerate the shot map.</div>
-      <button id="refreshTeams" style="margin-left:0.5rem; padding:0.3rem 0.5rem;">Refresh teams</button>
       <form id="replotForm" action="{{ url_for('replot') }}" method="post">
         <div id="selectors" style="display:flex; gap:0.6rem; align-items:center;">
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
@@ -41,13 +40,13 @@
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
             <label for="game_select">Team games:</label>
-            <select id="game_select" name="game_select" style="min-width:260px;">
+            <select id="game_select" style="min-width:260px;">
               <option value="">-- select game --</option>
             </select>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
             <label for="game_manual">Or enter Game ID:</label>
-            <input type="text" id="game_manual" name="game_manual" placeholder="e.g. 2025020196" style="min-width:160px;" />
+            <input type="text" id="game_manual" placeholder="e.g. 2025020196" style="min-width:160px;" />
           </div>
         </div>
         <!-- hidden field the server expects -->
@@ -63,7 +62,6 @@
         const manualInput = document.getElementById('game_manual');
         const hiddenInput = document.getElementById('game');
         const form = document.getElementById('replotForm');
-        const refreshBtn = document.getElementById('refreshTeams');
         const teamsCount = document.getElementById('teamsCount');
         const statusEl = document.getElementById('status');
 
@@ -88,7 +86,6 @@
 
         function populateTeamSelect(teams){
           teamSelect.disabled = true;
-          refreshBtn.disabled = true;
           teamSelect.innerHTML = '<option value="">-- select team --</option>';
           clearGames();
           if(!Array.isArray(teams) || teams.length === 0) teams = FALLBACK_TEAMS;
@@ -100,36 +97,54 @@
           });
           updateTeamsCount(teams.length);
           teamSelect.disabled = false;
-          refreshBtn.disabled = false;
           try{ teamSelect.focus(); }catch(e){}
           setStatus(`${teams.length} teams loaded`);
         }
 
-        async function loadTeams(){
+        async function loadStaticTeams(){
           setStatus('Loading teams...');
-          refreshBtn.disabled = true;
           try{
-            const res = await fetch('/api/teams');
+            const res = await fetch('/static/teams.json');
             if(!res.ok){
-              console.warn('Failed /api/teams status', res.status);
               populateTeamSelect(FALLBACK_TEAMS);
-              setStatus('Using fallback teams (could not fetch remote list).');
+              setStatus('Using fallback teams (could not fetch teams.json).');
               return;
             }
             const teams = await res.json();
             if(!teams || !Array.isArray(teams) || teams.length === 0){
               populateTeamSelect(FALLBACK_TEAMS);
-              setStatus('Using fallback teams (API returned no teams).');
+              setStatus('Using fallback teams (teams.json empty).');
               return;
             }
             populateTeamSelect(teams);
             setStatus('Select a team to load its games.');
           }catch(err){
-            console.error('Error loading teams:', err);
+            console.error('Error loading teams.json:', err);
             populateTeamSelect(FALLBACK_TEAMS);
-            setStatus('Using fallback teams (network or API error).');
-          }finally{
-            refreshBtn.disabled = false;
+            setStatus('Using fallback teams (network or file error).');
+          }
+        }
+
+        // cache games mapping in memory once loaded
+        let gamesByTeam = null;
+        async function ensureGamesMap(){
+          if(gamesByTeam) return gamesByTeam;
+          setStatus('Loading games index...');
+          try{
+            const res = await fetch('/static/games_by_team.json');
+            if(!res.ok){
+              setStatus('Could not load games index (games_by_team.json).');
+              gamesByTeam = {};
+              return gamesByTeam;
+            }
+            gamesByTeam = await res.json();
+            setStatus('Games index loaded');
+            return gamesByTeam;
+          }catch(err){
+            console.error('Error loading games_by_team.json:', err);
+            gamesByTeam = {};
+            setStatus('Could not load games index (error).');
+            return gamesByTeam;
           }
         }
 
@@ -137,42 +152,62 @@
           clearGames();
           if(!team) return;
           setStatus('Loading games for ' + team + '...');
-          try{
-            const res = await fetch(`/api/games/${encodeURIComponent(team)}`);
-            if(!res.ok){
-              console.warn('Failed /api/games status', res.status);
-              setStatus('Could not load games for team.');
-              return;
-            }
-            const games = await res.json();
-            if(!games || !Array.isArray(games) || games.length === 0){
-              setStatus('No games returned for this team. You can enter a Game ID manually.');
-              return;
-            }
-            games.forEach(g => {
-              const opt = document.createElement('option');
-              opt.value = g.id;
-              opt.textContent = g.label || `${g.start} - ${g.id}`;
-              gameSelect.appendChild(opt);
-            });
-            setStatus('Choose a game or enter a Game ID manually.');
-          }catch(err){
-            console.error('Error loading games:', err);
-            setStatus('Could not load games for team.');
+          const map = await ensureGamesMap();
+          const games = (map && (map[team] || map[team.toUpperCase()])) || [];
+          if(!games || !Array.isArray(games) || games.length === 0){
+            setStatus('No games returned for this team. You can enter a Game ID manually.');
+            return;
           }
+          games.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.textContent = g.label || `${g.start} - ${g.id}`;
+            gameSelect.appendChild(opt);
+          });
+          setStatus('Choose a game or enter a Game ID manually.');
         }
 
-        refreshBtn.addEventListener('click', (e)=>{ e.preventDefault(); loadTeams(); });
         teamSelect.addEventListener('change', (e)=>{ loadGamesForTeam(e.target.value); });
-        gameSelect.addEventListener('change', (e)=>{ manualInput.value = e.target.value || ''; });
+        gameSelect.addEventListener('change', (e)=>{
+          const v = (e.target.value || '').toString().trim();
+          hiddenInput.value = v;
+          // mirror into manual input for visibility (not used as submission)
+          manualInput.value = v;
+        });
+
+        // When user types into the manual input, update the hidden input and
+        // clear the selected option so the manual value takes precedence.
+        manualInput.addEventListener('input', function(){
+          try{
+            const mv = (this.value || '').trim();
+            hiddenInput.value = mv.replace(/\s+/g, '');
+            if(mv.length > 0){
+              gameSelect.selectedIndex = 0; // clear selection
+            }
+          }catch(e){/* ignore */}
+        });
+
         form.addEventListener('submit', (e)=>{
-          const sel = (gameSelect.value || '').trim();
-          hiddenInput.value = sel || (manualInput.value || '').trim();
-          setStatus('Generating plot... this may take a few seconds.');
+          // Robust finalization: prefer manual input, then select, then hidden.
+          const manualVal = (manualInput.value || '').toString().trim();
+          const selectVal = (gameSelect.value || '').toString().trim();
+          const hiddenVal = (hiddenInput.value || '').toString().trim();
+          let finalGame = '';
+          if(manualVal !== '') finalGame = manualVal.replace(/\s+/g, '');
+          else if(selectVal !== '') finalGame = selectVal.replace(/\s+/g, '');
+          else finalGame = hiddenVal.replace(/\s+/g, '');
+
+          if(finalGame === ''){
+            e.preventDefault();
+            setStatus('No game selected — please pick a game or enter a Game ID.');
+            return false;
+          }
+          hiddenInput.value = finalGame;
+          setStatus('Generating plot for game ' + finalGame + '... this may take a few seconds.');
         });
 
         // initial load
-        loadTeams();
+        loadStaticTeams();
       })();
     </script>
   </body>
