@@ -64,9 +64,6 @@
         const hiddenInput = document.getElementById('game');
         const form = document.getElementById('replotForm');
 
-        // Status UI removed — noop
-        function setStatus(msg) { /* no-op */ }
-
         const FALLBACK_TEAMS = [
           {abbr: 'BOS', name: 'Bruins'},
           {abbr: 'NYR', name: 'Rangers'},
@@ -134,11 +131,10 @@
         async function ensureGamesMap(){
           if(gamesByTeam) return gamesByTeam;
           try{
-            console.debug('Fetching /static/games_by_team.json');
             const res = await fetch('/static/games_by_team.json?_=' + Date.now());
-            console.debug('games_by_team.json fetch status:', res.status);
             if(!res.ok){
-              console.warn('Could not load games_by_team.json; status=', res.status);
+              // don't spam logs on minor fetch issues; only show error
+              console.error('Could not load games_by_team.json; status=' + res.status);
               gamesByTeam = {};
               return gamesByTeam;
             }
@@ -149,7 +145,6 @@
               gamesByTeam = {};
               return gamesByTeam;
             }
-            console.debug('Loaded games map keys count:', Object.keys(gamesByTeam || {}).length);
             // build reverse index for quick opponent inference
             try{
               gamesById = {};
@@ -160,13 +155,11 @@
                   const gid = (gg.id != null) ? String(gg.id) : (gg.gamePk != null ? String(gg.gamePk) : (gg.gameId != null ? String(gg.gameId) : null));
                   if(!gid) continue;
                   if(!gamesById[gid]) gamesById[gid] = [];
-                  // store teamKey as uppercase for consistency
                   const tku = teamKey.toString().toUpperCase();
                   if(gamesById[gid].indexOf(tku) === -1) gamesById[gid].push(tku);
                 }
               }
-              console.debug('Built gamesById lookup entries:', Object.keys(gamesById).length);
-            }catch(e){ console.debug('failed building gamesById', e); }
+            }catch(e){ /* ignore index build errors */ }
             return gamesByTeam;
           }catch(err){
             console.error('Error loading games_by_team.json:', err);
@@ -176,10 +169,8 @@
         }
 
         async function loadGamesForTeam(team, autoSelectMostRecent = false){
-          console.debug('loadGamesForTeam called with', team);
           clearGames();
           if(!team) return;
-          // normalize key and try several variants to be robust
           const teamStr = (team || '').toString().trim();
           const teamKeyUpper = teamStr.toUpperCase();
           const map = await ensureGamesMap();
@@ -187,7 +178,6 @@
           try{
             if(map){
               games = map[teamStr] || map[teamKeyUpper] || map[teamStr.toLowerCase()] || [];
-              // If no direct match, try a fuzzy search by key or by label contents
               if((!games || games.length === 0)){
                 const teamLower = teamStr.toLowerCase();
                 for(const k of Object.keys(map)){
@@ -196,33 +186,27 @@
                     const kl = k.toString().toLowerCase();
                     if(kl === teamLower || kl.indexOf(teamLower) !== -1){
                       games = map[k];
-                      console.debug('fuzzy matched games map key', k, 'for team', teamStr);
                       break;
                     }
-                    // check any game's label for the team abbreviation
                     const list = map[k] || [];
                     if(Array.isArray(list)){
                       for(const gg of list){
                         const lab = (gg && (gg.label || gg.start || '') || '').toString().toLowerCase();
                         if(lab.indexOf(teamLower) !== -1){
                           games = list;
-                          console.debug('fuzzy matched games list for key', k, 'via label match for', teamStr);
                           break;
                         }
                       }
                       if(games && games.length) break;
                     }
-                  }catch(err){ continue; }
+                  }catch(err){ /* ignore per-key errors */ }
                 }
               }
             }
           }catch(e){
-            console.debug('error looking up games map for', teamStr, e);
             games = [];
           }
-          console.debug('games found for', teamStr, (games && games.length) || 0);
           if(!games || !Array.isArray(games) || games.length === 0){
-            // no games; show a helpful disabled option to make the issue visible
             try{
               const infoOpt = document.createElement('option');
               infoOpt.disabled = true;
@@ -230,7 +214,7 @@
               const availableKeys = map ? Object.keys(map).slice(0,12) : [];
               infoOpt.textContent = `No games found for ${teamStr}. Keys checked: ${availableKeys.join(', ')}`;
               gameSelect.appendChild(infoOpt);
-            }catch(e){ console.debug('failed to add info option', e); }
+            }catch(e){ /* ignore */ }
             return;
           }
           // Sort games chronologically (oldest first) using the 'start' or 'gameDate' field.
@@ -248,12 +232,9 @@
           sortedGames.forEach(g => {
             const opt = document.createElement('option');
             opt.value = g.id;
-
-            // derive a compact display: prefer 'HOME vs AWAY, YYYY-MM-DD'
             let display = '';
             const lbl = (g.label || '').toString();
             const start = g.start || g.gameDate || '';
-            // format date portion (ISO -> YYYY-MM-DD)
             let datePart = '';
             try{
               if(start){
@@ -276,7 +257,6 @@
               if(mvenue) venue = mvenue[1].toLowerCase();
             }catch(e){ opp=''; venue=''; }
 
-            // If label didn't include an opponent, try to infer via gamesById if available
             if(!opp){
               try{
                 const gid = g.id != null ? String(g.id) : null;
@@ -284,7 +264,6 @@
                   const teamsForGame = gamesById[gid].filter(tk => tk.toUpperCase() !== teamKeyUpper);
                   if(teamsForGame && teamsForGame.length > 0){
                     opp = teamsForGame[0];
-                    console.debug('inferred opponent via gamesById', opp, 'for game', gid);
                   }
                 }
               }catch(e){ /* ignore */ }
@@ -307,7 +286,6 @@
               }
             }
 
-            try{ console.debug('game option:', {id: g.id, display: display, label: lbl}); }catch(e){}
             opt.textContent = display;
             gameSelect.appendChild(opt);
           });
@@ -316,14 +294,12 @@
           try{
             if(autoSelectMostRecent && gameSelect.options.length > 1){
               const now = Date.now();
-              // find latest game with start <= now
               let chosenIdx = -1;
               for(let i = sortedGames.length - 1; i >= 0; --i){
                 const s = (sortedGames[i].start || sortedGames[i].gameDate || (sortedGames[i].label || '').split(' - ')[0] || null);
                 const t = s ? Date.parse(s) : NaN;
                 if(!isNaN(t) && t <= now){ chosenIdx = i; break; }
               }
-              // fallback: if none are <= now, choose the earliest future game (closest upcoming)
               if(chosenIdx === -1){
                 for(let i = 0; i < sortedGames.length; ++i){
                   const s = (sortedGames[i].start || sortedGames[i].gameDate || (sortedGames[i].label || '').split(' - ')[0] || null);
@@ -331,32 +307,26 @@
                   if(!isNaN(t) && t > now){ chosenIdx = i; break; }
                 }
               }
-              // final fallback: choose the last (most recent in list)
               if(chosenIdx === -1) chosenIdx = sortedGames.length - 1;
 
-              // option index includes the placeholder at 0
               const optIndex = 1 + chosenIdx;
               if(optIndex >= 1 && optIndex < gameSelect.options.length){
                 gameSelect.selectedIndex = optIndex;
                 const chosenVal = gameSelect.options[optIndex].value;
                 hiddenInput.value = chosenVal;
                 manualInput.value = chosenVal;
-                console.debug('auto-selected closest-to-now game', chosenVal, 'index', chosenIdx);
               }
             }
-          }catch(e){ console.debug('failed to auto-select most recent', e); }
+          }catch(e){ /* ignore auto-selection errors */ }
         }
 
         teamSelect.addEventListener('change', (e)=>{ loadGamesForTeam(e.target.value, false); });
         gameSelect.addEventListener('change', (e)=>{
           const v = (e.target.value || '').toString().trim();
           hiddenInput.value = v;
-          // mirror into manual input for visibility (not used as submission)
           manualInput.value = v;
         });
 
-        // When user types into the manual input, update the hidden input and
-        // clear the selected option so the manual value takes precedence.
         manualInput.addEventListener('input', function(){
           try{
             const mv = (this.value || '').trim();
@@ -368,7 +338,6 @@
         });
 
         form.addEventListener('submit', (e)=>{
-          // Robust finalization: prefer manual input, then select, then hidden.
           const manualVal = (manualInput.value || '').toString().trim();
           const selectVal = (gameSelect.value || '').toString().trim();
           const hiddenVal = (hiddenInput.value || '').toString().trim();
