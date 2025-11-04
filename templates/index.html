@@ -122,7 +122,7 @@
               const defaultTeam = 'PHI';
               if(Array.from(teamSelect.options).some(o => o.value === defaultTeam)){
                 teamSelect.value = defaultTeam;
-                loadGamesForTeam(defaultTeam);
+                loadGamesForTeam(defaultTeam, true);
               }
             }catch(e){ /* ignore */ }
           }catch(err){
@@ -175,7 +175,7 @@
           }
         }
 
-        async function loadGamesForTeam(team){
+        async function loadGamesForTeam(team, autoSelectMostRecent = false){
           console.debug('loadGamesForTeam called with', team);
           clearGames();
           if(!team) return;
@@ -233,7 +233,19 @@
             }catch(e){ console.debug('failed to add info option', e); }
             return;
           }
-          games.forEach(g => {
+          // Sort games chronologically (oldest first) using the 'start' or 'gameDate' field.
+          const sortedGames = (games || []).slice().map(gg => ({
+            orig: gg,
+            startRaw: (gg.start || gg.gameDate || (gg.label || '').split(' - ')[0] || null),
+            ts: (function(s){ const t = Date.parse(s); return isNaN(t) ? null : t; })((gg.start || gg.gameDate || (gg.label || '').split(' - ')[0] || null))
+          })).sort((a,b) => {
+            const ta = a.ts === null ? Infinity : a.ts;
+            const tb = b.ts === null ? Infinity : b.ts;
+            return ta - tb;
+          }).map(x => x.orig);
+
+          // populate the dropdown in chronological order (oldest -> newest)
+          sortedGames.forEach(g => {
             const opt = document.createElement('option');
             opt.value = g.id;
 
@@ -247,7 +259,6 @@
               if(start){
                 const dt = new Date(start);
                 if(!isNaN(dt)){
-                  // use ISO date portion for consistency
                   const y = dt.getUTCFullYear();
                   const m = String(dt.getUTCMonth()+1).padStart(2,'0');
                   const d = String(dt.getUTCDate()).padStart(2,'0');
@@ -256,11 +267,6 @@
               }
             }catch(e){ datePart = ''; }
 
-            // Try to extract opponent and home/away marker from label (normalize from generator)
-            // Example label shapes we might encounter:
-            //  - '2025-10-10T02:00:00Z - id 2025020021'
-            //  - '2025-10-10T02:00:00Z - vs BOS (home)'
-            //  - '2025-10-10T02:00:00Z - vs BOS (away)'
             let opp = '';
             let venue = '';
             try{
@@ -270,36 +276,21 @@
               if(mvenue) venue = mvenue[1].toLowerCase();
             }catch(e){ opp=''; venue=''; }
 
-          // If label didn't include an opponent, try to infer the opponent by
-          // finding the same game id under another team's key in the games map.
-          if(!opp){
-            try{
-              const gid = g.id;
-              const tKeyUpper = teamKeyUpper;
-              for(const k of Object.keys(map || {})){
-                if(!k) continue;
-                const kUpper = k.toString().toUpperCase();
-                if(kUpper === tKeyUpper) continue; // skip same team
-                const list = map[k] || [];
-                if(Array.isArray(list)){
-                  // look for same id in that team's list
-                  const found = list.some(item => {
-                    if(!item) return false;
-                    // item.id can be number or string
-                    return (item.id == gid || item.gamePk == gid || item.gameId == gid);
-                  });
-                  if(found){
-                    opp = k.toString();
-                    console.debug('inferred opponent', opp, 'for game', gid);
-                    break;
+            // If label didn't include an opponent, try to infer via gamesById if available
+            if(!opp){
+              try{
+                const gid = g.id != null ? String(g.id) : null;
+                if(gid && gamesById && Array.isArray(gamesById[gid])){
+                  const teamsForGame = gamesById[gid].filter(tk => tk.toUpperCase() !== teamKeyUpper);
+                  if(teamsForGame && teamsForGame.length > 0){
+                    opp = teamsForGame[0];
+                    console.debug('inferred opponent via gamesById', opp, 'for game', gid);
                   }
                 }
-              }
-            }catch(e){ /* ignore inference errors */ }
-          }
+              }catch(e){ /* ignore */ }
+            }
 
             if(opp){
-              // If venue provided, determine home/away ordering; use teamStr
               if(venue === 'home'){
                 display = `${teamStr} vs ${opp}`;
               } else if(venue === 'away'){
@@ -309,7 +300,6 @@
               }
               if(datePart) display += `, ${datePart}`;
             } else {
-              // Consistent fallback: show TEAM - DATE (or game id) for readability
               if(datePart){
                 display = `${teamStr} - ${datePart}`;
               } else {
@@ -317,14 +307,47 @@
               }
             }
 
-            // debug: log the computed display and original label to help diagnose formatting issues
             try{ console.debug('game option:', {id: g.id, display: display, label: lbl}); }catch(e){}
             opt.textContent = display;
-             gameSelect.appendChild(opt);
-           });
+            gameSelect.appendChild(opt);
+          });
+
+          // If requested, auto-select the game closest to now without going over.
+          try{
+            if(autoSelectMostRecent && gameSelect.options.length > 1){
+              const now = Date.now();
+              // find latest game with start <= now
+              let chosenIdx = -1;
+              for(let i = sortedGames.length - 1; i >= 0; --i){
+                const s = (sortedGames[i].start || sortedGames[i].gameDate || (sortedGames[i].label || '').split(' - ')[0] || null);
+                const t = s ? Date.parse(s) : NaN;
+                if(!isNaN(t) && t <= now){ chosenIdx = i; break; }
+              }
+              // fallback: if none are <= now, choose the earliest future game (closest upcoming)
+              if(chosenIdx === -1){
+                for(let i = 0; i < sortedGames.length; ++i){
+                  const s = (sortedGames[i].start || sortedGames[i].gameDate || (sortedGames[i].label || '').split(' - ')[0] || null);
+                  const t = s ? Date.parse(s) : NaN;
+                  if(!isNaN(t) && t > now){ chosenIdx = i; break; }
+                }
+              }
+              // final fallback: choose the last (most recent in list)
+              if(chosenIdx === -1) chosenIdx = sortedGames.length - 1;
+
+              // option index includes the placeholder at 0
+              const optIndex = 1 + chosenIdx;
+              if(optIndex >= 1 && optIndex < gameSelect.options.length){
+                gameSelect.selectedIndex = optIndex;
+                const chosenVal = gameSelect.options[optIndex].value;
+                hiddenInput.value = chosenVal;
+                manualInput.value = chosenVal;
+                console.debug('auto-selected closest-to-now game', chosenVal, 'index', chosenIdx);
+              }
+            }
+          }catch(e){ console.debug('failed to auto-select most recent', e); }
         }
 
-        teamSelect.addEventListener('change', (e)=>{ loadGamesForTeam(e.target.value); });
+        teamSelect.addEventListener('change', (e)=>{ loadGamesForTeam(e.target.value, false); });
         gameSelect.addEventListener('change', (e)=>{
           const v = (e.target.value || '').toString().trim();
           hiddenInput.value = v;
