@@ -10,6 +10,8 @@
       .controls { margin-top: 1rem; display: flex; justify-content: center; align-items: center; }
       .controls form { display: flex; gap: 0.5rem; align-items: center; }
       .controls input[type="text"] { padding: 0.4rem 0.6rem; font-size: 0.95rem; }
+      /* Revert: keep manual input simple and comparable to other controls */
+      /* (removed wrapper/debug styles and dynamic sizing; use inline min-width on element) */
       .controls button { padding: 0.45rem 0.8rem; font-size: 0.95rem; cursor: pointer; }
       /* Center the main plot image */
       .plot { display: flex; justify-content: center; align-items: center; margin-top: 1rem; }
@@ -29,11 +31,10 @@
     {% endif %}
 
     <div class="controls">
-      <div id="status" style="margin-right:1rem; font-size:0.95rem; color:#333">Enter a game ID and click Plot to regenerate the shot map.</div>
       <form id="replotForm" action="{{ url_for('replot') }}" method="post">
         <div id="selectors" style="display:flex; gap:0.6rem; align-items:center;">
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
-            <label for="team_select">Team: <span id="teamsCount" style="font-weight:normal; font-size:0.9rem; color:#666">(0)</span></label>
+            <label for="team_select">Team:</label>
             <select id="team_select" name="team_select" style="min-width:180px;">
               <option value="">-- select team --</option>
             </select>
@@ -46,7 +47,7 @@
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
             <label for="game_manual">Or enter Game ID:</label>
-            <input type="text" id="game_manual" placeholder="e.g. 2025020196" style="min-width:160px;" />
+            <input type="text" id="game_manual" placeholder="e.g. 2025020196" style="min-width:260px; padding:0.4rem 0.6rem; font-size:0.95rem;" />
           </div>
         </div>
         <!-- hidden field the server expects -->
@@ -62,10 +63,9 @@
         const manualInput = document.getElementById('game_manual');
         const hiddenInput = document.getElementById('game');
         const form = document.getElementById('replotForm');
-        const teamsCount = document.getElementById('teamsCount');
-        const statusEl = document.getElementById('status');
 
-        function setStatus(msg){ if(statusEl) statusEl.textContent = msg; }
+        // Status UI removed — noop
+        function setStatus(msg) { /* no-op */ }
 
         const FALLBACK_TEAMS = [
           {abbr: 'BOS', name: 'Bruins'},
@@ -75,10 +75,6 @@
           {abbr: 'TOR', name: 'Maple Leafs'},
           {abbr: 'CHI', name: 'Blackhawks'}
         ];
-
-        function updateTeamsCount(n){
-          if(teamsCount) teamsCount.textContent = `(${n})`;
-        }
 
         function clearGames(){
           gameSelect.innerHTML = '<option value="">-- select game --</option>';
@@ -95,33 +91,26 @@
             opt.textContent = `${opt.value} - ${t.name || t.teamName || ''}`;
             teamSelect.appendChild(opt);
           });
-          updateTeamsCount(teams.length);
           teamSelect.disabled = false;
           try{ teamSelect.focus(); }catch(e){}
-          setStatus(`${teams.length} teams loaded`);
         }
 
         async function loadStaticTeams(){
-          setStatus('Loading teams...');
           try{
             const res = await fetch('/static/teams.json');
             if(!res.ok){
               populateTeamSelect(FALLBACK_TEAMS);
-              setStatus('Using fallback teams (could not fetch teams.json).');
               return;
             }
             const teams = await res.json();
             if(!teams || !Array.isArray(teams) || teams.length === 0){
               populateTeamSelect(FALLBACK_TEAMS);
-              setStatus('Using fallback teams (teams.json empty).');
               return;
             }
             populateTeamSelect(teams);
-            setStatus('Select a team to load its games.');
           }catch(err){
             console.error('Error loading teams.json:', err);
             populateTeamSelect(FALLBACK_TEAMS);
-            setStatus('Using fallback teams (network or file error).');
           }
         }
 
@@ -129,21 +118,17 @@
         let gamesByTeam = null;
         async function ensureGamesMap(){
           if(gamesByTeam) return gamesByTeam;
-          setStatus('Loading games index...');
           try{
             const res = await fetch('/static/games_by_team.json');
             if(!res.ok){
-              setStatus('Could not load games index (games_by_team.json).');
               gamesByTeam = {};
               return gamesByTeam;
             }
             gamesByTeam = await res.json();
-            setStatus('Games index loaded');
             return gamesByTeam;
           }catch(err){
             console.error('Error loading games_by_team.json:', err);
             gamesByTeam = {};
-            setStatus('Could not load games index (error).');
             return gamesByTeam;
           }
         }
@@ -151,11 +136,9 @@
         async function loadGamesForTeam(team){
           clearGames();
           if(!team) return;
-          setStatus('Loading games for ' + team + '...');
           const map = await ensureGamesMap();
           const games = (map && (map[team] || map[team.toUpperCase()])) || [];
           if(!games || !Array.isArray(games) || games.length === 0){
-            setStatus('No games returned for this team. You can enter a Game ID manually.');
             return;
           }
           games.forEach(g => {
@@ -164,7 +147,6 @@
             opt.textContent = g.label || `${g.start} - ${g.id}`;
             gameSelect.appendChild(opt);
           });
-          setStatus('Choose a game or enter a Game ID manually.');
         }
 
         teamSelect.addEventListener('change', (e)=>{ loadGamesForTeam(e.target.value); });
@@ -199,16 +181,14 @@
 
           if(finalGame === ''){
             e.preventDefault();
-            setStatus('No game selected — please pick a game or enter a Game ID.');
             return false;
           }
           hiddenInput.value = finalGame;
-          setStatus('Generating plot for game ' + finalGame + '... this may take a few seconds.');
         });
 
         // initial load
         loadStaticTeams();
-      })();
-    </script>
-  </body>
-</html>
+       })();
+     </script>
+   </body>
+ </html>
