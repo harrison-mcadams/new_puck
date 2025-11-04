@@ -40,13 +40,13 @@
             </select>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
-            <label for="game_select">Team games:</label>
+            <label for="game_select">Games:</label>
             <select id="game_select" style="min-width:260px;">
               <option value="">-- select game --</option>
             </select>
           </div>
           <div style="display:flex; flex-direction:column; align-items:flex-start;">
-            <label for="game_manual">Or enter Game ID:</label>
+            <label for="game_manual">Game ID:</label>
             <input type="text" id="game_manual" placeholder="e.g. 2025020196" style="min-width:260px; padding:0.4rem 0.6rem; font-size:0.95rem;" />
           </div>
         </div>
@@ -76,6 +76,12 @@
           {abbr: 'CHI', name: 'Blackhawks'}
         ];
 
+        // cache games mapping and teams list in memory
+        let gamesByTeam = null;
+        let teamsList = null;
+        // reverse index: game id -> array of team keys that have this game
+        let gamesById = null;
+
         function clearGames(){
           gameSelect.innerHTML = '<option value="">-- select game --</option>';
         }
@@ -97,7 +103,7 @@
 
         async function loadStaticTeams(){
           try{
-            const res = await fetch('/static/teams.json');
+            const res = await fetch('/static/teams.json?_=' + Date.now());
             if(!res.ok){
               populateTeamSelect(FALLBACK_TEAMS);
               return;
@@ -107,24 +113,60 @@
               populateTeamSelect(FALLBACK_TEAMS);
               return;
             }
+            teamsList = teams; // store for fuzzy name matching later
             populateTeamSelect(teams);
+            // ensure games map is loaded so we can safely auto-select a default team
+            try{ await ensureGamesMap(); }catch(e){ /* ignore */ }
+            // now auto-select the default (PHI) and load its games if present
+            try{
+              const defaultTeam = 'PHI';
+              if(Array.from(teamSelect.options).some(o => o.value === defaultTeam)){
+                teamSelect.value = defaultTeam;
+                loadGamesForTeam(defaultTeam);
+              }
+            }catch(e){ /* ignore */ }
           }catch(err){
             console.error('Error loading teams.json:', err);
             populateTeamSelect(FALLBACK_TEAMS);
           }
         }
 
-        // cache games mapping in memory once loaded
-        let gamesByTeam = null;
         async function ensureGamesMap(){
           if(gamesByTeam) return gamesByTeam;
           try{
-            const res = await fetch('/static/games_by_team.json');
+            console.debug('Fetching /static/games_by_team.json');
+            const res = await fetch('/static/games_by_team.json?_=' + Date.now());
+            console.debug('games_by_team.json fetch status:', res.status);
             if(!res.ok){
+              console.warn('Could not load games_by_team.json; status=', res.status);
               gamesByTeam = {};
               return gamesByTeam;
             }
-            gamesByTeam = await res.json();
+            try{
+              gamesByTeam = await res.json();
+            }catch(errJson){
+              console.error('Failed to parse games_by_team.json:', errJson);
+              gamesByTeam = {};
+              return gamesByTeam;
+            }
+            console.debug('Loaded games map keys count:', Object.keys(gamesByTeam || {}).length);
+            // build reverse index for quick opponent inference
+            try{
+              gamesById = {};
+              for(const teamKey of Object.keys(gamesByTeam || {})){
+                const list = gamesByTeam[teamKey] || [];
+                for(const gg of list){
+                  if(!gg) continue;
+                  const gid = (gg.id != null) ? String(gg.id) : (gg.gamePk != null ? String(gg.gamePk) : (gg.gameId != null ? String(gg.gameId) : null));
+                  if(!gid) continue;
+                  if(!gamesById[gid]) gamesById[gid] = [];
+                  // store teamKey as uppercase for consistency
+                  const tku = teamKey.toString().toUpperCase();
+                  if(gamesById[gid].indexOf(tku) === -1) gamesById[gid].push(tku);
+                }
+              }
+              console.debug('Built gamesById lookup entries:', Object.keys(gamesById).length);
+            }catch(e){ console.debug('failed building gamesById', e); }
             return gamesByTeam;
           }catch(err){
             console.error('Error loading games_by_team.json:', err);
@@ -134,19 +176,152 @@
         }
 
         async function loadGamesForTeam(team){
+          console.debug('loadGamesForTeam called with', team);
           clearGames();
           if(!team) return;
+          // normalize key and try several variants to be robust
+          const teamStr = (team || '').toString().trim();
+          const teamKeyUpper = teamStr.toUpperCase();
           const map = await ensureGamesMap();
-          const games = (map && (map[team] || map[team.toUpperCase()])) || [];
+          let games = [];
+          try{
+            if(map){
+              games = map[teamStr] || map[teamKeyUpper] || map[teamStr.toLowerCase()] || [];
+              // If no direct match, try a fuzzy search by key or by label contents
+              if((!games || games.length === 0)){
+                const teamLower = teamStr.toLowerCase();
+                for(const k of Object.keys(map)){
+                  try{
+                    if(!k) continue;
+                    const kl = k.toString().toLowerCase();
+                    if(kl === teamLower || kl.indexOf(teamLower) !== -1){
+                      games = map[k];
+                      console.debug('fuzzy matched games map key', k, 'for team', teamStr);
+                      break;
+                    }
+                    // check any game's label for the team abbreviation
+                    const list = map[k] || [];
+                    if(Array.isArray(list)){
+                      for(const gg of list){
+                        const lab = (gg && (gg.label || gg.start || '') || '').toString().toLowerCase();
+                        if(lab.indexOf(teamLower) !== -1){
+                          games = list;
+                          console.debug('fuzzy matched games list for key', k, 'via label match for', teamStr);
+                          break;
+                        }
+                      }
+                      if(games && games.length) break;
+                    }
+                  }catch(err){ continue; }
+                }
+              }
+            }
+          }catch(e){
+            console.debug('error looking up games map for', teamStr, e);
+            games = [];
+          }
+          console.debug('games found for', teamStr, (games && games.length) || 0);
           if(!games || !Array.isArray(games) || games.length === 0){
+            // no games; show a helpful disabled option to make the issue visible
+            try{
+              const infoOpt = document.createElement('option');
+              infoOpt.disabled = true;
+              infoOpt.selected = true;
+              const availableKeys = map ? Object.keys(map).slice(0,12) : [];
+              infoOpt.textContent = `No games found for ${teamStr}. Keys checked: ${availableKeys.join(', ')}`;
+              gameSelect.appendChild(infoOpt);
+            }catch(e){ console.debug('failed to add info option', e); }
             return;
           }
           games.forEach(g => {
             const opt = document.createElement('option');
             opt.value = g.id;
-            opt.textContent = g.label || `${g.start} - ${g.id}`;
-            gameSelect.appendChild(opt);
-          });
+
+            // derive a compact display: prefer 'HOME vs AWAY, YYYY-MM-DD'
+            let display = '';
+            const lbl = (g.label || '').toString();
+            const start = g.start || g.gameDate || '';
+            // format date portion (ISO -> YYYY-MM-DD)
+            let datePart = '';
+            try{
+              if(start){
+                const dt = new Date(start);
+                if(!isNaN(dt)){
+                  // use ISO date portion for consistency
+                  const y = dt.getUTCFullYear();
+                  const m = String(dt.getUTCMonth()+1).padStart(2,'0');
+                  const d = String(dt.getUTCDate()).padStart(2,'0');
+                  datePart = `${y}-${m}-${d}`;
+                }
+              }
+            }catch(e){ datePart = ''; }
+
+            // Try to extract opponent and home/away marker from label (normalize from generator)
+            // Example label shapes we might encounter:
+            //  - '2025-10-10T02:00:00Z - id 2025020021'
+            //  - '2025-10-10T02:00:00Z - vs BOS (home)'
+            //  - '2025-10-10T02:00:00Z - vs BOS (away)'
+            let opp = '';
+            let venue = '';
+            try{
+              const mopp = lbl.match(/vs\s+([^\s()\-]+)/i);
+              if(mopp) opp = mopp[1].trim();
+              const mvenue = lbl.match(/\((home|away)\)/i);
+              if(mvenue) venue = mvenue[1].toLowerCase();
+            }catch(e){ opp=''; venue=''; }
+
+          // If label didn't include an opponent, try to infer the opponent by
+          // finding the same game id under another team's key in the games map.
+          if(!opp){
+            try{
+              const gid = g.id;
+              const tKeyUpper = teamKeyUpper;
+              for(const k of Object.keys(map || {})){
+                if(!k) continue;
+                const kUpper = k.toString().toUpperCase();
+                if(kUpper === tKeyUpper) continue; // skip same team
+                const list = map[k] || [];
+                if(Array.isArray(list)){
+                  // look for same id in that team's list
+                  const found = list.some(item => {
+                    if(!item) return false;
+                    // item.id can be number or string
+                    return (item.id == gid || item.gamePk == gid || item.gameId == gid);
+                  });
+                  if(found){
+                    opp = k.toString();
+                    console.debug('inferred opponent', opp, 'for game', gid);
+                    break;
+                  }
+                }
+              }
+            }catch(e){ /* ignore inference errors */ }
+          }
+
+            if(opp){
+              // If venue provided, determine home/away ordering; use teamStr
+              if(venue === 'home'){
+                display = `${teamStr} vs ${opp}`;
+              } else if(venue === 'away'){
+                display = `${opp} vs ${teamStr}`;
+              } else {
+                display = `${teamStr} vs ${opp}`;
+              }
+              if(datePart) display += `, ${datePart}`;
+            } else {
+              // Consistent fallback: show TEAM - DATE (or game id) for readability
+              if(datePart){
+                display = `${teamStr} - ${datePart}`;
+              } else {
+                display = `${teamStr} - ${g.id || lbl}`;
+              }
+            }
+
+            // debug: log the computed display and original label to help diagnose formatting issues
+            try{ console.debug('game option:', {id: g.id, display: display, label: lbl}); }catch(e){}
+            opt.textContent = display;
+             gameSelect.appendChild(opt);
+           });
         }
 
         teamSelect.addEventListener('change', (e)=>{ loadGamesForTeam(e.target.value); });
