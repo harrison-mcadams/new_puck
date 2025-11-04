@@ -21,6 +21,8 @@ import numpy as np
 import pandas as pd
 import math
 from pathlib import Path
+import joblib
+import json
 
 # Optional imports that may not be in the minimal requirements; we don't hard-fail
 # at import time so the script can be inspected even if sklearn isn't available.
@@ -39,6 +41,125 @@ except Exception:  # pragma: no cover - graceful fallback for environment missin
     train_test_split = None
     accuracy_score = log_loss = roc_auc_score = brier_score_loss = None
     calibration_curve = None
+
+# --- Simple module-level caching for the trained classifier ---
+_GLOBAL_CLF = None
+_GLOBAL_FINAL_FEATURES = None
+_GLOBAL_CATEGORICAL_LEVELS_MAP = None
+
+
+def get_clf(out_path: str = 'static/xg_model.joblib', behavior: str = 'load', *,
+            csv_path: str = 'static/20252026.csv',
+            features=None,
+            random_state: int = 42,
+            n_estimators: int = 200):
+    """Train or load a RandomForest classifier for xG.
+
+    Parameters
+    - out_path: path to save/load the classifier (joblib file)
+    - behavior: 'train' to train & save, 'load' to load from disk
+    - csv_path/features/random_state/n_estimators: training params used when behavior='train'
+
+    Returns: (clf, final_features, categorical_levels_map)
+    """
+    # normalize behavior
+    b = (behavior or '').strip().lower()
+    if b not in ('train', 'load'):
+        raise ValueError("behavior must be 'train' or 'load'")
+
+    meta_path = out_path + '.meta.json'
+
+    if b == 'load':
+        # Try to load model and metadata from disk
+        try:
+            clf = joblib.load(out_path)
+        except Exception as e:
+            raise FileNotFoundError(f"Failed to load classifier from {out_path}: {e}")
+        # try to load metadata (features + categorical levels)
+        final_features = None
+        categorical_levels_map = None
+        try:
+            with open(meta_path, 'r', encoding='utf-8') as fh:
+                meta = json.load(fh)
+                final_features = meta.get('final_features')
+                categorical_levels_map = meta.get('categorical_levels_map')
+        except Exception:
+            # metadata missing is not fatal; caller may re-derive
+            final_features = None
+            categorical_levels_map = None
+        return clf, final_features, categorical_levels_map
+
+    # else: train
+    # default features
+    if features is None:
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+
+    # load data and prepare
+    season_df = load_data(csv_path)
+    season_model_df, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
+
+    # fit model
+    clf, X_test, y_test = fit_model(season_model_df, feature_cols=final_features,
+                                    random_state=random_state, n_estimators=n_estimators)
+
+    # evaluate model and produce calibration plot (keeps previous behavior)
+    try:
+        y_prob, y_pred, metrics = evaluate_model(clf, X_test, y_test)
+    except Exception:
+        # evaluation shouldn't block saving the model
+        metrics = None
+
+    # persist classifier and metadata
+    try:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(clf, out_path)
+        meta = {'final_features': final_features, 'categorical_levels_map': categorical_levels_map}
+        with open(meta_path, 'w', encoding='utf-8') as fh:
+            json.dump(meta, fh)
+    except Exception as e:
+        # if saving fails, warn but return the in-memory clf
+        try:
+            print(f'Warning: failed to save classifier or metadata to {out_path}: {e}')
+        except Exception:
+            pass
+
+    return clf, final_features, categorical_levels_map
+
+# --- end of module-level caching helpers ---
+
+def get_or_train_clf(force_retrain: bool = False,
+                     csv_path: str = 'static/20252026.csv',
+                     features=None,
+                     random_state: int = 42,
+                     n_estimators: int = 200):
+    """Return a trained classifier and associated metadata.
+
+    This helper will train a RandomForest on the season CSV the first time
+    it's called and cache the classifier (and the final feature column list
+    and categorical levels map). Subsequent calls return the cached object
+    unless force_retrain=True.
+
+    Returns (clf, final_features, categorical_levels_map).
+    """
+    global _GLOBAL_CLF, _GLOBAL_FINAL_FEATURES, _GLOBAL_CATEGORICAL_LEVELS_MAP
+    if _GLOBAL_CLF is not None and not force_retrain:
+        return _GLOBAL_CLF, _GLOBAL_FINAL_FEATURES, _GLOBAL_CATEGORICAL_LEVELS_MAP
+
+    # Default features if none provided
+    if features is None:
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+
+    # Train a fresh model and cache metadata
+    season_df = load_data(csv_path)
+    season_model_df, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
+
+    clf, _, _ = fit_model(season_model_df, feature_cols=final_features,
+                          random_state=random_state, n_estimators=n_estimators)
+
+    _GLOBAL_CLF = clf
+    _GLOBAL_FINAL_FEATURES = final_features
+    _GLOBAL_CATEGORICAL_LEVELS_MAP = categorical_levels_map
+    return _GLOBAL_CLF, _GLOBAL_FINAL_FEATURES, _GLOBAL_CATEGORICAL_LEVELS_MAP
 
 def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels: dict = None):
     """Filter events, encode categorical features as integer codes, and
@@ -687,6 +808,7 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
             print('Interactive mode is unavailable in this environment:', str(e))
 
     return results
+
 def analyze_game(game_id, clf=None):
     import nhl_api
     import parse
@@ -695,22 +817,23 @@ def analyze_game(game_id, clf=None):
     features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
 
     if clf is None:
-        # Load season data and preprocess for training. Capture the categorical
-        # levels map so we can apply the exact same encoding to a single game.
-        print('Demo: loading season data from', csv_path)
-        season_df = load_data(csv_path)
-        print('Demo: cleaning season data', season_df.shape)
-        season_model_df, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
-
-        # Fit model on the cleaned season dataset
-        print('Demo: fitting model...')
-        clf, _, _ = fit_model(season_model_df, feature_cols=final_features)
+        # Try to load a persisted classifier; if that fails, train & save one.
+        model_path = 'static/xg_model.joblib'
+        try:
+            clf, final_features, categorical_levels_map = get_clf(model_path, 'load')
+        except Exception:
+            # If loading failed, train and persist a new model
+            clf, final_features, categorical_levels_map = get_clf(model_path, 'train', csv_path=csv_path, features=features)
     else:
-        # If a classifier is provided, derive the feature ordering and category
-        # levels from the canonical season CSV so we can encode the game data
-        # consistently with the training setup.
-        season_df = load_data(csv_path)
-        _, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
+        # If a classifier is provided, attempt to load metadata if available
+        try:
+            _, cached_final_features, cached_categorical = get_or_train_clf(force_retrain=False, csv_path=csv_path, features=features)
+            final_features = cached_final_features
+            categorical_levels_map = cached_categorical
+        except Exception:
+            # As before, derive feature ordering and category levels from the canonical season CSV
+            season_df = load_data(csv_path)
+            _, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
 
     # Assemble the game data and preprocess with the same feature set
     game_feed = nhl_api.get_game_feed(game_id)
