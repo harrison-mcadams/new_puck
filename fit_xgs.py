@@ -837,9 +837,8 @@ def analyze_game(game_id, clf=None):
 
     # Assemble the game data and preprocess with the same feature set
     game_feed = nhl_api.get_game_feed(game_id)
-    events = parse._game(game_feed)
-    events = parse._elaborate(events)
-    df = pd.DataFrame.from_records(events)
+    df = parse._game(game_feed)
+    df = parse._elaborate(df)
 
     # Use the same `features` list used for training to clean/encode the game df
     # and pass the categorical_levels_map obtained from training so encoding is

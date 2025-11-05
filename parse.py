@@ -26,19 +26,19 @@ from rink import rink_goal_xs
 logging.basicConfig(level=logging.INFO)
 
 
-def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
     """Extract shot and goal events with coordinates from an api-web game feed.
 
     This parser intentionally supports the api-web/play-by-play shape where a
     top-level `plays` (or `playByPlay.play`) list contains events with
     `details` and `coordinates`.
 
-    Returns a list of event dicts with keys:
+    Returns a pandas.DataFrame where each row is an event and columns include:
       - event: 'SHOT' or 'GOAL'
       - x, y: float coordinates
-      - period, periodTime
-      - playerID, teamID, teamAbbrev
-      - homeTeamDefendingSide, gameID
+      - period, period_time
+      - player_id, team_id, team_abbrev
+      - home_team_defending_side, game_id
     """
     events: List[Dict[str, Any]] = []
 
@@ -49,13 +49,29 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
     if not isinstance(plays, list):
         # nothing we can parse
         logging.debug('_game(): no plays list found in feed; keys=%s', list(game_feed.keys()) if isinstance(game_feed, dict) else type(game_feed))
-        return events
+        # return an empty DataFrame for consistency
+        return pd.DataFrame()
 
-    home_id = game_feed['homeTeam']['id']
-    away_id = game_feed['awayTeam']['id']
+    # Safely extract home/away info; feeds can vary in structure
+    home_team_obj = game_feed.get('homeTeam') or game_feed.get('home') or {}
+    away_team_obj = game_feed.get('awayTeam') or game_feed.get('away') or {}
+    try:
+        home_id = home_team_obj.get('id') if isinstance(home_team_obj, dict) else None
+    except Exception:
+        home_id = None
+    try:
+        away_id = away_team_obj.get('id') if isinstance(away_team_obj, dict) else None
+    except Exception:
+        away_id = None
 
-    home_abb = game_feed['homeTeam']['abbrev']
-    away_abb = game_feed['awayTeam']['abbrev']
+    try:
+        home_abb = home_team_obj.get('abbrev') if isinstance(home_team_obj, dict) else None
+    except Exception:
+        home_abb = None
+    try:
+        away_abb = away_team_obj.get('abbrev') if isinstance(away_team_obj, dict) else None
+    except Exception:
+        away_abb = None
 
     for p in plays:
         if not isinstance(p, dict):
@@ -116,25 +132,37 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
         # figure out game situation (e.g. even-strength, PP, SH) if possible
         situation_code = p['situationCode'] if 'situationCode' in p else None
 
-        home_skaters = situation_code[2]
-        home_goalie_in_net = situation_code[3]
-        away_skaters = situation_code[1]
-        away_goalie_in_net = situation_code[0]
+        # protect against malformed situation codes
+        try:
+            home_skaters = situation_code[2]
+            home_goalie_in_net = situation_code[3]
+            away_skaters = situation_code[1]
+            away_goalie_in_net = situation_code[0]
+        except Exception:
+            home_skaters = None
+            away_skaters = None
+            home_goalie_in_net = '1'
+            away_goalie_in_net = '1'
 
         # define game state (initialize to None for safety)
         game_state = None
         if team_id == home_id:
-            game_state = f"{home_skaters}v{away_skaters}"
+            if home_skaters is not None and away_skaters is not None:
+                game_state = f"{home_skaters}v{away_skaters}"
         elif team_id == away_id:
-            game_state = f"{away_skaters}v{home_skaters}"
+            if home_skaters is not None and away_skaters is not None:
+                game_state = f"{away_skaters}v{home_skaters}"
 
         # define is_net_empty
         is_net_empty = 0
-        if team_id == home_id and away_goalie_in_net == '0':
-            is_net_empty = 1
+        try:
+            if team_id == home_id and away_goalie_in_net == '0':
+                is_net_empty = 1
 
-        if team_id == away_id and home_goalie_in_net == '0':
-            is_net_empty = 1
+            if team_id == away_id and home_goalie_in_net == '0':
+                is_net_empty = 1
+        except Exception:
+            is_net_empty = 0
 
         # Define whether the event is a shot attempt:
         shot_attempt_types = ['shot-on-goal', 'missed-shot', 'blocked-shot',
@@ -168,7 +196,11 @@ def _game(game_feed: Dict[str, Any]) -> List[Dict[str, Any]]:
             # skip rows that fail numeric conversion
             continue
 
-    return events
+    # return a DataFrame for downstream consumers
+    try:
+        return pd.DataFrame.from_records(events)
+    except Exception:
+        return pd.DataFrame()
 
 
 def _period_time_to_seconds(t: Optional[str]) -> Optional[int]:
@@ -350,23 +382,32 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
     parsed_count = 0
     for gm, game_feed in feeds:
         try:
-            events = _game(game_feed)
+            events_df = _game(game_feed)
         except Exception as e:
             logging.warning('Parser error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
-            events = []
+            events_df = pd.DataFrame()
         parsed_count += 1
         if verbose:
             print(f'Parsing feeds: {parsed_count}/{total_feeds}', flush=True)
         else:
             logging.info('Parsing feeds: %d/%d', parsed_count, total_feeds)
-        if not events:
+        if events_df is None or events_df.empty:
             continue
         try:
-            elaborated = _elaborate(events)
+            elaborated_df = _elaborate(events_df)
         except Exception as e:
             logging.warning('Elaboration error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
             continue
-        records.extend(elaborated)
+        # extend records with dictionaries
+        try:
+            records.extend(elaborated_df.to_dict('records'))
+        except Exception:
+            # fallback: if elaborated_df isn't a DataFrame, try iterating
+            try:
+                for r in elaborated_df:
+                    records.append(r)
+            except Exception:
+                pass
     if total_feeds:
         if verbose:
             print(f'Finished parsing feeds: {parsed_count}/{total_feeds}', flush=True)
@@ -386,11 +427,11 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
     return df
 
 
-def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Take a list of event dicts (from `_game`) and derive ML-friendly features.
+def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
+    """Take a DataFrame produced by `_game` and derive ML-friendly features.
 
-    Returns a new list of dicts with numeric fields (x,y,dist_center,angle_deg,periodTime_seconds)
-    and other metadata.
+    Returns a DataFrame with numeric fields (x,y,distance,angle_deg,periodTime_seconds_elapsed,
+    total_time_elapsed_seconds) and other metadata.
     """
 
     elaborated_game_feed: List[Dict[str, Any]] = []
@@ -402,162 +443,185 @@ def _elaborate(game_feed: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         # fallback to historical constants if rink helper unavailable
         left_goal_x, right_goal_x = -89.0, 89.0
 
-    for ev in game_feed:
-        rec = dict(ev)  # shallow copy
+    # Defensive: handle None or empty inputs quickly
+    if game_feed is None:
+        return pd.DataFrame()
 
-        # Book-keeping stuff
-        # normalize period to integer when possible
-        try:
-            rec['period'] = int(rec.get('period')) if rec.get('period') is not None else None
-        except Exception:
-            rec['period'] = None
-
-        # Compute two time-derived columns:
-        # - periodTime_seconds_elapsed: seconds elapsed within the period
-        # - total_time_elapsed_seconds: seconds elapsed since game start
-        #
-        # Assumptions:
-        # * Regulation periods (1-3) are 20 minutes (1200s)
-        # * Overtime periods (4+) are treated as 5 minutes (300s)
-        period_time_str = rec.get('periodTime')
-        period_time_type = rec.get('periodTimeType')  # 'remaining' or 'elapsed' or None
-
-        period_elapsed = None
-        if period_time_str is not None:
-            # numeric input
-            if isinstance(period_time_str, (int, float)):
-                try:
-                    val = int(period_time_str)
-                    if period_time_type == 'remaining':
-                        per_len = 1200 if (rec.get('period') is None or rec.get('period') <= 3) else 300
-                        period_elapsed = max(0, per_len - val)
-                    else:
-                        period_elapsed = val
-                except Exception:
-                    period_elapsed = None
-            else:
-                # parse mm:ss style strings or plain numeric strings
-                try:
-                    s = str(period_time_str).strip()
-                    if ':' in s:
-                        mm, ss = s.split(':')
-                        seconds = int(mm) * 60 + int(ss)
-                    else:
-                        seconds = int(float(s))
-                    if period_time_type == 'remaining':
-                        per_len = 1200 if (rec.get('period') is None or rec.get('period') <= 3) else 300
-                        period_elapsed = max(0, per_len - seconds)
-                    else:
-                        period_elapsed = seconds
-                except Exception:
-                    period_elapsed = None
-
-        rec['periodTime_seconds_elapsed'] = int(period_elapsed) if period_elapsed is not None else None
-
-        # compute total time elapsed since game start (seconds)
-        total_elapsed = None
-        if rec.get('period') is not None and rec.get('period') >= 1 and period_elapsed is not None:
-            p = int(rec['period'])
-            if p <= 3:
-                total_elapsed = (p - 1) * 1200 + period_elapsed
-            else:
-                # period 4 == first overtime: add three regulation periods + (p-4)*OT + elapsed
-                total_elapsed = 3 * 1200 + (p - 4) * 300 + period_elapsed
-
-        rec['total_time_elapsed_seconds'] = int(total_elapsed) if total_elapsed is not None else None
-
-        # x/y to numeric
-        try:
-            x = float(rec.get('x'))
-            y = float(rec.get('y'))
-        except Exception:
-            x = None
-            y = None
-        rec['x'] = x
-        rec['y'] = y
-
-        ## Basic analysis stuff
-
-        if x is not None and y is not None:
-            # calculate distance to the attacked goal
-            # Determine which goal the shooter is attacking. The feed includes
-            # `home_team_defending_side` which indicates the side the home team
-            # is defending; the attacking goal is the opposite side.
-            if rec.get('team_id') == rec.get('home_id'):
-                # shooter is home -> attacking goal is the side opposite what home defends
-                if rec.get('home_team_defending_side') == 'left':
-                    goal_x = right_goal_x
-                elif rec.get('home_team_defending_side') == 'right':
-                    goal_x = left_goal_x
-                else:
-                    goal_x = right_goal_x
-            elif rec.get('team_id') == rec.get('away_id'):
-                # shooter is away -> attacking goal is the side not defended by home
-                if rec.get('home_team_defending_side') == 'left':
-                    goal_x = left_goal_x
-                elif rec.get('home_team_defending_side') == 'right':
-                    goal_x = right_goal_x
-                else:
-                    goal_x = left_goal_x
-            else:
-                # fallback to right goal
-                goal_x = right_goal_x
-
-            goal_y = 0.0
-            distance = math.hypot(x - goal_x, y - goal_y)
-            rec['distance'] = distance
-
-            # Calculate angle such that:
-            # - angle = 0° along the goal-line vector pointing toward the
-            #   goalie's left (i.e. along +y for left-side goal, along -y for right-side goal)
-            # - angle increases clockwise
-            #
-            # Vector from goal center to shot:
-            vx = x - goal_x
-            vy = y - goal_y
-
-            # Reference vector along goal line pointing toward goalie's left:
-            # If goal_x < 0 (left goal), goalie faces +x so his left is +y.
-            # If goal_x > 0 (right goal), goalie faces -x so his left is -y.
-            if goal_x < 0:
-                rx, ry = 0.0, 1.0
-            else:
-                rx, ry = 0.0, -1.0
-
-            # Signed angle from ref r to vector v (CCW positive): atan2(cross, dot)
-            cross = rx * vy - ry * vx
-            dot = rx * vx + ry * vy
-            angle_rad_ccw = math.atan2(cross, dot)
-
-            # We want clockwise positive, so invert sign, convert to degrees
-            angle_deg = ( -math.degrees(angle_rad_ccw) ) % 360.0
-
-            rec['angle_deg'] = angle_deg
-
+    # Accept either a DataFrame or an iterable of dict-like rows
+    try:
+        if isinstance(game_feed, pd.DataFrame):
+            rows = game_feed.to_dict('records')
         else:
-            rec['dist_center'] = None
-            rec['angle_deg'] = None
+            rows = list(game_feed)
+    except Exception as e:
+        logging.warning('_elaborate(): failed to materialize rows from input: %s', e)
+        return pd.DataFrame()
 
+    if not rows:
+        # nothing to do
+        return pd.DataFrame()
 
+    for ev in rows:
+        try:
+            rec = dict(ev)  # shallow copy
 
+            # Book-keeping stuff
+            # normalize period to integer when possible
+            try:
+                rec['period'] = int(rec.get('period')) if rec.get('period') is not None else None
+            except Exception:
+                rec['period'] = None
 
+            # Compute two time-derived columns:
+            # - periodTime_seconds_elapsed: seconds elapsed within the period
+            # - total_time_elapsed_seconds: seconds elapsed since game start
+            #
+            # Assumptions:
+            # * Regulation periods (1-3) are 20 minutes (1200s)
+            # * Overtime periods (4+) are treated as 5 minutes (300s)
+            period_time_str = rec.get('periodTime') or rec.get('period_time')
+            period_time_type = rec.get('periodTimeType') or rec.get('periodTimeType')
 
+            period_elapsed = None
+            if period_time_str is not None:
+                # numeric input
+                if isinstance(period_time_str, (int, float)):
+                    try:
+                        val = int(period_time_str)
+                        if period_time_type == 'remaining':
+                            per_len = 1200 if (rec.get('period') is None or rec.get('period') <= 3) else 300
+                            period_elapsed = max(0, per_len - val)
+                        else:
+                            period_elapsed = val
+                    except Exception:
+                        period_elapsed = None
+                else:
+                    # parse mm:ss style strings or plain numeric strings
+                    try:
+                        s = str(period_time_str).strip()
+                        if ':' in s:
+                            mm, ss = s.split(':')
+                            seconds = int(mm) * 60 + int(ss)
+                        else:
+                            seconds = int(float(s))
+                        if period_time_type == 'remaining':
+                            per_len = 1200 if (rec.get('period') is None or rec.get('period') <= 3) else 300
+                            period_elapsed = max(0, per_len - seconds)
+                        else:
+                            period_elapsed = seconds
+                    except Exception:
+                        period_elapsed = None
 
+            rec['periodTime_seconds_elapsed'] = int(period_elapsed) if period_elapsed is not None else None
 
+            # compute total time elapsed since game start (seconds)
+            total_elapsed = None
+            if rec.get('period') is not None and rec.get('period') >= 1 and period_elapsed is not None:
+                p = int(rec['period'])
+                if p <= 3:
+                    total_elapsed = (p - 1) * 1200 + period_elapsed
+                else:
+                    # period 4 == first overtime: add three regulation periods + (p-4)*OT + elapsed
+                    total_elapsed = 3 * 1200 + (p - 4) * 300 + period_elapsed
 
+            rec['total_time_elapsed_seconds'] = int(total_elapsed) if total_elapsed is not None else None
 
-        # periodTimeType was only needed to compute elapsed seconds earlier;
-        # remove it so final records do not include this transient field.
-        rec.pop('periodTimeType', None)
+            # x/y to numeric
+            try:
+                x = float(rec.get('x'))
+                y = float(rec.get('y'))
+            except Exception:
+                x = None
+                y = None
+            rec['x'] = x
+            rec['y'] = y
 
-        elaborated_game_feed.append(rec)
+            ## Basic analysis stuff
 
-    return elaborated_game_feed
+            if x is not None and y is not None:
+                # calculate distance to the attacked goal
+                # Determine which goal the shooter is attacking. The feed includes
+                # `home_team_defending_side` which indicates the side the home team
+                # is defending; the attacking goal is the opposite side.
+                if rec.get('team_id') == rec.get('home_id'):
+                    # shooter is home -> attacking goal is the side opposite what home defends
+                    if rec.get('home_team_defending_side') == 'left':
+                        goal_x = right_goal_x
+                    elif rec.get('home_team_defending_side') == 'right':
+                        goal_x = left_goal_x
+                    else:
+                        goal_x = right_goal_x
+                elif rec.get('team_id') == rec.get('away_id'):
+                    # shooter is away -> attacking goal is the side not defended by home
+                    if rec.get('home_team_defending_side') == 'left':
+                        goal_x = left_goal_x
+                    elif rec.get('home_team_defending_side') == 'right':
+                        goal_x = right_goal_x
+                    else:
+                        goal_x = left_goal_x
+                else:
+                    # fallback to right goal
+                    goal_x = right_goal_x
+
+                goal_y = 0.0
+                distance = math.hypot(x - goal_x, y - goal_y)
+                rec['distance'] = distance
+
+                # Calculate angle such that:
+                # - angle = 0° along the goal-line vector pointing toward the
+                #   goalie's left (i.e. along +y for left-side goal, along -y for right-side goal)
+                # - angle increases clockwise
+                #
+                # Vector from goal center to shot:
+                vx = x - goal_x
+                vy = y - goal_y
+
+                # Reference vector along goal line pointing toward goalie's left:
+                # If goal_x < 0 (left goal), goalie faces +x so his left is +y.
+                # If goal_x > 0 (right goal), goalie faces -x so his left is -y.
+                if goal_x < 0:
+                    rx, ry = 0.0, 1.0
+                else:
+                    rx, ry = 0.0, -1.0
+
+                # Signed angle from ref r to vector v (CCW positive): atan2(cross, dot)
+                cross = rx * vy - ry * vx
+                dot = rx * vx + ry * vy
+                angle_rad_ccw = math.atan2(cross, dot)
+
+                # We want clockwise positive, so invert sign, convert to degrees
+                angle_deg = ( -math.degrees(angle_rad_ccw) ) % 360.0
+
+                rec['angle_deg'] = angle_deg
+
+            else:
+                rec['dist_center'] = None
+                rec['angle_deg'] = None
+
+            # periodTimeType was only needed to compute elapsed seconds earlier;
+            # remove it so final records do not include this transient field.
+            rec.pop('periodTimeType', None)
+
+            elaborated_game_feed.append(rec)
+
+        except Exception as e:
+            logging.warning('Error elaborating event: %s', e)
+            # skip malformed event but continue processing others
+            continue
+
+    # return as DataFrame
+    try:
+        return pd.DataFrame.from_records(elaborated_game_feed)
+    except Exception as e:
+        logging.warning('Failed to build elaborated DataFrame: %s', e)
+        return pd.DataFrame()
+
 
 def events_to_df(events):
     import pandas as pd
     # convert events list to pandas DataFrame
     df = pd.DataFrame.from_records(events)
+    return df
 
 
 if __name__ == '__main__':
