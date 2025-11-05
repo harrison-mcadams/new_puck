@@ -653,17 +653,17 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
 
 
 def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', use_cache: bool = True,
-            max_games: Optional[int] = None, max_workers: int = 8, verbose: bool = True,
-            # New behavior flags
-            save_raw: bool = True,
-            save_csv: bool = True,
-            save_json: bool = True,
-            per_game_files: bool = False,
-            process_elaborated: bool = False,
-            save_elaborated: bool = False,
-            return_raw_feeds: bool = False,
-            return_elaborated_df: bool = False
-            ) -> Any:
+             max_games: Optional[int] = None, max_workers: int = 8, verbose: bool = True,
+             # New behavior flags
+             save_raw: bool = True,
+             save_csv: bool = True,
+             save_json: bool = True,
+             per_game_files: bool = False,
+             process_elaborated: bool = False,
+             save_elaborated: bool = False,
+             return_raw_feeds: bool = False,
+             return_elaborated_df: bool = False
+             ) -> Any:
     """Scrape and optionally persist and process raw game feeds for a season.
 
     This function fetches game feeds using the `nhl_api` helpers and provides
@@ -789,6 +789,11 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
 
     feeds = []
 
+    # If caller specifically requested the elaborated DataFrame, ensure we
+    # process elaborated records even if process_elaborated was False.
+    if return_elaborated_df:
+        process_elaborated = True
+
     # Preload cached feeds mapping (game_id -> feed dict) when use_cache is enabled
     cached_feeds: Dict[int, Dict[str, Any]] = {}
     if use_cache:
@@ -893,7 +898,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
     if verbose:
         print(f'\n_scrape: fetched {len(feeds)} feeds')
     # Persist raw feeds according to flags
-    saved_paths = {'csv': None, 'json': None, 'per_game': []}
+    saved_paths: Dict[str, Any] = {'csv': '', 'json': '', 'per_game': []}
     if save_raw and feeds:
         # Ensure output directory exists
         try:
@@ -943,8 +948,9 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
                 except Exception:
                     continue
 
-    # Optionally process into elaborated DataFrame
-    elaborated_df = None
+    # Optionally process into elaborated DataFrame. Initialize to empty
+    # DataFrame so we always return a DataFrame object when requested.
+    elaborated_df: Optional[pd.DataFrame] = pd.DataFrame()
     if process_elaborated and feeds:
         records: List[Dict[str, Any]] = []
         for item in feeds:
@@ -980,38 +986,65 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         if saved_paths.get('json'):
             return saved_paths['json']
         return ''
-    else:
-        result: Dict[str, Any] = {}
-        result['saved_paths'] = saved_paths
-        result['raw_feeds'] = feeds if return_raw_feeds else None
-        result['elaborated_df'] = elaborated_df if return_elaborated_df else None
-        return result
+    # If the caller only requested the elaborated DataFrame, return it
+    # directly (this provides the convenience the caller asked for).
+    if return_elaborated_df and not return_raw_feeds:
+        # Return the DataFrame object (possibly empty)
+        return elaborated_df
+
+    # Otherwise return a dict preserving previous richer return structure
+    result: Dict[str, Any] = {}
+    result['saved_paths'] = saved_paths
+    result['raw_feeds'] = feeds if return_raw_feeds else None
+    result['elaborated_df'] = elaborated_df if return_elaborated_df else None
+    return result
 
 
 if __name__ == '__main__':
 
     # Example debug invocation (only when run as a script)
-    _scrape_res = _scrape(season='20252026', team='all',
-            out_dir='data', use_cache= True,
-            max_games= None, max_workers= 8,
-            verbose= True,
-            # New behavior flags
-            save_raw= False,
-            save_csv= False,
-            save_json= False,
-            per_game_files = False,
-            process_elaborated = True,
-            save_elaborated = True,
-            return_raw_feeds= False,
-            return_elaborated_df= True)
+    res = _scrape(
+        season='20252026', team='all',
+        out_dir='data', use_cache=True,
+        max_games=None, max_workers=8,
+        verbose=True,
+        # New behavior flags
+        save_raw=False,
+        save_csv=False,
+        save_json=False,
+        per_game_files=False,
+        process_elaborated=True,
+        save_elaborated=True,
+        return_raw_feeds=False,
+        return_elaborated_df=True,
+    )
 
+    # Print a readable summary of the result
+    if isinstance(res, dict):
+        print('\n_scrape result:')
+        sp = res.get('saved_paths') or {}
+        print('  saved_paths:')
+        for k, v in sp.items():
+            print(f'    {k}: {v}')
+        raw = res.get('raw_feeds')
+        if raw is not None:
+            print(f'  raw_feeds: {len(raw)} items')
+        edf = res.get('elaborated_df')
+        if edf is not None:
+            try:
+                print(f"  elaborated_df: shape={edf.shape}")
+                print(edf.head().to_string())
+            except Exception:
+                print('  elaborated_df: (unable to display preview)')
+    else:
+        print('\n_scrape returned:', res)
 
-
+    # Optionally run a quick season debug (kept for backwards compatibility)
     debug_season = True
     if debug_season:
         df = _season(out_path='/Users/harrisonmcadams/PycharmProjects/new_puck/static')
-        print('Season dataframe shape:', df.shape)
-        if not df.empty:
+        print('\nSeason dataframe shape:', getattr(df, 'shape', None))
+        if isinstance(df, pd.DataFrame) and not df.empty:
             print(df.head())
         else:
             print('No events found for season')
