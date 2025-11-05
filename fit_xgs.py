@@ -20,9 +20,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import math
-from pathlib import Path
 import joblib
 import json
+import sys
+import time
 
 # Optional imports that may not be in the minimal requirements; we don't hard-fail
 # at import time so the script can be inspected even if sklearn isn't available.
@@ -277,6 +278,8 @@ def fit_model(
     test_size: float = 0.2,
     random_state: int = 42,
     n_estimators: int = 200,
+    progress: bool = False,
+    progress_steps: int = 20,
 ):
     """Fit a RandomForest on the specified feature and return the trained
     model along with the held-out test split.
@@ -300,8 +303,47 @@ def fit_model(
         stratify=(y if len(np.unique(y)) > 1 else None),
     )
 
-    clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
-    clf.fit(X_train, y_train)
+    # Simple console progress helper
+    def _print_progress(prefix: str, i: int, total: int, width: int = 40):
+        frac = float(i) / float(total)
+        filled = int(round(width * frac))
+        bar = '#' * filled + '-' * (width - filled)
+        sys.stdout.write(f"\r{prefix} |{bar}| {i}/{total} ({frac*100:5.1f}%)")
+        sys.stdout.flush()
+
+    if not progress:
+        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+        clf.fit(X_train, y_train)
+        return clf, X_test, y_test
+
+    # Progress mode: train in chunks using warm_start to reveal progress
+    if RandomForestClassifier is None:
+        raise RuntimeError('scikit-learn is required to run training with progress.')
+
+    # Determine chunk size (at most progress_steps updates)
+    steps = max(1, int(progress_steps))
+    chunk = max(1, n_estimators // steps)
+    clf = RandomForestClassifier(n_estimators=0, warm_start=True, random_state=random_state)
+    trained = 0
+    total = n_estimators
+    try:
+        while trained < total:
+            to_add = min(chunk, total - trained)
+            clf.n_estimators = trained + to_add
+            # Fit will add `to_add` new trees when warm_start=True
+            clf.fit(X_train, y_train)
+            trained = clf.n_estimators
+            _print_progress('Training RF', trained, total)
+            # small sleep to ensure progress is visible on fast machines
+            time.sleep(0.01)
+        # finish line
+        _print_progress('Training RF', total, total)
+        sys.stdout.write('\n')
+    except Exception:
+        # fallback to single-shot fit if incremental fails
+        sys.stdout.write('\n')
+        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+        clf.fit(X_train, y_train)
 
     return clf, X_test, y_test
 
@@ -878,22 +920,60 @@ def analyze_game(game_id, clf=None):
 
 if __name__ == '__main__':
 
-    #analyze_game('2025020196')
-
+    # Demo / CLI runner: load season-level dataframes from local ``data/{year}/{year}_df.csv``
+    # If none are found, fall back to the previous single CSV in ``static/20252026.csv``.
     debug = True
     if debug:
+        from pathlib import Path
 
-        # Load data
-        csv_path = 'static/20252026.csv'
+        data_dir = Path('data')
+        candidates = []
+        print('Demo: looking for per-year data in', str(data_dir))
+        if data_dir.exists() and data_dir.is_dir():
+            for p in sorted(data_dir.iterdir()):
+                if p.is_dir():
+                    year = p.name
+                    candidate = p / f"{year}_df.csv"
+                    if candidate.exists():
+                        candidates.append(candidate)
+
+        # If no per-year files found, try the legacy static path
+        if not candidates:
+            legacy = Path('static') / '20252026.csv'
+            if legacy.exists():
+                print('Demo: no per-year CSVs found under data/ — falling back to', str(legacy))
+                candidates = [legacy]
+            else:
+                print('Demo: no data files found (checked data/ and static/). Exiting.')
+                raise SystemExit(1)
+
+        # Load and concatenate all candidate CSVs
+        frames = []
+        for c in candidates:
+            try:
+                print('Demo: loading', str(c))
+                dfc = load_data(str(c))
+                frames.append(dfc)
+            except Exception as e:
+                print('Demo: failed to load', str(c), ' — ', e)
+
+        if not frames:
+            print('Demo: no frames loaded successfully. Exiting.')
+            raise SystemExit(1)
+
+        df = pd.concat(frames, ignore_index=True)
+        print('Demo: combined dataframe shape:', df.shape)
+
+        # Define feature set (same as before)
         features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-        print('Demo: loading data from', csv_path)
-        df = load_data(csv_path)
-        print('Demo: cleaning data', df.shape)
+
+        print('Demo: cleaning data')
         df, final_features, categorical_map = clean_df_for_model(df, features)
 
         # Fit model
         print('Demo: fitting model...')
-        clf, X_test, y_test = fit_model(df, feature_cols=final_features)
+        clf, X_test, y_test = fit_model(df, feature_cols=final_features,
+                                        progress=True)
 
         # Evaluate model
         print('Demo: evaluating model...')
@@ -905,7 +985,20 @@ if __name__ == '__main__':
             except Exception:
                 print(f'  {k}: {v}')
 
-        # Debug model
+        # Persist trained classifier and metadata (so get_clf('load') can reuse it)
+        try:
+            model_path = Path('static') / 'xg_model.joblib'
+            meta_path = str(model_path) + '.meta.json'
+            model_path.parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump(clf, str(model_path))
+            meta = {'final_features': final_features, 'categorical_levels_map': categorical_map}
+            with open(meta_path, 'w', encoding='utf-8') as fh:
+                json.dump(meta, fh)
+            print(f'Demo: saved classifier to {model_path} and metadata to {meta_path}')
+        except Exception as e:
+            print('Demo: failed to save classifier/meta:', e)
+
+        # Debug model (non-interactive visualization by default in demo)
         print('Demo: debugging model...')
         debug_model(clf, feature_cols=final_features,
-                    categorical_levels_map=categorical_map, interactive=True)
+                    categorical_levels_map=categorical_map, interactive=False)

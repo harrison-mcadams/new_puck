@@ -661,7 +661,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
              per_game_files: bool = False,
              process_elaborated: bool = False,
              save_elaborated: bool = False,
-             return_raw_feeds: bool = False,
+             return_feeds: bool = False,
              return_elaborated_df: bool = False
              ) -> Any:
     """Scrape and optionally persist and process raw game feeds for a season.
@@ -682,10 +682,10 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
       - save_raw (bool, default True): If True, persist fetched raw feeds to
         disk according to the CSV/JSON/per-game flags below.
       - save_csv (bool, default True): Write a single CSV file at
-        ``{out_dir}/{season}/{season}_raw_game_feeds.csv`` with columns
+        ``{out_dir}/{season}/{season}_game_feeds.csv`` with columns
         ("game_id","feed") where `feed` is a JSON-encoded string for each row.
       - save_json (bool, default True): Write a combined JSON file at
-        ``{out_dir}/{season}/{season}_raw_game_feeds.json`` containing a list of
+        ``{out_dir}/{season}/{season}_game_feeds.json`` containing a list of
         ``{"game_id": id, "feed": <feed dict>}`` entries.
       - per_game_files (bool, default False): If True, write one JSON file per
         game as ``{out_dir}/{season}/game_{game_id}.json``. Useful for
@@ -696,7 +696,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
       - save_elaborated (bool, default False): If True (and
         `process_elaborated` is True and output exists), save the elaborated
         DataFrame to ``{out_dir}/{season}/{season}.csv``.
-      - return_raw_feeds (bool, default False): If True, include the list of
+      - return_feeds (bool, default False): If True, include the list of
         raw feeds in the returned result (see return behavior below).
       - return_elaborated_df (bool, default False): If True, include the
         elaborated pandas.DataFrame in the returned result.
@@ -709,15 +709,15 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         skips fetching. This keeps existing callers working as before.
 
     Return value(s):
-      - Legacy default behaviour (when neither `return_raw_feeds` nor
+      - Legacy default behaviour (when neither `return_feeds` nor
         `return_elaborated_df` are True): returns a string path to the saved
         CSV if present, else to the saved JSON, else an empty string.
-      - When either `return_raw_feeds` or `return_elaborated_df` is True, the
+      - When either `return_feeds` or `return_elaborated_df` is True, the
         function returns a dict with keys:
           * 'saved_paths' -> dict with keys 'csv','json','per_game' listing any
             saved file paths (or None/empty list)
-          * 'raw_feeds' -> list of fetched feeds (present only if
-            `return_raw_feeds` True)
+          * 'feeds' -> list of fetched feeds (present only if
+            `return_feeds` True)
           * 'elaborated_df' -> pandas.DataFrame (present only if
             `return_elaborated_df` True and `process_elaborated` was run)
 
@@ -741,8 +741,8 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
 
       - Save per-game files and also return raw feeds for immediate use:
           res = parse._scrape(season='20252026', out_dir='data', per_game_files=True,
-                              return_raw_feeds=True)
-          feeds = res['raw_feeds']
+                              return_feeds=True)
+          feeds = res['feeds']
 
       - Fetch, process into an elaborated DataFrame, save it, and return it:
           res = parse._scrape(season='20252026', out_dir='data',
@@ -756,15 +756,15 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
     season_dir = base / season
     season_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = season_dir / f'{season}_raw_game_feeds.csv'
-    json_path = season_dir / f'{season}_raw_game_feeds.json'
+    csv_path = season_dir / f'{season}_game_feeds.csv'
+    json_path = season_dir / f'{season}_game_feeds.json'
 
     # preserve existing cache behavior (if csv exists and caller wants the default csv)
     if use_cache and save_csv and csv_path.exists():
         if verbose:
             print(f'_scrape: cache hit, returning existing file: {csv_path}')
         # maintain backward-compatibility by returning the csv path string
-        if not (return_raw_feeds or return_elaborated_df):
+        if not (return_feeds or return_elaborated_df):
             return str(csv_path)
         # otherwise let the function continue and load the cached CSV/JSON as needed
 
@@ -801,7 +801,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         try:
             season_dir = Path(out_dir) / season
             # CSV cache
-            csv_cache_path = season_dir / f'{season}_raw_game_feeds.csv'
+            csv_cache_path = season_dir / f'{season}_game_feeds.csv'
             if csv_cache_path.exists():
                 try:
                     import csv as _csv
@@ -821,7 +821,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
                     pass
             else:
                 # try combined JSON cache
-                json_cache_path = season_dir / f'{season}_raw_game_feeds.json'
+                json_cache_path = season_dir / f'{season}_game_feeds.json'
                 if json_cache_path.exists():
                     try:
                         with json_cache_path.open('r', encoding='utf-8') as jfh:
@@ -910,7 +910,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         if save_csv:
             try:
                 import csv as _csv
-                with (season_dir / f'{season}_raw_game_feeds.csv').open('w', encoding='utf-8', newline='') as fh:
+                with (season_dir / f'{season}_game_feeds.csv').open('w', encoding='utf-8', newline='') as fh:
                     writer = _csv.writer(fh)
                     writer.writerow(['game_id', 'feed'])
                     for item in feeds:
@@ -918,7 +918,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
                             writer.writerow([item['game_id'], json.dumps(item['feed'], ensure_ascii=False)])
                         except Exception:
                             writer.writerow([item.get('game_id'), '{}'])
-                saved_paths['csv'] = str(season_dir / f'{season}_raw_game_feeds.csv')
+                saved_paths['csv'] = str(season_dir / f'{season}_game_feeds.csv')
                 if verbose:
                     print(f'_scrape: saved CSV -> {saved_paths["csv"]}')
             except Exception as e:
@@ -926,9 +926,9 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
 
         if save_json:
             try:
-                with (season_dir / f'{season}_raw_game_feeds.json').open('w', encoding='utf-8') as jfh:
+                with (season_dir / f'{season}_game_feeds.json').open('w', encoding='utf-8') as jfh:
                     json.dump([{'game_id': f['game_id'], 'feed': f['feed']} for f in feeds], jfh, ensure_ascii=False)
-                saved_paths['json'] = str(season_dir / f'{season}_raw_game_feeds.json')
+                saved_paths['json'] = str(season_dir / f'{season}_game_feeds.json')
                 if verbose:
                     print(f'_scrape: saved JSON -> {saved_paths["json"]}')
             except Exception as e:
@@ -969,7 +969,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
                 continue
         if records:
             elaborated_df = pd.DataFrame.from_records(records)
-            out_file = Path(out_dir) / season / f'{season}.csv'
+            out_file = Path(out_dir) / season / f'{season}_df.csv'
             try:
                 out_file.parent.mkdir(parents=True, exist_ok=True)
                 elaborated_df.to_csv(out_file, index=False)
@@ -979,7 +979,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
                 logging.warning('_scrape: failed to save elaborated CSV %s: %s', str(out_file), e)
 
     # Build return value – maintain backward compatibility by default
-    if not (return_raw_feeds or return_elaborated_df):
+    if not (return_feeds or return_elaborated_df):
         # Default legacy return: path to CSV if saved, else JSON path or empty string
         if saved_paths.get('csv'):
             return saved_paths['csv']
@@ -988,36 +988,42 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         return ''
     # If the caller only requested the elaborated DataFrame, return it
     # directly (this provides the convenience the caller asked for).
-    if return_elaborated_df and not return_raw_feeds:
+    if return_elaborated_df and not return_feeds:
         # Return the DataFrame object (possibly empty)
         return elaborated_df
 
     # Otherwise return a dict preserving previous richer return structure
     result: Dict[str, Any] = {}
     result['saved_paths'] = saved_paths
-    result['raw_feeds'] = feeds if return_raw_feeds else None
+    result['feeds'] = feeds if return_feeds else None
     result['elaborated_df'] = elaborated_df if return_elaborated_df else None
     return result
 
 
 if __name__ == '__main__':
 
+    # let's scrape from seasons starting in 2014
+    years = [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023,
+             2024, 2025]
     # Example debug invocation (only when run as a script)
-    res = _scrape(
-        season='20252026', team='all',
-        out_dir='data', use_cache=True,
-        max_games=None, max_workers=8,
-        verbose=True,
-        # New behavior flags
-        save_raw=False,
-        save_csv=False,
-        save_json=False,
-        per_game_files=False,
-        process_elaborated=True,
-        save_elaborated=True,
-        return_raw_feeds=False,
-        return_elaborated_df=True,
-    )
+    for year in years:
+        season = f'{year}{year+1}'
+        print(f'\n=== Scraping season {season} ===')
+        res = _scrape(
+            season=season, team='all',
+            out_dir='data', use_cache=True,
+            max_games=None, max_workers=8,
+            verbose=True,
+            # New behavior flags
+            save_raw=True,
+            save_csv=True,
+            save_json=True,
+            per_game_files=False,
+            process_elaborated=True,
+            save_elaborated=True,
+            return_feeds=False,
+            return_elaborated_df=True,
+        )
 
     # Print a readable summary of the result
     if isinstance(res, dict):
@@ -1026,9 +1032,9 @@ if __name__ == '__main__':
         print('  saved_paths:')
         for k, v in sp.items():
             print(f'    {k}: {v}')
-        raw = res.get('raw_feeds')
+        raw = res.get('feeds')
         if raw is not None:
-            print(f'  raw_feeds: {len(raw)} items')
+            print(f'  feeds: {len(raw)} items')
         edf = res.get('elaborated_df')
         if edf is not None:
             try:
@@ -1040,7 +1046,7 @@ if __name__ == '__main__':
         print('\n_scrape returned:', res)
 
     # Optionally run a quick season debug (kept for backwards compatibility)
-    debug_season = True
+    debug_season = False
     if debug_season:
         df = _season(out_path='/Users/harrisonmcadams/PycharmProjects/new_puck/static')
         print('\nSeason dataframe shape:', getattr(df, 'shape', None))
