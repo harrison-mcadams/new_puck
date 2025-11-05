@@ -11,9 +11,16 @@
 
 # Work on cacheing.
 # Things to cache:
-#   - convert parse._game to provide DataFrame as output. parse._elaborate
-#   will then take DataFrame as input and output elaborated DataFrame.
-#   - scraped season data from the API --
+#   - scraped season data from the API -- from the repo's main folder,
+#   create a subfolder 'data' to store cached data files. within that,
+#   we'll further nest events. within this subfolder, for each season,
+#   i'd like to:
+#       - within parse, write a function called _scrape. it will take year as
+#       input, use the get_season function from nhl_api, and then for each
+#       game across the league within that season,
+#       call nhl.api.get_game_data. it should then save out a single csv file
+#       of the concatenated game feeds from all games in that season. do not
+#       touch the other parts of parse right now.
 #   - elaborated season data
 #   - xg model
 #   - website shortcuts: team list, game list, player list

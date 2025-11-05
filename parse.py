@@ -376,6 +376,41 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
         print(f'Finished fetching feeds: {fetched_count}/{total_games}', flush=True)
     else:
         logging.info('Finished fetching feeds: %d/%d', fetched_count, total_games)
+    # Save out the fetched game feeds.
+
+    # If an output path was provided, persist the raw feeds to disk (JSON + CSV)
+    if out_path and feeds:
+        try:
+            out_dir_path = Path(out_path)
+            out_dir_path.mkdir(parents=True, exist_ok=True)
+            raw_json_path = out_dir_path / f'{season}_raw_game_feeds.json'
+            # write JSON backup with game metadata and feed
+            try:
+                with raw_json_path.open('w', encoding='utf-8') as jfh:
+                    json.dump([{'game_meta': gm, 'feed': feed} for gm, feed in feeds], jfh, ensure_ascii=False)
+                logging.info('Saved raw game feeds JSON to %s', raw_json_path)
+            except Exception as e:
+                logging.warning('Failed to write raw feeds JSON %s: %s', raw_json_path, e)
+
+            # also write a compact CSV (game_id, feed_json)
+            try:
+                csv_path = out_dir_path / f'{season}_raw_game_feeds.csv'
+                import csv as _csv
+                with csv_path.open('w', encoding='utf-8', newline='') as fh:
+                    writer = _csv.writer(fh)
+                    writer.writerow(['game_id', 'feed'])
+                    for gm, feed in feeds:
+                        gid = gm.get('id') or gm.get('gamePk') or gm.get('gameID')
+                        try:
+                            writer.writerow([gid, json.dumps(feed, ensure_ascii=False)])
+                        except Exception:
+                            writer.writerow([gid, '{}'])
+                logging.info('Saved raw game feeds CSV to %s', csv_path)
+            except Exception as e:
+                logging.warning('Failed to write raw feeds CSV: %s', e)
+        except Exception as e:
+            logging.warning('Failed to persist raw game feeds to out_path %s: %s', out_path, e)
+
 
     # Parse and elaborate feeds (single-threaded parsing, which is fast)
     total_feeds = len(feeds)
@@ -617,14 +652,134 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
         return pd.DataFrame()
 
 
-def events_to_df(events):
-    import pandas as pd
-    # convert events list to pandas DataFrame
-    df = pd.DataFrame.from_records(events)
-    return df
+def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', use_cache: bool = True,
+            max_games: Optional[int] = None, max_workers: int = 8, verbose: bool = True) -> str:
+    """Scrape and cache raw game feeds for a season.
+
+    This utility:
+      - calls `nhl_api.get_season(team, season)` to obtain the list of games;
+      - fetches each game's play-by-play feed via `nhl_api.get_game_feed` (concurrently);
+      - writes a CSV file at ``{out_dir}/{season}/{season}_raw_game_feeds.csv`` where
+        each row contains ``game_id`` and a JSON-encoded ``feed`` string;
+      - also writes a JSON backup file ``{out_dir}/{season}/{season}_raw_game_feeds.json``
+        containing a list of feeds for convenience.
+
+    Parameters
+    - season: season string like '20252026'
+    - team: team abbreviation or 'all' (passed through to `get_season`)
+    - out_dir: base directory to write data
+    - use_cache: if True and the CSV already exists, return the existing path
+    - max_games: optional int to limit number of games fetched (useful for testing)
+    - max_workers: concurrency level for fetching
+    - verbose: print progress
+
+    Returns the path to the saved CSV file.
+
+    Notes
+    - The function is intentionally straightforward (see next_steps.py). It
+      uses the public `nhl_api` helpers and keeps the raw feed intact (JSON
+      string) in the CSV so downstream processing can re-load as needed.
+    """
+    # Prepare output directory
+    base = Path(out_dir)
+    season_dir = base / season
+    season_dir.mkdir(parents=True, exist_ok=True)
+
+    csv_path = season_dir / f'{season}_raw_game_feeds.csv'
+    json_path = season_dir / f'{season}_raw_game_feeds.json'
+
+    if use_cache and csv_path.exists():
+        if verbose:
+            print(f'_scrape: cache hit, returning existing file: {csv_path}')
+        return str(csv_path)
+
+    # Get season games list
+    games = nhl_api.get_season(team=team, season=season) or []
+    if max_games is not None and isinstance(max_games, int) and max_games > 0:
+        games = games[:max_games]
+
+    if verbose:
+        print(f'_scrape: found {len(games)} games for team={team} season={season}')
+
+    # helper to extract game id reliably
+    def _game_id_from_gm(gm: Dict[str, Any]) -> Optional[int]:
+        try:
+            gid = gm.get('id') or gm.get('gamePk') or gm.get('gameID')
+            return int(gid)
+        except Exception:
+            return None
+
+    # prepare concurrent fetch
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    feeds = []
+
+    def _fetch_task(gm: Dict[str, Any]):
+        gid = _game_id_from_gm(gm)
+        if gid is None:
+            return None
+        try:
+            feed = nhl_api.get_game_feed(gid)
+            if not isinstance(feed, dict) or not feed:
+                return None
+            return {'game_id': gid, 'feed': feed}
+        except Exception as e:
+            if verbose:
+                print(f'_scrape: failed to fetch game {gid}: {e}')
+            return None
+
+    if verbose:
+        print(f'_scrape: fetching up to {len(games)} feeds with {max_workers} workers...')
+
+    with ThreadPoolExecutor(max_workers=max_workers) as exe:
+        futures = {exe.submit(_fetch_task, gm): gm for gm in games}
+        completed = 0
+        total = len(futures)
+        for fut in as_completed(futures):
+            completed += 1
+            try:
+                res = fut.result()
+            except Exception as e:
+                res = None
+                if verbose:
+                    print(f'_scrape: task exception: {e}')
+            if res:
+                feeds.append(res)
+            if verbose:
+                print(f'_scrape: progress {completed}/{total}', end='\r')
+
+    if verbose:
+        print(f'\n_scrape: fetched {len(feeds)} feeds, writing to {csv_path} and {json_path}')
+
+    # write CSV (game_id, feed_json)
+    import csv
+    try:
+        with csv_path.open('w', encoding='utf-8', newline='') as fh:
+            writer = csv.writer(fh)
+            writer.writerow(['game_id', 'feed'])
+            for item in feeds:
+                try:
+                    writer.writerow([item['game_id'], json.dumps(item['feed'], ensure_ascii=False)])
+                except Exception:
+                    # fallback to writing an empty JSON object
+                    writer.writerow([item.get('game_id'), '{}'])
+    except Exception as e:
+        logging.warning('_scrape: failed to write CSV %s: %s', csv_path, e)
+
+    # write JSON backup
+    try:
+        with json_path.open('w', encoding='utf-8') as jfh:
+            json.dump([{'game_id': f['game_id'], 'feed': f['feed']} for f in feeds], jfh, ensure_ascii=False)
+    except Exception as e:
+        logging.warning('_scrape: failed to write JSON backup %s: %s', json_path, e)
+
+    return str(csv_path)
 
 
 if __name__ == '__main__':
+
+    _scrape('20252026', team='all', out_dir='/Users/harrisonmcadams/PycharmProjects/new_puck/data', use_cache=True, max_games=5, max_workers=4, verbose=True)
+
 
     debug_season = True
     if debug_season:
