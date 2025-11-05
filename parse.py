@@ -653,32 +653,103 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
 
 
 def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', use_cache: bool = True,
-            max_games: Optional[int] = None, max_workers: int = 8, verbose: bool = True) -> str:
-    """Scrape and cache raw game feeds for a season.
+            max_games: Optional[int] = None, max_workers: int = 8, verbose: bool = True,
+            # New behavior flags
+            save_raw: bool = True,
+            save_csv: bool = True,
+            save_json: bool = True,
+            per_game_files: bool = False,
+            process_elaborated: bool = False,
+            save_elaborated: bool = False,
+            return_raw_feeds: bool = False,
+            return_elaborated_df: bool = False
+            ) -> Any:
+    """Scrape and optionally persist and process raw game feeds for a season.
 
-    This utility:
-      - calls `nhl_api.get_season(team, season)` to obtain the list of games;
-      - fetches each game's play-by-play feed via `nhl_api.get_game_feed` (concurrently);
-      - writes a CSV file at ``{out_dir}/{season}/{season}_raw_game_feeds.csv`` where
-        each row contains ``game_id`` and a JSON-encoded ``feed`` string;
-      - also writes a JSON backup file ``{out_dir}/{season}/{season}_raw_game_feeds.json``
-        containing a list of feeds for convenience.
+    This function fetches game feeds using the `nhl_api` helpers and provides
+    flexible options for how fetched data are saved and/or processed.
 
-    Parameters
-    - season: season string like '20252026'
-    - team: team abbreviation or 'all' (passed through to `get_season`)
-    - out_dir: base directory to write data
-    - use_cache: if True and the CSV already exists, return the existing path
-    - max_games: optional int to limit number of games fetched (useful for testing)
-    - max_workers: concurrency level for fetching
-    - verbose: print progress
+    High-level behavior:
+      1. Obtain a list of games via `nhl_api.get_season(team, season)`.
+      2. Concurrently fetch each game's feed via `nhl_api.get_game_feed(game_id)`.
+      3. Optionally save raw feeds to disk (combined CSV, combined JSON, and/or
+         per-game JSON files).
+      4. Optionally run the parser pipeline (`_game` + `_elaborate`) and
+         aggregate results into an "elaborated" pandas.DataFrame suitable for
+         downstream ML workflows.
 
-    Returns the path to the saved CSV file.
+    Important parameters (new/extended options):
+      - save_raw (bool, default True): If True, persist fetched raw feeds to
+        disk according to the CSV/JSON/per-game flags below.
+      - save_csv (bool, default True): Write a single CSV file at
+        ``{out_dir}/{season}/{season}_raw_game_feeds.csv`` with columns
+        ("game_id","feed") where `feed` is a JSON-encoded string for each row.
+      - save_json (bool, default True): Write a combined JSON file at
+        ``{out_dir}/{season}/{season}_raw_game_feeds.json`` containing a list of
+        ``{"game_id": id, "feed": <feed dict>}`` entries.
+      - per_game_files (bool, default False): If True, write one JSON file per
+        game as ``{out_dir}/{season}/game_{game_id}.json``. Useful for
+        incremental processing and avoiding huge CSV cells.
+      - process_elaborated (bool, default False): If True, for each fetched
+        feed run `_game(feed)` then `_elaborate(...)` and aggregate the results
+        into a single pandas.DataFrame (the "elaborated" DataFrame).
+      - save_elaborated (bool, default False): If True (and
+        `process_elaborated` is True and output exists), save the elaborated
+        DataFrame to ``{out_dir}/{season}/{season}.csv``.
+      - return_raw_feeds (bool, default False): If True, include the list of
+        raw feeds in the returned result (see return behavior below).
+      - return_elaborated_df (bool, default False): If True, include the
+        elaborated pandas.DataFrame in the returned result.
 
-    Notes
-    - The function is intentionally straightforward (see next_steps.py). It
-      uses the public `nhl_api` helpers and keeps the raw feed intact (JSON
-      string) in the CSV so downstream processing can re-load as needed.
+    Caching and backward compatibility:
+      - `use_cache` combined with `save_csv` preserves the legacy behavior:
+        if ``{out_dir}/{season}/{season}_raw_game_feeds.csv`` exists and the
+        caller did not request returned data (neither `return_raw_feeds` nor
+        `return_elaborated_df`), the function returns the existing CSV path and
+        skips fetching. This keeps existing callers working as before.
+
+    Return value(s):
+      - Legacy default behaviour (when neither `return_raw_feeds` nor
+        `return_elaborated_df` are True): returns a string path to the saved
+        CSV if present, else to the saved JSON, else an empty string.
+      - When either `return_raw_feeds` or `return_elaborated_df` is True, the
+        function returns a dict with keys:
+          * 'saved_paths' -> dict with keys 'csv','json','per_game' listing any
+            saved file paths (or None/empty list)
+          * 'raw_feeds' -> list of fetched feeds (present only if
+            `return_raw_feeds` True)
+          * 'elaborated_df' -> pandas.DataFrame (present only if
+            `return_elaborated_df` True and `process_elaborated` was run)
+
+    Notes and implementation details:
+      - Fetching is done concurrently using ThreadPoolExecutor; set
+        `max_workers` to control concurrency.
+      - The worker `_fetch_task` returns None on failure; failures are logged
+        and skipped so a partial result can still be produced.
+      - When serializing feeds to CSV, feeds that fail `json.dumps` are written
+        as the empty JSON object string `'{}'` to avoid breaking the whole file.
+      - When processing elaborated data, rows with no usable events are
+        skipped.
+      - For large seasons or repeated runs, consider using `per_game_files`
+        to reduce memory/CSV cell size and to allow incremental re-use.
+      - The function favors robustness over strict failure: disk or
+        serialization errors are logged but do not raise.
+
+    Example usage:
+      - Legacy (quick cache-aware save):
+          parse._scrape(season='20252026', out_dir='data', use_cache=True)
+
+      - Save per-game files and also return raw feeds for immediate use:
+          res = parse._scrape(season='20252026', out_dir='data', per_game_files=True,
+                              return_raw_feeds=True)
+          feeds = res['raw_feeds']
+
+      - Fetch, process into an elaborated DataFrame, save it, and return it:
+          res = parse._scrape(season='20252026', out_dir='data',
+                              process_elaborated=True, save_elaborated=True,
+                              return_elaborated_df=True)
+          df = res['elaborated_df']
+
     """
     # Prepare output directory
     base = Path(out_dir)
@@ -688,10 +759,14 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
     csv_path = season_dir / f'{season}_raw_game_feeds.csv'
     json_path = season_dir / f'{season}_raw_game_feeds.json'
 
-    if use_cache and csv_path.exists():
+    # preserve existing cache behavior (if csv exists and caller wants the default csv)
+    if use_cache and save_csv and csv_path.exists():
         if verbose:
             print(f'_scrape: cache hit, returning existing file: {csv_path}')
-        return str(csv_path)
+        # maintain backward-compatibility by returning the csv path string
+        if not (return_raw_feeds or return_elaborated_df):
+            return str(csv_path)
+        # otherwise let the function continue and load the cached CSV/JSON as needed
 
     # Get season games list
     games = nhl_api.get_season(team=team, season=season) or []
@@ -714,10 +789,77 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
 
     feeds = []
 
+    # Preload cached feeds mapping (game_id -> feed dict) when use_cache is enabled
+    cached_feeds: Dict[int, Dict[str, Any]] = {}
+    if use_cache:
+        # per-game files take precedence (fast lookup)
+        try:
+            season_dir = Path(out_dir) / season
+            # CSV cache
+            csv_cache_path = season_dir / f'{season}_raw_game_feeds.csv'
+            if csv_cache_path.exists():
+                try:
+                    import csv as _csv
+                    with csv_cache_path.open('r', encoding='utf-8') as ch:
+                        reader = _csv.reader(ch)
+                        headers = next(reader, None)
+                        for row in reader:
+                            if not row:
+                                continue
+                            try:
+                                gid = int(row[0])
+                                feed = json.loads(row[1]) if len(row) > 1 and row[1] else {}
+                                cached_feeds[gid] = feed
+                            except Exception:
+                                continue
+                except Exception:
+                    pass
+            else:
+                # try combined JSON cache
+                json_cache_path = season_dir / f'{season}_raw_game_feeds.json'
+                if json_cache_path.exists():
+                    try:
+                        with json_cache_path.open('r', encoding='utf-8') as jfh:
+                            lst = json.load(jfh)
+                            # Accept either list of {'game_id','feed'} or [{'game_meta','feed'}]
+                            for it in lst:
+                                try:
+                                    if isinstance(it, dict) and 'game_id' in it and 'feed' in it:
+                                        gid = int(it['game_id'])
+                                        cached_feeds[gid] = it['feed']
+                                    elif isinstance(it, dict) and 'game_meta' in it and 'feed' in it:
+                                        gm = it.get('game_meta') or {}
+                                        gid = gm.get('id') or gm.get('gamePk') or gm.get('gameID')
+                                        try:
+                                            gid = int(gid)
+                                            cached_feeds[gid] = it['feed']
+                                        except Exception:
+                                            continue
+                                except Exception:
+                                    continue
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
     def _fetch_task(gm: Dict[str, Any]):
         gid = _game_id_from_gm(gm)
         if gid is None:
             return None
+        # If we preloaded a cached feed, return it immediately
+        if use_cache and gid in cached_feeds:
+            return {'game_id': gid, 'feed': cached_feeds[gid]}
+        # If per-game files exist on disk, prefer them when use_cache is enabled
+        try:
+            per_path = season_dir / f'game_{gid}.json'
+            if use_cache and per_path.exists():
+                try:
+                    with per_path.open('r', encoding='utf-8') as pfh:
+                        return {'game_id': gid, 'feed': json.load(pfh)}
+                except Exception:
+                    pass
+        except Exception:
+            pass
         try:
             feed = nhl_api.get_game_feed(gid)
             if not isinstance(feed, dict) or not feed:
@@ -749,36 +891,120 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
                 print(f'_scrape: progress {completed}/{total}', end='\r')
 
     if verbose:
-        print(f'\n_scrape: fetched {len(feeds)} feeds, writing to {csv_path} and {json_path}')
+        print(f'\n_scrape: fetched {len(feeds)} feeds')
+    # Persist raw feeds according to flags
+    saved_paths = {'csv': None, 'json': None, 'per_game': []}
+    if save_raw and feeds:
+        # Ensure output directory exists
+        try:
+            season_dir = Path(out_dir) / season
+            season_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            season_dir = Path(out_dir)
 
-    # write CSV (game_id, feed_json)
-    import csv
-    try:
-        with csv_path.open('w', encoding='utf-8', newline='') as fh:
-            writer = csv.writer(fh)
-            writer.writerow(['game_id', 'feed'])
+        if save_csv:
+            try:
+                import csv as _csv
+                with (season_dir / f'{season}_raw_game_feeds.csv').open('w', encoding='utf-8', newline='') as fh:
+                    writer = _csv.writer(fh)
+                    writer.writerow(['game_id', 'feed'])
+                    for item in feeds:
+                        try:
+                            writer.writerow([item['game_id'], json.dumps(item['feed'], ensure_ascii=False)])
+                        except Exception:
+                            writer.writerow([item.get('game_id'), '{}'])
+                saved_paths['csv'] = str(season_dir / f'{season}_raw_game_feeds.csv')
+                if verbose:
+                    print(f'_scrape: saved CSV -> {saved_paths["csv"]}')
+            except Exception as e:
+                logging.warning('_scrape: failed to write CSV %s: %s', csv_path, e)
+
+        if save_json:
+            try:
+                with (season_dir / f'{season}_raw_game_feeds.json').open('w', encoding='utf-8') as jfh:
+                    json.dump([{'game_id': f['game_id'], 'feed': f['feed']} for f in feeds], jfh, ensure_ascii=False)
+                saved_paths['json'] = str(season_dir / f'{season}_raw_game_feeds.json')
+                if verbose:
+                    print(f'_scrape: saved JSON -> {saved_paths["json"]}')
+            except Exception as e:
+                logging.warning('_scrape: failed to write JSON backup %s: %s', json_path, e)
+
+        if per_game_files:
             for item in feeds:
                 try:
-                    writer.writerow([item['game_id'], json.dumps(item['feed'], ensure_ascii=False)])
+                    pid = int(item['game_id'])
                 except Exception:
-                    # fallback to writing an empty JSON object
-                    writer.writerow([item.get('game_id'), '{}'])
-    except Exception as e:
-        logging.warning('_scrape: failed to write CSV %s: %s', csv_path, e)
+                    pid = item.get('game_id')
+                try:
+                    ppath = season_dir / f'game_{pid}.json'
+                    with ppath.open('w', encoding='utf-8') as pfh:
+                        json.dump(item['feed'], pfh, ensure_ascii=False)
+                    saved_paths['per_game'].append(str(ppath))
+                except Exception:
+                    continue
 
-    # write JSON backup
-    try:
-        with json_path.open('w', encoding='utf-8') as jfh:
-            json.dump([{'game_id': f['game_id'], 'feed': f['feed']} for f in feeds], jfh, ensure_ascii=False)
-    except Exception as e:
-        logging.warning('_scrape: failed to write JSON backup %s: %s', json_path, e)
+    # Optionally process into elaborated DataFrame
+    elaborated_df = None
+    if process_elaborated and feeds:
+        records: List[Dict[str, Any]] = []
+        for item in feeds:
+            try:
+                ev_df = _game(item['feed'])
+                if ev_df is None or ev_df.empty:
+                    continue
+                try:
+                    edf = _elaborate(ev_df)
+                except Exception:
+                    continue
+                if edf is None or edf.empty:
+                    continue
+                records.extend(edf.to_dict('records'))
+            except Exception:
+                continue
+        if records:
+            elaborated_df = pd.DataFrame.from_records(records)
+            out_file = Path(out_dir) / season / f'{season}.csv'
+            try:
+                out_file.parent.mkdir(parents=True, exist_ok=True)
+                elaborated_df.to_csv(out_file, index=False)
+                if verbose:
+                    print(f'_scrape: saved elaborated season CSV -> {out_file}')
+            except Exception as e:
+                logging.warning('_scrape: failed to save elaborated CSV %s: %s', str(out_file), e)
 
-    return str(csv_path)
+    # Build return value – maintain backward compatibility by default
+    if not (return_raw_feeds or return_elaborated_df):
+        # Default legacy return: path to CSV if saved, else JSON path or empty string
+        if saved_paths.get('csv'):
+            return saved_paths['csv']
+        if saved_paths.get('json'):
+            return saved_paths['json']
+        return ''
+    else:
+        result: Dict[str, Any] = {}
+        result['saved_paths'] = saved_paths
+        result['raw_feeds'] = feeds if return_raw_feeds else None
+        result['elaborated_df'] = elaborated_df if return_elaborated_df else None
+        return result
 
 
 if __name__ == '__main__':
 
-    _scrape('20252026', team='all', out_dir='/Users/harrisonmcadams/PycharmProjects/new_puck/data', use_cache=True, max_games=5, max_workers=4, verbose=True)
+    # Example debug invocation (only when run as a script)
+    _scrape_res = _scrape(season='20252026', team='all',
+            out_dir='data', use_cache= True,
+            max_games= None, max_workers= 8,
+            verbose= True,
+            # New behavior flags
+            save_raw= False,
+            save_csv= False,
+            save_json= False,
+            per_game_files = False,
+            process_elaborated = True,
+            save_elaborated = True,
+            return_raw_feeds= False,
+            return_elaborated_df= True)
+
 
 
     debug_season = True
