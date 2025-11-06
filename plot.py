@@ -457,8 +457,9 @@ def plot_events(
             events_with_xg = events_with_xg[[]]
 
         if not events_with_xg.empty:
-            # ensure adjusted coords exist
-            if events_with_xg['x_a'].isna().all() or events_with_xg['y_a'].isna().all():
+            # ensure adjusted coords exist; if either 'x_a' or 'y_a' is missing
+            # (for example they were not created earlier), compute them now.
+            if ('x_a' not in events_with_xg.columns) or ('y_a' not in events_with_xg.columns):
                 events_with_xg = adjust_xy_for_homeaway(events_with_xg)
             try:
                 print('events_with_xg rows after filter:', events_with_xg.shape[0])
