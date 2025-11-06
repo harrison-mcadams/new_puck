@@ -16,3 +16,7 @@
 
 # Model improvements:
 #   - add more features to xg model. next up shot type
+
+# Analysis
+#   - Make analysis.py which has a routine that looks at relative xgs for a
+#   given team in the offensive and defensive zones

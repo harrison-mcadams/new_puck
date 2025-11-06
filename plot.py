@@ -316,29 +316,44 @@ def plot_events(
         if len(vals) > 0:
             away_id = vals[0]
 
+    # If the filtered plotting dataframe `df` is empty (for example when the
+    # caller only requested 'xgs' heatmap), fall back to the original
+    # `events` DataFrame for summary metadata (team abbreviations, ids).
+    summary_df = df if (df is not None and not df.empty) else events
 
-
-    home_name = df['home_abb'].iloc[0]
-    away_name = df['away_abb'].iloc[0]
+    # Safely extract home/away abbreviations
+    if 'home_abb' in summary_df.columns and not summary_df['home_abb'].dropna().empty:
+        home_name = str(summary_df['home_abb'].dropna().unique()[0])
+    else:
+        home_name = ''
+    if 'away_abb' in summary_df.columns and not summary_df['away_abb'].dropna().empty:
+        away_name = str(summary_df['away_abb'].dropna().unique()[0])
+    else:
+        away_name = ''
 
     # compute goals (count events with 'goal')
-    ev_lc = df['event'].astype(str).str.strip().str.lower() if 'event' in df.columns else pd.Series([], dtype=object)
+    ev_lc = events['event'].astype(str).str.strip().str.lower() if 'event' in events.columns else pd.Series([], dtype=object)
     is_goal = ev_lc == 'goal'
-    home_goals = int(((df['team_id'].astype(str) == str(home_id)) & is_goal).sum()) if 'team_id' in df.columns and home_id is not None else int(is_goal.sum())
-    away_goals = int(((df['team_id'].astype(str) != str(home_id)) & is_goal).sum()) if 'team_id' in df.columns and home_id is not None else 0
+    # Count goals using the original events DataFrame (more complete than filtered df)
+    if 'team_id' in events.columns and home_id is not None:
+        home_goals = int(((events['team_id'].astype(str) == str(home_id)) & is_goal).sum())
+        away_goals = int(((events['team_id'].astype(str) != str(home_id)) & is_goal).sum())
+    else:
+        home_goals = int(is_goal.sum())
+        away_goals = 0
 
     # shot attempts totals (shot-on-goal, missed-shot, blocked-shot)
-    # Use the normalized lowercase event column computed earlier (`ev_lc`).
+    # Use the normalized lowercase event column computed earlier on the full events df.
     shot_attempt_types = {'shot-on-goal', 'missed-shot', 'blocked-shot'}
-    ev_lc = df['event'].astype(str).str.strip().str.lower() if 'event' in df.columns else pd.Series([], dtype=object)
-    attempt_mask = ev_lc.isin(shot_attempt_types)
-    attempts_df = df.loc[attempt_mask]
+    ev_lc_full = events['event'].astype(str).str.strip().str.lower() if 'event' in events.columns else pd.Series([], dtype=object)
+    attempt_mask = ev_lc_full.isin(shot_attempt_types)
+    attempts_df = events.loc[attempt_mask]
 
-    if 'team_id' in df.columns and home_id is not None:
+    if 'team_id' in events.columns and home_id is not None:
         home_attempts = int((attempts_df['team_id'].astype(str) == str(home_id)).sum())
         away_attempts = int((attempts_df['team_id'].astype(str) != str(home_id)).sum())
     else:
-        xs_series = attempts_df['x_a'] if 'x_a' in attempts_df.columns else attempts_df['x'] if 'x' in attempts_df.columns else pd.Series([])
+        xs_series = attempts_df['x_a'] if 'x_a' in attempts_df.columns else (attempts_df['x'] if 'x' in attempts_df.columns else pd.Series([]))
         home_attempts = int((xs_series < 0).sum())
         away_attempts = int((xs_series >= 0).sum())
 
@@ -443,7 +458,8 @@ def plot_events(
 
         if not events_with_xg.empty:
             # ensure adjusted coords exist
-            events_with_xg = adjust_xy_for_homeaway(events_with_xg)
+            if events_with_xg['x_a'].isna().all() or events_with_xg['y_a'].isna().all():
+                events_with_xg = adjust_xy_for_homeaway(events_with_xg)
             try:
                 print('events_with_xg rows after filter:', events_with_xg.shape[0])
             except Exception:
