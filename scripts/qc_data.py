@@ -79,6 +79,12 @@ Other QC ideas (pseudo-code / brainstorming):
    - If a group is flagged and flipping x->-x (or swapping left/right goal assignment)
      reduces mean distance dramatically, propose an automated correction.
 
+10) Can consider explicit check against another NHL score repository. 
+Specifically the NHL also collates play-by-play data with a more fleshed out 
+HTML page. Here is an example call: 
+https://www.nhl.com/scores/htmlreports/20142015/PL010078.HTM. The last two 
+parts of the URL are a combination of the game_id
+
 """
 
 
@@ -89,18 +95,58 @@ def load_csv_candidates(data_dir: Path) -> List[Path]:
     - Also accept any .csv files found anywhere under the directory.
     """
     files: List[Path] = []
-    if not data_dir.exists():
-        return []
-    # first pass: year-based files
-    for p in sorted(data_dir.iterdir()):
-        if p.is_dir():
-            candidate = p / f"{p.name}_df.csv"
-            if candidate.exists():
-                files.append(candidate)
-    # fallback: any CSV under the directory
+
+    # Normalize and resolve the requested path
+    try:
+        base = Path(data_dir).expanduser().resolve()
+    except Exception:
+        base = Path(data_dir)
+
+    tried_dirs: List[Path] = []
+    if base.exists() and base.is_dir():
+        tried_dirs.append(base)
+    else:
+        # Common fallbacks
+        for alt in (Path('data'), Path('static')):
+            if alt.exists() and alt.is_dir():
+                tried_dirs.append(alt.resolve())
+                break
+
+    # If we still have nothing, fall back to project root so the script at least scans the workspace
+    if not tried_dirs:
+        tried_dirs.append(Path('.').resolve())
+
+    # First pass: look for per-year files like {year}/{year}_df.csv
+    for d in tried_dirs:
+        try:
+            for child in sorted([p for p in d.iterdir() if p.is_dir()]):
+                cand = child / f"{child.name}_df.csv"
+                if cand.exists():
+                    files.append(cand.resolve())
+        except Exception:
+            continue
+
+    # Second pass: if none found, search recursively for any CSV under the first tried dir
     if not files:
-        files = list(data_dir.rglob('*.csv'))
-    return files
+        search_root = tried_dirs[0]
+        try:
+            files = [p.resolve() for p in search_root.rglob('*.csv')]
+        except Exception:
+            files = []
+
+    # Deduplicate while preserving order
+    out: List[Path] = []
+    seen = set()
+    for f in files:
+        if f in seen:
+            continue
+        seen.add(f)
+        out.append(f)
+
+    if not out:
+        print(f'load_csv_candidates: no CSV files found under {base} or fallbacks. Tried: {[str(p) for p in tried_dirs]}')
+
+    return out
 
 
 def compute_distances(df: pd.DataFrame) -> pd.DataFrame:
@@ -311,8 +357,10 @@ def run_qc(data_dir: Path, out: Optional[Path] = None, min_shots: int = 3, abs_t
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='QC scraped NHL event CSVs')
-    parser.add_argument('--data-dir', default='data', help='Root folder to scan for per-year CSVs (default data/)')
-    parser.add_argument('--out', default='reports/qc_report.json', type=Path, help='Output JSON path for flagged report')
+    parser.add_argument('--data-dir', default='../data', help='Root folder to '
+                                                            'scan for per-year CSVs (default data/)')
+    parser.add_argument('--out', default='../reports/qc_report.json',
+                        type=Path, help='Output JSON path for flagged report')
     parser.add_argument('--min-shots', default=3, type=int, help='Minimum shots in a group to consider')
     parser.add_argument('--abs-thresh', default=20.0, type=float, help='Absolute distance (ft) difference threshold')
     parser.add_argument('--ratio-thresh', default=1.25, type=float, help='Ratio threshold for mean_attacked / mean_nearest')
@@ -320,4 +368,3 @@ if __name__ == '__main__':
     args = parser.parse_args()
     res = run_qc(Path(args.data_dir), out=args.out, min_shots=args.min_shots, abs_thresh=args.abs_thresh, ratio_thresh=args.ratio_thresh)
     raise SystemExit(res)
-
