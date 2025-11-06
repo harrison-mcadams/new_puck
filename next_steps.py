@@ -11,7 +11,6 @@
 
 # Work on cacheing.
 # Things to cache:
-#   - xg model
 #   - website shortcuts: team list, game list, player list
 #   - add remove shoot out attempts from game plotting
 

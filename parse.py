@@ -129,6 +129,13 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
 
         home_side = p.get('homeTeamDefendingSide') or p.get('home_team_defending_side')
 
+        # Determine the home team's defending side robustly using helper.
+        try:
+            home_side = infer_home_defending_side_from_play(p, game_feed=game_feed)
+        except Exception:
+            # fallback to legacy direct keys if helper fails for some reason
+            home_side = p.get('homeTeamDefendingSide') or p.get('home_team_defending_side')
+
         # figure out game situation (e.g. even-strength, PP, SH) if possible
         situation_code = p['situationCode'] if 'situationCode' in p else None
 
@@ -496,6 +503,60 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
         # nothing to do
         return pd.DataFrame()
 
+    # Build a temporary DataFrame of the raw rows so we can run per-period
+    # heuristics (we have access to the whole game's rows here, unlike in
+    # `_game`). Use this to infer `home_team_defending_side` for periods
+    # where the feed lacks explicit metadata. The inference prefers shot
+    # attempts in the period and requires at least a couple points to be
+    # confident.
+    try:
+        raw_df = pd.DataFrame(rows)
+    except Exception:
+        raw_df = None
+
+    period_side_map: Dict[Any, Optional[str]] = {}
+    shot_types = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+    if raw_df is not None and not raw_df.empty and 'period' in raw_df.columns:
+        try:
+            raw_df['period'] = pd.to_numeric(raw_df['period'], errors='coerce')
+        except Exception:
+            pass
+        try:
+            periods = sorted(raw_df['period'].dropna().unique().tolist())
+        except Exception:
+            periods = []
+        for per in periods:
+            try:
+                period_slice = raw_df[raw_df['period'] == per]
+                if period_slice.empty:
+                    period_side_map[per] = None
+                    continue
+
+                # prefer shot attempts when available
+                if 'event' in period_slice.columns:
+                    shots_slice = period_slice[period_slice['event'].isin(shot_types)]
+                else:
+                    shots_slice = period_slice
+
+                # representative play dict for helper input
+                rep = period_slice.iloc[0].to_dict()
+
+                # require at least 2 points for coordinate-based inference
+                try_df = shots_slice if len(shots_slice) >= 2 else (period_slice if len(period_slice) >= 2 else None)
+                if try_df is None:
+                    period_side_map[per] = None
+                    continue
+
+                try:
+                    side = infer_home_defending_side_from_play(rep, game_feed=None, events_df=try_df)
+                except Exception:
+                    side = None
+                period_side_map[per] = side
+            except Exception:
+                period_side_map[per] = None
+    else:
+        period_side_map = {}
+
     for ev in rows:
         try:
             rec = dict(ev)  # shallow copy
@@ -506,6 +567,13 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                 rec['period'] = int(rec.get('period')) if rec.get('period') is not None else None
             except Exception:
                 rec['period'] = None
+
+            # If the row lacks an explicit `home_team_defending_side`, fill it
+            # from the per-period inference mapping computed above.
+            if rec.get('home_team_defending_side') is None:
+                inferred_side = period_side_map.get(rec.get('period'))
+                if inferred_side is not None:
+                    rec['home_team_defending_side'] = inferred_side
 
             # Compute two time-derived columns:
             # - periodTime_seconds_elapsed: seconds elapsed within the period
@@ -572,6 +640,8 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
             rec['y'] = y
 
             ## Basic analysis stuff
+            # Call to infer_home_defending_side around here, before any of
+            # htat information is subsequently operated on
 
             if x is not None and y is not None:
                 # calculate distance to the attacked goal
@@ -1000,12 +1070,154 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
     return result
 
 
+def _normalize_side(s: Optional[str]) -> Optional[str]:
+    """Normalize a side string into 'left' or 'right' or None."""
+    if s is None:
+        return None
+    try:
+        s2 = str(s).strip().lower()
+    except Exception:
+        return None
+    if not s2:
+        return None
+    if s2.startswith('l'):
+        return 'left'
+    if s2.startswith('r'):
+        return 'right'
+    # sometimes the feed uses 'home'/'away' in odd contexts; ignore those
+    return None
+
+
+def infer_home_defending_side_from_play(p: dict, game_feed: Optional[dict] = None, events_df=None) -> Optional[str]:
+    """Infer the home team's defending side ('left' or 'right').
+
+    Strategy (in order):
+      1. Look for explicit keys on the play dict `p` that directly indicate
+         the home defending side (common key: 'homeTeamDefendingSide').
+      2. If not present, try common alternative keys on `p` or `game_feed`.
+      3. As a robust fallback, if `events_df` (pandas DataFrame) for the
+         same game/period/team is provided, infer from coordinates: compute
+         mean distance to left/right canonical goal positions and choose the
+         attacked goal that gives the smaller mean distance; from that
+         determine the defended side.
+
+    Parameters:
+      - p: the single play dictionary (as received from the NHL feed)
+      - game_feed: optional full game feed dict (for alternate metadata locations)
+      - events_df: optional pandas.DataFrame of events for the same game/period
+                   (helps infer side when explicit keys are missing)
+
+    Returns: 'left' or 'right', or None if undetermined.
+    """
+    # 1) explicit keys on the play
+    candidates = [
+        'homeTeamDefendingSide',
+        'home_team_defending_side',
+        'homeTeamDefendSide',
+        'homeDefendingSide',
+    ]
+    for k in candidates:
+        if isinstance(p, dict) and k in p:
+            s = _normalize_side(p.get(k))
+            if s:
+                return s
+
+    # 2) sometimes encoded in nested structures
+    # check p.get('team') but this usually doesn't contain home side
+    # check top-level game_feed locations that sometimes exist
+    if isinstance(game_feed, dict):
+        # common locations
+        try_keys = [
+            'homeTeamDefendingSide',
+            'home_team_defending_side',
+            # older or nested shapes
+            ('liveData', 'plays', 'homeTeamDefendingSide'),
+            ('gameData', 'teams', 'home', 'defendingSide'),
+            ('liveData', 'linescore', 'teams', 'home', 'defendingSide'),
+        ]
+        for tk in try_keys:
+            if isinstance(tk, str) and tk in game_feed:
+                s = _normalize_side(game_feed.get(tk))
+                if s:
+                    return s
+            elif isinstance(tk, tuple):
+                cur = game_feed
+                ok = True
+                for part in tk:
+                    if not isinstance(cur, dict) or part not in cur:
+                        ok = False
+                        break
+                    cur = cur.get(part)
+                if ok:
+                    s = _normalize_side(cur)
+                    if s:
+                        return s
+
+    # 3) Fallback heuristic based on coordinates and events_df when available.
+    # If we have a small DataFrame of events for the same (game_id, period)
+    # we can estimate which goal each team is attacking by comparing mean
+    # distance to canonical left/right goals. This is a per-period heuristic
+    # (teams switch ends each period) so prefer passing the per-period slice.
+    try:
+        import pandas as _pd
+        if events_df is not None and hasattr(events_df, 'empty') and not events_df.empty:
+            # attempt to find the home id from the play or the df
+            home_id = p.get('home_id') or p.get('homeId') or None
+            # if not in play, try from df
+            if home_id is None and 'home_id' in events_df.columns:
+                # take the first non-null
+                vals = events_df['home_id'].dropna().unique()
+                if len(vals) > 0:
+                    home_id = vals[0]
+
+            # need team membership: prefer rows where team_id == home_id
+            if home_id is None and 'team_id' in events_df.columns:
+                # try to infer which team is home by majority of events marked home
+                # if dataset contains home_id per row use that; otherwise skip
+                pass
+
+            # require numeric x/y and the rink helper
+            try:
+                from rink import rink_goal_xs
+                left_x, right_x = rink_goal_xs()
+            except Exception:
+                left_x, right_x = -89.0, 89.0
+
+            # build candidate rows for the home team (or all rows if home_id unknown)
+            if home_id is not None and 'team_id' in events_df.columns:
+                cand = events_df[events_df['team_id'] == home_id]
+            else:
+                cand = events_df
+
+            # require at least a couple points to make a decision
+            if len(cand) >= 2 and 'x' in cand.columns and 'y' in cand.columns:
+                candx = pd.to_numeric(cand['x'], errors='coerce')
+                candy = pd.to_numeric(cand['y'], errors='coerce')
+                mask = candx.notna() & candy.notna()
+                if mask.sum() >= 2:
+                    dx_left = ((candx[mask] - left_x)**2 + (candy[mask])**2)**0.5
+                    dx_right = ((candx[mask] - right_x)**2 + (candy[mask])**2)**0.5
+                    mean_left = float(dx_left.mean())
+                    mean_right = float(dx_right.mean())
+                    # if mean_right < mean_left -> these events are closer to right goal -> attacking right
+                    if mean_right < mean_left:
+                        # attacking right => home is defending left
+                        return 'left'
+                    else:
+                        return 'right'
+    except Exception:
+        pass
+
+    # 4) if nothing works, return None
+    return None
+
 if __name__ == '__main__':
 
     # let's scrape from seasons starting in 2014
     years = [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023,
              2024, 2025]
     # Example debug invocation (only when run as a script)
+    res = None
     for year in years:
         season = f'{year}{year+1}'
         print(f'\n=== Scraping season {season} ===')
@@ -1015,9 +1227,9 @@ if __name__ == '__main__':
             max_games=None, max_workers=8,
             verbose=True,
             # New behavior flags
-            save_raw=True,
-            save_csv=True,
-            save_json=True,
+            save_raw=False,
+            save_csv=False,
+            save_json=False,
             per_game_files=False,
             process_elaborated=True,
             save_elaborated=True,
