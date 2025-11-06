@@ -503,10 +503,14 @@ def plot_events(
 
                 two_sigma2 = 2.0 * (hm_sigma ** 2)
                 # iterate over events and add to appropriate heat map
+                # Precompute normalization factor so discrete grid sums approximate integral = ai
+                # Continuous Gaussian integral = ai * 2*pi*sigma^2. To make the discrete sum of
+                # grid cell values equal ai, we multiply the kernel by (res^2) / (2*pi*sigma^2).
+                norm_factor = (hm_res ** 2) / (2.0 * np.pi * (hm_sigma ** 2))
                 for xi, yi, ai, row in zip(xs, ys, amps, events_with_xg.loc[mask].itertuples(index=False)):
                     dx = XX - xi
                     dy = YY - yi
-                    kern = ai * np.exp(-(dx * dx + dy * dy) / two_sigma2)
+                    kern = ai * norm_factor * np.exp(-(dx * dx + dy * dy) / two_sigma2)
                     try:
                         # row may have team_id/home_id attributes; compare if present
                         team_id = getattr(row, 'team_id', None)
