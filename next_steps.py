@@ -17,6 +17,12 @@
 # Model improvements:
 #   - add more features to xg model. next up shot type
 
+# Refactoring:
+#   - in parse.py (the routine that that works on dfs), create a routine
+#   called filter. you should be able to filter the df on any number of
+#   cases, but the obvious use case is 'team'. this is currently working in
+#   analyze.py but should be generalized and moved to parse.py
+
 # Analysis
 #   - Make analysis.py which has a routine that looks at relative xgs for a
 #   given team in the offensive and defensive zones

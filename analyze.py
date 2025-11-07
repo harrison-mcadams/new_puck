@@ -1,5 +1,6 @@
 ## Various different analyses
 
+
 from typing import Optional
 
 def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
@@ -9,7 +10,8 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
             out_path: str = 'static/xg_map.png',
             orient_all_left: bool = False,
             events_to_plot: Optional[list] = None,
-            show: bool = False):
+            show: bool = False,
+            return_heatmaps: bool = False):
     """Create an xG density map for a season and save a plot.
 
     Steps implemented:
@@ -34,7 +36,6 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     - events_to_plot: list of events to pass through to plot.plot_events (default includes 'xgs')
     - show: if True, display the matplotlib figure (requires interactive backend)
     """
-    import os
     from pathlib import Path
     import pandas as pd
     import numpy as np
@@ -75,6 +76,49 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     print('xgs_map: loading CSV ->', chosen_csv)
     df = pd.read_csv(chosen_csv)
 
+    # --- Team-based resolution & optional season-level filtering (moved before model prep)
+    sel_team_id = None
+    sel_team_abb = None
+    if team:
+        tstr = str(team).strip()
+        # try integer id match first
+        try:
+            tid = int(tstr)
+            if ('home_id' in df.columns and tid in df['home_id'].dropna().astype(int).unique()) or (
+                'away_id' in df.columns and tid in df['away_id'].dropna().astype(int).unique()):
+                sel_team_id = tid
+        except Exception:
+            tid = None
+
+        if sel_team_id is None:
+            # try abbreviation match (case-insensitive)
+            tupper = tstr.upper()
+            if (('home_abb' in df.columns and tupper in df['home_abb'].dropna().astype(str).str.upper().unique()) or
+                ('away_abb' in df.columns and tupper in df['away_abb'].dropna().astype(str).str.upper().unique())):
+                sel_team_abb = tupper
+
+        # filter the season dataframe to only rows where this team participates
+        if sel_team_id is not None or sel_team_abb is not None:
+            mask = pd.Series(False, index=df.index)
+            if sel_team_id is not None:
+                if 'home_id' in df.columns:
+                    mask = mask | (df['home_id'].astype(str) == str(sel_team_id))
+                if 'away_id' in df.columns:
+                    mask = mask | (df['away_id'].astype(str) == str(sel_team_id))
+            if sel_team_abb is not None:
+                if 'home_abb' in df.columns:
+                    mask = mask | (df['home_abb'].astype(str).str.upper() == sel_team_abb)
+                if 'away_abb' in df.columns:
+                    mask = mask | (df['away_abb'].astype(str).str.upper() == sel_team_abb)
+
+            n_keep = int(mask.sum())
+            if n_keep > 0:
+                df = df.loc[mask].copy()
+                print(f"Filtered season dataframe to {n_keep} events for team '{team}'")
+            else:
+                print(f"Warning: no events found for team '{team}' — proceeding without team filtering")
+    # --- end moved team filtering ---
+
     # 2) get or train classifier
     try:
         clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
@@ -106,54 +150,92 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     df.loc[xgs_series.index, 'xgs'] = xgs_series.values
 
     # 5) orient all shots to the left if requested
-    if orient_all_left:
-        # implement orientation: if an event is attacking the right, rotate 180deg
-        left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
-        def compute_attacked_goal_x(row):
-            # replicate logic from parse._elaborate / plot.adjust_xy_for_homeaway
-            try:
-                team_id = row.get('team_id')
-                home_id = row.get('home_id')
-                home_def = row.get('home_team_defending_side')
-                if pd.isna(team_id) or pd.isna(home_id):
-                    return right_goal_x
-                if int(team_id) == int(home_id):
-                    # shooter is home -> attacking goal opposite of what home defends
-                    if home_def == 'left':
-                        return right_goal_x
-                    elif home_def == 'right':
-                        return left_goal_x
-                    else:
-                        return right_goal_x
-                else:
-                    # shooter is away
-                    if home_def == 'left':
-                        return left_goal_x
-                    elif home_def == 'right':
-                        return right_goal_x
-                    else:
-                        return left_goal_x
-            except Exception:
+    # Prepare helper to infer which goal a row is attacking (re-uses parse/plot logic)
+    left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
+    def compute_attacked_goal_x(row):
+        try:
+            team_id = row.get('team_id')
+            home_id = row.get('home_id')
+            home_def = row.get('home_team_defending_side')
+            if pd.isna(team_id) or pd.isna(home_id):
                 return right_goal_x
+            # if shooter is home, they attack opposite of what home defends
+            if str(team_id) == str(home_id):
+                if home_def == 'left':
+                    return right_goal_x
+                elif home_def == 'right':
+                    return left_goal_x
+                else:
+                    return right_goal_x
+            else:
+                # shooter is away
+                if home_def == 'left':
+                    return left_goal_x
+                elif home_def == 'right':
+                    return right_goal_x
+                else:
+                    return left_goal_x
+        except Exception:
+            return right_goal_x
 
+    # default: copy unadjusted coords so we always have x_a/y_a
+    df['x_a'] = df.get('x')
+    df['y_a'] = df.get('y')
+
+    if team and (sel_team_id is not None or sel_team_abb is not None):
+        # Step 2: For the 'team' case, force shots from the selected team to the left
+        # and the other team's shots to the right.
         attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
-        # If attacked_x == right_goal_x, rotate 180: (x,y)->(-x,-y)
-        df['x_a'] = df['x']
-        df['y_a'] = df['y']
+
+        def is_row_selected(row):
+            if sel_team_id is not None:
+                return str(row.get('team_id')) == str(sel_team_id)
+            if sel_team_abb is not None:
+                h_abb = str(row.get('home_abb', '')).upper()
+                a_abb = str(row.get('away_abb', '')).upper()
+                # shooter is home and home_abb matches OR shooter is away and away_abb matches
+                if h_abb == sel_team_abb and str(row.get('team_id')) == str(row.get('home_id')):
+                    return True
+                if a_abb == sel_team_abb and str(row.get('team_id')) == str(row.get('away_id')):
+                    return True
+            return False
+
+        # Compute desired goal per row: selected team's shots -> left; others -> right
+        desired_goal = df.apply(lambda r: left_goal_x if is_row_selected(r) else right_goal_x, axis=1)
+
+        # Rotate rows where attacked goal != desired goal
+        mask_rotate = (attacked_xs != desired_goal) & df['x'].notna() & df['y'].notna()
+        df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
+        df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
+    elif orient_all_left:
+        # Original behavior: orient all shots so home team attacks left
+        attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
         mask_rotate = (attacked_xs == right_goal_x) & df['x'].notna() & df['y'].notna()
         df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
         df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
-    else:
-        # rely on plot.adjust_xy_for_homeaway to construct x_a/y_a as needed
-        df['x_a'] = df.get('x')
-        df['y_a'] = df.get('y')
+    # else: leave x_a/y_a as copy of x/y
 
     # 6) call plotting routine
     if events_to_plot is None:
         events_to_plot = ['xgs']
 
     print('xgs_map: calling plot.plot_events ->', out_path)
-    fig, ax = plot_mod.plot_events(df, events_to_plot=events_to_plot, out_path=out_path)
+    # request heatmaps from plot_events when requested; handle both return shapes
+    if return_heatmaps:
+        ret = []
+        heatmaps = plot_mod.plot_events(df, events_to_plot=events_to_plot,
+                                 out_path=out_path, return_heatmaps=True)
+
+    else:
+        ret = plot_mod.plot_events(df, events_to_plot=events_to_plot, out_path=out_path)
+        if isinstance(ret, (tuple, list)):
+            if len(ret) >= 2:
+                fig, ax = ret[0], ret[1]
+            else:
+                raise RuntimeError('Unexpected return from plot.plot_events; expected (fig, ax)')
+        else:
+            raise RuntimeError('Unexpected return type from plot.plot_events')
+        heatmaps = None
 
     if show:
         try:
@@ -161,9 +243,18 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
         except Exception:
             pass
 
+    if return_heatmaps:
+        return out_path, heatmaps
     return out_path
 
 if __name__ == '__main__':
     # example usage
-    xgs_map(season='20252026', out_path='static/xg_map_20252026.png',
-            orient_all_left=True, show=True)
+    _, league_maps = xgs_map(season='20252026',
+                        out_path='static/xg_map_20252026.png',
+            orient_all_left=True, show=False, return_heatmaps=True)
+
+    _, team_maps = xgs_map(team='PHI', season='20252026',
+                        out_path='static/PHI_xg_map_20252026.png',
+            orient_all_left=False, show=False, return_heatmaps=True)
+
+    print('We are done analyzing')

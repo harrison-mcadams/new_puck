@@ -9,7 +9,10 @@ import matplotlib
 # (e.g. in headless CI or via `export FORCE_AGG=1`). Otherwise leave the
 # backend selection to matplotlib (which enables interactive backends).
 if os.environ.get('FORCE_AGG', '0') == '1':
-    matplotlib.use('Agg')
+    try:
+        matplotlib.use('Agg')
+    except Exception:
+        pass
 import matplotlib.pyplot as plt
 import pandas as pd
 from pathlib import Path
@@ -150,6 +153,7 @@ def plot_events(
     out_path: Optional[str] = None,
     figsize: Tuple[float, float] = (8, 4.5),
     title: Optional[str] = None,
+    return_heatmaps: bool = False,
 ) -> Tuple[plt.Figure, plt.Axes]:
     """Plot event locations onto a rink schematic.
 
@@ -166,9 +170,14 @@ def plot_events(
     - out_path: if provided, save the figure to this path
     - figsize: size for new figure
     - title: optional plot title
+   - return_heatmaps: if True return (fig, ax, {{'home': heat_home, 'away': heat_away}})
 
     Returns (fig, ax).
     """
+    # initialize heatmap outputs for backward compatibility
+    heat_home = None
+    heat_away = None
+
     # Basic validation
     if not isinstance(events, pd.DataFrame):
         raise TypeError('events must be a pandas DataFrame')
@@ -202,10 +211,8 @@ def plot_events(
     # Normalize requested event types and detect if caller wants an xG heatmap
     requested = [e.strip().lower() for e in events_to_plot] if events_to_plot is not None else None
     wants_xgs = (requested is not None and 'xgs' in requested)
-    try:
-        print(f"plot_events called: wants_xgs={wants_xgs}, requested={requested}, events_rows={len(events)}")
-    except Exception:
-        pass
+
+    # (no debugger-based skip — plot all requested features including xgs)
 
     # Build a filtered list for _events that excludes 'xgs' (it's not an event name)
     if requested is not None:
@@ -265,6 +272,8 @@ def plot_events(
     # For legend handles
     handles = []
     labels = []
+    # ensure ev_type is defined even if grouping yields no iterations
+    ev_type = None
 
     # Group by event type (case-insensitive)
     df = df.copy()
@@ -581,7 +590,11 @@ def plot_events(
         except Exception:
             pass
 
-    return fig, ax
+    # Return heatmaps optionally (backwards compatible)
+    if return_heatmaps:
+        return {'home': heat_home, 'away': heat_away}
+
+    return
 
 
 # small demo helper (not run automatically) showing expected usage
@@ -627,7 +640,7 @@ if __name__ == '__main__':
     Path('static').mkdir(parents=True, exist_ok=True)
 
     print('Generating plot to', out_file)
-    fig, ax = plot_events(df, events_to_plot=['shot-on-goal', 'goal',
+    plot_events(df, events_to_plot=['shot-on-goal', 'goal',
                                               'blocked-shot', 'missed-shot',
                                               'xGs'], out_path=out_file)
     print('Saved example plot to', out_file)

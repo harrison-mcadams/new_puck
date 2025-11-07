@@ -43,6 +43,8 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
     events: List[Dict[str, Any]] = []
 
     plays = None
+    # defensive initialize
+    ev_type = None
     if isinstance(game_feed, dict):
         plays = game_feed.get('plays') or game_feed.get('playByPlay', {}).get('plays')
 

@@ -91,7 +91,7 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     feed = get_game_feed(gameID)
 
     events = _game(feed)
-    if not events:
+    if events is None or (hasattr(events, 'empty') and events.empty):
         print("parse_shot_and_goal_events: no events parsed; nothing to plot")
 
     home_id, away_id = _extract_home_away_from_feed(feed)
@@ -125,6 +125,9 @@ def plot_shots(gameID: int, output_file: str = OUTPUT_FILE, mirror: bool = True,
     home_goal_ys = []
     away_goal_xs = []
     away_goal_ys = []
+
+    # defensive initialization for variables used in downstream logic
+    ev_type = None
 
     for e in events:
         raw_x = e.get('x')
