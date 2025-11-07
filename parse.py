@@ -1214,37 +1214,118 @@ def infer_home_defending_side_from_play(p: dict, game_feed: Optional[dict] = Non
     return None
 
 def _timing(df):
-    # For a given game or games, I want to extract timing information from
-    # the corresponding dataframe.
+    # For a given game or games, extract timing intervals and totals for a
+    # simple boolean condition applied to rows of the dataframe.
+    #
+    # This implementation focuses on `game_state` conditions (e.g. '5v5') and
+    # uses the column `total_time_elapsed_seconds` as the timeline. It is
+    # intentionally simple and easy to read; it returns both per-game interval
+    # lists and per-game totals, plus an overall aggregate.
+    #
+    # Signature (kept simple for callers):
+    #   _timing(df, condition_col='game_state', condition_value='5v5',
+    #           time_col='total_time_elapsed_seconds', game_col='game_id')
+    #
+    # Returns: (intervals_per_game, totals_per_game, aggregate_totals)
+    #  - intervals_per_game: dict game_id -> list of (start_sec, end_sec)
+    #  - totals_per_game: dict game_id -> dict with keys 'condition_seconds', 'total_seconds'
+    #  - aggregate_totals: dict with same keys aggregated across games
 
-    # Note I think we're going to want the most complete df possible, in that
-    # we'll be using row by row processing to determine timing transition,
-    # so if transitions are removed then this timing routine won't know about.
+    # Allow callers to override via keyword args for flexibility while
+    # maintaining backward compatibility with no-arg calls.
 
-    # let's also do the filtering game-wise. If we try to dice it any farther
-    # than that, or allow the code to try and work on smaller chunks,
-    # there will be too many edge cases to consider
+    # NOTE: keep the implementation conservative: if required columns are
+    # missing, return empty/zero structures rather than raising.
 
-    # As a concrete example, I want to understand the time spent played '5v5'
-    # Note, however, that there will be further filtering parameters (
-    # eventually player_id, is_net_empty, etc) that will be applied later.
-    # Focusing now on the game_state part first. 1) create a column that
-    # marks whether the corresponding 'game_state' condition is met, 2) find
-# transition portions on that column and identify the corresponding timing
-# information. save these out as the first output variable. 3) sum up the
-# total time spent in the condition as the second output variable.
-
-    # For the output, I want two output variables. the first will be a
-    # collection times in which the conditions are True. For example,
-    # for game_state='5v5', I want a list of (start_time, end_time) tuples
-    # that correspond when a period of '5v5' start time begins until when it
-    # ends. we'll need separate entry for different games if a list of games,
-    # rather than just a single game is provided. For the second output
-    # variable, i just want the counts: time (in seconds) in which the
-    # condition is true, and total time (in seconds).
+    return _timing_impl(df)
 
 
+def _timing_impl(df, condition_col: str = 'game_state', condition_value: str = '5v5',
+                 time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
+    """Core implementation used by `_timing`.
 
+    Parameters
+    - df: pandas.DataFrame containing events across one or more games
+    - condition_col: column to test (default 'game_state')
+    - condition_value: value that counts as "in condition" (default '5v5')
+    - time_col: numeric column containing seconds elapsed since game start
+    - game_col: column that identifies distinct games
+
+    Returns (intervals_per_game, totals_per_game, aggregate_totals)
+    """
+    import pandas as _pd
+
+    intervals_per_game = {}
+    totals_per_game = {}
+    agg_condition_seconds = 0.0
+    agg_total_seconds = 0.0
+
+    # Basic validation
+    if df is None:
+        return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+    if not isinstance(df, _pd.DataFrame):
+        try:
+            df = _pd.DataFrame.from_records(list(df))
+        except Exception:
+            return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+
+    if game_col not in df.columns:
+        # try to treat entire df as single game with id None
+        df = df.copy()
+        df[game_col] = None
+
+    # If time column missing, we cannot compute durations reliably
+    if time_col not in df.columns:
+        # return empty results rather than erroring
+        return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+
+    # Ensure numeric time
+    df = df.copy()
+    df[time_col] = _pd.to_numeric(df[time_col], errors='coerce')
+
+    # Process per game
+    for gid, gdf in df.groupby(game_col):
+        # sort by time to ensure chronological order
+        gdf = gdf.sort_values(by=time_col).reset_index(drop=True)
+        # drop rows without time
+        gdf = gdf[gdf[time_col].notna()]
+        if gdf.shape[0] == 0:
+            intervals_per_game[gid] = []
+            totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
+            continue
+
+        # boolean mask for condition
+        cond = (gdf.get(condition_col) == condition_value)
+
+        # label contiguous blocks where cond value is same
+        change_points = cond.ne(cond.shift(fill_value=False)).cumsum()
+        intervals = []
+        condition_seconds = 0.0
+
+        # For each group where cond is True, compute start and end times
+        grouped = gdf.groupby(change_points)
+        for _, block in grouped:
+            # block is contiguous with same cond value
+            val = bool((block.get(condition_col) == condition_value).iloc[0])
+            if not val:
+                continue
+            start_time = float(block[time_col].iloc[0])
+            end_time = float(block[time_col].iloc[-1])
+            # If there is only a single event in block, duration is 0; that's OK
+            intervals.append((start_time, end_time))
+            condition_seconds += max(0.0, end_time - start_time)
+
+        # estimate total time span for game as last_time - first_time
+        total_seconds = float(gdf[time_col].iloc[-1] - gdf[time_col].iloc[0]) if gdf.shape[0] >= 2 else 0.0
+
+        intervals_per_game[gid] = intervals
+        totals_per_game[gid] = {'condition_seconds': condition_seconds, 'total_seconds': total_seconds}
+
+        agg_condition_seconds += condition_seconds
+        agg_total_seconds += total_seconds
+
+    aggregate = {'condition_seconds': agg_condition_seconds, 'total_seconds': agg_total_seconds}
+    return intervals_per_game, totals_per_game, aggregate
 
 
 if __name__ == '__main__':

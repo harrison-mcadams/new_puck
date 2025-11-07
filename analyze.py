@@ -248,6 +248,21 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     return out_path
 
 if __name__ == '__main__':
+    import parse
+    import nhl_api
+
+    game_id = '2025020223'
+    game_feed = nhl_api.get_game_feed(game_id)
+    df = parse._game(game_feed)
+    df = parse._elaborate(df)
+
+    # Get timing information
+    state_of_interest='5v5'
+    shifts, totals_per_game, totals = parse._timing_impl(df, 'game_state',
+                                          state_of_interest,
+                                          game_col='game_id',
+                                          time_col='total_time_elapsed_seconds')
+
     # example usage
     _, league_maps = xgs_map(season='20252026',
                         out_path='static/xg_map_20252026.png',
