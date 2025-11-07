@@ -11,7 +11,8 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
             orient_all_left: bool = False,
             events_to_plot: Optional[list] = None,
             show: bool = False,
-            return_heatmaps: bool = False):
+            return_heatmaps: bool = False,
+            condition: Optional[object] = None):
     """Create an xG density map for a season and save a plot.
 
     Steps implemented:
@@ -119,12 +120,43 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
                 print(f"Warning: no events found for team '{team}' — proceeding without team filtering")
     # --- end moved team filtering ---
 
-    # 2) get or train classifier
-    try:
-        clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
-    except Exception as e:
-        print('xgs_map: get_clf failed with', e, '— trying to train a new model')
-        clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
+    # --- Apply flexible condition-based filtering (same contract as parse.build_mask)
+    # `condition` may be None, a dict of column->spec, or a callable(df)->bool Series.
+    import parse as _parse
+    if condition is not None:
+        try:
+            cond_mask = _parse.build_mask(df, condition)
+            # normalize mask and handle empty
+            cond_mask = cond_mask.reindex(df.index).fillna(False).astype(bool)
+            n_cond = int(cond_mask.sum())
+            if n_cond == 0:
+                print(f"Warning: condition {condition!r} matched 0 rows; producing an empty plot without training/loading model")
+                # produce an empty DataFrame so downstream code skips model operations
+                df = df.iloc[0:0].copy()
+                df['xgs'] = float('nan')
+                # proceed directly to plotting step below
+                pass
+            else:
+                df = df.loc[cond_mask].copy()
+                print(f"Filtered season dataframe to {n_cond} events by condition {condition!r}")
+        except Exception as e:
+            print('Warning: failed to apply condition filter:', e)
+
+    # 2) get or train classifier — only if we need predictions (i.e., df has rows and xgs not prefilled)
+    clf = None
+    final_features = None
+    categorical_levels_map = None
+    # Only attempt to prepare/train/load model if we don't already have 'xgs' column
+    if 'xgs' not in df.columns or df['xgs'].notna().any():
+        # If df is empty, skip model loading/training to avoid expensive operations
+        if df.shape[0] == 0:
+            print('xgs_map: filtered dataframe is empty — skipping model load/train and plotting empty map')
+        else:
+            try:
+                clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
+            except Exception as e:
+                print('xgs_map: get_clf failed with', e, '— trying to train a new model')
+                clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
 
     # 3) prepare the season dataframe for model prediction; use the same features
     features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
@@ -137,20 +169,20 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
         # fallback to the derived final_feature_cols_game
         final_features = final_feature_cols_game
 
-    # 4) predict xgs and attach to original df aligning indexes
-    X = df_model[final_features].values
-    try:
-        probs = clf.predict_proba(X)[:, 1]
-    except Exception as e:
-        raise RuntimeError('Failed to predict with classifier: ' + str(e))
-
-    # attach to original df using index alignment
+    # 4) predict xgs and attach to original df aligning indexes (only if clf is available and df non-empty)
     df['xgs'] = np.nan
-    xgs_series = pd.Series(probs, index=df_model.index)
-    df.loc[xgs_series.index, 'xgs'] = xgs_series.values
+    if clf is not None and df_model.shape[0] > 0:
+        X = df_model[final_features].values
+        try:
+            probs = clf.predict_proba(X)[:, 1]
+        except Exception as e:
+            raise RuntimeError('Failed to predict with classifier: ' + str(e))
+        # attach to original df using index alignment
+        xgs_series = pd.Series(probs, index=df_model.index)
+        df.loc[xgs_series.index, 'xgs'] = xgs_series.values
 
     # 5) orient all shots to the left if requested
-    # Prepare helper to infer which goal a row is attacking (re-uses parse/plot logic)
+    # Prepare helper to infer which goal a row is attacking (re-uses plot logic)
     left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
     def compute_attacked_goal_x(row):
         try:
@@ -222,9 +254,18 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     print('xgs_map: calling plot.plot_events ->', out_path)
     # request heatmaps from plot_events when requested; handle both return shapes
     if return_heatmaps:
-        ret = []
-        heatmaps = plot_mod.plot_events(df, events_to_plot=events_to_plot,
-                                 out_path=out_path, return_heatmaps=True)
+        ret = plot_mod.plot_events(df, events_to_plot=events_to_plot, out_path=out_path, return_heatmaps=True)
+        # ret is expected to be (fig, ax, {'home':..., 'away':...}) but be defensive
+        if isinstance(ret, (tuple, list)):
+            if len(ret) >= 3:
+                fig, ax, heatmaps = ret[0], ret[1], ret[2]
+            elif len(ret) == 2:
+                fig, ax = ret[0], ret[1]
+                heatmaps = None
+            else:
+                raise RuntimeError('Unexpected return from plot.plot_events when return_heatmaps=True')
+        else:
+            raise RuntimeError('Unexpected return type from plot.plot_events when return_heatmaps=True')
 
     else:
         ret = plot_mod.plot_events(df, events_to_plot=events_to_plot, out_path=out_path)
@@ -264,8 +305,8 @@ if __name__ == '__main__':
 
     # Get timing information
 
-    condition = {'game_state': ['5v6'],
-                 'is_net_empty': True}
+    condition = {'game_state': ['5v5'],
+                 'is_net_empty': False}
     shifts, totals_per_game, totals = parse._timing_impl(df,
                                           condition=condition,
                                           game_col='game_id',
@@ -279,7 +320,7 @@ if __name__ == '__main__':
     # the same logic as above
 
     # example usage
-    _, league_maps = xgs_map(season='20252026',
+    _, league_maps = xgs_map(season='20252026', condition=condition,
                         out_path='static/xg_map_20252026.png',
             orient_all_left=True, show=False, return_heatmaps=True)
 

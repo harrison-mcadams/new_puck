@@ -590,11 +590,13 @@ def plot_events(
         except Exception:
             pass
 
-    # Return heatmaps optionally (backwards compatible)
+    # Return consistent shapes:
+    # - if return_heatmaps is True -> (fig, ax, {'home': heat_home, 'away': heat_away})
+    # - else -> (fig, ax)
     if return_heatmaps:
-        return {'home': heat_home, 'away': heat_away}
+        return fig, ax, {'home': heat_home, 'away': heat_away}
 
-    return
+    return fig, ax
 
 
 # small demo helper (not run automatically) showing expected usage
