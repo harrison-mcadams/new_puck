@@ -154,6 +154,10 @@ def plot_events(
     figsize: Tuple[float, float] = (8, 4.5),
     title: Optional[str] = None,
     return_heatmaps: bool = False,
+    # heatmap mode: 'home_away' keeps legacy behavior, 'team_not_team' groups
+    # xG into 'team' vs 'not_team' based on `team_for_heatmap`.
+    heatmap_split_mode: str = 'home_away',
+    team_for_heatmap: Optional[object] = None,
 ) -> Tuple[plt.Figure, plt.Axes]:
     """Plot event locations onto a rink schematic.
 
@@ -177,6 +181,8 @@ def plot_events(
     # initialize heatmap outputs for backward compatibility
     heat_home = None
     heat_away = None
+    heat_team = None
+    heat_not_team = None
 
     # Basic validation
     if not isinstance(events, pd.DataFrame):
@@ -496,66 +502,116 @@ def plot_events(
                 except Exception:
                     pass
                 XX, YY = np.meshgrid(gx, gy)
-                # build two heat arrays: home and away, so we can color them
-                heat_home = np.zeros_like(XX, dtype=float)
-                heat_away = np.zeros_like(XX, dtype=float)
-                # determine which events are home/away using home_id if available
-                # try to get home_id from events_with_xg, else try df
+                # build heat arrays depending on split mode
+                if heatmap_split_mode == 'team_not_team':
+                    heat_team = np.zeros_like(XX, dtype=float)
+                    heat_not_team = np.zeros_like(XX, dtype=float)
+                else:
+                    # default legacy mode: home vs away
+                    heat_home = np.zeros_like(XX, dtype=float)
+                    heat_away = np.zeros_like(XX, dtype=float)
+
+                # precompute team_for_heatmap parsing
+                try:
+                    tid = int(team_for_heatmap) if team_for_heatmap is not None and str(team_for_heatmap).strip().isdigit() else None
+                except Exception:
+                    tid = None
+                tupper = str(team_for_heatmap).upper() if team_for_heatmap is not None and not isinstance(team_for_heatmap, (int, float)) else None
+
+                # canonical home id preference for legacy home/away logic
                 home_id_val = None
                 if 'home_id' in events_with_xg.columns:
                     vals = events_with_xg['home_id'].dropna().unique()
                     if len(vals) > 0:
                         home_id_val = vals[0]
-                elif 'home_id' in df.columns:
-                    vals = df['home_id'].dropna().unique()
+                elif 'home_id' in events.columns:
+                    vals = events['home_id'].dropna().unique()
                     if len(vals) > 0:
                         home_id_val = vals[0]
 
+                # Gaussian kernel precomputations
                 two_sigma2 = 2.0 * (hm_sigma ** 2)
-                # iterate over events and add to appropriate heat map
-                # Precompute normalization factor so discrete grid sums approximate integral = ai
-                # Continuous Gaussian integral = ai * 2*pi*sigma^2. To make the discrete sum of
-                # grid cell values equal ai, we multiply the kernel by (res^2) / (2*pi*sigma^2).
+                # normalization factor so discrete grid sums approximate integral = ai
                 norm_factor = (hm_res ** 2) / (2.0 * np.pi * (hm_sigma ** 2))
+
                 for xi, yi, ai, row in zip(xs, ys, amps, events_with_xg.loc[mask].itertuples(index=False)):
                     dx = XX - xi
                     dy = YY - yi
                     kern = ai * norm_factor * np.exp(-(dx * dx + dy * dy) / two_sigma2)
                     try:
-                        # row may have team_id/home_id attributes; compare if present
+                        # row may have team_id/home_id attributes; decide bucket based on mode
                         team_id = getattr(row, 'team_id', None)
                         h_id = getattr(row, 'home_id', None)
-                        is_home_event = None
-                        if team_id is not None and h_id is not None:
-                            is_home_event = str(team_id) == str(h_id)
-                        elif home_id_val is not None and team_id is not None:
-                            is_home_event = str(team_id) == str(home_id_val)
+
+                        if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+                            # determine whether this event belongs to the requested team
+                            is_team_event = False
+                            try:
+                                if tid is not None and team_id is not None:
+                                    is_team_event = str(team_id) == str(tid)
+                                elif tupper is not None:
+                                    # check whether home/away abbrevs match and team_id aligns
+                                    home_abb = getattr(row, 'home_abb', None)
+                                    away_abb = getattr(row, 'away_abb', None)
+                                    if home_abb is not None and str(home_abb).upper() == tupper:
+                                        is_team_event = (team_id is not None and str(team_id) == str(getattr(row, 'home_id', None)))
+                                    elif away_abb is not None and str(away_abb).upper() == tupper:
+                                        is_team_event = (team_id is not None and str(team_id) == str(getattr(row, 'away_id', None)))
+                            except Exception:
+                                is_team_event = False
+
+                            if is_team_event:
+                                heat_team += kern
+                            else:
+                                heat_not_team += kern
                         else:
-                            # fallback: use x-coordinate sign (adjusted coords)
-                            is_home_event = (xi < 0)
-                        if is_home_event:
-                            heat_home += kern
-                        else:
-                            heat_away += kern
+                            # legacy home/away behavior
+                            is_home_event = None
+                            if team_id is not None and h_id is not None:
+                                is_home_event = str(team_id) == str(h_id)
+                            elif home_id_val is not None and team_id is not None:
+                                is_home_event = str(team_id) == str(home_id_val)
+                            else:
+                                # fallback: use x-coordinate sign (adjusted coords)
+                                is_home_event = (xi < 0)
+                            if is_home_event:
+                                heat_home += kern
+                            else:
+                                heat_away += kern
                     except Exception:
                         # if anything goes wrong, accumulate into combined heat
-                        heat_home += kern
+                        if heatmap_split_mode == 'team_not_team':
+                            heat_team += kern
+                        else:
+                            heat_home += kern
 
                 # mask out points outside the rink boundary
                 rink_mask = np.vectorize(rink_half_height_at_x)(XX) >= np.abs(YY)
-                heat_home *= rink_mask
-                heat_away *= rink_mask
+                if heatmap_split_mode == 'team_not_team':
+                    heat_team *= rink_mask
+                    heat_not_team *= rink_mask
+                else:
+                    heat_home *= rink_mask
+                    heat_away *= rink_mask
 
                 # create RGBA images where rgb is team color and alpha is normalized heat
                 extent = (gx[0] - hm_res / 2.0, gx[-1] + hm_res / 2.0, gy[0] - hm_res / 2.0, gy[-1] + hm_res / 2.0)
 
-                # pick colors for home/away (allow overrides)
-                home_color = 'black'
-                away_color = 'orange'
-                if event_styles and isinstance(event_styles, dict):
-                    evx = event_styles.get('xgs') or {}
-                    home_color = evx.get('home_color', home_color)
-                    away_color = evx.get('away_color', away_color)
+                # pick colors depending on split mode (allow overrides)
+                if heatmap_split_mode == 'team_not_team':
+                    team_color = 'black'
+                    not_team_color = 'orange'
+                    if event_styles and isinstance(event_styles, dict):
+                        evx = event_styles.get('xgs') or {}
+                        team_color = evx.get('team_color', team_color)
+                        not_team_color = evx.get('not_team_color', not_team_color)
+                else:
+                    home_color = 'black'
+                    away_color = 'orange'
+                    if event_styles and isinstance(event_styles, dict):
+                        evx = event_styles.get('xgs') or {}
+                        home_color = evx.get('home_color', home_color)
+                        away_color = evx.get('away_color', away_color)
 
                 # helper to convert heat -> rgba image
                 def heat_to_rgba(h, color, alpha_scale=hm_alpha):
@@ -572,14 +628,22 @@ def plot_events(
                     rgba[..., 3] = norm * alpha_scale
                     return rgba
 
-                rgba_home = heat_to_rgba(heat_home, home_color) if heat_home is not None else None
-                rgba_away = heat_to_rgba(heat_away, away_color) if heat_away is not None else None
-
-                # overlay home then away (so away appears on top if overlapping)
-                if rgba_home is not None:
-                    ax.imshow(rgba_home, extent=extent, origin='lower', zorder=1)
-                if rgba_away is not None:
-                    ax.imshow(rgba_away, extent=extent, origin='lower', zorder=2)
+                if heatmap_split_mode == 'team_not_team':
+                    rgba_team = heat_to_rgba(heat_team, team_color) if heat_team is not None else None
+                    rgba_not_team = heat_to_rgba(heat_not_team, not_team_color) if heat_not_team is not None else None
+                    # overlay team then not_team (not_team on top)
+                    if rgba_team is not None:
+                        ax.imshow(rgba_team, extent=extent, origin='lower', zorder=1)
+                    if rgba_not_team is not None:
+                        ax.imshow(rgba_not_team, extent=extent, origin='lower', zorder=2)
+                else:
+                    rgba_home = heat_to_rgba(heat_home, home_color) if heat_home is not None else None
+                    rgba_away = heat_to_rgba(heat_away, away_color) if heat_away is not None else None
+                    # overlay home then away (so away appears on top if overlapping)
+                    if rgba_home is not None:
+                        ax.imshow(rgba_home, extent=extent, origin='lower', zorder=1)
+                    if rgba_away is not None:
+                        ax.imshow(rgba_away, extent=extent, origin='lower', zorder=2)
 
     # final save (after heatmap overlay)
     if out_path:
@@ -594,7 +658,10 @@ def plot_events(
     # - if return_heatmaps is True -> (fig, ax, {'home': heat_home, 'away': heat_away})
     # - else -> (fig, ax)
     if return_heatmaps:
-        return fig, ax, {'home': heat_home, 'away': heat_away}
+        if heatmap_split_mode == 'team_not_team':
+            return fig, ax, {'team': heat_team, 'not_team': heat_not_team}
+        else:
+            return fig, ax, {'home': heat_home, 'away': heat_away}
 
     return fig, ax
 

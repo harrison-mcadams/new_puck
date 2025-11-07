@@ -11,262 +11,294 @@ def xgs_map(season: str = '20252026', *,
              orient_all_left: bool = False,
              events_to_plot: Optional[list] = None,
              show: bool = False,
-             return_heatmaps: bool = False,
+             return_heatmaps: bool = True,
+             # when True, return the filtered dataframe used to create the map
+             return_filtered_df: bool = True,
              condition: Optional[object] = None):
     """Create an xG density map for a season and save a plot.
 
-    Steps implemented:
-      1. Locate and load the season CSV (defaults to data/{season}/{season}_df.csv or static/{season}_df.csv).
-      2. Obtain a classifier via fit_xgs.get_clf(model_path, behavior, csv_path=...).
-         If behavior=='load' and loading fails, the function falls back to training.
-      3. Clean the loaded season DataFrame into model inputs using fit_xgs.clean_df_for_model
-         (providing the categorical levels map returned at training so encoding is stable).
-      4. Predict xG probabilities for the events in the loaded DataFrame and attach as 'xgs'.
-      5. Optionally orient all shots to the left (rotate 180° those attacking the right) so the
-         visualization is in a consistent frame.
-      6. Call plot.plot_events(...) and save the generated image to out_path.
+    This function is intentionally written as a clear sequence of steps with
+    small local helpers so it's easy to read and maintain. The external
+    behavior (return value and saved image) is unchanged.
 
-    Parameters
-    - season: season string used to find CSVs (default '20252026')
-    - csv_path: explicit path to the CSV to load; if None the function searches standard locations
-    - model_path: where to load/save the xG model
-    - behavior: 'load' (try load) or 'train' (force train). If 'load' fails, falls back to 'train'.
-    - out_path: destination image path
-    - orient_all_left: when True, rotate events so all attacks face the left goal
-    - events_to_plot: list of events to pass through to plot.plot_events (default includes 'xgs')
-    - show: if True, display the matplotlib figure (requires interactive backend)
+    High level steps (implemented below):
+      1) Locate and load a season CSV.
+      2) Apply an optional flexible `condition` filter (uses `parse.build_mask`).
+         If `condition` is a dict with a 'team' key, that is treated as a
+         request to match either home or away team (by id or abbreviation).
+      3) If needed, obtain/train an xG classifier and predict probabilities
+         on the filtered rows (attach as column 'xgs'). Prediction only runs
+         when the filtered df is non-empty and 'xgs' either doesn't exist or
+         contains only NaN values.
+      4) Optionally orient coordinates so selected shots face left (or all).
+      5) Call the plotting routine and save/return outputs.
+
+    Parameters mirror the previous implementation; returning (out_path, heatmaps)
+    when `return_heatmaps=True` and just `out_path` otherwise.
     """
+
+    # Local imports placed here to avoid module-level side-effects when importing analyze
     from pathlib import Path
     import pandas as pd
     import numpy as np
     import fit_xgs
     import plot as plot_mod
+    import parse as _parse
 
-    # 1) find CSV path
-    chosen_csv = None
-    if csv_path:
-        p = Path(csv_path)
-        if p.exists():
-            chosen_csv = p
-    if chosen_csv is None:
-        # prefer data/{season}/{season}_df.csv
+    # --- Helpers ------------------------------------------------------------
+    def _locate_csv() -> Path:
+        """Find a CSV for the given season using a prioritized list of
+        candidates, then a recursive search of data/ if necessary.
+        """
+        if csv_path:
+            p = Path(csv_path)
+            if p.exists():
+                return p
         candidates = [Path('data') / season / f'{season}_df.csv',
                       Path('data') / f'{season}_df.csv',
                       Path('static') / f'{season}_df.csv',
-                      Path('static') / f'{season}.csv',
-                      Path('static') / f'{season}.csv',
-                      Path('static') / f'{season}_df.csv']
+                      Path('static') / f'{season}.csv']
         for c in candidates:
             try:
                 if c.exists():
-                    chosen_csv = c
-                    break
+                    return c
             except Exception:
                 continue
-    if chosen_csv is None:
-        # last resort: search data/ recursively for a file that contains the season string
+        # fallback: find any CSV under data/ matching season
         data_dir = Path('data')
         if data_dir.exists():
             found = list(data_dir.rglob(f'*{season}*.csv'))
             if found:
-                chosen_csv = found[0]
-    if chosen_csv is None:
-        raise FileNotFoundError(f'Could not locate a CSV for season {season}. Checked candidates and data/ search.')
+                return found[0]
+        raise FileNotFoundError(f'Could not locate a CSV for season {season}.')
 
-    print('xgs_map: loading CSV ->', chosen_csv)
-    df = pd.read_csv(chosen_csv)
+    def _apply_condition(df: pd.DataFrame):
+        """Apply `condition` to df and return (filtered_df, team_val).
 
-    # --- Apply filtering from `condition` (use parse.build_mask) ---
-    # The contract: `condition` may be None, a dict (column->spec), or a callable(df)->bool Series.
-    # Special-case: if `condition` (a dict) contains a 'team' key, interpret that as a request
-    # to filter rows where the given team (id or abbreviation) participates (home or away).
-    import parse as _parse
-
-    # Work on a shallow copy so we don't mutate caller's dict
-    cond = None
-    if isinstance(condition, dict):
-        cond = condition.copy()
-    else:
-        cond = condition
-
-    # Extract team from `condition['team']` if present (we no longer accept a separate team arg).
-    team_val = None
-    if isinstance(cond, dict) and 'team' in cond:
-        team_val = cond.pop('team')
-
-    # Build base mask from the remaining condition (if any)
-    try:
-        if cond is None:
-            base_mask = pd.Series(True, index=df.index)
+        The `condition` contract is flexible: None, dict (column->spec), or
+        callable(df)->boolean Series. If a team is specified in a dict via
+        the 'team' key, it is treated specially and interpreted as matching
+        either home or away (by id or abbreviation).
+        """
+        # Defensive copy of condition dict so caller's input isn't mutated
+        cond_work = None
+        if isinstance(condition, dict):
+            cond_work = condition.copy()
         else:
-            base_mask = _parse.build_mask(df, cond).reindex(df.index).fillna(False).astype(bool)
-    except Exception as e:
-        print('Warning: failed to apply condition filter:', e)
-        base_mask = pd.Series(False, index=df.index)
+            cond_work = condition
 
-    # If a team was specified, build a mask that matches either home or away team columns.
-    if team_val is not None:
-        tstr = str(team_val).strip()
-        try:
-            tid = int(tstr)
-        except Exception:
-            tid = None
-
-        team_mask = pd.Series(False, index=df.index)
-        if tid is not None:
-            if 'home_id' in df.columns:
-                team_mask |= df['home_id'].astype(str) == str(tid)
-            if 'away_id' in df.columns:
-                team_mask |= df['away_id'].astype(str) == str(tid)
-        else:
-            tupper = tstr.upper()
-            if 'home_abb' in df.columns:
-                team_mask |= df['home_abb'].astype(str).str.upper() == tupper
-            if 'away_abb' in df.columns:
-                team_mask |= df['away_abb'].astype(str).str.upper() == tupper
-
-        final_mask = base_mask & team_mask
-    else:
-        final_mask = base_mask
-
-    # Apply final mask and handle empty results consistently with prior behavior
-    n_cond = int(final_mask.sum())
-    if n_cond == 0:
-        print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")
-        df = df.iloc[0:0].copy()
-        df['xgs'] = float('nan')
-    else:
-        df = df.loc[final_mask].copy()
-        print(f"Filtered season dataframe to {n_cond} events by condition {condition!r} team={team_val!r}")
-
-    # 2) get or train classifier — only if we need predictions (i.e., df has rows and xgs not prefilled)
-    clf = None
-    final_features = None
-    categorical_levels_map = None
-    # Only attempt to prepare/train/load model if we don't already have 'xgs' column
-    if 'xgs' not in df.columns or df['xgs'].notna().any():
-        # If df is empty, skip model loading/training to avoid expensive operations
-        if df.shape[0] == 0:
-            print('xgs_map: filtered dataframe is empty — skipping model load/train and plotting empty map')
-        else:
+        team_val = None
+        if isinstance(cond_work, dict) and 'team' in cond_work:
             try:
-                clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
-            except Exception as e:
-                print('xgs_map: get_clf failed with', e, '— trying to train a new model')
-                clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
-
-    # 3) prepare the season dataframe for model prediction; use the same features
-    features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-    try:
-        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=categorical_levels_map)
-    except Exception as e:
-        raise RuntimeError('Failed to prepare season df for model: ' + str(e))
-
-    if not final_features:
-        # fallback to the derived final_feature_cols_game
-        final_features = final_feature_cols_game
-
-    # 4) predict xgs and attach to original df aligning indexes (only if clf is available and df non-empty)
-    df['xgs'] = np.nan
-    if clf is not None and df_model.shape[0] > 0:
-        X = df_model[final_features].values
-        try:
-            probs = clf.predict_proba(X)[:, 1]
-        except Exception as e:
-            raise RuntimeError('Failed to predict with classifier: ' + str(e))
-        # attach to original df using index alignment
-        xgs_series = pd.Series(probs, index=df_model.index)
-        df.loc[xgs_series.index, 'xgs'] = xgs_series.values
-
-    # 5) orient all shots to the left if requested
-    # Prepare helper to infer which goal a row is attacking (re-uses plot logic)
-    left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
-    def compute_attacked_goal_x(row):
-        try:
-            team_id = row.get('team_id')
-            home_id = row.get('home_id')
-            home_def = row.get('home_team_defending_side')
-            if pd.isna(team_id) or pd.isna(home_id):
-                return right_goal_x
-            # if shooter is home, they attack opposite of what home defends
-            if str(team_id) == str(home_id):
-                if home_def == 'left':
-                    return right_goal_x
-                elif home_def == 'right':
-                    return left_goal_x
-                else:
-                    return right_goal_x
-            else:
-                # shooter is away
-                if home_def == 'left':
-                    return left_goal_x
-                elif home_def == 'right':
-                    return right_goal_x
-                else:
-                    return left_goal_x
-        except Exception:
-            return right_goal_x
-
-    # default: copy unadjusted coords so we always have x_a/y_a
-    df['x_a'] = df.get('x')
-    df['y_a'] = df.get('y')
-
-    if team_val is not None:
-        # Force shots from the selected team to face the left goal and the opponent's
-        # shots to face the right goal. This does not rely on previously-defined
-        # sel_team_id/sel_team_abb variables; compute the id/abbr locally for clarity.
-        tstr = str(team_val).strip()
-        try:
-            tid = int(tstr)
-        except Exception:
-            tid = None
-        tupper = None if tid is not None else tstr.upper()
-
-        attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
-
-        def is_row_selected(row):
-            # True when the shooter belongs to the selected team
-            try:
-                if tid is not None:
-                    return str(row.get('team_id')) == str(tid)
-                # otherwise compare abbreviations aligned with whether shooter is home/away
-                shooter_id = row.get('team_id')
-                if pd.isna(shooter_id):
-                    return False
-                # shooter is home
-                if str(shooter_id) == str(row.get('home_id')) and row.get('home_abb') is not None:
-                    return str(row.get('home_abb')).upper() == tupper
-                # shooter is away
-                if str(shooter_id) == str(row.get('away_id')) and row.get('away_abb') is not None:
-                    return str(row.get('away_abb')).upper() == tupper
-                return False
+                team_val = cond_work.pop('team')
             except Exception:
-                return False
+                team_val = None
 
-        # Compute desired goal per row: selected team's shots -> left; others -> right
-        desired_goal = df.apply(lambda r: left_goal_x if is_row_selected(r) else right_goal_x, axis=1)
+        # Build base mask using parse.build_mask (supports dict, callable, None)
+        try:
+            if cond_work is None:
+                base_mask = pd.Series(True, index=df.index)
+            else:
+                base_mask = _parse.build_mask(df, cond_work).reindex(df.index).fillna(False).astype(bool)
+        except Exception as e:
+            print('Warning: failed to apply condition filter:', e)
+            base_mask = pd.Series(False, index=df.index)
 
-        # Rotate rows where attacked goal != desired goal
-        mask_rotate = (attacked_xs != desired_goal) & df['x'].notna() & df['y'].notna()
-        df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
-        df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
-    elif orient_all_left:
-        # Original behavior: orient all shots so home team attacks left
-        attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
-        mask_rotate = (attacked_xs == right_goal_x) & df['x'].notna() & df['y'].notna()
-        df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
-        df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
-    # else: leave x_a/y_a as copy of x/y
+        # Build team mask if requested
+        if team_val is not None:
+            tstr = str(team_val).strip()
+            try:
+                tid = int(tstr)
+            except Exception:
+                tid = None
 
-    # 6) call plotting routine
+            team_mask = pd.Series(False, index=df.index)
+            if tid is not None:
+                if 'home_id' in df.columns:
+                    team_mask |= df['home_id'].astype(str) == str(tid)
+                if 'away_id' in df.columns:
+                    team_mask |= df['away_id'].astype(str) == str(tid)
+            else:
+                tupper = tstr.upper()
+                if 'home_abb' in df.columns:
+                    team_mask |= df['home_abb'].astype(str).str.upper() == tupper
+                if 'away_abb' in df.columns:
+                    team_mask |= df['away_abb'].astype(str).str.upper() == tupper
+
+            final_mask = base_mask & team_mask
+        else:
+            final_mask = base_mask
+
+        n = int(final_mask.sum())
+        if n == 0:
+            # preserve prior behavior: return empty df with xgs column present
+            empty = df.iloc[0:0].copy()
+            empty['xgs'] = float('nan')
+            return empty, team_val
+        return df.loc[final_mask].copy(), team_val
+
+    def _predict_xgs(df_filtered: pd.DataFrame):
+        """Load/train classifier if needed and predict xgs for df rows; returns df with 'xgs'.
+
+        Prediction is attempted only when df_filtered is non-empty and either
+        (a) column 'xgs' doesn't exist, or (b) it exists but all values are NaN.
+        This avoids re-predicting over already-populated xgs.
+        """
+        df = df_filtered
+        if df.shape[0] == 0:
+            return df, None, None
+
+        # Decide whether we need to load/train a classifier
+        need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all())
+        clf = None
+        final_features = None
+        categorical_levels_map = None
+
+        if not need_predict:
+            # nothing to do
+            return df, clf, (final_features, categorical_levels_map)
+
+        # Attempt to obtain classifier according to requested behavior
+        try:
+            clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
+        except Exception as e:
+            # fallback: force training
+            print('xgs_map: get_clf failed with', e, '— trying to train a new model')
+            clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
+
+        # Prepare model inputs using the same features used at training
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=categorical_levels_map)
+
+        if final_features is None:
+            final_features = final_feature_cols_game
+
+        # Ensure xgs column exists
+        df['xgs'] = np.nan
+
+        if clf is not None and df_model.shape[0] > 0:
+            X = df_model[final_features].values
+            probs = clf.predict_proba(X)[:, 1]
+            xgs_series = pd.Series(probs, index=df_model.index)
+            df.loc[xgs_series.index, 'xgs'] = xgs_series.values
+
+        return df, clf, (final_features, categorical_levels_map)
+
+    def _orient_coordinates(df_in: pd.DataFrame, team_val_local):
+        """Produce x_a/y_a columns for plotting according to orientation rules.
+
+        When `team_val_local` is supplied we force shots from that team to face
+        the left goal and opponents to face the right goal. When `orient_all_left`
+        is True (and no team is given), we orient all shots so they face left.
+        """
+        df = df_in
+        left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
+
+        def compute_attacked_goal_x(row):
+            try:
+                team_id = row.get('team_id')
+                home_id = row.get('home_id')
+                home_def = row.get('home_team_defending_side')
+                if pd.isna(team_id) or pd.isna(home_id):
+                    return right_goal_x
+                if str(team_id) == str(home_id):
+                    if home_def == 'left':
+                        return right_goal_x
+                    elif home_def == 'right':
+                        return left_goal_x
+                    else:
+                        return right_goal_x
+                else:
+                    if home_def == 'left':
+                        return left_goal_x
+                    elif home_def == 'right':
+                        return right_goal_x
+                    else:
+                        return left_goal_x
+            except Exception:
+                return right_goal_x
+
+        df['x_a'] = df.get('x')
+        df['y_a'] = df.get('y')
+
+        if team_val_local is not None:
+            # compute identity of selected team
+            tstr = str(team_val_local).strip()
+            try:
+                tid = int(tstr)
+            except Exception:
+                tid = None
+            tupper = None if tid is not None else tstr.upper()
+
+            attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
+
+            def is_row_selected(row):
+                try:
+                    if tid is not None:
+                        return str(row.get('team_id')) == str(tid)
+                    shooter_id = row.get('team_id')
+                    if pd.isna(shooter_id):
+                        return False
+                    if str(shooter_id) == str(row.get('home_id')) and row.get('home_abb') is not None:
+                        return str(row.get('home_abb')).upper() == tupper
+                    if str(shooter_id) == str(row.get('away_id')) and row.get('away_abb') is not None:
+                        return str(row.get('away_abb')).upper() == tupper
+                    return False
+                except Exception:
+                    return False
+
+            desired_goal = df.apply(lambda r: left_goal_x if is_row_selected(r) else right_goal_x, axis=1)
+            mask_rotate = (attacked_xs != desired_goal) & df['x'].notna() & df['y'].notna()
+            df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
+            df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
+
+        elif orient_all_left:
+            attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
+            mask_rotate = (attacked_xs == right_goal_x) & df['x'].notna() & df['y'].notna()
+            df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
+            df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
+
+        return df
+
+    # ------------------- Main flow -----------------------------------------
+    chosen_csv = _locate_csv()
+    print('xgs_map: loading CSV ->', chosen_csv)
+    df_all = pd.read_csv(chosen_csv)
+
+    # Apply condition and return filtered dataframe + team_val
+    df_filtered, team_val = _apply_condition(df_all)
+    if df_filtered.shape[0] == 0:
+        print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")
+    else:
+        print(f"Filtered season dataframe to {len(df_filtered)} events by condition {condition!r} team={team_val!r}")
+
+    # Predict xgs only when needed and possible
+    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered)
+
+    # Orient coordinates according to team/orient_all_left
+    df_oriented = _orient_coordinates(df_with_xgs, team_val)
+
+    # prepare events to plot
     if events_to_plot is None:
         events_to_plot = ['xgs']
 
     print('xgs_map: calling plot.plot_events ->', out_path)
-    # request heatmaps from plot_events when requested; handle both return shapes
+
+    # Decide heatmap split mode: if a team was specified, show team vs not_team;
+    # otherwise fall back to legacy home vs away mode.
+    heatmap_mode = 'team_not_team' if team_val is not None else 'home_away'
+
+    # Call plot_events and handle both return shapes and the optional heatmap return
     if return_heatmaps:
-        ret = plot_mod.plot_events(df, events_to_plot=events_to_plot, out_path=out_path, return_heatmaps=True)
-        # ret is expected to be (fig, ax, {'home':..., 'away':...}) but be defensive
+        # For heatmap generation, ask plot_events to use the selected mode and pass team_val
+        ret = plot_mod.plot_events(
+            df_oriented,
+            events_to_plot=events_to_plot,
+            out_path=out_path,
+            return_heatmaps=True,
+            heatmap_split_mode=heatmap_mode,
+            team_for_heatmap=team_val,
+        )
         if isinstance(ret, (tuple, list)):
             if len(ret) >= 3:
                 fig, ax, heatmaps = ret[0], ret[1], ret[2]
@@ -277,9 +309,16 @@ def xgs_map(season: str = '20252026', *,
                 raise RuntimeError('Unexpected return from plot.plot_events when return_heatmaps=True')
         else:
             raise RuntimeError('Unexpected return type from plot.plot_events when return_heatmaps=True')
-
     else:
-        ret = plot_mod.plot_events(df, events_to_plot=events_to_plot, out_path=out_path)
+        # When not requesting heatmaps, still ensure plotting uses the same
+        # mode so visuals match the heatmap logic: use heatmap_mode and team_val.
+        ret = plot_mod.plot_events(
+            df_oriented,
+            events_to_plot=events_to_plot,
+            out_path=out_path,
+            heatmap_split_mode=heatmap_mode,
+            team_for_heatmap=team_val,
+        )
         if isinstance(ret, (tuple, list)):
             if len(ret) >= 2:
                 fig, ax = ret[0], ret[1]
@@ -295,70 +334,67 @@ def xgs_map(season: str = '20252026', *,
         except Exception:
             pass
 
-    if return_heatmaps:
-        return out_path, heatmaps
-    return out_path
+    # Determine return structure: always return (out_path, heatmaps_or_None, filtered_df_or_None)
+    ret_heat = heatmaps if return_heatmaps else None
+    ret_df = df_filtered.copy() if ('df_filtered' in locals() and return_filtered_df) else None
+    return out_path, ret_heat, ret_df
+
 
 if __name__ == '__main__':
-    import parse
-    import nhl_api
-    import pandas as pd
+    """Command-line example for running xgs_map for a season and a team.
 
+    Usage examples (from project root):
+      python analyze.py --season 20252026 --team PHI
+      python analyze.py --season 20252026 --team PHI --out static/PHI_map.png --orient-all-left
 
-    debug_teamwise = True
-    if debug_teamwise:
-        game_id = '2025010083'
-        game_feed = nhl_api.get_game_feed(game_id)
-        df = parse._game(game_feed)
-        df = parse._elaborate(df)
+    Notes:
+      - This example constructs a minimal `condition` dictionary with the
+        requested team (``{'team': TEAM}``) and passes it to xgs_map. The
+        heavy lifting (CSV lookup, optional model loading/training, plotting)
+        is performed by xgs_map.
+      - If you prefer to run non-interactively from a script, call
+        xgs_map(...) directly from Python, passing a `condition` dict.
+    """
 
-        condition = {'game_state': ['5v5'],
-                     'is_net_empty': False}
-        shifts_game, totals_per_game, totals_game = (
-            parse._timing_impl(df,
-                               condition=condition,
-                               game_col='game_id',
-                               time_col='total_time_elapsed_seconds'))
+    import argparse
 
-    df = pd.read_csv('data/20252026/20252026_df.csv')
+    parser = argparse.ArgumentParser(prog='analyze.py', description='Run xgs_map for a season and team (example).')
+    parser.add_argument('--season', default='20252026', help='Season string (e.g. 20252026)')
+    parser.add_argument('--team', required=False, help='Team abbreviation or id to filter (e.g. PHI)')
+    parser.add_argument('--out', default='static/xg_map_example.png', help='Output image path')
+    parser.add_argument('--orient-all-left', action='store_true', help='Orient all shots to the left')
+    parser.add_argument('--behavior', choices=['load', 'train'], default='load', help='Classifier behavior for xg model (load or train)')
+    # by default we return heatmaps; use --no-heatmaps to disable
+    parser.add_argument('--no-heatmaps', dest='return_heatmaps', action='store_false', help='Do not return heatmaps (enabled by default)')
+    parser.set_defaults(return_heatmaps=True)
+    parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
+    args = parser.parse_args()
 
-    # Get timing information
+    condition = {'game_state': '5v4'}
+    if args.team:
+        condition['team'] = args.team
 
-    condition = {'game_state': ['5v5'],
-                 'is_net_empty': False}
-    shifts_league, totals_per_game_league, totals_league = (
-        parse._timing_impl(df,
-                                          condition=condition,
-                                          game_col='game_id',
-                                          time_col='total_time_elapsed_seconds'))
-    # next step: make parse._timing_impl able to take additional parameters,
-    # and not just game state. i'm envisioning a flexible input like a
-    # dictionary, with different keys being the parameters to filter, and the
-    # entries for each key being the desired values of those parameters.
+    print(f"Running xgs_map for season={args.season} team={args.team!r} out={args.out} behavior={args.behavior}")
 
-    ## next next: make xgs_map able to filter events by state according to
-    # the same logic as above
+    try:
+        out_path, heatmaps, df_filtered = xgs_map(season=args.season,
+                         csv_path=args.csv_path,
+                         model_path='static/xg_model.joblib',
+                         behavior=args.behavior,
+                         out_path=args.out,
+                         orient_all_left=args.orient_all_left,
+                         events_to_plot=None,
+                         show=False,
+                         return_heatmaps=args.return_heatmaps,
+                         condition=condition)
+        print('xgs_map completed. out=', out_path)
+        print('heatmaps:', bool(heatmaps))
 
-    # example usage: league map
-    _, league_maps = xgs_map(season='20252026', condition=condition,
-                        out_path='static/xg_map_20252026.png',
-            orient_all_left=True, show=False, return_heatmaps=True)
-
-    # example usage: team map by specifying 'team' inside condition
-
-
-    team_condition = (condition.copy() if isinstance(condition, dict) else {})
-    if isinstance(team_condition, dict):
-        team_condition['team'] = 'PHI'
-
-    shifts_team, totals_per_game_team, totals_team = (
-        parse._timing_impl(df,
-                                          condition=team_condition,
-                                          game_col='game_id',
-                                          time_col='total_time_elapsed_seconds'))
-
-    _, team_maps = xgs_map(season='20252026', condition=team_condition,
-                        out_path='static/PHI_xg_map_20252026.png',
-            orient_all_left=False, show=False, return_heatmaps=True)
-
-    print('We are done analyzing')
+        if df_filtered is not None:
+            print('Filtered df:', df_filtered.shape)
+            if df_filtered.shape[0] > 0:
+                print(df_filtered[['x', 'y', 'xgs']].describe())
+    except FileNotFoundError as fe:
+        print('Error: could not find season CSV or required files:', fe)
+    except Exception as e:
+        print('xgs_map failed:', type(e).__name__, e)

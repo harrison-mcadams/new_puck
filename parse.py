@@ -1550,6 +1550,7 @@ def _timing_impl(df, *args, condition=None, time_col: str = 'total_time_elapsed_
      df[time_col] = _pd.to_numeric(df[time_col], errors='coerce')
 
      # Build a mask according to the flexible condition using helper
+     team_val = None
      try:
          # Resolve legacy positional args: support _timing_impl(df, 'col', val, ...) callers
          if len(args) >= 2 and condition is None:
@@ -1614,8 +1615,43 @@ def _timing_impl(df, *args, condition=None, time_col: str = 'total_time_elapsed_
      except Exception:
          mask = _pd.Series(False, index=df.index)
 
+     # If a team was specified, compute the set of game ids where that team participates
+     selected_game_ids = None
+     try:
+         if isinstance(team_val, (str, int)) and team_val is not None:
+             # team_mask should exist when team_val was provided; attempt to derive game ids where team appears
+             try:
+                 # team_mask may have been defined above; prefer it, otherwise infer from mask by checking any row with team participation
+                 if 'team_mask' in locals():
+                    sel_games = df.loc[team_mask, game_col].dropna().unique().tolist()
+                 else:
+                    # fallback: try detect games where any row mentions the team_val in home_id/away_id or abbr
+                    tstr = str(team_val).strip()
+                    try:
+                        tid = int(tstr)
+                    except Exception:
+                        tid = None
+                    if tid is not None:
+                        sel_games = df.loc[(df.get('home_id').astype(str) == str(tid)) | (df.get('away_id').astype(str) == str(tid)), game_col].dropna().unique().tolist()
+                    else:
+                        tupper = tstr.upper()
+                        sel_games = df.loc[(df.get('home_abb').astype(str).str.upper() == tupper) | (df.get('away_abb').astype(str).str.upper() == tupper), game_col].dropna().unique().tolist()
+                 selected_game_ids = set(sel_games)
+             except Exception:
+                 selected_game_ids = set()
+     except Exception:
+         selected_game_ids = None
+
      # Process per game
      for gid, gdf in df.groupby(game_col):
+         # If a specific team was requested, only include games where that team appears
+         if selected_game_ids is not None:
+            try:
+                if gid not in selected_game_ids:
+                    # skip this game entirely
+                    continue
+            except Exception:
+                pass
          # ensure chronological order
          gdf = gdf.sort_values(by=time_col).reset_index()
          if gdf.shape[0] == 0:
