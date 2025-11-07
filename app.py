@@ -163,4 +163,4 @@ if __name__ == '__main__':
     logger.info('Starting Flask development server on http://127.0.0.1:5000')
     import sys
     sys.stdout.flush()
-    app.run(host='192.168.1.150', port=5000, debug=True)
+    app.run(host='127.0.0.1', port=5000, debug=True)

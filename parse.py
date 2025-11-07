@@ -1213,6 +1213,40 @@ def infer_home_defending_side_from_play(p: dict, game_feed: Optional[dict] = Non
     # 4) if nothing works, return None
     return None
 
+def _timing(df):
+    # For a given game or games, I want to extract timing information from
+    # the corresponding dataframe.
+
+    # Note I think we're going to want the most complete df possible, in that
+    # we'll be using row by row processing to determine timing transition,
+    # so if transitions are removed then this timing routine won't know about.
+
+    # let's also do the filtering game-wise. If we try to dice it any farther
+    # than that, or allow the code to try and work on smaller chunks,
+    # there will be too many edge cases to consider
+
+    # As a concrete example, I want to understand the time spent played '5v5'
+    # Note, however, that there will be further filtering parameters (
+    # eventually player_id, is_net_empty, etc) that will be applied later.
+    # Focusing now on the game_state part first. 1) create a column that
+    # marks whether the corresponding 'game_state' condition is met, 2) find
+# transition portions on that column and identify the corresponding timing
+# information. save these out as the first output variable. 3) sum up the
+# total time spent in the condition as the second output variable.
+
+    # For the output, I want two output variables. the first will be a
+    # collection times in which the conditions are True. For example,
+    # for game_state='5v5', I want a list of (start_time, end_time) tuples
+    # that correspond when a period of '5v5' start time begins until when it
+    # ends. we'll need separate entry for different games if a list of games,
+    # rather than just a single game is provided. For the second output
+    # variable, i just want the counts: time (in seconds) in which the
+    # condition is true, and total time (in seconds).
+
+
+
+
+
 if __name__ == '__main__':
 
     # let's scrape from seasons starting in 2014
