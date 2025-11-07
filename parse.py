@@ -1437,119 +1437,190 @@ def infer_home_defending_side_from_play(p: dict, game_feed: Optional[dict] = Non
     # 4) if nothing works, return None
     return None
 
-def _timing(df):
-    # For a given game or games, extract timing intervals and totals for a
-    # simple boolean condition applied to rows of the dataframe.
-    #
-    # This implementation focuses on `game_state` conditions (e.g. '5v5') and
-    # uses the column `total_time_elapsed_seconds` as the timeline. It is
-    # intentionally simple and easy to read; it returns both per-game interval
-    # lists and per-game totals, plus an overall aggregate.
-    #
-    # Signature (kept simple for callers):
-    #   _timing(df, condition_col='game_state', condition_value='5v5',
-    #           time_col='total_time_elapsed_seconds', game_col='game_id')
-    #
-    # Returns: (intervals_per_game, totals_per_game, aggregate_totals)
-    #  - intervals_per_game: dict game_id -> list of (start_sec, end_sec)
-    #  - totals_per_game: dict game_id -> dict with keys 'condition_seconds', 'total_seconds'
-    #  - aggregate_totals: dict with same keys aggregated across games
+def build_mask(df, condition):
+    """Build a boolean mask for `df` from a flexible `condition` specification.
 
-    # Allow callers to override via keyword args for flexibility while
-    # maintaining backward compatibility with no-arg calls.
+    `condition` may be:
+      - None -> all True
+      - callable(df) -> boolean Series
+      - dict: column -> spec, where spec can be:
+          * scalar -> equality
+          * iterable -> membership
+          * 2-tuple (low, high) -> inclusive numeric range via between()
+          * callable(series) -> boolean Series
 
-    # NOTE: keep the implementation conservative: if required columns are
-    # missing, return empty/zero structures rather than raising.
-
-    return _timing_impl(df)
-
-
-def _timing_impl(df, condition_col: str = 'game_state', condition_value: str = '5v5',
-                 time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
-    """Core implementation used by `_timing`.
-
-    Parameters
-    - df: pandas.DataFrame containing events across one or more games
-    - condition_col: column to test (default 'game_state')
-    - condition_value: value that counts as "in condition" (default '5v5')
-    - time_col: numeric column containing seconds elapsed since game start
-    - game_col: column that identifies distinct games
-
-    Returns (intervals_per_game, totals_per_game, aggregate_totals)
+    This function is vectorized and returns a pandas.Series indexed like df.
     """
     import pandas as _pd
 
-    intervals_per_game = {}
-    totals_per_game = {}
-    agg_condition_seconds = 0.0
-    agg_total_seconds = 0.0
+    if condition is None:
+        return _pd.Series(True, index=df.index)
 
-    # Basic validation
-    if df is None:
-        return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
-    if not isinstance(df, _pd.DataFrame):
+    # callable path: full flexibility
+    if callable(condition):
         try:
-            df = _pd.DataFrame.from_records(list(df))
+            res = condition(df)
+            if isinstance(res, _pd.Series):
+                return res.reindex(df.index).fillna(False).astype(bool)
+            # fall back to boolean coercion
+            return _pd.Series(bool(res), index=df.index)
         except Exception:
-            return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+            return _pd.Series(False, index=df.index)
 
-    if game_col not in df.columns:
-        # try to treat entire df as single game with id None
-        df = df.copy()
-        df[game_col] = None
+    # dict path: combine per-column masks with AND semantics
+    if isinstance(condition, dict):
+        mask = _pd.Series(True, index=df.index)
+        for col, spec in condition.items():
+            if col not in df.columns:
+                # missing column -> mask becomes all False for safety
+                return _pd.Series(False, index=df.index)
+            series = df[col]
+            if callable(spec):
+                try:
+                    m = spec(series)
+                except Exception:
+                    m = _pd.Series(False, index=df.index)
+            else:
+                # scalar
+                if isinstance(spec, (list, tuple, set)) and not (len(spec) == 2 and all(isinstance(v, (int, float)) for v in spec)):
+                    m = series.isin(spec)
+                elif isinstance(spec, tuple) and len(spec) == 2 and all(isinstance(v, (int, float)) for v in spec):
+                    low, high = spec
+                    m = series.between(low, high)
+                else:
+                    m = series == spec
+            # ensure boolean Series, fill NaNs as False
+            try:
+                m = m.fillna(False).astype(bool)
+            except Exception:
+                m = _pd.Series(False, index=df.index)
+            mask &= m
+        return mask
 
-    # If time column missing, we cannot compute durations reliably
-    if time_col not in df.columns:
-        # return empty results rather than erroring
-        return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+    # Fallback conservative behavior
+    import pandas as _pd
+    return _pd.Series(False, index=df.index)
 
-    # Ensure numeric time
-    df = df.copy()
-    df[time_col] = _pd.to_numeric(df[time_col], errors='coerce')
 
-    # Process per game
-    for gid, gdf in df.groupby(game_col):
-        # sort by time to ensure chronological order
-        gdf = gdf.sort_values(by=time_col).reset_index(drop=True)
-        # drop rows without time
-        gdf = gdf[gdf[time_col].notna()]
-        if gdf.shape[0] == 0:
-            intervals_per_game[gid] = []
-            totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
-            continue
+def _timing(df, *args, condition=None, time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
+    """Wrapper that calls _timing_impl; preserves backward compatibility with
+    older callers that pass (condition_col, condition_value) positionally.
+    """
+    # support legacy call: _timing(df, 'game_state', '5v5', game_col=..., time_col=...)
+    if len(args) >= 2:
+        cond = {args[0]: args[1]}
+    else:
+        cond = condition
+    return _timing_impl(df, cond, time_col=time_col, game_col=game_col)
 
-        # boolean mask for condition
-        cond = (gdf.get(condition_col) == condition_value)
 
-        # label contiguous blocks where cond value is same
-        change_points = cond.ne(cond.shift(fill_value=False)).cumsum()
-        intervals = []
-        condition_seconds = 0.0
+def _timing_impl(df, *args, condition=None, time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
+     """Core timing implementation using a flexible `condition` contract.
 
-        # For each group where cond is True, compute start and end times
-        grouped = gdf.groupby(change_points)
-        for _, block in grouped:
-            # block is contiguous with same cond value
-            val = bool((block.get(condition_col) == condition_value).iloc[0])
-            if not val:
-                continue
-            start_time = float(block[time_col].iloc[0])
-            end_time = float(block[time_col].iloc[-1])
-            # If there is only a single event in block, duration is 0; that's OK
-            intervals.append((start_time, end_time))
-            condition_seconds += max(0.0, end_time - start_time)
+     `condition` may be None, a dict (column -> spec), or a callable(df) -> bool Series.
+     The function returns the same triple as before: (intervals_per_game, totals_per_game, aggregate).
+     """
+     import pandas as _pd
 
-        # estimate total time span for game as last_time - first_time
-        total_seconds = float(gdf[time_col].iloc[-1] - gdf[time_col].iloc[0]) if gdf.shape[0] >= 2 else 0.0
+     intervals_per_game = {}
+     totals_per_game = {}
+     agg_condition_seconds = 0.0
+     agg_total_seconds = 0.0
 
-        intervals_per_game[gid] = intervals
-        totals_per_game[gid] = {'condition_seconds': condition_seconds, 'total_seconds': total_seconds}
+     # Basic validation and coercion to DataFrame
+     if df is None:
+         return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+     if not isinstance(df, _pd.DataFrame):
+         try:
+             df = _pd.DataFrame.from_records(list(df))
+         except Exception:
+             return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
 
-        agg_condition_seconds += condition_seconds
-        agg_total_seconds += total_seconds
+     # If game_col missing, treat whole df as single group
+     if game_col not in df.columns:
+         df = df.copy()
+         df[game_col] = None
 
-    aggregate = {'condition_seconds': agg_condition_seconds, 'total_seconds': agg_total_seconds}
-    return intervals_per_game, totals_per_game, aggregate
+     # Require time column
+     if time_col not in df.columns:
+         return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
+
+     # Ensure numeric time column
+     df = df.copy()
+     df[time_col] = _pd.to_numeric(df[time_col], errors='coerce')
+
+     # Build a mask according to the flexible condition
+     mask = build_mask(df, condition)
+     # Defensive: ensure mask is Series indexed like df
+     try:
+         mask = mask.reindex(df.index).fillna(False).astype(bool)
+     except Exception:
+         mask = _pd.Series(False, index=df.index)
+
+     # Process per game
+     for gid, gdf in df.groupby(game_col):
+         # ensure chronological order
+         gdf = gdf.sort_values(by=time_col).reset_index()
+         if gdf.shape[0] == 0:
+             intervals_per_game[gid] = []
+             totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
+             continue
+
+         # align mask to gdf rows using explicit list of original labels
+         idx_list = gdf['index'].tolist() if 'index' in gdf.columns else gdf.index.tolist()
+         if not idx_list:
+             intervals_per_game[gid] = []
+             totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
+             continue
+         gmask = mask.reindex(idx_list).fillna(False).astype(bool).reset_index(drop=True)
+         # use .ffill() to avoid FutureWarning
+         gtimes = _pd.to_numeric(gdf[time_col].reset_index(drop=True), errors='coerce').ffill()
+         # drop rows without time
+         valid_idx = gtimes.notna()
+         if not valid_idx.any():
+             intervals_per_game[gid] = []
+             totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
+             continue
+         gmask = gmask[valid_idx].reset_index(drop=True)
+         gtimes = gtimes[valid_idx].reset_index(drop=True)
+
+         # find contiguous True blocks using a robust numpy approach
+         import numpy as _np
+         arr = _np.asarray(gmask.tolist(), dtype=bool)
+         intervals = []
+         condition_seconds = 0.0
+         if arr.size > 0:
+             # compute differences to find transitions
+             darr = _np.diff(arr.astype(int))
+             starts = _np.where(darr == 1)[0] + 1
+             ends = _np.where(darr == -1)[0]
+             # handle if array starts with True
+             if arr[0]:
+                 starts = _np.concatenate((_np.array([0]), starts))
+             # handle if array ends with True
+             if arr[-1]:
+                 ends = _np.concatenate((ends, _np.array([arr.size - 1])))
+
+             # ensure equal lengths
+             if starts.size == ends.size:
+                 for s, e in zip(starts.tolist(), ends.tolist()):
+                     try:
+                         start_time = float(gtimes.iloc[s])
+                         end_time = float(gtimes.iloc[e])
+                     except Exception:
+                         # skip malformed indices
+                         continue
+                     intervals.append((start_time, end_time))
+                     condition_seconds += max(0.0, end_time - start_time)
+
+         total_seconds = float(gtimes.iloc[-1] - gtimes.iloc[0]) if len(gtimes) >= 2 else 0.0
+         intervals_per_game[gid] = intervals
+         totals_per_game[gid] = {'condition_seconds': condition_seconds, 'total_seconds': total_seconds}
+         agg_condition_seconds += condition_seconds
+         agg_total_seconds += total_seconds
+
+     aggregate = {'condition_seconds': agg_condition_seconds, 'total_seconds': agg_total_seconds}
+     return intervals_per_game, totals_per_game, aggregate
 
 
 if __name__ == '__main__':

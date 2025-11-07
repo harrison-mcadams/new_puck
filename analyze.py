@@ -250,18 +250,33 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
 if __name__ == '__main__':
     import parse
     import nhl_api
+    import pandas as pd
 
-    game_id = '2025020223'
-    game_feed = nhl_api.get_game_feed(game_id)
-    df = parse._game(game_feed)
-    df = parse._elaborate(df)
+
+    debug_teamwise = False
+    if debug_teamwise:
+        game_id = '2025020223'
+        game_feed = nhl_api.get_game_feed(game_id)
+        df = parse._game(game_feed)
+        df = parse._elaborate(df)
+
+    df = pd.read_csv('data/20252026/20252026_df.csv')
 
     # Get timing information
-    state_of_interest='5v5'
-    shifts, totals_per_game, totals = parse._timing_impl(df, 'game_state',
-                                          state_of_interest,
+
+    condition = {'game_state': ['5v6'],
+                 'is_net_empty': True}
+    shifts, totals_per_game, totals = parse._timing_impl(df,
+                                          condition=condition,
                                           game_col='game_id',
                                           time_col='total_time_elapsed_seconds')
+    # next step: make parse._timing_impl able to take additional parameters,
+    # and not just game state. i'm envisioning a flexible input like a
+    # dictionary, with different keys being the parameters to filter, and the
+    # entries for each key being the desired values of those parameters.
+
+    ## next next: make xgs_map able to filter events by state according to
+    # the same logic as above
 
     # example usage
     _, league_maps = xgs_map(season='20252026',
