@@ -41,6 +41,8 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
       - home_team_defending_side, game_id
     """
     events: List[Dict[str, Any]] = []
+    # collect synthetic events to append later (e.g., predicted penalty_end)
+    synthetic_events: List[Dict[str, Any]] = []
 
     plays = None
     # defensive initialize
@@ -75,7 +77,7 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
     except Exception:
         away_abb = None
 
-    for p in plays:
+    for idx, p in enumerate(plays):
         if not isinstance(p, dict):
             continue
 
@@ -95,8 +97,15 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
             x = coords.get('x')
         if y is None:
             y = coords.get('y')
+        # If this is not a coordinate-bearing event we still want to
+        # continue parsing (we'll append synthetic events later) but for
+        # the purpose of adding the main event we skip those without coords
         if x is None or y is None:
-            continue
+            # Before skipping, detect penalty starts that may not have coords
+            # and still want to schedule a synthetic penalty_end event.
+            # We'll fall through to continue skipping adding the main row,
+            # but synthetic events will be added later.
+            pass
 
         # period info may be at different keys
         period = None
@@ -181,16 +190,196 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
         else:
             is_shot_attempt = False
 
-
+        # Compute elapsed seconds for this event (useful for synthetic events)
+        # convert period_time to seconds and then to total elapsed since game start
         try:
-            events.append({
-                'event': ev_type,
-                'x': float(x),
-                'y': float(y),
-                'game_state': game_state,
-                'is_net_empty': is_net_empty,
-                'period': period,
-                'period_time': period_time,
+            per_num = int(period) if period is not None else None
+        except Exception:
+            per_num = None
+        per_len = 1200 if (per_num is None or per_num <= 3) else 300
+        per_secs = None
+        try:
+            if period_time is not None:
+                # attempt to parse mm:ss or numeric
+                raw = _period_time_to_seconds(period_time)
+                if raw is not None:
+                    if period_time_type == 'remaining':
+                        per_secs = max(0, per_len - int(raw))
+                    else:
+                        per_secs = int(raw)
+        except Exception:
+            per_secs = None
+
+        total_elapsed = None
+        try:
+            if per_num is not None and per_num >= 1 and per_secs is not None:
+                per_num_int = int(per_num)
+                if per_num_int <= 3:
+                    total_elapsed = (per_num_int - 1) * 1200 + int(per_secs)
+                else:
+                    total_elapsed = 3 * 1200 + (per_num_int - 4) * 300 + int(per_secs)
+        except Exception:
+            total_elapsed = None
+
+        # Detect penalty starts and schedule synthetic penalty_end events.
+        # Heuristic: ev_type contains 'penalty' or details indicate penalty.
+        try:
+            ev_lc = str(ev_type).strip().lower() if ev_type is not None else ''
+        except Exception:
+            ev_lc = ''
+        is_penalty_start = False
+        if 'penal' in ev_lc or 'penalty' in ev_lc:
+            # some penalty events are labeled 'penalty' or contain 'penalty' in description
+            is_penalty_start = True
+        # Also inspect details/description for common penalty markers
+        if not is_penalty_start and isinstance(details, dict):
+            desc = (details.get('description') or details.get('typeDescription') or '')
+            try:
+                if 'penal' in str(desc).lower() or 'penalty' in str(desc).lower():
+                    is_penalty_start = True
+            except Exception:
+                pass
+
+        if is_penalty_start and total_elapsed is not None:
+            # try to extract explicit duration (prefer seconds if present)
+            dur_secs = None
+            try:
+                # common fields to check
+                for k in ('penaltyDuration', 'penalty_seconds', 'penaltySeconds', 'penaltySecondsDuration', 'penaltyMinutes', 'penaltyMinutesDuration', 'penaltyMin'):
+                    if isinstance(details, dict) and k in details and details.get(k) is not None:
+                        val = details.get(k)
+                        # numeric minutes -> seconds
+                        try:
+                            f = float(val)
+                            if 'min' in k.lower() or 'minutes' in k.lower():
+                                dur_secs = int(f * 60)
+                            else:
+                                dur_secs = int(f)
+                            break
+                        except Exception:
+                            # try parsing MM:SS
+                            try:
+                                parsed = _period_time_to_seconds(val)
+                                if parsed is not None:
+                                    dur_secs = int(parsed)
+                                    break
+                            except Exception:
+                                continue
+                # some feeds encode penalty type text e.g. 'Minor' or 'Major'
+                if dur_secs is None and isinstance(details, dict):
+                    ptype = (details.get('penaltyType') or details.get('penaltySeverity') or details.get('type'))
+                    if ptype:
+                        pt = str(ptype).lower()
+                        if 'major' in pt:
+                            dur_secs = 300
+                        elif 'minor' in pt:
+                            dur_secs = 120
+                        elif 'double' in pt:
+                            dur_secs = 240
+                        elif 'misconduct' in pt:
+                            dur_secs = 600
+            except Exception:
+                dur_secs = None
+
+            # Fallback default: minor penalty 2 minutes
+            if dur_secs is None:
+                dur_secs = 120
+
+            # Important: penalty time actually starts at the ensuing faceoff,
+            # not necessarily at the moment the penalty is recorded. Look ahead
+            # in the plays list for the next faceoff and use its timestamp as
+            # the penalty_start_total when available. Fall back to the current
+            # event's total_elapsed when no faceoff timestamp is found.
+            penalty_start_total = total_elapsed
+            try:
+                for j in range(idx + 1, len(plays)):
+                    np = plays[j]
+                    if not isinstance(np, dict):
+                        continue
+                    # derive next play's event type
+                    np_ev = np.get('typeDescKey') or (np.get('type') or {}).get('description') or np.get('typeCode')
+                    try:
+                        np_ev_lc = str(np_ev).strip().lower() if np_ev is not None else ''
+                    except Exception:
+                        np_ev_lc = ''
+                    # consider common faceoff descriptors
+                    if 'faceoff' in np_ev_lc or 'face-off' in np_ev_lc:
+                        # compute this play's total_elapsed similarly
+                        try:
+                            np_period = None
+                            if isinstance(np.get('periodDescriptor'), dict):
+                                np_period = np.get('periodDescriptor', {}).get('number')
+                            else:
+                                np_period = np.get('period') or np.get('periodNumber')
+                            try:
+                                np_per_num = int(np_period) if np_period is not None else None
+                            except Exception:
+                                np_per_num = None
+                            np_per_len = 1200 if (np_per_num is None or np_per_num <= 3) else 300
+                            np_time_remaining = np.get('timeRemaining') if 'timeRemaining' in np else None
+                            np_time_in_period = np.get('timeInPeriod') if 'timeInPeriod' in np else None
+                            np_period_time = np_time_remaining or np_time_in_period or None
+                            np_period_time_type = 'remaining' if np_time_remaining is not None else ('elapsed' if np_time_in_period is not None else None)
+                            np_per_secs = None
+                            if np_period_time is not None:
+                                parsed = _period_time_to_seconds(np_period_time)
+                                if parsed is not None:
+                                    if np_period_time_type == 'remaining':
+                                        np_per_secs = max(0, np_per_len - int(parsed))
+                                    else:
+                                        np_per_secs = int(parsed)
+                            if np_per_num is not None and np_per_num >= 1 and np_per_secs is not None:
+                                pnum = int(np_per_num)
+                                if pnum <= 3:
+                                    penalty_start_total = (pnum - 1) * 1200 + int(np_per_secs)
+                                else:
+                                    penalty_start_total = 3 * 1200 + (pnum - 4) * 300 + int(np_per_secs)
+                                break
+                        except Exception:
+                            # if computing next play time fails, continue scanning
+                            continue
+            except Exception:
+                pass
+
+            scheduled_end_total = int(penalty_start_total) + int(dur_secs)
+
+            # Convert scheduled_end_total back to period and period_time (elapsed)
+            sched_p = None
+            sched_period_elapsed = None
+            try:
+                if scheduled_end_total < 3 * 1200:
+                    sched_p = int(scheduled_end_total // 1200) + 1
+                    sched_period_elapsed = int(scheduled_end_total - (sched_p - 1) * 1200)
+                else:
+                    # overtime periods
+                    extra = scheduled_end_total - 3 * 1200
+                    ot_index = int(extra // 300)
+                    sched_p = 4 + ot_index
+                    sched_period_elapsed = int(extra - ot_index * 300)
+            except Exception:
+                sched_p = None
+                sched_period_elapsed = None
+
+            # format mm:ss
+            sched_period_time_str = None
+            try:
+                if sched_period_elapsed is not None:
+                    mm = int(sched_period_elapsed // 60)
+                    ss = int(sched_period_elapsed % 60)
+                    sched_period_time_str = f"{mm:02d}:{ss:02d}"
+            except Exception:
+                sched_period_time_str = None
+
+            # Build synthetic event dict for penalty_end
+            synth = {
+                'event': 'penalty_end',
+                'x': None,
+                'y': None,
+                # optimistic reversion to even strength when penalty expires
+                'game_state': '5v5',
+                'is_net_empty': 0,
+                'period': sched_p,
+                'period_time': sched_period_time_str,
                 'player_id': player_id,
                 'team_id': team_id,
                 'home_id': home_id,
@@ -199,13 +388,48 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                 'away_abb': away_abb,
                 'home_team_defending_side': home_side,
                 'game_id': game_feed.get('id') or game_feed.get('gamePk'),
-                'periodTimeType': period_time_type
-            })
+                'periodTimeType': 'elapsed',
+                'synthetic': True,
+                'predicted_penalty_duration_seconds': int(dur_secs),
+                'predicted_penalty_end_total_seconds': int(scheduled_end_total),
+            }
+            synthetic_events.append(synth)
+
+        try:
+            # Only append main event if it has coordinates; otherwise skip
+            if x is not None and y is not None:
+                events.append({
+                    'event': ev_type,
+                    'x': float(x),
+                    'y': float(y),
+                    'game_state': game_state,
+                    'is_net_empty': is_net_empty,
+                    'period': period,
+                    'period_time': period_time,
+                    'player_id': player_id,
+                    'team_id': team_id,
+                    'home_id': home_id,
+                    'away_id': away_id,
+                    'home_abb': home_abb,
+                    'away_abb': away_abb,
+                    'home_team_defending_side': home_side,
+                    'game_id': game_feed.get('id') or game_feed.get('gamePk'),
+                    'periodTimeType': period_time_type
+                })
+            else:
+                # no coords: skip main event (but synthetic events may exist)
+                pass
         except Exception:
             # skip rows that fail numeric conversion
             continue
 
-    # return a DataFrame for downstream consumers
+    # Append synthetic events (e.g., predicted penalty_end) to the events list
+    if synthetic_events:
+        try:
+            events.extend(synthetic_events)
+        except Exception:
+            pass
+
     try:
         return pd.DataFrame.from_records(events)
     except Exception:
