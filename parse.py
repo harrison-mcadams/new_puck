@@ -1549,11 +1549,68 @@ def _timing_impl(df, *args, condition=None, time_col: str = 'total_time_elapsed_
      df = df.copy()
      df[time_col] = _pd.to_numeric(df[time_col], errors='coerce')
 
-     # Build a mask according to the flexible condition
-     mask = build_mask(df, condition)
-     # Defensive: ensure mask is Series indexed like df
+     # Build a mask according to the flexible condition using helper
      try:
-         mask = mask.reindex(df.index).fillna(False).astype(bool)
+         # Resolve legacy positional args: support _timing_impl(df, 'col', val, ...) callers
+         if len(args) >= 2 and condition is None:
+             try:
+                 cond = {args[0]: args[1]}
+             except Exception:
+                 cond = condition
+         else:
+             cond = condition
+
+         # Work with a shallow copy if dict to avoid mutating caller input
+         try:
+             cond_work = cond.copy() if isinstance(cond, dict) else cond
+         except Exception:
+             cond_work = cond
+
+         # Extract team if provided inside the condition (we treat it specially)
+         team_val = None
+         if isinstance(cond_work, dict) and 'team' in cond_work:
+             try:
+                 team_val = cond_work.pop('team')
+             except Exception:
+                 team_val = None
+
+         # Build base mask from remaining condition using build_mask (supports dict, callable, None)
+         try:
+             if cond_work is None:
+                 base_mask = _pd.Series(True, index=df.index)
+             else:
+                 base_mask = build_mask(df, cond_work).reindex(df.index).fillna(False).astype(bool)
+         except Exception:
+             base_mask = _pd.Series(False, index=df.index)
+
+         # If team specified, build a mask matching home/away id or abbr
+         if team_val is not None:
+             tstr = str(team_val).strip()
+             try:
+                 tid = int(tstr)
+             except Exception:
+                 tid = None
+             team_mask = _pd.Series(False, index=df.index)
+             if tid is not None:
+                 if 'home_id' in df.columns:
+                     team_mask |= df['home_id'].astype(str) == str(tid)
+                 if 'away_id' in df.columns:
+                     team_mask |= df['away_id'].astype(str) == str(tid)
+             else:
+                 tupper = tstr.upper()
+                 if 'home_abb' in df.columns:
+                     try:
+                         team_mask |= df['home_abb'].astype(str).str.upper() == tupper
+                     except Exception:
+                         pass
+                 if 'away_abb' in df.columns:
+                     try:
+                         team_mask |= df['away_abb'].astype(str).str.upper() == tupper
+                     except Exception:
+                         pass
+             mask = base_mask & team_mask
+         else:
+             mask = base_mask
      except Exception:
          mask = _pd.Series(False, index=df.index)
 

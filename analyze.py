@@ -3,16 +3,16 @@
 
 from typing import Optional
 
-def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
-            csv_path: Optional[str] = None,
-            model_path: str = 'static/xg_model.joblib',
-            behavior: str = 'load',
-            out_path: str = 'static/xg_map.png',
-            orient_all_left: bool = False,
-            events_to_plot: Optional[list] = None,
-            show: bool = False,
-            return_heatmaps: bool = False,
-            condition: Optional[object] = None):
+def xgs_map(season: str = '20252026', *,
+             csv_path: Optional[str] = None,
+             model_path: str = 'static/xg_model.joblib',
+             behavior: str = 'load',
+             out_path: str = 'static/xg_map.png',
+             orient_all_left: bool = False,
+             events_to_plot: Optional[list] = None,
+             show: bool = False,
+             return_heatmaps: bool = False,
+             condition: Optional[object] = None):
     """Create an xG density map for a season and save a plot.
 
     Steps implemented:
@@ -27,7 +27,6 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
       6. Call plot.plot_events(...) and save the generated image to out_path.
 
     Parameters
-    - team: optional team filter (not used for file discovery here)
     - season: season string used to find CSVs (default '20252026')
     - csv_path: explicit path to the CSV to load; if None the function searches standard locations
     - model_path: where to load/save the xG model
@@ -77,70 +76,68 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     print('xgs_map: loading CSV ->', chosen_csv)
     df = pd.read_csv(chosen_csv)
 
-    # --- Team-based resolution & optional season-level filtering (moved before model prep)
-    sel_team_id = None
-    sel_team_abb = None
-    if team:
-        tstr = str(team).strip()
-        # try integer id match first
+    # --- Apply filtering from `condition` (use parse.build_mask) ---
+    # The contract: `condition` may be None, a dict (column->spec), or a callable(df)->bool Series.
+    # Special-case: if `condition` (a dict) contains a 'team' key, interpret that as a request
+    # to filter rows where the given team (id or abbreviation) participates (home or away).
+    import parse as _parse
+
+    # Work on a shallow copy so we don't mutate caller's dict
+    cond = None
+    if isinstance(condition, dict):
+        cond = condition.copy()
+    else:
+        cond = condition
+
+    # Extract team from `condition['team']` if present (we no longer accept a separate team arg).
+    team_val = None
+    if isinstance(cond, dict) and 'team' in cond:
+        team_val = cond.pop('team')
+
+    # Build base mask from the remaining condition (if any)
+    try:
+        if cond is None:
+            base_mask = pd.Series(True, index=df.index)
+        else:
+            base_mask = _parse.build_mask(df, cond).reindex(df.index).fillna(False).astype(bool)
+    except Exception as e:
+        print('Warning: failed to apply condition filter:', e)
+        base_mask = pd.Series(False, index=df.index)
+
+    # If a team was specified, build a mask that matches either home or away team columns.
+    if team_val is not None:
+        tstr = str(team_val).strip()
         try:
             tid = int(tstr)
-            if ('home_id' in df.columns and tid in df['home_id'].dropna().astype(int).unique()) or (
-                'away_id' in df.columns and tid in df['away_id'].dropna().astype(int).unique()):
-                sel_team_id = tid
         except Exception:
             tid = None
 
-        if sel_team_id is None:
-            # try abbreviation match (case-insensitive)
+        team_mask = pd.Series(False, index=df.index)
+        if tid is not None:
+            if 'home_id' in df.columns:
+                team_mask |= df['home_id'].astype(str) == str(tid)
+            if 'away_id' in df.columns:
+                team_mask |= df['away_id'].astype(str) == str(tid)
+        else:
             tupper = tstr.upper()
-            if (('home_abb' in df.columns and tupper in df['home_abb'].dropna().astype(str).str.upper().unique()) or
-                ('away_abb' in df.columns and tupper in df['away_abb'].dropna().astype(str).str.upper().unique())):
-                sel_team_abb = tupper
+            if 'home_abb' in df.columns:
+                team_mask |= df['home_abb'].astype(str).str.upper() == tupper
+            if 'away_abb' in df.columns:
+                team_mask |= df['away_abb'].astype(str).str.upper() == tupper
 
-        # filter the season dataframe to only rows where this team participates
-        if sel_team_id is not None or sel_team_abb is not None:
-            mask = pd.Series(False, index=df.index)
-            if sel_team_id is not None:
-                if 'home_id' in df.columns:
-                    mask = mask | (df['home_id'].astype(str) == str(sel_team_id))
-                if 'away_id' in df.columns:
-                    mask = mask | (df['away_id'].astype(str) == str(sel_team_id))
-            if sel_team_abb is not None:
-                if 'home_abb' in df.columns:
-                    mask = mask | (df['home_abb'].astype(str).str.upper() == sel_team_abb)
-                if 'away_abb' in df.columns:
-                    mask = mask | (df['away_abb'].astype(str).str.upper() == sel_team_abb)
+        final_mask = base_mask & team_mask
+    else:
+        final_mask = base_mask
 
-            n_keep = int(mask.sum())
-            if n_keep > 0:
-                df = df.loc[mask].copy()
-                print(f"Filtered season dataframe to {n_keep} events for team '{team}'")
-            else:
-                print(f"Warning: no events found for team '{team}' — proceeding without team filtering")
-    # --- end moved team filtering ---
-
-    # --- Apply flexible condition-based filtering (same contract as parse.build_mask)
-    # `condition` may be None, a dict of column->spec, or a callable(df)->bool Series.
-    import parse as _parse
-    if condition is not None:
-        try:
-            cond_mask = _parse.build_mask(df, condition)
-            # normalize mask and handle empty
-            cond_mask = cond_mask.reindex(df.index).fillna(False).astype(bool)
-            n_cond = int(cond_mask.sum())
-            if n_cond == 0:
-                print(f"Warning: condition {condition!r} matched 0 rows; producing an empty plot without training/loading model")
-                # produce an empty DataFrame so downstream code skips model operations
-                df = df.iloc[0:0].copy()
-                df['xgs'] = float('nan')
-                # proceed directly to plotting step below
-                pass
-            else:
-                df = df.loc[cond_mask].copy()
-                print(f"Filtered season dataframe to {n_cond} events by condition {condition!r}")
-        except Exception as e:
-            print('Warning: failed to apply condition filter:', e)
+    # Apply final mask and handle empty results consistently with prior behavior
+    n_cond = int(final_mask.sum())
+    if n_cond == 0:
+        print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")
+        df = df.iloc[0:0].copy()
+        df['xgs'] = float('nan')
+    else:
+        df = df.loc[final_mask].copy()
+        print(f"Filtered season dataframe to {n_cond} events by condition {condition!r} team={team_val!r}")
 
     # 2) get or train classifier — only if we need predictions (i.e., df has rows and xgs not prefilled)
     clf = None
@@ -214,23 +211,37 @@ def xgs_map(team: Optional[str] = None, season: str = '20252026', *,
     df['x_a'] = df.get('x')
     df['y_a'] = df.get('y')
 
-    if team and (sel_team_id is not None or sel_team_abb is not None):
-        # Step 2: For the 'team' case, force shots from the selected team to the left
-        # and the other team's shots to the right.
+    if team_val is not None:
+        # Force shots from the selected team to face the left goal and the opponent's
+        # shots to face the right goal. This does not rely on previously-defined
+        # sel_team_id/sel_team_abb variables; compute the id/abbr locally for clarity.
+        tstr = str(team_val).strip()
+        try:
+            tid = int(tstr)
+        except Exception:
+            tid = None
+        tupper = None if tid is not None else tstr.upper()
+
         attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
 
         def is_row_selected(row):
-            if sel_team_id is not None:
-                return str(row.get('team_id')) == str(sel_team_id)
-            if sel_team_abb is not None:
-                h_abb = str(row.get('home_abb', '')).upper()
-                a_abb = str(row.get('away_abb', '')).upper()
-                # shooter is home and home_abb matches OR shooter is away and away_abb matches
-                if h_abb == sel_team_abb and str(row.get('team_id')) == str(row.get('home_id')):
-                    return True
-                if a_abb == sel_team_abb and str(row.get('team_id')) == str(row.get('away_id')):
-                    return True
-            return False
+            # True when the shooter belongs to the selected team
+            try:
+                if tid is not None:
+                    return str(row.get('team_id')) == str(tid)
+                # otherwise compare abbreviations aligned with whether shooter is home/away
+                shooter_id = row.get('team_id')
+                if pd.isna(shooter_id):
+                    return False
+                # shooter is home
+                if str(shooter_id) == str(row.get('home_id')) and row.get('home_abb') is not None:
+                    return str(row.get('home_abb')).upper() == tupper
+                # shooter is away
+                if str(shooter_id) == str(row.get('away_id')) and row.get('away_abb') is not None:
+                    return str(row.get('away_abb')).upper() == tupper
+                return False
+            except Exception:
+                return False
 
         # Compute desired goal per row: selected team's shots -> left; others -> right
         desired_goal = df.apply(lambda r: left_goal_x if is_row_selected(r) else right_goal_x, axis=1)
@@ -294,12 +305,20 @@ if __name__ == '__main__':
     import pandas as pd
 
 
-    debug_teamwise = False
+    debug_teamwise = True
     if debug_teamwise:
-        game_id = '2025020223'
+        game_id = '2025010083'
         game_feed = nhl_api.get_game_feed(game_id)
         df = parse._game(game_feed)
         df = parse._elaborate(df)
+
+        condition = {'game_state': ['5v5'],
+                     'is_net_empty': False}
+        shifts_game, totals_per_game, totals_game = (
+            parse._timing_impl(df,
+                               condition=condition,
+                               game_col='game_id',
+                               time_col='total_time_elapsed_seconds'))
 
     df = pd.read_csv('data/20252026/20252026_df.csv')
 
@@ -307,10 +326,11 @@ if __name__ == '__main__':
 
     condition = {'game_state': ['5v5'],
                  'is_net_empty': False}
-    shifts, totals_per_game, totals = parse._timing_impl(df,
+    shifts_league, totals_per_game_league, totals_league = (
+        parse._timing_impl(df,
                                           condition=condition,
                                           game_col='game_id',
-                                          time_col='total_time_elapsed_seconds')
+                                          time_col='total_time_elapsed_seconds'))
     # next step: make parse._timing_impl able to take additional parameters,
     # and not just game state. i'm envisioning a flexible input like a
     # dictionary, with different keys being the parameters to filter, and the
@@ -319,12 +339,25 @@ if __name__ == '__main__':
     ## next next: make xgs_map able to filter events by state according to
     # the same logic as above
 
-    # example usage
+    # example usage: league map
     _, league_maps = xgs_map(season='20252026', condition=condition,
                         out_path='static/xg_map_20252026.png',
             orient_all_left=True, show=False, return_heatmaps=True)
 
-    _, team_maps = xgs_map(team='PHI', season='20252026',
+    # example usage: team map by specifying 'team' inside condition
+
+
+    team_condition = (condition.copy() if isinstance(condition, dict) else {})
+    if isinstance(team_condition, dict):
+        team_condition['team'] = 'PHI'
+
+    shifts_team, totals_per_game_team, totals_team = (
+        parse._timing_impl(df,
+                                          condition=team_condition,
+                                          game_col='game_id',
+                                          time_col='total_time_elapsed_seconds'))
+
+    _, team_maps = xgs_map(season='20252026', condition=team_condition,
                         out_path='static/PHI_xg_map_20252026.png',
             orient_all_left=False, show=False, return_heatmaps=True)
 
