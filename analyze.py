@@ -94,6 +94,32 @@ def xgs_map(season: str = '20252026', *,
             except Exception:
                 team_val = None
 
+        # If condition is a dict, try to be forgiving about column-name styles
+        if isinstance(cond_work, dict):
+            # quick helper to normalize names (lower alphanumeric)
+            def _norm_key(s: str) -> str:
+                return ''.join([c.lower() for c in str(s) if c.isalnum()])
+
+            df_cols_norm = { _norm_key(c): c for c in df.columns }
+            corrected = {}
+            missing = []
+            for k, v in cond_work.items():
+                nk = _norm_key(k)
+                if nk in df_cols_norm:
+                    corrected[df_cols_norm[nk]] = v
+                else:
+                    missing.append(k)
+            if missing:
+                # warn user and show available columns to help debugging
+                try:
+                    print(f"Warning: condition referenced columns not present in dataframe: {missing}. Available columns: {list(df.columns)}")
+                except Exception:
+                    pass
+                # keep the corrected mapping (may be empty) and let build_mask detect missing keys
+                cond_work = corrected if corrected else cond_work
+            else:
+                cond_work = corrected
+
         # Build base mask using parse.build_mask (supports dict, callable, None)
         try:
             if cond_work is None:
@@ -451,7 +477,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     condition = {'game_state': ['5v5', '5v4', '4v5'],
-                 'is_net_empty': [1]}
+                 'is_net_empty': [0]}
     if args.team:
         condition['team'] = args.team
 

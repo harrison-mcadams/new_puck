@@ -1484,9 +1484,38 @@ def build_mask(df, condition):
                 except Exception:
                     m = _pd.Series(False, index=df.index)
             else:
-                # scalar
-                if isinstance(spec, (list, tuple, set)) and not (len(spec) == 2 and all(isinstance(v, (int, float)) for v in spec)):
-                    m = series.isin(spec)
+                # scalar or iterable membership
+                # Treat lists/sets as membership tests. Treat 2-element tuples as numeric ranges.
+                if isinstance(spec, (list, set)):
+                    # Try to match the spec items directly
+                    try:
+                        m = series.isin(spec)
+                        # If no matches found, attempt robust fallbacks:
+                        if not m.any():
+                            # Attempt string-based comparison (handles '0' vs 0)
+                            try:
+                                str_spec = [str(x) for x in spec]
+                                m_str = series.astype(str).isin(str_spec)
+                                if m_str.any():
+                                    m = m_str
+                                else:
+                                    # Attempt numeric coercion (handles '1' strings compared to numeric specs)
+                                    try:
+                                        num_series = pd.to_numeric(series, errors='coerce')
+                                        num_spec = [float(x) for x in spec]
+                                        m_num = num_series.isin(num_spec)
+                                        if m_num.any():
+                                            m = m_num
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
+                    except Exception:
+                        # final fallback: compare string representations
+                        try:
+                            m = series.astype(str).isin([str(x) for x in spec])
+                        except Exception:
+                            m = _pd.Series(False, index=df.index)
                 elif isinstance(spec, tuple) and len(spec) == 2 and all(isinstance(v, (int, float)) for v in spec):
                     low, high = spec
                     m = series.between(low, high)
