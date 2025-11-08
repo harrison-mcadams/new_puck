@@ -512,17 +512,28 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
         pct = (cond_sec / total_sec * 100.0) if total_sec > 0 else 0.0
         print(f"  is_net_empty={empty}: {intervals}, {cond_sec:.1f}s / {total_sec:.1f}s ({pct:.1f}%)", flush=True)
 
-    demo_for_export(df, None)
+    result = demo_for_export(df, None)
+    print('done')
 
 def demo_for_export(df, condition):
 
     gids = select_team_game(df, 'PHI')
 
+    # Ensure gids is iterable
+    if gids is None:
+        return {}
+    if not isinstance(gids, (list, tuple, pd.Series)):
+        gids = [gids]
+
+    results_per_game = {}
+    aggregate_per_condition = {}
+    aggregate_intersection_total = 0.0
+
     for gid in gids:
         gdf = df[df['game_id'] == gid]
 
         conditions = {'game_state': ['5v5'],
-                      'is_net_empty': [0, 1]}
+                      'is_net_empty': [0]}
 
         gdf = add_game_state_relative_column(gdf, 'PHI')
 
@@ -565,6 +576,75 @@ def demo_for_export(df, condition):
             pooled_seconds = sum((e - s) for s, e in merged) if merged else 0.0
             pct = (pooled_seconds / total_observed * 100.0) if total_observed > 0 else 0.0
             print(f"  {condition} (pooled states={conditions[condition]}): {merged}, {pooled_seconds:.1f}s / {total_observed:.1f}s ({pct:.1f}%)", flush=True)
+            # Save merged intervals per condition for later intersection across conditions
+            if 'merged_per_condition' not in locals():
+                merged_per_condition = {}
+            merged_per_condition[condition] = merged
+            # record aggregate per-condition totals
+            aggregate_per_condition.setdefault(condition, 0.0)
+            aggregate_per_condition[condition] += pooled_seconds
+
+        # After computing unions per condition, compute the intersection across conditions
+        def intersect_two(a: List[Tuple[float, float]], b: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+            """Return intersection of two sorted, non-overlapping interval lists."""
+            res: List[Tuple[float, float]] = []
+            if not a or not b:
+                return res
+            i = j = 0
+            EPS = 1e-9
+            while i < len(a) and j < len(b):
+                s1, e1 = a[i]
+                s2, e2 = b[j]
+                start = max(s1, s2)
+                end = min(e1, e2)
+                if end > start + EPS:
+                    res.append((start, end))
+                # advance the interval that ends first
+                if e1 < e2 - EPS:
+                    i += 1
+                elif e2 < e1 - EPS:
+                    j += 1
+                else:
+                    i += 1
+                    j += 1
+            return res
+
+        # reduce intersection across all conditions
+        intersection: List[Tuple[float, float]] = []
+        keys = list(merged_per_condition.keys()) if 'merged_per_condition' in locals() else []
+        if keys:
+            intersection = merged_per_condition[keys[0]]
+            for k in keys[1:]:
+                intersection = intersect_two(intersection, merged_per_condition.get(k, []))
+
+        # compute pooled seconds for the intersection and print summary
+        pooled_intersection_seconds = sum((e - s) for s, e in intersection) if intersection else 0.0
+        pct_inter = (pooled_intersection_seconds / total_observed * 100.0) if total_observed > 0 else 0.0
+        print(f"  INTERSECTION across conditions {list(conditions.keys())}: {intersection}, {pooled_intersection_seconds:.1f}s / {total_observed:.1f}s ({pct_inter:.1f}%)", flush=True)
+        # Save per-game results
+        results_per_game[gid] = {
+            'merged_per_condition': merged_per_condition.copy() if 'merged_per_condition' in locals() else {},
+            'pooled_seconds_per_condition': {c: sum((e - s) for e_s in merged_per_condition.get(c, []) for (s,e) in [e_s]) for c in merged_per_condition} if 'merged_per_condition' in locals() else {},
+            'intersection_intervals': intersection,
+            'pooled_intersection_seconds': pooled_intersection_seconds,
+            'total_observed_seconds': total_observed,
+        }
+        aggregate_intersection_total += pooled_intersection_seconds
+        # clean up merged_per_condition to avoid cross-game leakage
+        if 'merged_per_condition' in locals():
+            del merged_per_condition
+
+    # Build aggregate totals structure
+    aggregate_totals = {
+        'per_condition_seconds': aggregate_per_condition,
+        'intersection_total_seconds': aggregate_intersection_total,
+    }
+
+    return {
+        'intervals_per_game': results_per_game,
+        'game_totals': {gid: {'intersection_seconds': results_per_game[gid]['pooled_intersection_seconds'], 'total_observed_seconds': results_per_game[gid]['total_observed_seconds']} for gid in results_per_game},
+        'aggregate_totals': aggregate_totals,
+    }
 
 
 if __name__ == "__main__":
