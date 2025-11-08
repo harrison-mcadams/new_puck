@@ -272,11 +272,11 @@ def xgs_map(season: str = '20252026', *,
         events_to_plot = ['xgs']
 
     # Compute timing and xG summary now so we can optionally display it on the plot.
-    import timing_brainstorming
+    import timing
     try:
-        timing_result = timing_brainstorming.demo_for_export(df_filtered, condition)
+        timing_result = timing.demo_for_export(df_filtered, condition)
     except Exception as e:
-        print('Warning: timing_brainstorming.demo_for_export failed:', e)
+        print('Warning: timing.demo_for_export failed:', e)
         timing_result = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
 
     # Compute xG totals from df_with_xgs (sum of 'xgs' per group)
@@ -452,11 +452,11 @@ if __name__ == '__main__':
         print('xgs_map completed. out=', out_path)
         print('heatmaps:', bool(heatmaps))
 
-        import timing_brainstorming
+        import timing
         # Pass the same `condition` dict used to filter the season into
         # `demo_for_export`. `demo_for_export` will internally derive the
         # analysis conditions from this `condition` (or fall back to defaults).
-        timing_result = timing_brainstorming.demo_for_export(df_filtered, condition)
+        timing_result = timing.demo_for_export(df_filtered, condition)
 
         # Print summary stats about xGs per 60 minutes
         def _safe_heat_sum(hm, key):
