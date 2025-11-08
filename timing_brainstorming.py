@@ -512,14 +512,18 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
         pct = (cond_sec / total_sec * 100.0) if total_sec > 0 else 0.0
         print(f"  is_net_empty={empty}: {intervals}, {cond_sec:.1f}s / {total_sec:.1f}s ({pct:.1f}%)", flush=True)
 
-    result = demo_for_export(df, None)
+    result = demo_for_export(df, None, verbose=verbose)
     print('done')
 
-def demo_for_export(df, conditions):
+def demo_for_export(df, condition, verbose: bool = True):
     import parse
     import nhl_api
-    gids = select_team_game(df, 'PHI')
+    # Determine the team to analyze: prefer condition['team'] when provided; default to 'PHI'
+    team_param = 'PHI'
+    if isinstance(condition, dict) and 'team' in condition:
+        team_param = condition['team']
 
+    gids = select_team_game(df, team_param)
 
     # Ensure gids is iterable
     if gids is None:
@@ -527,154 +531,273 @@ def demo_for_export(df, conditions):
     if not isinstance(gids, (list, tuple, pd.Series)):
         gids = [gids]
 
-    df = []
-
-
     results_per_game = {}
-    aggregate_per_condition = {}
-    aggregate_intersection_total = 0.0
+    # Aggregates across all games, keyed by actual team identifiers (team_key / opp_key)
+    aggregate_per_condition: Dict[str, Dict[str, float]] = {}  # {team_id: {cond: seconds}}
+    aggregate_intervals_per_condition: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}  # {team_id: {cond: intervals}}
+    aggregate_intersection_total: Dict[str, float] = {}  # {team_id: total pooled intersection seconds}
+    aggregate_intersection_intervals: Dict[str, List[Tuple[float, float]]] = {}  # {team_id: unioned intersection intervals}
+
+    # helper to merge intervals (union)
+    def _merge_intervals(intervals: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        merged: List[Tuple[float, float]] = []
+        if not intervals:
+            return merged
+        intervals = sorted(intervals, key=lambda x: x[0])
+        cur_start, cur_end = intervals[0]
+        EPS = 1e-9
+        for s, e in intervals[1:]:
+            if s <= cur_end + EPS:
+                cur_end = max(cur_end, e)
+            else:
+                merged.append((cur_start, cur_end))
+                cur_start, cur_end = s, e
+        merged.append((cur_start, cur_end))
+        return merged
+
+    def _intersect_two(a: List[Tuple[float, float]], b: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
+        res: List[Tuple[float, float]] = []
+        if not a or not b:
+            return res
+        i = j = 0
+        EPS = 1e-9
+        while i < len(a) and j < len(b):
+            s1, e1 = a[i]
+            s2, e2 = b[j]
+            start = max(s1, s2)
+            end = min(e1, e2)
+            if end > start + EPS:
+                res.append((start, end))
+            if e1 < e2 - EPS:
+                i += 1
+            elif e2 < e1 - EPS:
+                j += 1
+            else:
+                i += 1
+                j += 1
+        return res
+
+    # Fixed conditions used by this demo
+    conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
 
     for gid in gids:
+        # We must not rely on the incoming `df` (it may be pre-filtered).
+        # Instead fetch the raw game feed and re-parse it using `nhl_api` + `parse`.
+        gdf = None
+        feed = None
+        # Try to call nhl_api.get_game_feed with an int when possible
+        try:
+            gid_int = int(gid)
+        except Exception:
+            gid_int = gid
+        try:
+            feed = nhl_api.get_game_feed(gid_int)
+        except Exception:
+            try:
+                feed = nhl_api.get_game_feed(gid)
+            except Exception:
+                feed = None
 
-        game_feed = nhl_api.get_game_feed(gid)
-        df = parse._game(game_feed)
-        gdf = parse._elaborate(df)
-
-
-        gdf = add_game_state_relative_column(gdf, 'PHI')
-
-
-        for condition in conditions.keys():
-            # For each condition, collect intervals for each state and compute their union
-            all_intervals = []
-            for state in conditions[condition]:
-                if condition == 'game_state':
-                    cond_dict = {'game_state_relative_to_team': state}
+        if feed:
+            try:
+                ev_df = parse._game(feed)
+                if ev_df is None or ev_df.empty:
+                    gdf = None
                 else:
-                    cond_dict = {condition: state}
-                intervals, _, _ = intervals_for_condition(
-                    gdf, cond_dict, time_col='total_time_elapsed_seconds', verbose=False)
-                # ensure intervals are tuples of floats
-                for it in intervals:
+                    # _elaborate returns the parsed/feature-enriched DataFrame
+                    gdf = parse._elaborate(ev_df)
+            except Exception:
+                gdf = None
+        else:
+            # If we couldn't fetch the feed, fall back to the input df selection
+            try:
+                if isinstance(df, pd.DataFrame) and 'game_id' in df.columns:
+                    gdf = df[df['game_id'] == gid]
+                else:
+                    gdf = None
+            except Exception:
+                gdf = None
+
+        if gdf is None or gdf.empty:
+            # nothing to do for this game
+            continue
+
+        # determine home/away ids/abbs for opponent inference
+        try:
+            home_id = gdf['home_id'].dropna().unique().tolist()[0] if 'home_id' in gdf.columns else None
+        except Exception:
+            home_id = None
+        try:
+            away_id = gdf['away_id'].dropna().unique().tolist()[0] if 'away_id' in gdf.columns else None
+        except Exception:
+            away_id = None
+        try:
+            home_abb = gdf['home_abb'].dropna().unique().tolist()[0] if 'home_abb' in gdf.columns else None
+        except Exception:
+            home_abb = None
+        try:
+            away_abb = gdf['away_abb'].dropna().unique().tolist()[0] if 'away_abb' in gdf.columns else None
+        except Exception:
+            away_abb = None
+
+        # normalize team_param and identify opponent identifier (prefer id, else abb)
+        tstr = str(team_param).strip()
+        try:
+            tid = int(tstr)
+        except Exception:
+            tid = None
+        # determine which side is the selected team in this game
+        selected_is_home = False
+        selected_is_away = False
+        if tid is not None:
+            if home_id is not None and str(home_id) == str(tid):
+                selected_is_home = True
+            if away_id is not None and str(away_id) == str(tid):
+                selected_is_away = True
+        else:
+            tupper = tstr.upper()
+            if home_abb is not None and str(home_abb).upper() == tupper:
+                selected_is_home = True
+            if away_abb is not None and str(away_abb).upper() == tupper:
+                selected_is_away = True
+
+        # identify opponent val (id preferred)
+        if selected_is_home:
+            opp_id = away_id
+            opp_abb = away_abb
+        elif selected_is_away:
+            opp_id = home_id
+            opp_abb = home_abb
+        else:
+            # fallback: pick the other team listed as opponent of PHI
+            opp_id = away_id if home_abb == str(team_param).upper() else home_id
+            opp_abb = away_abb if home_abb == str(team_param).upper() else home_abb
+
+        team_key = str(team_param)
+        opp_key = str(opp_abb or opp_id or 'opponent')
+
+        # compute for both selected team and opponent
+        per_game_info = {}
+        for side_label, side_team in (('team', team_param), ('opponent', opp_key)):
+            # build a team-specific relative df
+            # when computing for opponent, pass opponent id/abb where possible
+            side_team_val = side_team
+            if side_label == 'opponent':
+                # prefer numeric id if available
+                side_team_val = opp_id if opp_id is not None else (opp_abb if opp_abb is not None else opp_key)
+
+            # annotate df with relative game_state for this side
+            df_side = add_game_state_relative_column(gdf.copy(), side_team_val)
+
+            merged_per_condition_local: Dict[str, List[Tuple[float, float]]] = {}
+            pooled_seconds_per_condition_local: Dict[str, float] = {}
+
+            times = pd.to_numeric(df_side.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
+            total_observed = float(times.max() - times.min()) if len(times) >= 2 else 0.0
+
+            for cond_label, cond_def in conditions.items():
+                # cond_def is a list of states (e.g., ['5v5'] or [0,1]).
+                all_intervals: List[Tuple[float, float]] = []
+                for state in cond_def:
+                    # Build the proper condition dict expected by intervals_for_condition
+                    if cond_label == 'game_state':
+                        cond_dict = {'game_state_relative_to_team': state}
+                    else:
+                        cond_dict = {cond_label: state}
                     try:
-                        all_intervals.append((float(it[0]), float(it[1])))
-                    except Exception:
+                        intervals, _, _ = intervals_for_condition(df_side, cond_dict, time_col='total_time_elapsed_seconds', verbose=verbose)
+                        for it in intervals:
+                            try:
+                                all_intervals.append((float(it[0]), float(it[1])))
+                            except Exception:
+                                continue
+                    except Exception as e:
+                        if verbose:
+                            print(f"[debug] demo_for_export: intervals_for_condition failed for {side_label} - {cond_label} state={state}: {e}")
                         continue
 
-            # merge/union the collected intervals
-            merged: List[Tuple[float, float]] = []
-            if all_intervals:
-                all_intervals.sort(key=lambda x: x[0])
-                cur_start, cur_end = all_intervals[0]
-                EPS = 1e-9
-                for s, e in all_intervals[1:]:
-                    # if the next interval starts before or at the current end (allow tiny epsilon), merge
-                    if s <= cur_end + EPS:
-                        cur_end = max(cur_end, e)
-                    else:
-                        merged.append((cur_start, cur_end))
-                        cur_start, cur_end = s, e
-                merged.append((cur_start, cur_end))
+                # Merge intervals across all states for this condition and compute pooled seconds
+                merged_intervals = _merge_intervals(all_intervals)
+                pooled = sum((e - s) for s, e in merged_intervals) if merged_intervals else 0.0
+                merged_per_condition_local[str(cond_label)] = merged_intervals
+                pooled_seconds_per_condition_local[str(cond_label)] = pooled
 
-            # compute pooled seconds and total observed span for this game
-            times = pd.to_numeric(gdf.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
-            total_observed = float(times.max() - times.min()) if len(times) >= 2 else 0.0
-            pooled_seconds = sum((e - s) for s, e in merged) if merged else 0.0
-            pct = (pooled_seconds / total_observed * 100.0) if total_observed > 0 else 0.0
-            print(f"  {condition} (pooled states={conditions[condition]}): {merged}, {pooled_seconds:.1f}s / {total_observed:.1f}s ({pct:.1f}%)", flush=True)
-            # Save merged intervals per condition for later intersection across conditions
-            if 'merged_per_condition' not in locals():
-                merged_per_condition = {}
-            merged_per_condition[condition] = merged
-            # record aggregate per-condition totals
-            aggregate_per_condition.setdefault(condition, 0.0)
-            aggregate_per_condition[condition] += pooled_seconds
+            # Store per-game results
+            per_game_info[side_label] = {
+                'merged_intervals': merged_per_condition_local,
+                'pooled_seconds': pooled_seconds_per_condition_local,
+                'total_observed': total_observed,
+            }
 
-        # After computing unions per condition, compute the intersection across conditions
-        def intersect_two(a: List[Tuple[float, float]], b: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
-            """Return intersection of two sorted, non-overlapping interval lists."""
-            res: List[Tuple[float, float]] = []
-            if not a or not b:
-                return res
-            i = j = 0
-            EPS = 1e-9
-            while i < len(a) and j < len(b):
-                s1, e1 = a[i]
-                s2, e2 = b[j]
-                start = max(s1, s2)
-                end = min(e1, e2)
-                if end > start + EPS:
-                    res.append((start, end))
-                # advance the interval that ends first
-                if e1 < e2 - EPS:
-                    i += 1
-                elif e2 < e1 - EPS:
-                    j += 1
-                else:
-                    i += 1
-                    j += 1
-            return res
+        # For each side, compute the intersection across merged intervals for all conditions
+        for side_label, side_info in per_game_info.items():
+            cond_interval_lists = list(side_info['merged_intervals'].values())
+            # start with first condition intervals, then intersect across the rest
+            if cond_interval_lists:
+                inter = cond_interval_lists[0]
+                for lst in cond_interval_lists[1:]:
+                    inter = _intersect_two(inter, lst)
+            else:
+                inter = []
+            pooled_intersection = sum((e - s) for s, e in inter) if inter else 0.0
+            # store intersection results in the per-game side info
+            side_info['intersection_intervals'] = inter
+            side_info['pooled_intersection_seconds'] = pooled_intersection
 
-        # reduce intersection across all conditions
-        intersection: List[Tuple[float, float]] = []
-        keys = list(merged_per_condition.keys()) if 'merged_per_condition' in locals() else []
-        if keys:
-            intersection = merged_per_condition[keys[0]]
-            for k in keys[1:]:
-                intersection = intersect_two(intersection, merged_per_condition.get(k, []))
+            # determine actual team id/abb key for this side
+            side_team_key = team_key if side_label == 'team' else opp_key
+            # accumulate per-condition pooled seconds and union intervals into global aggregates keyed by side_team_key
+            aggregate_per_condition.setdefault(side_team_key, {})
+            aggregate_intervals_per_condition.setdefault(side_team_key, {})
+            for cond_label, pooled_seconds in side_info['pooled_seconds'].items():
+                aggregate_per_condition[side_team_key].setdefault(cond_label, 0.0)
+                aggregate_per_condition[side_team_key][cond_label] += pooled_seconds
+                # union intervals for this condition across games
+                existing = aggregate_intervals_per_condition[side_team_key].setdefault(cond_label, [])
+                aggregate_intervals_per_condition[side_team_key][cond_label] = _merge_intervals(existing + side_info['merged_intervals'].get(cond_label, []))
 
-        # compute pooled seconds for the intersection and print summary
-        pooled_intersection_seconds = sum((e - s) for s, e in intersection) if intersection else 0.0
-        pct_inter = (pooled_intersection_seconds / total_observed * 100.0) if total_observed > 0 else 0.0
-        print(f"  INTERSECTION across conditions {list(conditions.keys())}: {intersection}, {pooled_intersection_seconds:.1f}s / {total_observed:.1f}s ({pct_inter:.1f}%)", flush=True)
-        # Save per-game results
+            # accumulate intersection totals across games (per actual team) and union intersection intervals
+            aggregate_intersection_total.setdefault(side_team_key, 0.0)
+            aggregate_intersection_total[side_team_key] += pooled_intersection
+            aggregate_intersection_intervals.setdefault(side_team_key, [])
+            aggregate_intersection_intervals[side_team_key] = _merge_intervals(aggregate_intersection_intervals[side_team_key] + inter)
+
+        # Save this game's per-game info keyed by game id
         results_per_game[gid] = {
-            'merged_per_condition': merged_per_condition.copy() if 'merged_per_condition' in locals() else {},
-            'pooled_seconds_per_condition': {c: sum((e - s) for e_s in merged_per_condition.get(c, []) for (s,e) in [e_s]) for c in merged_per_condition} if 'merged_per_condition' in locals() else {},
-            'intersection_intervals': intersection,
-            'pooled_intersection_seconds': pooled_intersection_seconds,
-            'total_observed_seconds': total_observed,
+            'selected_team': team_key,
+            'opponent_team': opp_key,
+            'sides': per_game_info,
+            'game_total_observed_seconds': total_observed,
         }
-        aggregate_intersection_total += pooled_intersection_seconds
-        # clean up merged_per_condition to avoid cross-game leakage
-        if 'merged_per_condition' in locals():
-            del merged_per_condition
 
-    # Build aggregate totals structure
-    aggregate_totals = {
-        'per_condition_seconds': aggregate_per_condition,
-        'intersection_total_seconds': aggregate_intersection_total,
+    # Recompute aggregate intersection totals from the per-game results to ensure
+    # they exactly equal the sums of per-game 'pooled_intersection_seconds'.
+    recomputed_intersection_total: Dict[str, float] = {}
+    for gid, info in results_per_game.items():
+        sides = info.get('sides', {})
+        team_key_local = info.get('selected_team')
+        opp_key_local = info.get('opponent_team')
+        tsec = sides.get('team', {}).get('pooled_intersection_seconds', 0.0)
+        osec = sides.get('opponent', {}).get('pooled_intersection_seconds', 0.0)
+        if team_key_local is not None:
+            recomputed_intersection_total.setdefault(team_key_local, 0.0)
+            recomputed_intersection_total[team_key_local] += float(tsec or 0.0)
+        if opp_key_local is not None:
+            recomputed_intersection_total.setdefault(opp_key_local, 0.0)
+            recomputed_intersection_total[opp_key_local] += float(osec or 0.0)
+
+    # Use recomputed totals for the final output to avoid accumulation drift
+    aggregate_intersection_total = recomputed_intersection_total
+
+    # Prepare the final results structure
+    final_results = {
+        'per_game': results_per_game,
+        'aggregate': {
+            'pooled_seconds_per_condition': aggregate_per_condition,
+            'intervals_per_condition': aggregate_intervals_per_condition,
+            'intersection_pooled_seconds': aggregate_intersection_total,
+            'intersection_intervals': aggregate_intersection_intervals,
+        },
     }
 
-    return {
-        'intervals_per_game': results_per_game,
-        'game_totals': {gid: {'intersection_seconds': results_per_game[gid]['pooled_intersection_seconds'], 'total_observed_seconds': results_per_game[gid]['total_observed_seconds']} for gid in results_per_game},
-        'aggregate_totals': aggregate_totals,
-    }
-
-
-if __name__ == "__main__":
-    import sys
-    import traceback
-
-    verbose = False
-    if len(sys.argv) > 1:
-        if sys.argv[1] in ('-v', '--verbose'):
-            verbose = True
-        else:
-            print(f"Unknown argument: {sys.argv[1]}")
-            print("Usage: python timing_brainstorming.py [-v|--verbose]")
-            sys.exit(1)
-
-    # Ensure data directory exists
-    if not Path("data").exists():
-        print("Data directory 'data' not found; please run from the project root")
-        sys.exit(1)
-
-    # Run demo for the default team/game
-    try:
-        demo_for_team_game(verbose=verbose)
-    except Exception as e:
-        print(f"Error in demo: {e}", flush=True)
-        traceback.print_exc()
-        sys.exit(1)
+    return final_results
