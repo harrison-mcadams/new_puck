@@ -405,8 +405,11 @@ if __name__ == '__main__':
         print('heatmaps:', bool(heatmaps))
 
         import timing_brainstorming
-        timing_result = timing_brainstorming.demo_for_export(df_filtered,
-                                                          condition)
+        # Pass the same `condition` dict used to filter the season into
+        # `demo_for_export`. `demo_for_export` will internally derive the
+        # analysis conditions from this `condition` (or fall back to defaults).
+        timing_result = timing_brainstorming.demo_for_export(df_filtered, condition)
+
 
         if df_filtered is not None:
             print('Filtered df:', df_filtered.shape)

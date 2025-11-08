@@ -512,16 +512,28 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
         pct = (cond_sec / total_sec * 100.0) if total_sec > 0 else 0.0
         print(f"  is_net_empty={empty}: {intervals}, {cond_sec:.1f}s / {total_sec:.1f}s ({pct:.1f}%)", flush=True)
 
-    result = demo_for_export(df, None, verbose=verbose)
+    # Call demo_for_export with explicit keyword for `conditions` so that
+    # `verbose` is not accidentally bound to the wrong parameter.
+    result = demo_for_export(df, None, conditions=None, verbose=verbose)
     print('done')
 
-def demo_for_export(df, condition, verbose: bool = True):
+def demo_for_export(df, condition=None, verbose: bool = True):
     import parse
     import nhl_api
     # Determine the team to analyze: prefer condition['team'] when provided; default to 'PHI'
     team_param = 'PHI'
     if isinstance(condition, dict) and 'team' in condition:
         team_param = condition['team']
+
+    # Derive analysis conditions from the passed filter `condition`.
+    # If the condition dict contains keys other than 'team', those keys are
+    # used as analysis conditions. Otherwise fall back to defaults.
+    if isinstance(condition, dict):
+        analysis_conditions = {k: v for k, v in condition.items() if k != 'team'}
+        if not analysis_conditions:
+            analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
+    else:
+        analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
 
     gids = select_team_game(df, team_param)
 
@@ -576,9 +588,6 @@ def demo_for_export(df, condition, verbose: bool = True):
                 i += 1
                 j += 1
         return res
-
-    # Fixed conditions used by this demo
-    conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
 
     for gid in gids:
         # We must not rely on the incoming `df` (it may be pre-filtered).
@@ -695,7 +704,7 @@ def demo_for_export(df, condition, verbose: bool = True):
             times = pd.to_numeric(df_side.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
             total_observed = float(times.max() - times.min()) if len(times) >= 2 else 0.0
 
-            for cond_label, cond_def in conditions.items():
+            for cond_label, cond_def in analysis_conditions.items():
                 # cond_def is a list of states (e.g., ['5v5'] or [0,1]).
                 all_intervals: List[Tuple[float, float]] = []
                 for state in cond_def:
