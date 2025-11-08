@@ -275,8 +275,19 @@ def xgs_map(season: str = '20252026', *,
     # Predict xgs only when needed and possible
     df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered)
 
-    # Orient coordinates according to team/orient_all_left
-    df_oriented = _orient_coordinates(df_with_xgs, team_val)
+    # Orientation deprecation: plotting routines now decide orientation and
+    # splitting (team vs not-team or home vs away). Do not perform an
+    # explicit coordinate rotation here; leave adjusted coordinates to
+    # `plot.plot_events` which will call `adjust_xy_for_homeaway` only when
+    # needed. If the user requested the legacy `orient_all_left` behavior,
+    # emit a DeprecationWarning and ignore it here (plotting may still
+    # emulate it if requested via plotting options).
+    import warnings
+    if orient_all_left:
+        warnings.warn("'orient_all_left' is deprecated in xgs_map and ignored; control orientation via plot.plot_events options.", DeprecationWarning)
+
+    # Use df_with_xgs directly; plot.plot_events will compute x_a/y_a if missing.
+    df_to_plot = df_with_xgs
 
     # prepare events to plot
     if events_to_plot is None:
@@ -292,7 +303,7 @@ def xgs_map(season: str = '20252026', *,
     if return_heatmaps:
         # For heatmap generation, ask plot_events to use the selected mode and pass team_val
         ret = plot_mod.plot_events(
-            df_oriented,
+            df_to_plot,
             events_to_plot=events_to_plot,
             out_path=out_path,
             return_heatmaps=True,
@@ -313,7 +324,7 @@ def xgs_map(season: str = '20252026', *,
         # When not requesting heatmaps, still ensure plotting uses the same
         # mode so visuals match the heatmap logic: use heatmap_mode and team_val.
         ret = plot_mod.plot_events(
-            df_oriented,
+            df_to_plot,
             events_to_plot=events_to_plot,
             out_path=out_path,
             heatmap_split_mode=heatmap_mode,

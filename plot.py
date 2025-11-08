@@ -40,9 +40,19 @@ def _events(events: pd.DataFrame, events_to_plot: Optional[List[str]] = None) ->
     mask = events['event'].astype(str).str.strip().str.lower().isin(wanted)
     return events.loc[mask].copy()
 
-def adjust_xy_for_homeaway(df):
+def adjust_xy_for_homeaway(df, split_mode: str = 'home_away', team_for_heatmap: Optional[object] = None):
     # orient all sides such as home shots are directed to the left,
     # away shots are directed to the right. also need to flip y accordingly
+
+    # If another routine already produced adjusted coordinates, don't recompute.
+    # Check that both columns exist and at least one valid value is present.
+    try:
+        if df is not None and 'x_a' in df.columns and 'y_a' in df.columns:
+            if df['x_a'].notna().any() and df['y_a'].notna().any():
+                return df.copy()
+    except Exception:
+        # fall through and recompute if anything unexpected happens
+        pass
 
     # The approach:
     # - For each row determine which goal the shooter was attacking (attacked_goal_x)
@@ -101,16 +111,37 @@ def adjust_xy_for_homeaway(df):
             # insufficient info -> assume attacking right (fallback)
             ag = right_goal_x
 
-        # desired goal depending on whether shooter is home or away
-        if t_id is not None and h_id is not None:
-            if t_id == h_id:
+        # desired goal depending on split_mode
+        if split_mode == 'team_not_team' and team_for_heatmap is not None:
+            # determine whether this shooter belongs to the target team
+            is_team = False
+            try:
+                # numeric id match
+                if str(team_for_heatmap).strip().isdigit():
+                    is_team = (str(t_id) == str(int(team_for_heatmap)))
+                else:
+                    # try matching abbreviations
+                    if 'home_abb' in df.columns and str(row.get('home_abb')).upper() == str(team_for_heatmap).upper():
+                        is_team = (t_id is not None and str(t_id) == str(row.get('home_id')))
+                    if not is_team and 'away_abb' in df.columns and str(row.get('away_abb')).upper() == str(team_for_heatmap).upper():
+                        is_team = (t_id is not None and str(t_id) == str(row.get('away_id')))
+            except Exception:
+                is_team = False
+            if is_team:
                 dg = left_goal_x
-            elif t_id == a_id:
-                dg = right_goal_x
             else:
                 dg = right_goal_x
         else:
-            dg = right_goal_x
+            # legacy home/away: desired goal depending on whether shooter is home or away
+            if t_id is not None and h_id is not None:
+                if str(t_id) == str(h_id):
+                    dg = left_goal_x
+                elif str(t_id) == str(a_id):
+                    dg = right_goal_x
+                else:
+                    dg = right_goal_x
+            else:
+                dg = right_goal_x
 
         attacked_goal.append(ag)
         desired_goal.append(dg)
@@ -228,8 +259,13 @@ def plot_events(
 
     # filter events for normal scatter plotting (exclude 'xgs' token)
     df = _events(events, filtered_events)
-    # compute adjusted coordinates so home events face left and away events face right
-    df = adjust_xy_for_homeaway(df)
+    # Only compute adjusted coordinates if they are not already present or are all NaN.
+    try:
+        need_adjust = ('x_a' not in df.columns) or ('y_a' not in df.columns) or df['x_a'].isna().all() or df['y_a'].isna().all()
+    except Exception:
+        need_adjust = True
+    if need_adjust:
+        df = adjust_xy_for_homeaway(df, split_mode=heatmap_split_mode, team_for_heatmap=team_for_heatmap)
 
     # make sure we have numeric x,y
     if 'x' not in df.columns or 'y' not in df.columns:
@@ -266,14 +302,40 @@ def plot_events(
             ax.set_title(title)
         return fig, ax
 
-    # Attempt to determine home/away assignment per row
-    # We'll treat a row as 'home' when team_id == home_id; otherwise 'away'
-    is_home = None
-    if all(c in df.columns for c in ('team_id', 'home_id')):
-        is_home = df['team_id'] == df['home_id']
+    # Determine group membership depending on split mode
+    if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+        # compute boolean series: True if event belongs to the requested team
+        def _is_team_row(r):
+            try:
+                tid = None
+                if str(team_for_heatmap).strip().isdigit():
+                    tid = str(int(team_for_heatmap))
+                tupper = None if tid is not None else str(team_for_heatmap).upper()
+                team_id = r.get('team_id')
+                if tid is not None and team_id is not None:
+                    return str(team_id) == tid
+                if tupper is not None:
+                    home_abb = r.get('home_abb')
+                    away_abb = r.get('away_abb')
+                    if home_abb is not None and str(home_abb).upper() == tupper:
+                        return team_id is not None and str(team_id) == str(r.get('home_id'))
+                    if away_abb is not None and str(away_abb).upper() == tupper:
+                        return team_id is not None and str(team_id) == str(r.get('away_id'))
+                return False
+            except Exception:
+                return False
+
+        is_group1 = df.apply(_is_team_row, axis=1)
+        group1_name = str(team_for_heatmap)
+        group2_name = 'Opponents'
     else:
-        # if missing, treat all as away to ensure something is plotted
-        is_home = pd.Series([False] * len(df), index=df.index)
+        # legacy home/away grouping: True if team_id == home_id
+        if all(c in df.columns for c in ('team_id', 'home_id')):
+            is_group1 = df['team_id'] == df['home_id']
+        else:
+            is_group1 = pd.Series([False] * len(df), index=df.index)
+        group1_name = None
+        group2_name = None
 
     # For legend handles
     handles = []
@@ -292,20 +354,33 @@ def plot_events(
         away_c = style.get('away_color', 'gray')
 
         # plot home and away separately for consistent coloring
-        grp_home = group[is_home.loc[group.index]]
-        grp_away = group[~is_home.loc[group.index]]
+        grp_home = group[is_group1.loc[group.index]]
+        grp_away = group[~is_group1.loc[group.index]]
 
         # choose adjusted coords if present
         xcol = 'x_a' if 'x_a' in group.columns else 'x'
         ycol = 'y_a' if 'y_a' in group.columns else 'y'
 
-        if not grp_home.empty:
-            h = ax.scatter(grp_home[xcol], grp_home[ycol], c=home_c, marker=m, s=s, edgecolors='none', zorder=5)
+        grp1 = group[is_group1.loc[group.index]]
+        grp2 = group[~is_group1.loc[group.index]]
+
+        # choose colors depending on split mode
+        if heatmap_split_mode == 'team_not_team':
+            # event_styles may include team_color/not_team_color overrides
+            evx = merged_styles.get(ev_type, {})
+            c1 = evx.get('team_color', evx.get('home_color', 'black'))
+            c2 = evx.get('not_team_color', evx.get('away_color', 'orange'))
+        else:
+            c1 = home_c
+            c2 = away_c
+
+        if not grp1.empty:
+            h = ax.scatter(grp1[xcol], grp1[ycol], c=c1, marker=m, s=s, edgecolors='none', zorder=5)
             if ev_type not in labels:
                 handles.append(h)
                 labels.append(ev_type)
-        if not grp_away.empty:
-            h2 = ax.scatter(grp_away[xcol], grp_away[ycol], c=away_c, marker=m, s=s, edgecolors='none', zorder=5)
+        if not grp2.empty:
+            h2 = ax.scatter(grp2[xcol], grp2[ycol], c=c2, marker=m, s=s, edgecolors='none', zorder=5)
             if ev_type not in labels:
                 handles.append(h2)
                 labels.append(ev_type)
@@ -319,7 +394,7 @@ def plot_events(
     # and do not show the legend to keep the image clean.
 
     # --- SUMMARY TEXT BLOCK ---
-    # compute home/away ids (prefer explicit columns from filtered df)
+    # compute representative team ids/abbrevs (for legacy home/away display)
     home_id = None
     away_id = None
     if 'home_id' in df.columns:
@@ -350,12 +425,33 @@ def plot_events(
     ev_lc = events['event'].astype(str).str.strip().str.lower() if 'event' in events.columns else pd.Series([], dtype=object)
     is_goal = ev_lc == 'goal'
     # Count goals using the original events DataFrame (more complete than filtered df)
-    if 'team_id' in events.columns and home_id is not None:
-        home_goals = int(((events['team_id'].astype(str) == str(home_id)) & is_goal).sum())
-        away_goals = int(((events['team_id'].astype(str) != str(home_id)) & is_goal).sum())
+    if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+        # compute group1 (team) vs group2 (not team) goal counts
+        def _is_team_row_events(r):
+            try:
+                if str(team_for_heatmap).strip().isdigit():
+                    return str(r.get('team_id')) == str(int(team_for_heatmap))
+                tupper = str(team_for_heatmap).upper()
+                home_abb = r.get('home_abb')
+                away_abb = r.get('away_abb')
+                if home_abb is not None and str(home_abb).upper() == tupper:
+                    return str(r.get('team_id')) == str(r.get('home_id'))
+                if away_abb is not None and str(away_abb).upper() == tupper:
+                    return str(r.get('team_id')) == str(r.get('away_id'))
+                return False
+            except Exception:
+                return False
+
+        mask_team = events.apply(_is_team_row_events, axis=1) if 'team_id' in events.columns or 'home_abb' in events.columns else pd.Series([False] * len(events), index=events.index)
+        home_goals = int(((mask_team) & is_goal).sum())
+        away_goals = int(((~mask_team) & is_goal).sum())
     else:
-        home_goals = int(is_goal.sum())
-        away_goals = 0
+        if 'team_id' in events.columns and home_id is not None:
+            home_goals = int(((events['team_id'].astype(str) == str(home_id)) & is_goal).sum())
+            away_goals = int(((events['team_id'].astype(str) != str(home_id)) & is_goal).sum())
+        else:
+            home_goals = int(is_goal.sum())
+            away_goals = 0
 
     # shot attempts totals (shot-on-goal, missed-shot, blocked-shot)
     # Use the normalized lowercase event column computed earlier on the full events df.
@@ -364,13 +460,34 @@ def plot_events(
     attempt_mask = ev_lc_full.isin(shot_attempt_types)
     attempts_df = events.loc[attempt_mask]
 
-    if 'team_id' in events.columns and home_id is not None:
-        home_attempts = int((attempts_df['team_id'].astype(str) == str(home_id)).sum())
-        away_attempts = int((attempts_df['team_id'].astype(str) != str(home_id)).sum())
+    if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+        # team vs not_team attempts
+        def _is_team_row_events(r):
+            try:
+                if str(team_for_heatmap).strip().isdigit():
+                    return str(r.get('team_id')) == str(int(team_for_heatmap))
+                tupper = str(team_for_heatmap).upper()
+                home_abb = r.get('home_abb')
+                away_abb = r.get('away_abb')
+                if home_abb is not None and str(home_abb).upper() == tupper:
+                    return str(r.get('team_id')) == str(r.get('home_id'))
+                if away_abb is not None and str(away_abb).upper() == tupper:
+                    return str(r.get('team_id')) == str(r.get('away_id'))
+                return False
+            except Exception:
+                return False
+
+        mask_attempts_team = attempts_df.apply(_is_team_row_events, axis=1) if not attempts_df.empty else pd.Series([], dtype=bool)
+        home_attempts = int(mask_attempts_team.sum())
+        away_attempts = int((~mask_attempts_team).sum() if not attempts_df.empty else 0)
     else:
-        xs_series = attempts_df['x_a'] if 'x_a' in attempts_df.columns else (attempts_df['x'] if 'x' in attempts_df.columns else pd.Series([]))
-        home_attempts = int((xs_series < 0).sum())
-        away_attempts = int((xs_series >= 0).sum())
+        if 'team_id' in events.columns and home_id is not None:
+            home_attempts = int((attempts_df['team_id'].astype(str) == str(home_id)).sum())
+            away_attempts = int((attempts_df['team_id'].astype(str) != str(home_id)).sum())
+        else:
+            xs_series = attempts_df['x_a'] if 'x_a' in attempts_df.columns else (attempts_df['x'] if 'x' in attempts_df.columns else pd.Series([]))
+            home_attempts = int((xs_series < 0).sum())
+            away_attempts = int((xs_series >= 0).sum())
 
     total_attempts = home_attempts + away_attempts
     if total_attempts > 0:
@@ -475,7 +592,8 @@ def plot_events(
             # ensure adjusted coords exist; if either 'x_a' or 'y_a' is missing
             # (for example they were not created earlier), compute them now.
             if ('x_a' not in events_with_xg.columns) or ('y_a' not in events_with_xg.columns):
-                events_with_xg = adjust_xy_for_homeaway(events_with_xg)
+                # Respect the caller's split mode when computing adjusted coords
+                events_with_xg = adjust_xy_for_homeaway(events_with_xg, split_mode=heatmap_split_mode, team_for_heatmap=team_for_heatmap)
             try:
                 print('events_with_xg rows after filter:', events_with_xg.shape[0])
             except Exception:
