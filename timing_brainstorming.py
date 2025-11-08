@@ -520,8 +520,10 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
 def demo_for_export(df, condition=None, verbose: bool = True):
     import parse
     import nhl_api
-    # Determine the team to analyze: prefer condition['team'] when provided; default to 'PHI'
-    team_param = 'PHI'
+    # Determine the team to analyze: prefer condition['team'] when provided; if
+    # no team is provided, we'll analyze all games found in `df` and for each
+    # game default the 'team' perspective to the home's team for that game.
+    team_param = None
     if isinstance(condition, dict) and 'team' in condition:
         team_param = condition['team']
 
@@ -535,13 +537,33 @@ def demo_for_export(df, condition=None, verbose: bool = True):
     else:
         analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
 
-    gids = select_team_game(df, team_param)
-
-    # Ensure gids is iterable
-    if gids is None:
-        return {}
-    if not isinstance(gids, (list, tuple, pd.Series)):
-        gids = [gids]
+    # Determine gids to analyze:
+    # - If a team was specified in `condition`, find games for that team.
+    # - Otherwise, analyze every unique game_id present in `df`.
+    if isinstance(condition, dict) and 'team' in condition:
+        gids = select_team_game(df, team_param)
+        if gids is None:
+            # Return a structured empty result to maintain consistent output format
+            return {
+                'per_game': {},
+                'aggregate': {
+                    'pooled_seconds_per_condition': {'team': {}, 'other': {}},
+                    'intervals_per_condition': {'team': {}, 'other': {}},
+                    'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0},
+                    'intersection_intervals': {'team': [], 'other': []},
+                }
+            }
+        if not isinstance(gids, (list, tuple, pd.Series)):
+            gids = [gids]
+    else:
+        # No team specified: use all unique game_ids in df (if present)
+        if isinstance(df, pd.DataFrame) and 'game_id' in df.columns and not df.empty:
+            try:
+                gids = df['game_id'].dropna().unique().tolist()
+            except Exception:
+                gids = []
+        else:
+            gids = []
 
     results_per_game = {}
     # Aggregates across all games: fixed labels 'team' (selected team) and 'other' (pooled opponents)
@@ -649,13 +671,24 @@ def demo_for_export(df, condition=None, verbose: bool = True):
         except Exception:
             away_abb = None
 
-        # normalize team_param and identify opponent identifier (prefer id, else abb)
-        tstr = str(team_param).strip()
+        # Choose which team to treat as the 'selected' team for this game.
+        # If a global `team_param` was provided, use that. Otherwise default
+        # to the home team for this game (prefer abbrev, else id).
+        if team_param is not None:
+            local_team = team_param
+        else:
+            local_team = home_abb if home_abb is not None else (home_id if home_id is not None else (away_abb if away_abb is not None else away_id))
+
+        # normalize local_team for numeric comparison where appropriate
+        tstr = str(local_team).strip() if local_team is not None else ''
         try:
             tid = int(tstr)
         except Exception:
             tid = None
-        # determine which side is the selected team in this game
+
+        team_key = str(local_team)
+
+        # Determine whether the local_team corresponds to home or away in this game
         selected_is_home = False
         selected_is_away = False
         if tid is not None:
@@ -664,7 +697,7 @@ def demo_for_export(df, condition=None, verbose: bool = True):
             if away_id is not None and str(away_id) == str(tid):
                 selected_is_away = True
         else:
-            tupper = tstr.upper()
+            tupper = str(local_team).upper() if local_team is not None else ''
             if home_abb is not None and str(home_abb).upper() == tupper:
                 selected_is_home = True
             if away_abb is not None and str(away_abb).upper() == tupper:
@@ -678,16 +711,15 @@ def demo_for_export(df, condition=None, verbose: bool = True):
             opp_id = home_id
             opp_abb = home_abb
         else:
-            # fallback: pick the other team listed as opponent of PHI
-            opp_id = away_id if home_abb == str(team_param).upper() else home_id
-            opp_abb = away_abb if home_abb == str(team_param).upper() else home_abb
+            # fallback: pick the other team listed as opponent of local_team
+            opp_id = away_id if (home_abb is not None and str(home_abb).upper() == str(local_team).upper()) else home_id
+            opp_abb = away_abb if (home_abb is not None and str(home_abb).upper() == str(local_team).upper()) else home_abb
 
-        team_key = str(team_param)
         opp_key = str(opp_abb or opp_id or 'opponent')
 
         # compute for both selected team and opponent
         per_game_info = {}
-        for side_label, side_team in (('team', team_param), ('opponent', opp_key)):
+        for side_label, side_team in (('team', local_team), ('opponent', opp_key)):
             # build a team-specific relative df
             # when computing for opponent, pass opponent id/abb where possible
             side_team_val = side_team
