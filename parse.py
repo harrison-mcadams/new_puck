@@ -1503,16 +1503,32 @@ def build_mask(df, condition):
 
 
 def _timing(df, *args, condition=None, time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
-    """Wrapper that calls _timing_impl; preserves backward compatibility with
-    older callers that pass (condition_col, condition_value) positionally.
-    """
-    # support legacy call: _timing(df, 'game_state', '5v5', game_col=..., time_col=...)
-    if len(args) >= 2:
-        cond = {args[0]: args[1]}
-    else:
-        cond = condition
-    return _timing_impl(df, cond, time_col=time_col, game_col=game_col)
+## We need to totally re-do parse._timing.
+## input will be a df, which contains either one game or several games
+# concatenated together. it will also contain a dictionary called condition
+# that defines some filtering criteria.
 
+# ultimately we want to be operating on a per-game basis, because that's
+# where this shift information makes sense.
+
+# first we'll need to get down to a specific game. if a team is specified
+# within condition, use team first to narrow down games included to only
+# games in which the team played (either home or away)
+
+# for a given game, we want to analyze every inputted condition (other than
+# team) separately. each condition is going to have idiosycnracies, so let's
+# have them be separate chunks of code. let's consider the condition
+# 'game-state' as our canonical example. for a given team, i want to compute
+# or be able to identify whether the game-state is true or not.
+# we have information provided by each event within the df. we can use these
+# to bound the time intervals where the condition is true. however, that is
+# not the complete information. 'game-state' can change in between events. as
+# a concrete example, a penalty can finish in between events, and therefore
+# we do not have a direct event that indicates the end of a penalty. we need
+# to be able to infer the end of the penalty from other information (
+# including the penalty start time and whether or not a powerplay goal was
+# subsequently stored). desired output for this chunk is a set of time intervals
+# where the condition is true, per game per team.
 
 def _timing_impl(df, *args, condition=None, time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
      """Core timing implementation using a flexible `condition` contract.
