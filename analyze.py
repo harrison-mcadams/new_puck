@@ -75,180 +75,137 @@ def xgs_map(season: str = '20252026', *,
     def _apply_condition(df: pd.DataFrame):
         """Apply `condition` to df and return (filtered_df, team_val).
 
-        The `condition` contract is flexible: None, dict (column->spec), or
-        callable(df)->boolean Series. If a team is specified in a dict via
-        the 'team' key, it is treated specially and interpreted as matching
-        either home or away (by id or abbreviation).
+        Accepts None, dict, or callable. If a 'team' key is present in the
+        dict it is pulled out and used to filter by team (home or away).
+        Key normalization is tolerant of common naming variants.
         """
-        # Defensive copy of condition dict so caller's input isn't mutated
-        cond_work = None
-        if isinstance(condition, dict):
-            cond_work = condition.copy()
-        else:
-            cond_work = condition
+        # copy condition if dict to avoid mutation
+        cond_work = condition.copy() if isinstance(condition, dict) else condition
 
         team_val = None
         if isinstance(cond_work, dict) and 'team' in cond_work:
-            try:
-                team_val = cond_work.pop('team')
-            except Exception:
-                team_val = None
+            team_val = cond_work.pop('team', None)
 
-        # If condition is a dict, try to be forgiving about column-name styles
+        # normalize dict keys to dataframe columns (tolerant mapping)
         if isinstance(cond_work, dict):
-            # quick helper to normalize names (lower alphanumeric)
-            def _norm_key(s: str) -> str:
-                return ''.join([c.lower() for c in str(s) if c.isalnum()])
-
-            df_cols_norm = { _norm_key(c): c for c in df.columns }
+            def _norm(k: str) -> str:
+                return ''.join(ch.lower() for ch in str(k) if ch.isalnum())
+            col_map = { _norm(c): c for c in df.columns }
             corrected = {}
-            missing = []
             for k, v in cond_work.items():
-                nk = _norm_key(k)
-                if nk in df_cols_norm:
-                    corrected[df_cols_norm[nk]] = v
+                nk = _norm(k)
+                if nk in col_map:
+                    corrected[col_map[nk]] = v
                 else:
-                    missing.append(k)
-            if missing:
-                # warn user and show available columns to help debugging
-                try:
-                    print(f"Warning: condition referenced columns not present in dataframe: {missing}. Available columns: {list(df.columns)}")
-                except Exception:
-                    pass
-                # keep the corrected mapping (may be empty) and let build_mask detect missing keys
-                cond_work = corrected if corrected else cond_work
-            else:
-                cond_work = corrected
+                    corrected[k] = v
+            cond_work = corrected
 
-        # Build base mask using parse.build_mask (supports dict, callable, None)
+        # build mask using parse.build_mask (handles None, dict, or callable)
         try:
-            if cond_work is None:
-                base_mask = pd.Series(True, index=df.index)
-            else:
-                base_mask = _parse.build_mask(df, cond_work).reindex(df.index).fillna(False).astype(bool)
+            base_mask = pd.Series(True, index=df.index) if cond_work is None else _parse.build_mask(df, cond_work).reindex(df.index).fillna(False).astype(bool)
         except Exception as e:
             print('Warning: failed to apply condition filter:', e)
             base_mask = pd.Series(False, index=df.index)
 
-        # Build team mask if requested
+        # if team specified, further restrict to rows where home or away matches
         if team_val is not None:
             tstr = str(team_val).strip()
+            tid = None
             try:
                 tid = int(tstr)
             except Exception:
-                tid = None
-
+                pass
             team_mask = pd.Series(False, index=df.index)
             if tid is not None:
                 if 'home_id' in df.columns:
-                    team_mask |= df['home_id'].astype(str) == str(tid)
+                    team_mask = team_mask | (df['home_id'].astype(str) == str(tid))
                 if 'away_id' in df.columns:
-                    team_mask |= df['away_id'].astype(str) == str(tid)
+                    team_mask = team_mask | (df['away_id'].astype(str) == str(tid))
             else:
                 tupper = tstr.upper()
                 if 'home_abb' in df.columns:
-                    team_mask |= df['home_abb'].astype(str).str.upper() == tupper
+                    team_mask = team_mask | (df['home_abb'].astype(str).str.upper() == tupper)
                 if 'away_abb' in df.columns:
-                    team_mask |= df['away_abb'].astype(str).str.upper() == tupper
-
+                    team_mask = team_mask | (df['away_abb'].astype(str).str.upper() == tupper)
             final_mask = base_mask & team_mask
         else:
             final_mask = base_mask
 
-        n = int(final_mask.sum())
-        if n == 0:
-            # preserve prior behavior: return empty df with xgs column present
+        if int(final_mask.sum()) == 0:
             empty = df.iloc[0:0].copy()
             empty['xgs'] = float('nan')
             return empty, team_val
         return df.loc[final_mask].copy(), team_val
 
     def _predict_xgs(df_filtered: pd.DataFrame):
-        """Load/train classifier if needed and predict xgs for df rows; returns df with 'xgs'.
+        """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
-        Prediction is attempted only when df_filtered is non-empty and either
-        (a) column 'xgs' doesn't exist, or (b) it exists but all values are NaN.
-        This avoids re-predicting over already-populated xgs.
+        Meta is (final_feature_names, categorical_levels_map) to be reused by callers.
         """
         df = df_filtered
         if df.shape[0] == 0:
             return df, None, None
 
-        # Decide whether we need to load/train a classifier
         need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all())
-        clf = None
-        final_features = None
-        categorical_levels_map = None
-
         if not need_predict:
-            # nothing to do
-            return df, clf, (final_features, categorical_levels_map)
+            return df, None, None
 
-        # Attempt to obtain classifier according to requested behavior
+        # get classifier (respect behavior, fallback to train on failure)
         try:
-            clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
+            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
         except Exception as e:
-            # fallback: force training
             print('xgs_map: get_clf failed with', e, '— trying to train a new model')
-            clf, final_features, categorical_levels_map = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
+            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
 
-        # Prepare model inputs using the same features used at training
+        # Prepare the model DataFrame using canonical feature list
         features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=categorical_levels_map)
+        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
 
-        if final_features is None:
-            final_features = final_feature_cols_game
+        # prefer classifier's expected features when available
+        final_features = feature_names if feature_names is not None else final_feature_cols_game
 
-        # Ensure xgs column exists
+        # ensure xgs column exists
         df['xgs'] = np.nan
 
-        if clf is not None and df_model.shape[0] > 0:
-            X = df_model[final_features].values
-            probs = clf.predict_proba(X)[:, 1]
-            xgs_series = pd.Series(probs, index=df_model.index)
-            df.loc[xgs_series.index, 'xgs'] = xgs_series.values
+        # predict probabilities when possible
+        if clf is not None and df_model.shape[0] > 0 and final_features:
+            try:
+                X = df_model[final_features].values
+                probs = clf.predict_proba(X)[:, 1]
+                df.loc[df_model.index, 'xgs'] = probs
+            except Exception:
+                pass
 
-        return df, clf, (final_features, categorical_levels_map)
+        return df, clf, (final_features, cat_levels)
 
     def _orient_coordinates(df_in: pd.DataFrame, team_val_local):
         """Produce x_a/y_a columns for plotting according to orientation rules.
 
-        When `team_val_local` is supplied we force shots from that team to face
-        the left goal and opponents to face the right goal. When `orient_all_left`
-        is True (and no team is given), we orient all shots so they face left.
+        This preserves previous logic while being slightly more compact.
         """
         df = df_in
         left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
 
-        def compute_attacked_goal_x(row):
+        def attacked_goal_x_for_row(team_id, home_id, home_def):
+            # Returns the x-coordinate of the goal being attacked for the shooter
             try:
-                team_id = row.get('team_id')
-                home_id = row.get('home_id')
-                home_def = row.get('home_team_defending_side')
                 if pd.isna(team_id) or pd.isna(home_id):
                     return right_goal_x
                 if str(team_id) == str(home_id):
-                    if home_def == 'left':
-                        return right_goal_x
-                    elif home_def == 'right':
-                        return left_goal_x
-                    else:
-                        return right_goal_x
+                    # shooter is home: they attack opposite of home's defended side
+                    return right_goal_x if home_def == 'left' else (left_goal_x if home_def == 'right' else right_goal_x)
                 else:
-                    if home_def == 'left':
-                        return left_goal_x
-                    elif home_def == 'right':
-                        return right_goal_x
-                    else:
-                        return left_goal_x
+                    return left_goal_x if home_def == 'left' else (right_goal_x if home_def == 'right' else left_goal_x)
             except Exception:
                 return right_goal_x
 
         df['x_a'] = df.get('x')
         df['y_a'] = df.get('y')
 
+        # compute attacked_x for each row once
+        attacked_x = df.apply(lambda r: attacked_goal_x_for_row(r.get('team_id'), r.get('home_id'), r.get('home_team_defending_side')), axis=1)
+
         if team_val_local is not None:
-            # compute identity of selected team
             tstr = str(team_val_local).strip()
             try:
                 tid = int(tstr)
@@ -256,9 +213,7 @@ def xgs_map(season: str = '20252026', *,
                 tid = None
             tupper = None if tid is not None else tstr.upper()
 
-            attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
-
-            def is_row_selected(row):
+            def is_selected(row):
                 try:
                     if tid is not None:
                         return str(row.get('team_id')) == str(tid)
@@ -269,20 +224,17 @@ def xgs_map(season: str = '20252026', *,
                         return str(row.get('home_abb')).upper() == tupper
                     if str(shooter_id) == str(row.get('away_id')) and row.get('away_abb') is not None:
                         return str(row.get('away_abb')).upper() == tupper
-                    return False
                 except Exception:
                     return False
+                return False
 
-            desired_goal = df.apply(lambda r: left_goal_x if is_row_selected(r) else right_goal_x, axis=1)
-            mask_rotate = (attacked_xs != desired_goal) & df['x'].notna() & df['y'].notna()
-            df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
-            df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
+            desired_goal = df.apply(lambda r: left_goal_x if is_selected(r) else right_goal_x, axis=1)
+            mask_rotate = (attacked_x != desired_goal) & df['x'].notna() & df['y'].notna()
+            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']]
 
         elif orient_all_left:
-            attacked_xs = df.apply(compute_attacked_goal_x, axis=1)
-            mask_rotate = (attacked_xs == right_goal_x) & df['x'].notna() & df['y'].notna()
-            df.loc[mask_rotate, 'x_a'] = -df.loc[mask_rotate, 'x']
-            df.loc[mask_rotate, 'y_a'] = -df.loc[mask_rotate, 'y']
+            mask_rotate = (attacked_x == right_goal_x) & df['x'].notna() & df['y'].notna()
+            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']]
 
         return df
 
