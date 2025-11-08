@@ -515,9 +515,11 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
     result = demo_for_export(df, None)
     print('done')
 
-def demo_for_export(df, condition):
-
+def demo_for_export(df, conditions):
+    import parse
+    import nhl_api
     gids = select_team_game(df, 'PHI')
+
 
     # Ensure gids is iterable
     if gids is None:
@@ -525,15 +527,19 @@ def demo_for_export(df, condition):
     if not isinstance(gids, (list, tuple, pd.Series)):
         gids = [gids]
 
+    df = []
+
+
     results_per_game = {}
     aggregate_per_condition = {}
     aggregate_intersection_total = 0.0
 
     for gid in gids:
-        gdf = df[df['game_id'] == gid]
 
-        conditions = {'game_state': ['5v5'],
-                      'is_net_empty': [0]}
+        game_feed = nhl_api.get_game_feed(gid)
+        df = parse._game(game_feed)
+        gdf = parse._elaborate(df)
+
 
         gdf = add_game_state_relative_column(gdf, 'PHI')
 

@@ -768,7 +768,10 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                 rep = period_slice.iloc[0].to_dict()
 
                 # require at least 2 points for coordinate-based inference
-                try_df = shots_slice if len(shots_slice) >= 2 : (period_slice if len(period_slice) >= 2 : None)
+                # Prefer shots_slice when it has at least two rows; otherwise fall back to period_slice
+                try_df = shots_slice if (isinstance(shots_slice, (list, tuple)) or hasattr(shots_slice, 'shape')) and len(shots_slice) >= 2 else (
+                    period_slice if (isinstance(period_slice, (list, tuple)) or hasattr(period_slice, 'shape')) and len(period_slice) >= 2 else None
+                )
                 if try_df is None:
                     period_side_map[per] = None
                     continue
@@ -1520,8 +1523,10 @@ def _timing(df, condition):
     for game in selected_game_ids:
         for condition_element in condition:
             if condition_element == 'game_state':
-
-
+                # Placeholder: in this demo helper we don't need to perform any
+                # per-condition work here; keep a no-op so the parser remains
+                # syntactically valid. Future logic can be implemented here.
+                continue
 
 if __name__ == '__main__':
 

@@ -381,7 +381,7 @@ if __name__ == '__main__':
     parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
     args = parser.parse_args()
 
-    condition = {'game_state': '5v4'}
+    condition = {'game_state': ['5v4']}
     if args.team:
         condition['team'] = args.team
 
@@ -404,7 +404,9 @@ if __name__ == '__main__':
         print('xgs_map completed. out=', out_path)
         print('heatmaps:', bool(heatmaps))
 
-        parse._timing(df_filtered, condition)
+        import timing_brainstorming
+        timing_result = timing_brainstorming.demo_for_export(df_filtered,
+                                                          condition)
 
         if df_filtered is not None:
             print('Filtered df:', df_filtered.shape)
