@@ -1531,8 +1531,7 @@ def _timing(df, condition):
 if __name__ == '__main__':
 
     # let's scrape from seasons starting in 2014
-    years = [2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023,
-             2024, 2025]
+    years = [2025]
     # Example debug invocation (only when run as a script)
     res = None
     for year in years:

@@ -293,6 +293,74 @@ def xgs_map(season: str = '20252026', *,
     if events_to_plot is None:
         events_to_plot = ['xgs']
 
+    # Compute timing and xG summary now so we can optionally display it on the plot.
+    import timing_brainstorming
+    try:
+        timing_result = timing_brainstorming.demo_for_export(df_filtered, condition)
+    except Exception as e:
+        print('Warning: timing_brainstorming.demo_for_export failed:', e)
+        timing_result = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
+
+    # Compute xG totals from df_with_xgs (sum of 'xgs' per group)
+    team_xgs = 0.0
+    other_xgs = 0.0
+    try:
+        xgs_series = pd.to_numeric(df_with_xgs.get('xgs', pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
+        if team_val is not None:
+            # determine membership using home/away or ids
+            def _is_team_row(r):
+                try:
+                    t = team_val
+                    tid = int(t) if str(t).strip().isdigit() else None
+                except Exception:
+                    tid = None
+                try:
+                    if tid is not None:
+                        return str(r.get('team_id')) == str(tid)
+                    tupper = str(team_val).upper()
+                    if r.get('home_abb') is not None and str(r.get('home_abb')).upper() == tupper:
+                        return str(r.get('team_id')) == str(r.get('home_id'))
+                    if r.get('away_abb') is not None and str(r.get('away_abb')).upper() == tupper:
+                        return str(r.get('team_id')) == str(r.get('away_id'))
+                except Exception:
+                    return False
+                return False
+            mask = df_with_xgs.apply(_is_team_row, axis=1)
+            team_xgs = float(xgs_series[mask].sum())
+            other_xgs = float(xgs_series[~mask].sum())
+        else:
+            # legacy home/away split
+            if 'home_id' in df_with_xgs.columns and 'team_id' in df_with_xgs.columns:
+                mask = df_with_xgs['team_id'].astype(str) == df_with_xgs['home_id'].astype(str)
+                team_xgs = float(xgs_series[mask].sum())
+                other_xgs = float(xgs_series[~mask].sum())
+            else:
+                team_xgs = float(xgs_series[xgs_series.index].sum())
+                other_xgs = 0.0
+    except Exception:
+        team_xgs = other_xgs = 0.0
+
+    # extract seconds from timing_result aggregate
+    try:
+        agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
+        inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
+        team_seconds = float(inter.get('team') or 0.0)
+        other_seconds = float(inter.get('other') or 0.0)
+    except Exception:
+        team_seconds = other_seconds = 0.0
+
+    team_xg_per60 = (team_xgs / team_seconds * 3600.0) if team_seconds > 0 else 0.0
+    other_xg_per60 = (other_xgs / other_seconds * 3600.0) if other_seconds > 0 else 0.0
+
+    summary_stats = {
+        'team_xgs': team_xgs,
+        'other_xgs': other_xgs,
+        'team_seconds': team_seconds,
+        'other_seconds': other_seconds,
+        'team_xg_per60': team_xg_per60,
+        'other_xg_per60': other_xg_per60,
+    }
+
     print('xgs_map: calling plot.plot_events ->', out_path)
 
     # Decide heatmap split mode: if a team was specified, show team vs not_team;
@@ -309,6 +377,7 @@ def xgs_map(season: str = '20252026', *,
             return_heatmaps=True,
             heatmap_split_mode=heatmap_mode,
             team_for_heatmap=team_val,
+            summary_stats=summary_stats,
         )
         if isinstance(ret, (tuple, list)):
             if len(ret) >= 3:
@@ -381,7 +450,7 @@ if __name__ == '__main__':
     parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
     args = parser.parse_args()
 
-    condition = {'game_state': ['5v4']}
+    condition = {'game_state': ['5v5']}
     if args.team:
         condition['team'] = args.team
 
@@ -410,6 +479,48 @@ if __name__ == '__main__':
         # analysis conditions from this `condition` (or fall back to defaults).
         timing_result = timing_brainstorming.demo_for_export(df_filtered, condition)
 
+        # Print summary stats about xGs per 60 minutes
+        def _safe_heat_sum(hm, key):
+            try:
+                if hm is None:
+                    return 0.0
+                if isinstance(hm, dict) and key in hm and hm[key] is not None:
+                    import numpy as _np
+                    return float(_np.nansum(hm[key]))
+            except Exception:
+                pass
+            return 0.0
+
+        # Heatmap keys may be ('team','not_team') or ('home','away') depending on split mode
+        team_xgs = 0.0
+        other_xgs = 0.0
+        try:
+            if isinstance(heatmaps, dict):
+                if 'team' in heatmaps or 'not_team' in heatmaps:
+                    team_xgs = _safe_heat_sum(heatmaps, 'team')
+                    other_xgs = _safe_heat_sum(heatmaps, 'not_team')
+                else:
+                    team_xgs = _safe_heat_sum(heatmaps, 'home')
+                    other_xgs = _safe_heat_sum(heatmaps, 'away')
+        except Exception:
+            team_xgs = other_xgs = 0.0
+
+        # Extract intersection times from timing_result (seconds)
+        try:
+            agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
+            inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
+            team_seconds = float(inter.get('team') or 0.0)
+            other_seconds = float(inter.get('other') or 0.0)
+        except Exception:
+            team_seconds = other_seconds = 0.0
+
+        # Compute xG per 60 minutes (xG/60)
+        team_xg_per60 = (team_xgs / team_seconds * 3600.0) if team_seconds > 0 else 0.0
+        other_xg_per60 = (other_xgs / other_seconds * 3600.0) if other_seconds > 0 else 0.0
+
+        print(f"Summary: team xGS={team_xgs:.3f} over {team_seconds/60:.2f} min -> {team_xg_per60:.3f} xG/60", flush=True)
+        print(f"Summary: other xGS={other_xgs:.3f} over {other_seconds/60:.2f} min -> {other_xg_per60:.3f} xG/60", flush=True)
+
 
         if df_filtered is not None:
             print('Filtered df:', df_filtered.shape)
@@ -418,4 +529,6 @@ if __name__ == '__main__':
     except FileNotFoundError as fe:
         print('Error: could not find season CSV or required files:', fe)
     except Exception as e:
+        import traceback as _tb
         print('xgs_map failed:', type(e).__name__, e)
+        _tb.print_exc()

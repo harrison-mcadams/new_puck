@@ -189,6 +189,9 @@ def plot_events(
     # xG into 'team' vs 'not_team' based on `team_for_heatmap`.
     heatmap_split_mode: str = 'home_away',
     team_for_heatmap: Optional[object] = None,
+    # Optional summary statistics (dict) produced by analyze.xgs_map; used to
+    # display aggregated xG per 60 values on the top text block.
+    summary_stats: Optional[Dict[str, float]] = None,
 ) -> Tuple[plt.Figure, plt.Axes]:
     """Plot event locations onto a rink schematic.
 
@@ -516,9 +519,20 @@ def plot_events(
         except Exception:
             have_xg = False
 
-    # Format text lines: main title, score, xG line, shots line
+    # Format text lines: main title, score, xG per60 line (from summary_stats),
+    # full xG line, shots line
     main_title = f"{home_name} vs {away_name}"
     score_line = f"{home_goals} - {away_goals}"
+    # xG per 60 from summary_stats (if provided)
+    xg_per60_line = None
+    if isinstance(summary_stats, dict):
+        try:
+            t60 = float(summary_stats.get('team_xg_per60', 0.0) or 0.0)
+            o60 = float(summary_stats.get('other_xg_per60', 0.0) or 0.0)
+            xg_per60_line = f"{t60:.3f} xG/60 - xG/60 - {o60:.3f} xG/60"
+        except Exception:
+            xg_per60_line = None
+
     if have_xg and (home_xg or away_xg):
         total_xg = home_xg + away_xg
         if total_xg > 0:
@@ -541,18 +555,29 @@ def plot_events(
     # inter-line gap (increase by ~5% relative to earlier small gaps)
     gap = 0.035
     xg_y = shots_y + gap
-    score_y = xg_y + gap
+    # If we have an xg_per60_line, allocate another gap for it
+    if xg_per60_line is not None:
+         xg_per60_y = xg_y + gap
+         score_y = xg_per60_y + gap
+    else:
+         xg_per60_y = None
+         score_y = xg_y + gap
     main_y = score_y + gap
 
     # clamp to figure
     shots_y = max(0.0, min(0.995, shots_y))
     xg_y = max(0.0, min(0.995, xg_y))
+    if xg_per60_y is not None:
+         xg_per60_y = max(0.0, min(0.995, xg_per60_y))
     score_y = max(0.0, min(0.995, score_y))
     main_y = max(0.0, min(0.995, main_y))
 
     # Slightly reduce main/score fonts to help avoid overlap at small figure sizes
     fig.text(0.5, main_y, main_title, fontsize=11, fontweight='bold', ha='center')
     fig.text(0.5, score_y, score_line, fontsize=10, fontweight='bold', ha='center')
+    # render the xG per60 line (if available) between score and xG line
+    if xg_per60_line is not None:
+         fig.text(0.5, xg_per60_y, xg_per60_line, fontsize=9, fontweight='bold', ha='center')
     fig.text(0.5, xg_y, xg_line, fontsize=9, fontweight='normal', ha='center')
     fig.text(0.5, shots_y, shots_line, fontsize=9, fontweight='normal', ha='center')
 
