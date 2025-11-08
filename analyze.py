@@ -450,7 +450,8 @@ if __name__ == '__main__':
     parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
     args = parser.parse_args()
 
-    condition = {'game_state': ['5v5', '5v4', '4v5']}
+    condition = {'game_state': ['5v5', '5v4', '4v5'],
+                 'is_net_empty': [1]}
     if args.team:
         condition['team'] = args.team
 
