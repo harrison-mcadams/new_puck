@@ -388,6 +388,9 @@ if __name__ == '__main__':
     print(f"Running xgs_map for season={args.season} team={args.team!r} out={args.out} behavior={args.behavior}")
 
     try:
+        import parse
+
+
         out_path, heatmaps, df_filtered = xgs_map(season=args.season,
                          csv_path=args.csv_path,
                          model_path='static/xg_model.joblib',
@@ -400,6 +403,8 @@ if __name__ == '__main__':
                          condition=condition)
         print('xgs_map completed. out=', out_path)
         print('heatmaps:', bool(heatmaps))
+
+        parse._timing(df_filtered, condition)
 
         if df_filtered is not None:
             print('Filtered df:', df_filtered.shape)

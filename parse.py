@@ -768,7 +768,7 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                 rep = period_slice.iloc[0].to_dict()
 
                 # require at least 2 points for coordinate-based inference
-                try_df = shots_slice if len(shots_slice) >= 2 else (period_slice if len(period_slice) >= 2 else None)
+                try_df = shots_slice if len(shots_slice) >= 2 : (period_slice if len(period_slice) >= 2 : None)
                 if try_df is None:
                     period_side_map[per] = None
                     continue
@@ -1502,234 +1502,25 @@ def build_mask(df, condition):
     return _pd.Series(False, index=df.index)
 
 
-def _timing(df, *args, condition=None, time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
-## We need to totally re-do parse._timing.
-## input will be a df, which contains either one game or several games
-# concatenated together. it will also contain a dictionary called condition
-# that defines some filtering criteria.
+def _timing(df, condition):
+    # if condition includes a team, restrict df to rows/games where that team appears
+    if isinstance(condition, dict) and 'team' in condition and hasattr(df, 'empty') and not df.empty:
+        t = str(condition['team']).strip(); df = df[(df.get('home_abb', '').astype(str).str.upper() == t.upper()) | (df.get('away_abb', '').astype(str).str.upper() == t.upper()) | (df.get('home_id', '').astype(str) == t) | (df.get('away_id', '').astype(str) == t)]
 
-# ultimately we want to be operating on a per-game basis, because that's
-# where this shift information makes sense.
+    # extract list of unique game_ids from df that's been filtered by team
+    selected_game_ids = []
+    if isinstance(df, (pd.DataFrame,)) and 'game_id' in df.columns and not df.empty:
+        try:
+            selected_game_ids = df['game_id'].dropna().unique().tolist()
+        except Exception:
+            selected_game_ids = []
+    else:
+        selected_game_ids = []
 
-# first we'll need to get down to a specific game. if a team is specified
-# within condition, use team first to narrow down games included to only
-# games in which the team played (either home or away)
+    for game in selected_game_ids:
+        for condition_element in condition:
+            if condition_element == 'game_state':
 
-# for a given game, we want to analyze every inputted condition (other than
-# team) separately. each condition is going to have idiosycnracies, so let's
-# have them be separate chunks of code. let's consider the condition
-# 'game-state' as our canonical example. for a given team, i want to compute
-# or be able to identify whether the game-state is true or not.
-# we have information provided by each event within the df. we can use these
-# to bound the time intervals where the condition is true. however, that is
-# not the complete information. 'game-state' can change in between events. as
-# a concrete example, a penalty can finish in between events, and therefore
-# we do not have a direct event that indicates the end of a penalty. we need
-# to be able to infer the end of the penalty from other information (
-# including the penalty start time and whether or not a powerplay goal was
-# subsequently stored). desired output for this chunk is a set of time intervals
-# where the condition is true, per game per team.
-
-def _timing_impl(df, *args, condition=None, time_col: str = 'total_time_elapsed_seconds', game_col: str = 'game_id'):
-     """Core timing implementation using a flexible `condition` contract.
-
-     `condition` may be None, a dict (column -> spec), or a callable(df) -> bool Series.
-     The function returns the same triple as before: (intervals_per_game, totals_per_game, aggregate).
-     """
-     import pandas as _pd
-
-     intervals_per_game = {}
-     totals_per_game = {}
-     agg_condition_seconds = 0.0
-     agg_total_seconds = 0.0
-
-     # Basic validation and coercion to DataFrame
-     if df is None:
-         return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
-     if not isinstance(df, _pd.DataFrame):
-         try:
-             df = _pd.DataFrame.from_records(list(df))
-         except Exception:
-             return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
-
-     # If game_col missing, treat whole df as single group
-     if game_col not in df.columns:
-         df = df.copy()
-         df[game_col] = None
-
-     # Require time column
-     if time_col not in df.columns:
-         return intervals_per_game, totals_per_game, {'condition_seconds': 0.0, 'total_seconds': 0.0}
-
-     # Ensure numeric time column
-     df = df.copy()
-     df[time_col] = _pd.to_numeric(df[time_col], errors='coerce')
-
-     # Build a mask according to the flexible condition using helper
-     team_val = None
-     try:
-         # Resolve legacy positional args: support _timing_impl(df, 'col', val, ...) callers
-         if len(args) >= 2 and condition is None:
-             try:
-                 cond = {args[0]: args[1]}
-             except Exception:
-                 cond = condition
-         else:
-             cond = condition
-
-         # Work with a shallow copy if dict to avoid mutating caller input
-         try:
-             cond_work = cond.copy() if isinstance(cond, dict) else cond
-         except Exception:
-             cond_work = cond
-
-         # Extract team if provided inside the condition (we treat it specially)
-         team_val = None
-         if isinstance(cond_work, dict) and 'team' in cond_work:
-             try:
-                 team_val = cond_work.pop('team')
-             except Exception:
-                 team_val = None
-
-         # Build base mask from remaining condition using build_mask (supports dict, callable, None)
-         try:
-             if cond_work is None:
-                 base_mask = _pd.Series(True, index=df.index)
-             else:
-                 base_mask = build_mask(df, cond_work).reindex(df.index).fillna(False).astype(bool)
-         except Exception:
-             base_mask = _pd.Series(False, index=df.index)
-
-         # If team specified, build a mask matching home/away id or abbr
-         if team_val is not None:
-             tstr = str(team_val).strip()
-             try:
-                 tid = int(tstr)
-             except Exception:
-                 tid = None
-             team_mask = _pd.Series(False, index=df.index)
-             if tid is not None:
-                 if 'home_id' in df.columns:
-                     team_mask |= df['home_id'].astype(str) == str(tid)
-                 if 'away_id' in df.columns:
-                     team_mask |= df['away_id'].astype(str) == str(tid)
-             else:
-                 tupper = tstr.upper()
-                 if 'home_abb' in df.columns:
-                     try:
-                         team_mask |= df['home_abb'].astype(str).str.upper() == tupper
-                     except Exception:
-                         pass
-                 if 'away_abb' in df.columns:
-                     try:
-                         team_mask |= df['away_abb'].astype(str).str.upper() == tupper
-                     except Exception:
-                         pass
-             mask = base_mask & team_mask
-         else:
-             mask = base_mask
-     except Exception:
-         mask = _pd.Series(False, index=df.index)
-
-     # If a team was specified, compute the set of game ids where that team participates
-     selected_game_ids = None
-     try:
-         if isinstance(team_val, (str, int)) and team_val is not None:
-             # team_mask should exist when team_val was provided; attempt to derive game ids where team appears
-             try:
-                 # team_mask may have been defined above; prefer it, otherwise infer from mask by checking any row with team participation
-                 if 'team_mask' in locals():
-                    sel_games = df.loc[team_mask, game_col].dropna().unique().tolist()
-                 else:
-                    # fallback: try detect games where any row mentions the team_val in home_id/away_id or abbr
-                    tstr = str(team_val).strip()
-                    try:
-                        tid = int(tstr)
-                    except Exception:
-                        tid = None
-                    if tid is not None:
-                        sel_games = df.loc[(df.get('home_id').astype(str) == str(tid)) | (df.get('away_id').astype(str) == str(tid)), game_col].dropna().unique().tolist()
-                    else:
-                        tupper = tstr.upper()
-                        sel_games = df.loc[(df.get('home_abb').astype(str).str.upper() == tupper) | (df.get('away_abb').astype(str).str.upper() == tupper), game_col].dropna().unique().tolist()
-                 selected_game_ids = set(sel_games)
-             except Exception:
-                 selected_game_ids = set()
-     except Exception:
-         selected_game_ids = None
-
-     # Process per game
-     for gid, gdf in df.groupby(game_col):
-         # If a specific team was requested, only include games where that team appears
-         if selected_game_ids is not None:
-            try:
-                if gid not in selected_game_ids:
-                    # skip this game entirely
-                    continue
-            except Exception:
-                pass
-         # ensure chronological order
-         gdf = gdf.sort_values(by=time_col).reset_index()
-         if gdf.shape[0] == 0:
-             intervals_per_game[gid] = []
-             totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
-             continue
-
-         # align mask to gdf rows using explicit list of original labels
-         idx_list = gdf['index'].tolist() if 'index' in gdf.columns else gdf.index.tolist()
-         if not idx_list:
-             intervals_per_game[gid] = []
-             totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
-             continue
-         gmask = mask.reindex(idx_list).fillna(False).astype(bool).reset_index(drop=True)
-         # use .ffill() to avoid FutureWarning
-         gtimes = _pd.to_numeric(gdf[time_col].reset_index(drop=True), errors='coerce').ffill()
-         # drop rows without time
-         valid_idx = gtimes.notna()
-         if not valid_idx.any():
-             intervals_per_game[gid] = []
-             totals_per_game[gid] = {'condition_seconds': 0.0, 'total_seconds': 0.0}
-             continue
-         gmask = gmask[valid_idx].reset_index(drop=True)
-         gtimes = gtimes[valid_idx].reset_index(drop=True)
-
-         # find contiguous True blocks using a robust numpy approach
-         import numpy as _np
-         arr = _np.asarray(gmask.tolist(), dtype=bool)
-         intervals = []
-         condition_seconds = 0.0
-         if arr.size > 0:
-             # compute differences to find transitions
-             darr = _np.diff(arr.astype(int))
-             starts = _np.where(darr == 1)[0] + 1
-             ends = _np.where(darr == -1)[0]
-             # handle if array starts with True
-             if arr[0]:
-                 starts = _np.concatenate((_np.array([0]), starts))
-             # handle if array ends with True
-             if arr[-1]:
-                 ends = _np.concatenate((ends, _np.array([arr.size - 1])))
-
-             # ensure equal lengths
-             if starts.size == ends.size:
-                 for s, e in zip(starts.tolist(), ends.tolist()):
-                     try:
-                         start_time = float(gtimes.iloc[s])
-                         end_time = float(gtimes.iloc[e])
-                     except Exception:
-                         # skip malformed indices
-                         continue
-                     intervals.append((start_time, end_time))
-                     condition_seconds += max(0.0, end_time - start_time)
-
-         total_seconds = float(gtimes.iloc[-1] - gtimes.iloc[0]) if len(gtimes) >= 2 else 0.0
-         intervals_per_game[gid] = intervals
-         totals_per_game[gid] = {'condition_seconds': condition_seconds, 'total_seconds': total_seconds}
-         agg_condition_seconds += condition_seconds
-         agg_total_seconds += total_seconds
-
-     aggregate = {'condition_seconds': agg_condition_seconds, 'total_seconds': agg_total_seconds}
-     return intervals_per_game, totals_per_game, aggregate
 
 
 if __name__ == '__main__':
