@@ -116,10 +116,10 @@ def select_team_game(df: pd.DataFrame, team: str) -> Optional[Any]:
     # choose the numerically largest game id when possible (proxy for most recent)
     try:
         numeric_games = sorted([int(g) for g in games])
-        return numeric_games[-1]
+        return numeric_games
     except Exception:
         # fallback to the last in appearance order
-        return games[-1]
+        return games
 
 
 def intervals_for_condition(
@@ -239,6 +239,61 @@ def intervals_for_condition(
 
     total_observed = float(times.iloc[-1] - times.iloc[0]) if len(times) >= 2 else 0.0
     return intervals, cond_seconds, total_observed
+
+
+def intervals_for_conditions(
+    df: pd.DataFrame,
+    conditions: Any,
+    time_col: str = 'total_time_elapsed_seconds',
+    verbose: bool = False,
+) -> Dict[str, Tuple[List[Tuple[float, float]], float, float]]:
+    """Compute intervals and totals for multiple named conditions.
+
+    `conditions` can be provided in several forms:
+      - a dict mapping label -> condition_dict (recommended)
+      - a list/tuple of (label, condition_dict)
+      - a single condition_dict (will be labeled 'cond0')
+
+    Returns a dict: label -> (intervals, cond_seconds, total_observed_seconds).
+    This is a thin wrapper around `intervals_for_condition` to make batch
+    processing easier and keep the API simple for callers that want many
+    conditions at once.
+    """
+    if df is None or df.empty:
+        return {}
+
+    # Normalize conditions into an ordered mapping of label -> cond_dict
+    normalized: Dict[str, Dict[str, Any]] = {}
+    if isinstance(conditions, dict) and all(isinstance(v, dict) for v in conditions.values()):
+        normalized = conditions
+    elif isinstance(conditions, dict):
+        # single unnamed condition dict passed
+        normalized = {'cond0': conditions}
+    elif isinstance(conditions, (list, tuple)):
+        for i, item in enumerate(conditions):
+            if isinstance(item, tuple) and len(item) == 2:
+                label, cond = item
+                normalized[str(label)] = dict(cond)
+            elif isinstance(item, dict):
+                normalized[f'cond{i}'] = item
+            else:
+                # skip unknown entries
+                continue
+    else:
+        # last resort: wrap into single condition
+        normalized = {'cond0': dict(conditions)}
+
+    results: Dict[str, Tuple[List[Tuple[float, float]], float, float]] = {}
+    for label, cond in normalized.items():
+        try:
+            intervals, cond_sec, total_sec = intervals_for_condition(df, cond, time_col=time_col, verbose=verbose)
+            results[label] = (intervals, cond_sec, total_sec)
+        except Exception as e:
+            if verbose:
+                print(f"[debug] intervals_for_conditions: failed for label={label}: {e}")
+            results[label] = ([], 0.0, 0.0)
+
+    return results
 
 
 def add_game_state_relative_column(df: pd.DataFrame, team: Any) -> pd.DataFrame:
@@ -421,6 +476,7 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
         return
 
     gid = select_team_game(df, team)
+    gid = gid[0]
     if gid is None:
         print(f'No games found for team {team}', flush=True)
         return
@@ -434,25 +490,85 @@ def demo_for_team_game(season: str = '20252026', team: str = 'PHI', data_dir: st
     # Add relative game state column for the demo
     gdf = add_game_state_relative_column(gdf, team)
 
-    # Conditions to inspect
-    states = ['5v4']
-    print('\nGame-state intervals (relative to team):', flush=True)
-    for s in states:
-        intervals, cond_sec, total_sec = intervals_for_condition(gdf, {'game_state_relative_to_team': s}, verbose=verbose)
-        pct = (cond_sec / total_sec * 100.0) if total_sec > 0 else 0.0
-        print(f"  {s}: {intervals}, {cond_sec:.1f}s / {total_sec:.1f}s ({pct:.1f}%)", flush=True)
+    # Build a set of named conditions and compute them in batch using our helper
+    conditions = {
+        '5v5': {'game_state_relative_to_team': '5v5'},
+        'is_net_empty_1': {'is_net_empty': 1},
+        'is_net_empty_0': {'is_net_empty': 0},
+    }
+    results = intervals_for_conditions(gdf, conditions, time_col='total_time_elapsed_seconds', verbose=verbose)
 
-    # is_net_empty condition: special handling as it's not a simple state value
+    # Print game-state intervals (relative to team)
+    print('\nGame-state intervals (relative to team):', flush=True)
+    intervals, cond_sec, total_sec = results.get('5v5', ([], 0.0, 0.0))
+    pct = (cond_sec / total_sec * 100.0) if total_sec > 0 else 0.0
+    print(f"  5v5: {intervals}, {cond_sec:.1f}s / {total_sec:.1f}s ({pct:.1f}%)", flush=True)
+
+    # is_net_empty intervals
     print('\nis_net_empty intervals (relative to team):', flush=True)
-    for empty in [0, 1]:
-        intervals, cond_sec, total_sec = intervals_for_condition(gdf, {'is_net_empty': empty}, verbose=verbose)
+    for key in ('is_net_empty_1', 'is_net_empty_0'):
+        intervals, cond_sec, total_sec = results.get(key, ([], 0.0, 0.0))
+        empty = 1 if key.endswith('_1') else 0
         pct = (cond_sec / total_sec * 100.0) if total_sec > 0 else 0.0
         print(f"  is_net_empty={empty}: {intervals}, {cond_sec:.1f}s / {total_sec:.1f}s ({pct:.1f}%)", flush=True)
+
+    demo_for_export(df, None)
+
+def demo_for_export(df, condition):
+
+    gids = select_team_game(df, 'PHI')
+
+    for gid in gids:
+        gdf = df[df['game_id'] == gid]
+
+        conditions = {'game_state': ['5v5'],
+                      'is_net_empty': [0, 1]}
+
+        gdf = add_game_state_relative_column(gdf, 'PHI')
+
+
+        for condition in conditions.keys():
+            # For each condition, collect intervals for each state and compute their union
+            all_intervals = []
+            for state in conditions[condition]:
+                if condition == 'game_state':
+                    cond_dict = {'game_state_relative_to_team': state}
+                else:
+                    cond_dict = {condition: state}
+                intervals, _, _ = intervals_for_condition(
+                    gdf, cond_dict, time_col='total_time_elapsed_seconds', verbose=False)
+                # ensure intervals are tuples of floats
+                for it in intervals:
+                    try:
+                        all_intervals.append((float(it[0]), float(it[1])))
+                    except Exception:
+                        continue
+
+            # merge/union the collected intervals
+            merged: List[Tuple[float, float]] = []
+            if all_intervals:
+                all_intervals.sort(key=lambda x: x[0])
+                cur_start, cur_end = all_intervals[0]
+                EPS = 1e-9
+                for s, e in all_intervals[1:]:
+                    # if the next interval starts before or at the current end (allow tiny epsilon), merge
+                    if s <= cur_end + EPS:
+                        cur_end = max(cur_end, e)
+                    else:
+                        merged.append((cur_start, cur_end))
+                        cur_start, cur_end = s, e
+                merged.append((cur_start, cur_end))
+
+            # compute pooled seconds and total observed span for this game
+            times = pd.to_numeric(gdf.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
+            total_observed = float(times.max() - times.min()) if len(times) >= 2 else 0.0
+            pooled_seconds = sum((e - s) for s, e in merged) if merged else 0.0
+            pct = (pooled_seconds / total_observed * 100.0) if total_observed > 0 else 0.0
+            print(f"  {condition} (pooled states={conditions[condition]}): {merged}, {pooled_seconds:.1f}s / {total_observed:.1f}s ({pct:.1f}%)", flush=True)
 
 
 if __name__ == "__main__":
     import sys
-    import os
     import traceback
 
     verbose = False
