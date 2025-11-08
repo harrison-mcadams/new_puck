@@ -532,11 +532,11 @@ def demo_for_export(df, condition, verbose: bool = True):
         gids = [gids]
 
     results_per_game = {}
-    # Aggregates across all games, keyed by actual team identifiers (team_key / opp_key)
-    aggregate_per_condition: Dict[str, Dict[str, float]] = {}  # {team_id: {cond: seconds}}
-    aggregate_intervals_per_condition: Dict[str, Dict[str, List[Tuple[float, float]]]] = {}  # {team_id: {cond: intervals}}
-    aggregate_intersection_total: Dict[str, float] = {}  # {team_id: total pooled intersection seconds}
-    aggregate_intersection_intervals: Dict[str, List[Tuple[float, float]]] = {}  # {team_id: unioned intersection intervals}
+    # Aggregates across all games: fixed labels 'team' (selected team) and 'other' (pooled opponents)
+    aggregate_per_condition: Dict[str, Dict[str, float]] = {'team': {}, 'other': {}}  # {'team'|'other': {cond: seconds}}
+    aggregate_intervals_per_condition: Dict[str, Dict[str, List[Tuple[float, float]]]] = {'team': {}, 'other': {}}  # {'team'|'other': {cond: intervals}}
+    aggregate_intersection_total: Dict[str, float] = {'team': 0.0, 'other': 0.0}  # {'team'|'other': total pooled intersection seconds}
+    aggregate_intersection_intervals: Dict[str, List[Tuple[float, float]]] = {'team': [], 'other': []}  # {'team'|'other': unioned intersection intervals}
 
     # helper to merge intervals (union)
     def _merge_intervals(intervals: List[Tuple[float, float]]) -> List[Tuple[float, float]]:
@@ -744,23 +744,19 @@ def demo_for_export(df, condition, verbose: bool = True):
             side_info['intersection_intervals'] = inter
             side_info['pooled_intersection_seconds'] = pooled_intersection
 
-            # determine actual team id/abb key for this side
-            side_team_key = team_key if side_label == 'team' else opp_key
-            # accumulate per-condition pooled seconds and union intervals into global aggregates keyed by side_team_key
-            aggregate_per_condition.setdefault(side_team_key, {})
-            aggregate_intervals_per_condition.setdefault(side_team_key, {})
+            # map side_label -> aggregate bucket: 'team' or 'other'
+            agg_bucket = 'team' if side_label == 'team' else 'other'
+            # accumulate per-condition pooled seconds and union intervals into global aggregates keyed by agg_bucket
             for cond_label, pooled_seconds in side_info['pooled_seconds'].items():
-                aggregate_per_condition[side_team_key].setdefault(cond_label, 0.0)
-                aggregate_per_condition[side_team_key][cond_label] += pooled_seconds
+                aggregate_per_condition[agg_bucket].setdefault(cond_label, 0.0)
+                aggregate_per_condition[agg_bucket][cond_label] += pooled_seconds
                 # union intervals for this condition across games
-                existing = aggregate_intervals_per_condition[side_team_key].setdefault(cond_label, [])
-                aggregate_intervals_per_condition[side_team_key][cond_label] = _merge_intervals(existing + side_info['merged_intervals'].get(cond_label, []))
+                existing = aggregate_intervals_per_condition[agg_bucket].setdefault(cond_label, [])
+                aggregate_intervals_per_condition[agg_bucket][cond_label] = _merge_intervals(existing + side_info['merged_intervals'].get(cond_label, []))
 
-            # accumulate intersection totals across games (per actual team) and union intersection intervals
-            aggregate_intersection_total.setdefault(side_team_key, 0.0)
-            aggregate_intersection_total[side_team_key] += pooled_intersection
-            aggregate_intersection_intervals.setdefault(side_team_key, [])
-            aggregate_intersection_intervals[side_team_key] = _merge_intervals(aggregate_intersection_intervals[side_team_key] + inter)
+            # accumulate intersection totals across games (per bucket) and union intersection intervals
+            aggregate_intersection_total[agg_bucket] += pooled_intersection
+            aggregate_intersection_intervals[agg_bucket] = _merge_intervals(aggregate_intersection_intervals[agg_bucket] + inter)
 
         # Save this game's per-game info keyed by game id
         results_per_game[gid] = {
@@ -770,21 +766,14 @@ def demo_for_export(df, condition, verbose: bool = True):
             'game_total_observed_seconds': total_observed,
         }
 
-    # Recompute aggregate intersection totals from the per-game results to ensure
-    # they exactly equal the sums of per-game 'pooled_intersection_seconds'.
-    recomputed_intersection_total: Dict[str, float] = {}
+    # Recompute aggregate intersection totals from per-game results, but bucket into 'team'/'other'
+    recomputed_intersection_total: Dict[str, float] = {'team': 0.0, 'other': 0.0}
     for gid, info in results_per_game.items():
         sides = info.get('sides', {})
-        team_key_local = info.get('selected_team')
-        opp_key_local = info.get('opponent_team')
-        tsec = sides.get('team', {}).get('pooled_intersection_seconds', 0.0)
-        osec = sides.get('opponent', {}).get('pooled_intersection_seconds', 0.0)
-        if team_key_local is not None:
-            recomputed_intersection_total.setdefault(team_key_local, 0.0)
-            recomputed_intersection_total[team_key_local] += float(tsec or 0.0)
-        if opp_key_local is not None:
-            recomputed_intersection_total.setdefault(opp_key_local, 0.0)
-            recomputed_intersection_total[opp_key_local] += float(osec or 0.0)
+        tsec = float(sides.get('team', {}).get('pooled_intersection_seconds', 0.0) or 0.0)
+        osec = float(sides.get('opponent', {}).get('pooled_intersection_seconds', 0.0) or 0.0)
+        recomputed_intersection_total['team'] += tsec
+        recomputed_intersection_total['other'] += osec
 
     # Use recomputed totals for the final output to avoid accumulation drift
     aggregate_intersection_total = recomputed_intersection_total
