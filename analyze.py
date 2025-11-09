@@ -973,10 +973,80 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             im_team = ax.imshow(m_pct_team, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
             im_opp = ax.imshow(m_pct_opp, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
 
-            # add small textual labels for clarity
-            ax.text(-80, 40, f"{team} (offense → left)", fontsize=10, fontweight='bold', ha='left')
-            ax.text(20, 40, f"Opponents (offense → right)", fontsize=10, fontweight='bold', ha='left')
+            # Structured title and two-column stats placed above the rink.
+            try:
+                cond_desc = str(condition) if condition is not None else 'All'
+            except Exception:
+                cond_desc = 'All'
 
+            main_title = f"{team} — {cond_desc}"
+
+            # Safely derive numeric summaries
+            try:
+                t_secs = float(team_seconds or 0.0)
+            except Exception:
+                t_secs = 0.0
+            try:
+                o_secs = float(opp_seconds or 0.0)
+            except Exception:
+                o_secs = 0.0
+
+            t_min = t_secs / 60.0 if t_secs > 0 else 0.0
+            o_min = o_secs / 60.0 if o_secs > 0 else 0.0
+
+            try:
+                t_xg = float(team_xg or 0.0)
+            except Exception:
+                t_xg = 0.0
+            try:
+                o_xg = float(opp_xg or 0.0)
+            except Exception:
+                o_xg = 0.0
+
+            t_rate = (t_xg / t_secs * 3600.0) if t_secs > 0 else 0.0
+            o_rate = (o_xg / o_secs * 3600.0) if o_secs > 0 else 0.0
+
+            try:
+                league_per60 = (float(league_xg) / float(league_seconds) * 3600.0) if (league_seconds and league_seconds > 0) else 0.0
+            except Exception:
+                league_per60 = 0.0
+
+            try:
+                t_vs_league = ((t_rate - league_per60) / league_per60 * 100.0) if league_per60 > 0 else 0.0
+            except Exception:
+                t_vs_league = 0.0
+            try:
+                o_vs_league = ((o_rate - league_per60) / league_per60 * 100.0) if league_per60 > 0 else 0.0
+            except Exception:
+                o_vs_league = 0.0
+
+            # position text nicely above the rink using axes bbox
+            bbox = ax.get_position()
+            axes_top = bbox.y1
+            title_y = axes_top + 0.025
+            subtitle_y = title_y - 0.016
+            stats_y_start = subtitle_y - 0.028
+            line_gap = 0.020
+
+            # Title centered
+            fig.text(0.5, title_y, main_title, fontsize=12, fontweight='bold', ha='center')
+            # Subtitles for left/right
+            fig.text(0.25, subtitle_y, 'Offense (left)', fontsize=10, fontweight='semibold', ha='center')
+            fig.text(0.75, subtitle_y, 'Defense (right)', fontsize=10, fontweight='semibold', ha='center')
+
+            left_lines = [f"Time: {t_min:.1f} min",
+                          f"xG: {t_xg:.2f}",
+                          f"xG/60: {t_rate:.3f}",
+                          f"vs league: {t_vs_league:+.1f}%"]
+            right_lines = [f"Time: {o_min:.1f} min",
+                           f"xG: {o_xg:.2f}",
+                           f"xG/60: {o_rate:.3f}",
+                           f"vs league: {o_vs_league:+.1f}%"]
+
+            for i, (l, r) in enumerate(zip(left_lines, right_lines)):
+                y = stats_y_start - i * line_gap
+                fig.text(0.25, y, l, fontsize=9, fontweight='bold' if i == 0 else 'normal', ha='center')
+                fig.text(0.75, y, r, fontsize=9, fontweight='bold' if i == 0 else 'normal', ha='center')
             # shared colorbar
             cbar = fig.colorbar(im_opp, ax=ax, fraction=0.046, pad=0.04)
             cbar.set_label('pct change vs league (%)')
@@ -1058,8 +1128,7 @@ if __name__ == '__main__':
                                                                'xG maps for '
                                                                'all teams ('
                                                                'simple '
-                                                               'demo)',
-                        default=True)
+                                                               'demo)')
     args = parser.parse_args()
 
     # Default condition used by both single-game xgs_map and the full-season run.
