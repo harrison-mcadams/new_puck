@@ -536,8 +536,66 @@ def demo_for_export(df, condition=None, verbose: bool = False):
     # - If a team was specified in `condition`, find games for that team.
     # - Otherwise, analyze every unique game_id present in `df`.
     if isinstance(condition, dict) and 'team' in condition:
-        gids = select_team_game(df, team_param)
+        # When a team is specified we want to analyze games involving that team.
+        # `df` may be either:
+        #  - a season-level DataFrame (one row per game), where `select_team_game`
+        #    is appropriate, OR
+        #  - an events-level DataFrame (many rows per game) where we should
+        #    derive the unique game ids by filtering rows that involve the team.
+        gids = None
+        try:
+            # detect events-level DataFrame by presence of typical event cols
+            is_events_df = isinstance(df, pd.DataFrame) and 'game_id' in df.columns and any(c in df.columns for c in ('event', 'x', 'y', 'period'))
+        except Exception:
+            is_events_df = False
+
+        if is_events_df:
+            try:
+                # Try to find game ids where the team appears as home_abb/away_abb or home_id/away_id
+                t = str(team_param).strip().upper()
+                mask = pd.Series(False, index=df.index)
+                if 'home_abb' in df.columns:
+                    try:
+                        mask = mask | (df['home_abb'].astype(str).str.upper() == t)
+                    except Exception:
+                        pass
+                if 'away_abb' in df.columns:
+                    try:
+                        mask = mask | (df['away_abb'].astype(str).str.upper() == t)
+                    except Exception:
+                        pass
+                # numeric id match
+                try:
+                    tid = int(t)
+                except Exception:
+                    tid = None
+                if tid is not None:
+                    if 'home_id' in df.columns:
+                        try:
+                            mask = mask | (df['home_id'].astype(str) == str(tid))
+                        except Exception:
+                            pass
+                    if 'away_id' in df.columns:
+                        try:
+                            mask = mask | (df['away_id'].astype(str) == str(tid))
+                        except Exception:
+                            pass
+
+                if mask.any():
+                    try:
+                        gids = df.loc[mask, 'game_id'].dropna().unique().tolist()
+                    except Exception:
+                        gids = []
+                else:
+                    gids = []
+            except Exception:
+                gids = None
+
+        # fallback: if not events-level or prior step failed, use select_team_game
         if gids is None:
+            gids = select_team_game(df, team_param)
+
+        if not gids:
             # Return a structured empty result to maintain consistent output format
             return {
                 'per_game': {},
@@ -551,7 +609,8 @@ def demo_for_export(df, condition=None, verbose: bool = False):
         if not isinstance(gids, (list, tuple, pd.Series)):
             gids = [gids]
     else:
-        # No team specified: use all unique game_ids in df (if present)
+        # No team specified: use all unique game_ids in df (if present). This
+        # works for both season-level and events-level DataFrames.
         if isinstance(df, pd.DataFrame) and 'game_id' in df.columns and not df.empty:
             try:
                 gids = df['game_id'].dropna().unique().tolist()

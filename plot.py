@@ -839,19 +839,36 @@ def _game(gameID, conditions=None, plot_kwargs=None):
     if conditions is None:
         conditions = {}
 
-    # Obtain the game DataFrame (analyze_game may raise; handle gracefully)
-    try:
-        df = fit_xgs.analyze_game(gameID)
-    except Exception as e:
+    # Obtain the game DataFrame. Support two input modes for convenience:
+    # 1) gameID is a game identifier (string/int) -> call fit_xgs.analyze_game(gameID)
+    # 2) gameID is itself a DataFrame of events for one or more games -> use it directly
+    df = None
+    inferred_game_id = None
+    if isinstance(gameID, pd.DataFrame):
+        df = gameID.copy()
+        # try to infer a representative game id (if games concatenated, may be multiple)
         try:
-            print(f"_game: failed to analyze game {gameID}: {e}")
+            gids = df.get('game_id')
+            if gids is not None:
+                unique_gids = gids.dropna().unique().tolist()
+                if unique_gids:
+                    inferred_game_id = str(unique_gids[0])
         except Exception:
-            pass
-        df = pd.DataFrame([
-            {'event': 'shot-on-goal', 'x': -60, 'y': 10, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-            {'event': 'shot-on-goal', 'x': -40, 'y': -5, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-            {'event': 'goal', 'x': 20, 'y': 5, 'team_id': 2, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-        ])
+            inferred_game_id = None
+    else:
+        try:
+            df = fit_xgs.analyze_game(gameID)
+            inferred_game_id = str(gameID)
+        except Exception as e:
+            try:
+                print(f"_game: failed to analyze game {gameID}: {e}")
+            except Exception:
+                pass
+            df = pd.DataFrame([
+                {'event': 'shot-on-goal', 'x': -60, 'y': 10, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
+                {'event': 'shot-on-goal', 'x': -40, 'y': -5, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
+                {'event': 'goal', 'x': 20, 'y': 5, 'team_id': 2, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
+            ])
 
     # Interpret `conditions` similarly to analyze._apply_condition:
     # - `conditions` is ONLY used to filter the game DataFrame (via parse.build_mask).
@@ -916,44 +933,11 @@ def _game(gameID, conditions=None, plot_kwargs=None):
     timing_info = None
     try:
         import timing as _timing
-        # Prefer to call demo_for_export with a season-level dataframe so the
-        # function can locate all games and compute aggregates correctly. Try
-        # to infer the season from available data; if that fails, fall back
-        # to calling demo_for_export on the single-game df.
-        season_df = None
-        # 1) if df_filtered contains a 'season' or 'season_id' column, try that
-        try:
-            if isinstance(df_filtered, pd.DataFrame) and 'season' in df_filtered.columns:
-                val = df_filtered['season'].dropna().unique()
-                if len(val) > 0:
-                    season_str = str(val[0])
-                    season_df = _timing.load_season_df(season_str)
-        except Exception:
-            season_df = None
-
-        # 2) infer from gameID (common format: YYYY...); build season like '20252026'
-        if season_df is None:
-            try:
-                gid = str(gameID)
-                if len(gid) >= 4 and gid[:4].isdigit():
-                    start = int(gid[:4])
-                    season_guess = f"{start}{start+1}"
-                    season_df = _timing.load_season_df(season_guess)
-            except Exception:
-                season_df = None
-
-        # 3) fallback: try the default season loader without guess (lets it search)
-        if season_df is None:
-            try:
-                season_df = _timing.load_season_df()
-            except Exception:
-                season_df = None
-
-        # finally invoke demo_for_export using season_df when available
-        if season_df is not None and not season_df.empty:
-            demo_res = _timing.demo_for_export(season_df, condition=conditions, verbose=False)
-        else:
-            demo_res = _timing.demo_for_export(df_filtered, condition=conditions, verbose=False)
+        # Always call demo_for_export on the events-level dataframe we have
+        # available (prefer the filtered dataframe). This avoids any season
+        # CSV loading here and keeps _game lightweight and deterministic.
+        df_for_timing = df_filtered if isinstance(df_filtered, pd.DataFrame) and not df_filtered.empty else (df if isinstance(df, pd.DataFrame) else None)
+        demo_res = _timing.demo_for_export(df_for_timing, condition=conditions, verbose=False)
         timing_info = demo_res
         # Try to extract per-game info for this game id
         per_game_info = None
