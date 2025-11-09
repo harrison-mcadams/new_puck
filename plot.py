@@ -900,19 +900,248 @@ def _game(gameID, conditions=None, plot_kwargs=None):
 
     events_to_plot = plot_kwargs.get('events', plot_kwargs.get('events_to_plot', ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot', 'xgs']))
     pe_kwargs = {
-        'events_to_plot': events_to_plot,
-        'event_styles': plot_kwargs.get('event_styles'),
-        'out_path': plot_kwargs.get('out_path'),
-        'figsize': plot_kwargs.get('figsize', (8, 4.5)),
-        'title': plot_kwargs.get('title'),
-        'return_heatmaps': plot_kwargs.get('return_heatmaps', False),
-        'heatmap_split_mode': plot_kwargs.get('heatmap_split_mode', 'home_away'),
-        'team_for_heatmap': plot_kwargs.get('team_for_heatmap'),
-        'summary_stats': plot_kwargs.get('summary_stats'),
-    }
+         'events_to_plot': events_to_plot,
+         'event_styles': plot_kwargs.get('event_styles'),
+         'out_path': plot_kwargs.get('out_path'),
+         'figsize': plot_kwargs.get('figsize', (8, 4.5)),
+         'title': plot_kwargs.get('title'),
+         'return_heatmaps': plot_kwargs.get('return_heatmaps', False),
+         'heatmap_split_mode': plot_kwargs.get('heatmap_split_mode', 'home_away'),
+         'team_for_heatmap': plot_kwargs.get('team_for_heatmap'),
+         # We'll populate 'summary_stats' below with timing/demo info when available.
+         'summary_stats': plot_kwargs.get('summary_stats'),
+     }
+
+    # --- TIMING: call timing.demo_for_export to get interval/timing info for this filtered game
+    timing_info = None
+    try:
+        import timing as _timing
+        # Prefer to call demo_for_export with a season-level dataframe so the
+        # function can locate all games and compute aggregates correctly. Try
+        # to infer the season from available data; if that fails, fall back
+        # to calling demo_for_export on the single-game df.
+        season_df = None
+        # 1) if df_filtered contains a 'season' or 'season_id' column, try that
+        try:
+            if isinstance(df_filtered, pd.DataFrame) and 'season' in df_filtered.columns:
+                val = df_filtered['season'].dropna().unique()
+                if len(val) > 0:
+                    season_str = str(val[0])
+                    season_df = _timing.load_season_df(season_str)
+        except Exception:
+            season_df = None
+
+        # 2) infer from gameID (common format: YYYY...); build season like '20252026'
+        if season_df is None:
+            try:
+                gid = str(gameID)
+                if len(gid) >= 4 and gid[:4].isdigit():
+                    start = int(gid[:4])
+                    season_guess = f"{start}{start+1}"
+                    season_df = _timing.load_season_df(season_guess)
+            except Exception:
+                season_df = None
+
+        # 3) fallback: try the default season loader without guess (lets it search)
+        if season_df is None:
+            try:
+                season_df = _timing.load_season_df()
+            except Exception:
+                season_df = None
+
+        # finally invoke demo_for_export using season_df when available
+        if season_df is not None and not season_df.empty:
+            demo_res = _timing.demo_for_export(season_df, condition=conditions, verbose=False)
+        else:
+            demo_res = _timing.demo_for_export(df_filtered, condition=conditions, verbose=False)
+        timing_info = demo_res
+        # Try to extract per-game info for this game id
+        per_game_info = None
+        if isinstance(demo_res, dict):
+            pg = demo_res.get('per_game', {})
+            if pg:
+                per_game_info = pg.get(gameID) or pg.get(str(gameID))
+                try:
+                    if per_game_info is None:
+                        per_game_info = pg.get(int(gameID))
+                except Exception:
+                    pass
+
+        # If demo_for_export didn't include the requested game, compute a
+        # compact per-game timing summary locally so callers still receive
+        # useful timing_info (this avoids silent empty results).
+        if not per_game_info:
+            try:
+                # Build analysis_conditions same as demo_for_export
+                if isinstance(conditions, dict):
+                    raw_conditions = {k: v for k, v in conditions.items() if k != 'team'}
+                    if not raw_conditions:
+                        analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
+                    else:
+                        analysis_conditions = {k: (list(v) if isinstance(v, (list, tuple, set)) else [v]) for k, v in raw_conditions.items()}
+                else:
+                    analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
+
+                # infer local team and opponent from df_filtered; if that is
+                # empty fall back to the full game DataFrame `df` obtained earlier
+                gdf = df_filtered.copy() if isinstance(df_filtered, pd.DataFrame) else None
+                if gdf is None or gdf.empty:
+                    # fallback to full game df
+                    try:
+                        gdf = df.copy() if isinstance(df, pd.DataFrame) else None
+                    except Exception:
+                        gdf = None
+                if gdf is None or gdf.empty:
+                    per_game_info = None
+                else:
+                    # derive home/away ids/abbs
+                    home_id = gdf['home_id'].dropna().unique().tolist()[0] if 'home_id' in gdf.columns and not gdf['home_id'].dropna().empty else None
+                    away_id = gdf['away_id'].dropna().unique().tolist()[0] if 'away_id' in gdf.columns and not gdf['away_id'].dropna().empty else None
+                    home_abb = gdf['home_abb'].dropna().unique().tolist()[0] if 'home_abb' in gdf.columns and not gdf['home_abb'].dropna().empty else None
+                    away_abb = gdf['away_abb'].dropna().unique().tolist()[0] if 'away_abb' in gdf.columns and not gdf['away_abb'].dropna().empty else None
+
+                    # chosen local_team: use provided conditions team if present, else home_abb or home_id
+                    team_param = conditions.get('team') if isinstance(conditions, dict) and 'team' in conditions else None
+                    local_team = team_param if team_param is not None else (home_abb or home_id or away_abb or away_id)
+                    # opponent key
+                    if str(local_team) == str(home_abb) or (home_id is not None and str(local_team) == str(home_id)):
+                        opp = away_abb or away_id
+                    else:
+                        opp = home_abb or home_id
+
+                    per_game_info = {}
+                    # Helper: compute merged intervals and pooled seconds per condition for a given side
+                    def _compute_side_info(side_team_val):
+                        side_df = _timing.add_game_state_relative_column(gdf.copy(), side_team_val)
+                        merged_per_condition_local = {}
+                        pooled_seconds_per_condition_local = {}
+                        times = pd.to_numeric(side_df.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
+                        total_observed = float(times.max() - times.min()) if len(times) >= 2 else 0.0
+                        for cond_label, cond_def in analysis_conditions.items():
+                            all_intervals = []
+                            for state in cond_def:
+                                if cond_label == 'game_state':
+                                    cond_dict = {'game_state_relative_to_team': state}
+                                else:
+                                    cond_dict = {cond_label: state}
+                                intervals, _, _ = _timing.intervals_for_condition(side_df, cond_dict, time_col='total_time_elapsed_seconds', verbose=False)
+                                for it in intervals:
+                                    try:
+                                        all_intervals.append((float(it[0]), float(it[1])))
+                                    except Exception:
+                                        continue
+                            # merge intervals
+                            if all_intervals:
+                                all_intervals = sorted(all_intervals, key=lambda x: x[0])
+                                merged = []
+                                cur_s, cur_e = all_intervals[0]
+                                for s, e in all_intervals[1:]:
+                                    if s <= cur_e:
+                                        cur_e = max(cur_e, e)
+                                    else:
+                                        merged.append((cur_s, cur_e))
+                                        cur_s, cur_e = s, e
+                                merged.append((cur_s, cur_e))
+                            else:
+                                merged = []
+                            pooled = sum((e - s) for s, e in merged) if merged else 0.0
+                            merged_per_condition_local[str(cond_label)] = merged
+                            pooled_seconds_per_condition_local[str(cond_label)] = pooled
+                        return merged_per_condition_local, pooled_seconds_per_condition_local, total_observed
+
+                    team_merged, team_pooled, total_obs = _compute_side_info(local_team)
+                    opp_merged, opp_pooled, _ = _compute_side_info(opp)
+
+                    # compute intersections across conditions for each side
+                    def _intersect_lists(lists):
+                        if not lists:
+                            return []
+                        inter = lists[0]
+                        def _intersect_two(a,b):
+                            res=[]
+                            i=j=0
+                            while i<len(a) and j<len(b):
+                                s1,e1=a[i]; s2,e2=b[j]
+                                start=max(s1,s2); end=min(e1,e2)
+                                if end>start:
+                                    res.append((start,end))
+                                if e1<e2:
+                                    i+=1
+                                elif e2<e1:
+                                    j+=1
+                                else:
+                                    i+=1; j+=1
+                            return res
+                        for lst in lists[1:]:
+                            inter = _intersect_two(inter, lst)
+                        return inter
+
+                    team_inter = _intersect_lists(list(team_merged.values()))
+                    opp_inter = _intersect_lists(list(opp_merged.values()))
+                    team_inter_pooled = sum(e-s for s,e in team_inter) if team_inter else 0.0
+                    opp_inter_pooled = sum(e-s for s,e in opp_inter) if opp_inter else 0.0
+
+                    per_game_info = {
+                        'selected_team': str(local_team),
+                        'opponent_team': str(opp),
+                        'sides': {
+                            'team': {
+                                'merged_intervals': team_merged,
+                                'pooled_seconds': team_pooled,
+                                'total_observed': total_obs,
+                                'intersection_intervals': team_inter,
+                                'pooled_intersection_seconds': team_inter_pooled,
+                            },
+                            'opponent': {
+                                'merged_intervals': opp_merged,
+                                'pooled_seconds': opp_pooled,
+                                'total_observed': total_obs,
+                                'intersection_intervals': opp_inter,
+                                'pooled_intersection_seconds': opp_inter_pooled,
+                            }
+                        },
+                        'game_total_observed_seconds': total_obs,
+                    }
+
+                # build small aggregate mirrors
+                demo_res = {'per_game': {str(gameID): per_game_info}, 'aggregate': {
+                    'pooled_seconds_per_condition': {'team': team_pooled, 'other': opp_pooled},
+                    'intervals_per_condition': {'team': team_merged, 'other': opp_merged},
+                    'intersection_pooled_seconds': {'team': team_inter_pooled, 'other': opp_inter_pooled},
+                    'intersection_intervals': {'team': team_inter, 'other': opp_inter},
+                }}
+                timing_info = demo_res
+                per_game_info = per_game_info
+            except Exception:
+                per_game_info = None
+                timing_info = demo_res
+
+        # Attach concise timing summary into plot summary_stats
+        if per_game_info is not None:
+            # include the per_game info under a clear key
+            pe_kwargs['summary_stats'] = {'timing_per_game': per_game_info}
+        else:
+            # fallback: put the full demo result
+            pe_kwargs['summary_stats'] = {'timing': demo_res}
+    except Exception:
+        # if timing call fails, leave summary_stats as provided (or None)
+        timing_info = None
 
     # NOTE: we intentionally DO NOT derive plotting args from `conditions`.
-    return plot_events(df_filtered, **pe_kwargs)
+    result = plot_events(df_filtered, **pe_kwargs)
+
+    # Optionally return timing info along with the plot when requested
+    if plot_kwargs.get('return_timing', False):
+        # result may be (fig, ax) or (fig, ax, heatmaps)
+        if isinstance(result, tuple) and len(result) == 2:
+            return result + (timing_info,)
+        elif isinstance(result, tuple) and len(result) == 3:
+            # (fig, ax, heatmaps) -> append timing
+            return (result[0], result[1], result[2], timing_info)
+        else:
+            return result, timing_info
+
+    return result
 
 
 # small demo helper (not run automatically) showing expected usage

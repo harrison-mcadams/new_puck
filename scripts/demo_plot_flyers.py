@@ -19,8 +19,53 @@ Path('static').mkdir(parents=True, exist_ok=True)
 season = '20252026'
 sdf = timing.load_season_df(season)
 if sdf is None or sdf.empty:
-    print('No season dataframe found; aborting.')
-    raise SystemExit(1)
+    print('timing.load_season_df did not find a CSV for season', season)
+    # Try additional candidate locations relative to project root
+    candidates = [
+        project_root / 'data' / season / f"{season}_df.csv",
+        project_root / 'data' / season / f"{season}.csv",
+        project_root / 'data' / f"{season}_df.csv",
+        project_root / 'data' / f"{season}.csv",
+        project_root / 'static' / f"{season}_df.csv",
+        project_root / 'static' / f"{season}.csv",
+    ]
+    found = None
+    for p in candidates:
+        try:
+            print('Checking', p)
+        except Exception:
+            pass
+        if p.exists():
+            found = p
+            break
+    if found is not None:
+        try:
+            print('Loading season CSV from', found)
+            sdf = pd.read_csv(found)
+        except Exception as e:
+            print('Failed to read', found, '->', e)
+    else:
+        # fallback: recursive search under project_root/data and project_root/static
+        search_roots = [project_root / 'data', project_root / 'static', project_root]
+        matches = []
+        for root in search_roots:
+            try:
+                if root.exists():
+                    for p in root.rglob(f'*{season}*.csv'):
+                        matches.append(p)
+            except Exception:
+                pass
+        if matches:
+            p = matches[0]
+            try:
+                print('Found candidate CSV via recursive search:', p)
+                sdf = pd.read_csv(p)
+            except Exception as e:
+                print('Failed to read', p, '->', e)
+        else:
+            print('No CSV found for season', season, 'in candidates or recursive search under data/static/project root.')
+            print('Searched candidates:', [str(x) for x in candidates])
+            raise SystemExit(1)
 
 # get candidate game ids for PHI
 gids = timing.select_team_game(sdf, 'PHI')
@@ -91,9 +136,30 @@ plot_kwargs = {
     'heatmap_split_mode': 'team_not_team',
     'team_for_heatmap': 'PHI',
     'return_heatmaps': False,
+    'return_timing': True,
 }
 
+# Request timing info along with the plot
 res = plot._game(chosen_gid, conditions=conditions, plot_kwargs=plot_kwargs)
 print('Plot completed, saved to', plot_kwargs['out_path'])
+
+# If timing info was returned, save it to JSON for inspection
+try:
+    timing_info = None
+    if isinstance(res, tuple):
+        # timing_info is appended as the last element by plot._game when return_timing=True
+        timing_info = res[-1]
+    else:
+        timing_info = None
+    if timing_info:
+        import json
+        out_json = Path(plot_kwargs['out_path']).with_name(f"{chosen_gid}_timing.json")
+        with open(out_json, 'w') as fh:
+            json.dump(timing_info, fh, indent=2)
+        print('Saved timing info to', out_json)
+    else:
+        print('No timing info returned')
+except Exception as e:
+    print('Failed to save timing info:', e)
 
 # if caller wants the figure returned, res can be used; we just exit
