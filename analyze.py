@@ -523,22 +523,24 @@ def compute_xg_heatmap_from_df(
             dy = YY - float(yi)
             kern = ai * norm_factor * np.exp(-(dx * dx + dy * dy) / two_sigma2)
             heat += kern
-
-    # mask outside rink: compute a boolean rink_mask and set outside cells to 0.0
+    # mask outside rink: compute a boolean rink_mask and set outside cells to NaN
     try:
         rink_mask = np.vectorize(rink_half_height_at_x)(XX) >= np.abs(YY)
-        # where rink_mask is False, explicitly set heat to 0.0
-        heat = np.where(rink_mask, heat, 0.0)
+        # where rink_mask is False, explicitly set heat to NaN so it will be
+        # treated as masked/transparent by plotting routines that mask NaNs.
+        heat = np.where(rink_mask, heat, np.nan)
     except Exception:
+        # ensure numeric array at minimum
         try:
-            # ensure numeric even if mask fails
             heat = np.asarray(heat, dtype=float)
         except Exception:
             pass
 
-    # Ensure heat is a numeric float array; replace any remaining NaNs with 0.0
-    heat = np.asarray(heat, dtype=float)
-    heat = np.nan_to_num(heat, nan=0.0)
+    # Ensure heat is a numeric float array; keep NaNs as NaN (do not replace)
+    try:
+        heat = np.asarray(heat, dtype=float)
+    except Exception:
+        pass
 
     # Determine total_seconds_used: prefer explicit input, else try to infer
     total_seconds_used = None
@@ -569,8 +571,12 @@ def compute_xg_heatmap_from_df(
             # fall back to no scaling
             pass
 
-    # Final safety: ensure no NaNs remain after scaling
-    heat = np.nan_to_num(heat, nan=0.0)
+    # Final safety: convert non-numeric entries to float but keep NaNs so
+    # plotting routines can mask them (do not replace NaNs with zeros).
+    try:
+        heat = np.asarray(heat, dtype=float)
+    except Exception:
+        pass
 
     return gx, gy, heat, float(total_xg), float(total_seconds_used or 0.0)
 
@@ -800,7 +806,19 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         draw_rink(ax=ax)
         extent = (gx[0] - grid_res / 2.0, gx[-1] + grid_res / 2.0, gy[0] - grid_res / 2.0, gy[-1] + grid_res / 2.0)
         cmap = plt.get_cmap('viridis')
-        im = ax.imshow(league_heat, extent=extent, origin='lower', cmap=cmap, zorder=1, alpha=0.8)
+        # ensure NaNs are masked so outer rink cells render transparent
+        try:
+            cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
+        except Exception:
+            try:
+                cmap.set_bad(color='white')
+            except Exception:
+                pass
+        try:
+            m_league = np.ma.masked_invalid(league_heat)
+            im = ax.imshow(m_league, extent=extent, origin='lower', cmap=cmap, zorder=1, alpha=0.8)
+        except Exception:
+            im = ax.imshow(league_heat, extent=extent, origin='lower', cmap=cmap, zorder=1, alpha=0.8)
         fig.colorbar(im, ax=ax, label='xG per hour (approx)')
         out_png = base_out / f'{season}_league_map.png'
         fig.savefig(out_png, dpi=150)
@@ -938,18 +956,20 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         try:
             import matplotlib.pyplot as plt
             fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+            # Reserve space above the rink so summary text sits above and does not overlap
+            try:
+                fig.subplots_adjust(top=0.78)
+            except Exception:
+                pass
             # draw single rink
             draw_rink(ax=ax)
 
-            # determine shared vmax from both pct arrays (ignore naNs)
-            vals = np.hstack([
-                pct_team[~np.isnan(pct_team)].ravel() if np.any(~np.isnan(pct_team)) else np.array([0.0]),
-                pct_opp[~np.isnan(pct_opp)].ravel() if np.any(~np.isnan(pct_opp)) else np.array([0.0])
-            ])
-            if vals.size == 0:
-                vmax = 1.0
-            else:
-                vmax = max(abs(np.nanmin(vals)), abs(np.nanmax(vals)), 1.0)
+            # Fixed colorbar range for percent-change maps across all teams.
+            # Base range is ±100 (%), extend it by 25% to give some headroom.
+            colorbar_base = 100.0
+            colorbar_extension = 1.25
+            vmin = -colorbar_base * colorbar_extension
+            vmax = colorbar_base * colorbar_extension
 
             cmap = plt.get_cmap('RdBu_r')
             # Render NaN (masked) cells as transparent so the rink beneath is visible
@@ -970,8 +990,8 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             except Exception:
                 m_pct_team = pct_team
                 m_pct_opp = pct_opp
-            im_team = ax.imshow(m_pct_team, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
-            im_opp = ax.imshow(m_pct_opp, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
+            im_team = ax.imshow(m_pct_team, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax, zorder=2)
+            im_opp = ax.imshow(m_pct_opp, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax, zorder=2)
 
             # Structured title and two-column stats placed above the rink.
             try:
@@ -981,7 +1001,15 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
 
             main_title = f"{team} — {cond_desc}"
 
-            # Safely derive numeric summaries
+            # Layout positions for title/subtitle/stats in figure coordinates
+            title_y = 0.94
+            subtitle_y = 0.90
+            stats_y_start = 0.86
+            line_gap = 0.03
+
+            # Derive numeric summaries used in the top text block. These
+            # variables are computed here to avoid unresolved-reference errors
+            # while keeping the calculations compact and robust to missing data.
             try:
                 t_secs = float(team_seconds or 0.0)
             except Exception:
@@ -994,54 +1022,60 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             t_min = t_secs / 60.0 if t_secs > 0 else 0.0
             o_min = o_secs / 60.0 if o_secs > 0 else 0.0
 
+            # compute per-60 rates: when normalize_per60=True was used earlier,
+            # the returned team_xg/opp_xg already represent per-60 values.
             try:
-                t_xg = float(team_xg or 0.0)
+                t_xg_per60 = float(team_xg or 0.0)
             except Exception:
-                t_xg = 0.0
+                t_xg_per60 = 0.0
             try:
-                o_xg = float(opp_xg or 0.0)
+                o_xg_per60 = float(opp_xg or 0.0)
             except Exception:
-                o_xg = 0.0
+                o_xg_per60 = 0.0
 
-            t_rate = (t_xg / t_secs * 3600.0) if t_secs > 0 else 0.0
-            o_rate = (o_xg / o_secs * 3600.0) if o_secs > 0 else 0.0
-
+            # total xG over the interval (derived from per-60 rate)
             try:
-                league_per60 = (float(league_xg) / float(league_seconds) * 3600.0) if (league_seconds and league_seconds > 0) else 0.0
+                t_xg_total = t_xg_per60 * (t_secs / 3600.0)
+            except Exception:
+                t_xg_total = 0.0
+            try:
+                o_xg_total = o_xg_per60 * (o_secs / 3600.0)
+            except Exception:
+                o_xg_total = 0.0
+
+            # vs-league difference in per-60 units (team - league)
+            try:
+                league_per60 = float(league_xg or 0.0)
             except Exception:
                 league_per60 = 0.0
-
             try:
-                t_vs_league = ((t_rate - league_per60) / league_per60 * 100.0) if league_per60 > 0 else 0.0
+                t_vs_league = t_xg_per60 - league_per60
             except Exception:
                 t_vs_league = 0.0
             try:
-                o_vs_league = ((o_rate - league_per60) / league_per60 * 100.0) if league_per60 > 0 else 0.0
+                o_vs_league = o_xg_per60 - league_per60
             except Exception:
                 o_vs_league = 0.0
 
-            # position text nicely above the rink using axes bbox
-            bbox = ax.get_position()
-            axes_top = bbox.y1
-            title_y = axes_top + 0.025
-            subtitle_y = title_y - 0.016
-            stats_y_start = subtitle_y - 0.028
-            line_gap = 0.020
-
             # Title centered
             fig.text(0.5, title_y, main_title, fontsize=12, fontweight='bold', ha='center')
-            # Subtitles for left/right
-            fig.text(0.25, subtitle_y, 'Offense (left)', fontsize=10, fontweight='semibold', ha='center')
-            fig.text(0.75, subtitle_y, 'Defense (right)', fontsize=10, fontweight='semibold', ha='center')
+            # Subtitles for left/right (positioned in figure coords)
+            fig.text(0.25, subtitle_y, 'Offense', fontsize=10, fontweight='semibold', ha='center')
+            fig.text(0.75, subtitle_y, 'Defense', fontsize=10, fontweight='semibold', ha='center')
 
-            left_lines = [f"Time: {t_min:.1f} min",
-                          f"xG: {t_xg:.2f}",
-                          f"xG/60: {t_rate:.3f}",
-                          f"vs league: {t_vs_league:+.1f}%"]
-            right_lines = [f"Time: {o_min:.1f} min",
-                           f"xG: {o_xg:.2f}",
-                           f"xG/60: {o_rate:.3f}",
-                           f"vs league: {o_vs_league:+.1f}%"]
+            # Build the lines of summary text for the left (team) and right (opponent)
+            left_lines = [
+                f"Time: {t_min:.1f} min",
+                f"xG: {t_xg_total:.2f}",
+                f"xG/60: {t_xg_per60:.3f}",
+                f"vs league: {t_vs_league:+.3f} xG/60",
+            ]
+            right_lines = [
+                f"Time: {o_min:.1f} min",
+                f"xG: {o_xg_total:.2f}",
+                f"xG/60: {o_xg_per60:.3f}",
+                f"vs league: {o_vs_league:+.3f} xG/60",
+            ]
 
             for i, (l, r) in enumerate(zip(left_lines, right_lines)):
                 y = stats_y_start - i * line_gap
@@ -1052,7 +1086,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             cbar.set_label('pct change vs league (%)')
 
             out_png_summary = base_out / f'{season}_{team}_summary.png'
-            fig.tight_layout()
+            # Do not call tight_layout here; we intentionally reserved top margin
             fig.savefig(out_png_summary, dpi=150)
             plt.close(fig)
         except Exception as e:
@@ -1133,7 +1167,7 @@ if __name__ == '__main__':
 
     # Default condition used by both single-game xgs_map and the full-season run.
     # Edit this block directly to change the condition used in the quick full-season run.
-    condition = {'game_state': ['5v5'],
+    condition = {'game_state': ['5v4'],
                  'is_net_empty': [0]}
     if args.team:
         condition['team'] = args.team
