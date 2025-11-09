@@ -941,7 +941,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             # draw single rink
             draw_rink(ax=ax)
 
-            # determine shared vmax from both pct arrays (ignore NaNs)
+            # determine shared vmax from both pct arrays (ignore naNs)
             vals = np.hstack([
                 pct_team[~np.isnan(pct_team)].ravel() if np.any(~np.isnan(pct_team)) else np.array([0.0]),
                 pct_opp[~np.isnan(pct_opp)].ravel() if np.any(~np.isnan(pct_opp)) else np.array([0.0])
@@ -952,11 +952,26 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
                 vmax = max(abs(np.nanmin(vals)), abs(np.nanmax(vals)), 1.0)
 
             cmap = plt.get_cmap('RdBu_r')
-            cmap.set_bad(color='white')
+            # Render NaN (masked) cells as transparent so the rink beneath is visible
+            try:
+                cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
+            except Exception:
+                # fallback to white if transparency unsupported
+                cmap.set_bad(color='white')
 
-            # plot team (left zone) then opponents (right zone) on same axes; NaNs ensure they don't overlap
-            im_team = ax.imshow(pct_team, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
-            im_opp = ax.imshow(pct_opp, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
+            # ensure `extent` is defined (may have been created earlier for league map)
+            extent = (gx[0] - grid_res / 2.0, gx[-1] + grid_res / 2.0,
+                      gy[0] - grid_res / 2.0, gy[-1] + grid_res / 2.0)
+
+            # plot team (left zone) then opponents (right zone) on same axes; NaNs are transparent
+            try:
+                m_pct_team = np.ma.masked_invalid(pct_team)
+                m_pct_opp = np.ma.masked_invalid(pct_opp)
+            except Exception:
+                m_pct_team = pct_team
+                m_pct_opp = pct_opp
+            im_team = ax.imshow(m_pct_team, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
+            im_opp = ax.imshow(m_pct_opp, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
 
             # add small textual labels for clarity
             ax.text(-80, 40, f"{team} (offense → left)", fontsize=10, fontweight='bold', ha='left')
