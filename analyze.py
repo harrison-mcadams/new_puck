@@ -398,6 +398,302 @@ def xgs_map(season: str = '20252026', *,
     return out_path, ret_heat, ret_df
 
 
+# ----------------- xG heatmap helpers (moved above the CLI so they are available)
+# These helpers implement the next_steps plan: compute Gaussian-smoothed xG
+# heatmaps and aggregate per-team maps for a season. They are intentionally
+# simple and readable — we can optimize later (FFT convolution, parallelism).
+
+
+def compute_xg_heatmap_from_df(
+    df,
+    grid_res: float = 1.0,
+    sigma: float = 6.0,
+    x_col: str = 'x_a',
+    y_col: str = 'y_a',
+    amp_col: str = 'xgs',
+    rink_mask_fn=None,
+    normalize_per60: bool = False,
+    total_seconds: float = None,
+):
+    """Compute an xG heatmap on a fixed rink grid from an events DataFrame.
+
+    Returns (gx, gy, heat, total_xg, total_seconds_used)
+    - gx: 1D array of x grid centers
+    - gy: 1D array of y grid centers
+    - heat: 2D array shape (len(gy), len(gx)) with summed xG (or xG/60 if normalized)
+    """
+    import numpy as np
+    import pandas as pd
+    from rink import rink_half_height_at_x
+
+    if df is None or df.shape[0] == 0:
+        # return empty grid centered on rink extents
+        gx = np.arange(-100.0, 100.0 + grid_res, grid_res)
+        gy = np.arange(-42.5, 42.5 + grid_res, grid_res)
+        heat = np.zeros((len(gy), len(gx)), dtype=float)
+        return gx, gy, heat, 0.0, 0.0
+
+    # ensure coordinates exist
+    if x_col not in df.columns or y_col not in df.columns:
+        # try to compute adjusted coords using plotting helper
+        try:
+            import plot as _plot
+            df = _plot.adjust_xy_for_homeaway(df.copy())
+        except Exception:
+            pass
+
+    xs = pd.to_numeric(df.get(x_col, pd.Series([], dtype=float)), errors='coerce')
+    ys = pd.to_numeric(df.get(y_col, pd.Series([], dtype=float)), errors='coerce')
+    amps = pd.to_numeric(df.get(amp_col, pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
+
+    mask = (~xs.isna()) & (~ys.isna()) & (amps > 0)
+    xs = xs[mask].values
+    ys = ys[mask].values
+    amps = amps[mask].values
+
+    gx = np.arange(-100.0, 100.0 + grid_res, grid_res)
+    gy = np.arange(-42.5, 42.5 + grid_res, grid_res)
+    XX, YY = np.meshgrid(gx, gy)
+
+    heat = np.zeros_like(XX, dtype=float)
+
+    if xs.size == 0:
+        total_xg = 0.0
+    else:
+        total_xg = float(amps.sum())
+        two_sigma2 = 2.0 * (sigma ** 2)
+        norm_factor = (grid_res ** 2) / (2.0 * np.pi * (sigma ** 2))
+        # accumulate kernels per event (loop acceptable for typical shot counts)
+        for xi, yi, ai in zip(xs, ys, amps):
+            dx = XX - float(xi)
+            dy = YY - float(yi)
+            kern = ai * norm_factor * np.exp(-(dx * dx + dy * dy) / two_sigma2)
+            heat += kern
+
+    # mask outside rink
+    try:
+        rink_mask = np.vectorize(rink_half_height_at_x)(XX) >= np.abs(YY)
+        heat *= rink_mask
+    except Exception:
+        pass
+
+    # compute total seconds if requested and not provided
+    if total_seconds is None:
+        # try to derive from column total_time_elapsed_seconds per game
+        try:
+            tcol = 'total_time_elapsed_seconds'
+            if tcol in df.columns:
+                # if game_id exists, sum per-game observed durations
+                if 'game_id' in df.columns:
+                    grp = df.groupby('game_id')
+                    secs = 0.0
+                    for _, g in grp:
+                        gtimes = pd.to_numeric(g[tcol], errors='coerce').dropna()
+                        if gtimes.size >= 2:
+                            secs += float(gtimes.max() - gtimes.min())
+                    total_seconds = float(secs)
+                else:
+                    gtimes = pd.to_numeric(df[tcol], errors='coerce').dropna()
+                    total_seconds = float(gtimes.max() - gtimes.min()) if gtimes.size >= 2 else 0.0
+            else:
+                total_seconds = 0.0
+        except Exception:
+            total_seconds = 0.0
+
+    # normalize to xG per 3600 seconds (xG per hour) or per60 if requested
+    if normalize_per60 and total_seconds and total_seconds > 0:
+        heat = heat / float(total_seconds) * 3600.0
+
+    return gx, gy, heat, float(total_xg), float(total_seconds or 0.0)
+
+
+def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigma: float = 6.0, out_dir: str = 'static/league_vs_team_maps', min_events: int = 5, model_path: str = 'static/xg_model.joblib', behavior: str = 'load', csv_path: str = None):
+    """Compute league and per-team xG maps for a season (or events DataFrame).
+
+    Saves PNG and JSON summary per team into out_dir/{season}/
+    Returns a dict with league_map info and per-team summaries.
+    """
+    from pathlib import Path
+    import numpy as np
+    import pandas as pd
+    import json
+    import matplotlib.pyplot as plt
+    from rink import draw_rink, rink_half_height_at_x
+    import parse as _parse
+
+    # load season df or accept a provided DataFrame
+    if isinstance(season_or_df, str):
+        import timing
+        df = timing.load_season_df(season_or_df)
+        season = season_or_df
+    else:
+        df = season_or_df.copy()
+        # try to infer season name
+        season = getattr(df, 'season', None) or 'season'
+
+    if df is None or df.shape[0] == 0:
+        raise ValueError('No events data available for xg_maps_for_season')
+
+    # apply condition filter using parse.build_mask when condition provided
+    if condition is None:
+        df_cond = df.copy()
+    else:
+        try:
+            mask = _parse.build_mask(df, condition)
+            mask = mask.reindex(df.index).fillna(False).astype(bool)
+            df_cond = df.loc[mask].copy()
+        except Exception:
+            df_cond = df.copy()
+
+    # ensure adjusted coords exist
+    try:
+        import plot as _plot
+        df_cond = _plot.adjust_xy_for_homeaway(df_cond)
+    except Exception:
+        pass
+
+    # If xgs are missing or all zeros, try to predict using the xG classifier
+    try:
+        need_predict = ('xgs' not in df_cond.columns) or (pd.to_numeric(df_cond.get('xgs', pd.Series(dtype=float)), errors='coerce').fillna(0.0).sum() == 0)
+    except Exception:
+        need_predict = True
+
+    if need_predict:
+        try:
+            import fit_xgs
+            # use get_or_train_clf which caches/trains if needed
+            force_retrain = True if (behavior or '').strip().lower() == 'train' else False
+            try:
+                clf, feature_names, cat_levels = fit_xgs.get_or_train_clf(force_retrain=force_retrain, csv_path=csv_path)
+            except Exception:
+                # fallback to older get_clf
+                clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=csv_path)
+
+            features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+            df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df_cond.copy(), features, fixed_categorical_levels=cat_levels)
+
+            # ensure xgs column exists
+            df_cond['xgs'] = pd.to_numeric(df_cond.get('xgs', pd.Series(dtype=float)), errors='coerce').fillna(0.0)
+
+            final_features = feature_names if feature_names is not None else final_feature_cols_game
+            if clf is not None and df_model.shape[0] > 0 and final_features:
+                try:
+                    X = df_model[final_features].values
+                    probs = clf.predict_proba(X)[:, 1]
+                    # Apply predictions back to the original df_cond by index
+                    df_cond.loc[df_model.index, 'xgs'] = probs
+                    print(f'xg_maps_for_season: predicted xgs for {len(probs)} events')
+                except Exception as e:
+                    print('xg_maps_for_season: prediction failed:', e)
+        except Exception as e:
+            print('xg_maps_for_season: failed to predict xgs:', e)
+
+    # compute league map (normalized per 3600s)
+    gx, gy, league_heat, league_xg, league_seconds = compute_xg_heatmap_from_df(df_cond, grid_res=grid_res, sigma=sigma, normalize_per60=True)
+
+    # prepare output dir
+    base_out = Path(out_dir) / str(season)
+    base_out.mkdir(parents=True, exist_ok=True)
+
+    # save league map figure
+    try:
+        fig, ax = plt.subplots(figsize=(8, 4.5))
+        draw_rink(ax=ax)
+        extent = (gx[0] - grid_res / 2.0, gx[-1] + grid_res / 2.0, gy[0] - grid_res / 2.0, gy[-1] + grid_res / 2.0)
+        cmap = plt.get_cmap('viridis')
+        im = ax.imshow(league_heat, extent=extent, origin='lower', cmap=cmap, zorder=1, alpha=0.8)
+        fig.colorbar(im, ax=ax, label='xG per hour (approx)')
+        out_png = base_out / f'{season}_league_map.png'
+        fig.savefig(out_png, dpi=150)
+        plt.close(fig)
+    except Exception:
+        pass
+
+    # determine team list (use abbreviations when possible)
+    teams = set()
+    if 'home_abb' in df_cond.columns:
+        teams.update([a for a in df_cond['home_abb'].dropna().astype(str).unique().tolist()])
+    if 'away_abb' in df_cond.columns:
+        teams.update([a for a in df_cond['away_abb'].dropna().astype(str).unique().tolist()])
+    # fallback to team ids if no abbs
+    if not teams and 'home_id' in df_cond.columns:
+        teams.update([str(a) for a in df_cond['home_id'].dropna().unique().tolist()])
+
+    results = {'season': season, 'league': {'gx': list(gx), 'gy': list(gy), 'xg_total': league_xg, 'seconds': league_seconds}}
+    results['teams'] = {}
+
+    for team in sorted(teams):
+        # team membership mask
+        try:
+            t = str(team).strip().upper()
+            mask_team = ((df_cond.get('home_abb', pd.Series(dtype=object)).astype(str).str.upper() == t) | (df_cond.get('away_abb', pd.Series(dtype=object)).astype(str).str.upper() == t))
+        except Exception:
+            mask_team = pd.Series(False, index=df_cond.index)
+
+        df_team = df_cond.loc[mask_team]
+        n_events = int(df_team.shape[0])
+        if n_events < min_events:
+            # skip low-sample teams
+            continue
+
+        gx_t, gy_t, team_heat, team_xg, team_seconds = compute_xg_heatmap_from_df(df_team, grid_res=grid_res, sigma=sigma, normalize_per60=True)
+
+        # compute pct change safely
+        import numpy as np
+        eps = 1e-9
+        # align shapes
+        try:
+            pct = (team_heat - league_heat) / (league_heat + eps) * 100.0
+        except Exception:
+            pct = np.zeros_like(team_heat)
+
+        # plotting pct map
+        try:
+            fig, ax = plt.subplots(figsize=(8, 4.5))
+            draw_rink(ax=ax)
+            # center colormap at 0
+            vmax = max(abs(np.nanmin(pct)), abs(np.nanmax(pct)), 1.0)
+            im = ax.imshow(pct, extent=extent, origin='lower', cmap='RdBu_r', vmin=-vmax, vmax=vmax, zorder=1, alpha=0.9)
+            cbar = fig.colorbar(im, ax=ax)
+            cbar.set_label('pct change vs league (%)')
+            title = f"{team} vs league ({season})"
+            ax.set_title(title)
+            out_png = base_out / f'{season}_{team}_pct.png'
+            fig.savefig(out_png, dpi=150)
+            plt.close(fig)
+        except Exception:
+            out_png = None
+
+        # save JSON summary
+        summary = {
+            'team': team,
+            'n_events': n_events,
+            'team_xg': team_xg,
+            'team_seconds': team_seconds,
+            'team_xg_per60': (team_xg / team_seconds * 3600.0) if team_seconds > 0 else None,
+            'out_png': str(out_png) if out_png is not None else None,
+        }
+        # write JSON
+        try:
+            out_json = base_out / f'{season}_{team}_summary.json'
+            with open(out_json, 'w') as fh:
+                json.dump(summary, fh, indent=2)
+        except Exception:
+            pass
+
+        results['teams'][team] = summary
+
+    # save a small league summary JSON
+    try:
+        out_league_json = base_out / f'{season}_league_summary.json'
+        with open(out_league_json, 'w') as fh:
+            json.dump(results['league'], fh, indent=2)
+    except Exception:
+        pass
+
+    return results
+
+
 if __name__ == '__main__':
     """Command-line example for running xgs_map for a season and a team.
 
@@ -412,6 +708,11 @@ if __name__ == '__main__':
         is performed by xgs_map.
       - If you prefer to run non-interactively from a script, call
         xgs_map(...) directly from Python, passing a `condition` dict.
+
+    The parser below also supports a quick "run all teams" mode which calls
+    `xg_maps_for_season`. That quick-run mode is intentionally simple and
+    easy to edit: change the `condition` and parameters below to control what
+    is computed for the full season.
     """
 
     import argparse
@@ -426,9 +727,19 @@ if __name__ == '__main__':
     parser.add_argument('--no-heatmaps', dest='return_heatmaps', action='store_false', help='Do not return heatmaps (enabled by default)')
     parser.set_defaults(return_heatmaps=True)
     parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
+    # NEW: quick-run flag to generate per-team xG pct maps for the whole season
+    parser.add_argument('--run-all', action='store_true', help='Run '
+                                                               'full-season '
+                                                               'xG maps for '
+                                                               'all teams ('
+                                                               'simple '
+                                                               'demo)',
+                        default=True)
     args = parser.parse_args()
 
-    condition = {'game_state': ['5v5', '5v4', '4v5'],
+    # Default condition used by both single-game xgs_map and the full-season run.
+    # Edit this block directly to change the condition used in the quick full-season run.
+    condition = {'game_state': ['5v5'],
                  'is_net_empty': [0]}
     if args.team:
         condition['team'] = args.team
@@ -438,7 +749,28 @@ if __name__ == '__main__':
     try:
         import parse
 
+        # If --run-all was provided, run the season-level mapping across all teams
+        if args.run_all:
+            # Parameters for the full-season maps. Tune these for speed/quality:
+            #  - grid_res: 1.0 (1 ft) is fine-quality; use 2.0/5.0 for faster runs
+            #  - sigma: gaussian kernel width in feet (6.0 is a reasonable default)
+            #  - min_events: skip teams with fewer than this many events
+            grid_res = 1.0
+            sigma = 6.0
+            min_events = 20
+            out_dir = 'static/league_vs_team_maps'
 
+            print(f"Running full-season xG maps for season {args.season} with condition={condition}")
+            results = xg_maps_for_season(args.season, condition=condition, grid_res=grid_res, sigma=sigma, out_dir=out_dir, min_events=min_events)
+            print('Full-season xG maps completed. Results keys:', list(results.keys()))
+            # Print a small summary for convenience
+            try:
+                print('League total xG:', results['league'].get('xg_total'))
+            except Exception:
+                pass
+            raise SystemExit(0)
+
+        # Otherwise run the existing one-game/one-season plotting example via xgs_map
         out_path, heatmaps, df_filtered = xgs_map(season=args.season,
                          csv_path=args.csv_path,
                          model_path='static/xg_model.joblib',
@@ -507,6 +839,9 @@ if __name__ == '__main__':
                 print(df_filtered[['x', 'y', 'xgs']].describe())
     except FileNotFoundError as fe:
         print('Error: could not find season CSV or required files:', fe)
+    except SystemExit:
+        # allow clean exit from run-all
+        pass
     except Exception as e:
         import traceback as _tb
         print('xgs_map failed:', type(e).__name__, e)
