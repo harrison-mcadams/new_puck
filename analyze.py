@@ -414,6 +414,8 @@ def compute_xg_heatmap_from_df(
     rink_mask_fn=None,
     normalize_per60: bool = False,
     total_seconds: float = None,
+    selected_team: Optional[object] = None,
+    selected_role: str = 'team',
 ):
     """Compute an xG heatmap on a fixed rink grid from an events DataFrame.
 
@@ -433,23 +435,75 @@ def compute_xg_heatmap_from_df(
         heat = np.zeros((len(gy), len(gx)), dtype=float)
         return gx, gy, heat, 0.0, 0.0
 
-    # ensure coordinates exist
-    if x_col not in df.columns or y_col not in df.columns:
-        # try to compute adjusted coords using plotting helper
+    # We'll compute adjusted coordinates (x_a,y_a) here so callers may pass
+    # the full df and ask for team-specific subsets via selected_team/selected_role.
+    # ensure coordinates exist (x_a/y_a) or compute them from raw x,y
+    df_work = df.copy()
+    if x_col not in df_work.columns or y_col not in df_work.columns:
         try:
             import plot as _plot
-            df = _plot.adjust_xy_for_homeaway(df.copy())
+            df_work = _plot.adjust_xy_for_homeaway(df_work)
         except Exception:
-            pass
+            # fall back to raw x/y passthrough
+            df_work[x_col] = df_work.get('x')
+            df_work[y_col] = df_work.get('y')
+    else:
+        # ensure presence
+        df_work[x_col] = df_work.get(x_col)
+        df_work[y_col] = df_work.get(y_col)
 
-    xs = pd.to_numeric(df.get(x_col, pd.Series([], dtype=float)), errors='coerce')
-    ys = pd.to_numeric(df.get(y_col, pd.Series([], dtype=float)), errors='coerce')
-    amps = pd.to_numeric(df.get(amp_col, pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
+    xs_all = pd.to_numeric(df_work.get(x_col, pd.Series([], dtype=float)), errors='coerce')
+    ys_all = pd.to_numeric(df_work.get(y_col, pd.Series([], dtype=float)), errors='coerce')
+    amps_all = pd.to_numeric(df_work.get(amp_col, pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
 
-    mask = (~xs.isna()) & (~ys.isna()) & (amps > 0)
-    xs = xs[mask].values
-    ys = ys[mask].values
-    amps = amps[mask].values
+    # Determine a boolean mask for the subset we want: if selected_team provided,
+    # include only rows matching (selected_role == 'team') or the inverse for 'other'.
+    def _is_selected_row(r, team_val):
+        try:
+            if team_val is None:
+                return False
+            tstr = str(team_val).strip()
+            try:
+                tid = int(tstr)
+            except Exception:
+                tid = None
+            if tid is not None:
+                return str(r.get('team_id')) == str(tid)
+            tupper = tstr.upper()
+            # compare abbreviations if present
+            if r.get('home_abb') is not None and str(r.get('home_abb')).upper() == tupper and str(r.get('team_id')) == str(r.get('home_id')):
+                return True
+            if r.get('away_abb') is not None and str(r.get('away_abb')).upper() == tupper and str(r.get('team_id')) == str(r.get('away_id')):
+                return True
+            # fallback: compare team_id to home/away ids when abb not available
+            if r.get('home_id') is not None and r.get('team_id') is not None and str(r.get('team_id')) == str(r.get('home_id')) and r.get('home_abb') is not None and str(r.get('home_abb')).upper() == tupper:
+                return True
+            return False
+        except Exception:
+            return False
+
+    if selected_team is not None:
+        sel_mask = df_work.apply(lambda r: _is_selected_row(r, selected_team), axis=1)
+        if selected_role == 'team':
+            use_mask = sel_mask
+        else:
+            use_mask = ~sel_mask
+    else:
+        use_mask = pd.Series(True, index=df_work.index)
+
+    # as part of masking, censor out rows that have None or non-finite values in critical parts
+    xs_temp = xs_all[use_mask]
+    ys_temp = ys_all[use_mask]
+    amps_temp = amps_all[use_mask]
+    # build a validity mask (non-null and finite)
+    try:
+        valid_mask = xs_temp.notna() & ys_temp.notna() & amps_temp.notna()
+        valid_mask &= xs_temp.apply(np.isfinite) & ys_temp.apply(np.isfinite) & amps_temp.apply(np.isfinite)
+    except Exception:
+        valid_mask = (~xs_temp.isna()) & (~ys_temp.isna()) & (~amps_temp.isna())
+    xs = xs_temp[valid_mask]
+    ys = ys_temp[valid_mask]
+    amps = amps_temp[valid_mask]
 
     gx = np.arange(-100.0, 100.0 + grid_res, grid_res)
     gy = np.arange(-42.5, 42.5 + grid_res, grid_res)
@@ -470,41 +524,55 @@ def compute_xg_heatmap_from_df(
             kern = ai * norm_factor * np.exp(-(dx * dx + dy * dy) / two_sigma2)
             heat += kern
 
-    # mask outside rink
+    # mask outside rink: compute a boolean rink_mask and set outside cells to 0.0
     try:
         rink_mask = np.vectorize(rink_half_height_at_x)(XX) >= np.abs(YY)
-        heat *= rink_mask
+        # where rink_mask is False, explicitly set heat to 0.0
+        heat = np.where(rink_mask, heat, 0.0)
     except Exception:
-        pass
-
-    # compute total seconds if requested and not provided
-    if total_seconds is None:
-        # try to derive from column total_time_elapsed_seconds per game
         try:
-            tcol = 'total_time_elapsed_seconds'
-            if tcol in df.columns:
-                # if game_id exists, sum per-game observed durations
-                if 'game_id' in df.columns:
-                    grp = df.groupby('game_id')
-                    secs = 0.0
-                    for _, g in grp:
-                        gtimes = pd.to_numeric(g[tcol], errors='coerce').dropna()
-                        if gtimes.size >= 2:
-                            secs += float(gtimes.max() - gtimes.min())
-                    total_seconds = float(secs)
-                else:
-                    gtimes = pd.to_numeric(df[tcol], errors='coerce').dropna()
-                    total_seconds = float(gtimes.max() - gtimes.min()) if gtimes.size >= 2 else 0.0
-            else:
-                total_seconds = 0.0
+            # ensure numeric even if mask fails
+            heat = np.asarray(heat, dtype=float)
         except Exception:
-            total_seconds = 0.0
+            pass
 
-    # normalize to xG per 3600 seconds (xG per hour) or per60 if requested
-    if normalize_per60 and total_seconds and total_seconds > 0:
-        heat = heat / float(total_seconds) * 3600.0
+    # Ensure heat is a numeric float array; replace any remaining NaNs with 0.0
+    heat = np.asarray(heat, dtype=float)
+    heat = np.nan_to_num(heat, nan=0.0)
 
-    return gx, gy, heat, float(total_xg), float(total_seconds or 0.0)
+    # Determine total_seconds_used: prefer explicit input, else try to infer
+    total_seconds_used = None
+    if total_seconds is not None:
+        try:
+            total_seconds_used = float(total_seconds)
+        except Exception:
+            total_seconds_used = None
+
+    if total_seconds_used is None:
+        # try to infer from a timing column present in the dataframe
+        try:
+            times = pd.to_numeric(df_work.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
+            if len(times) >= 2:
+                total_seconds_used = float(times.max() - times.min())
+            else:
+                total_seconds_used = 0.0
+        except Exception:
+            total_seconds_used = 0.0
+
+    # If requested, normalize heat and total_xg to per-60 units using total_seconds_used
+    if normalize_per60 and total_seconds_used and total_seconds_used > 0.0:
+        try:
+            scale = 3600.0 / float(total_seconds_used)
+            heat = heat * scale
+            total_xg = float(total_xg) * scale
+        except Exception:
+            # fall back to no scaling
+            pass
+
+    # Final safety: ensure no NaNs remain after scaling
+    heat = np.nan_to_num(heat, nan=0.0)
+
+    return gx, gy, heat, float(total_xg), float(total_seconds_used or 0.0)
 
 
 def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigma: float = 6.0, out_dir: str = 'static/league_vs_team_maps', min_events: int = 5, model_path: str = 'static/xg_model.joblib', behavior: str = 'load', csv_path: str = None):
@@ -588,8 +656,139 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         except Exception as e:
             print('xg_maps_for_season: failed to predict xgs:', e)
 
-    # compute league map (normalized per 3600s)
-    gx, gy, league_heat, league_xg, league_seconds = compute_xg_heatmap_from_df(df_cond, grid_res=grid_res, sigma=sigma, normalize_per60=True)
+    def orient_all(df_in, target: str = 'left', selected_team: Optional[object] = None, selected_role: str = 'team'):
+        """Return a copy of df_in with x_a/y_a rotated according to either a fixed target
+        ('left' or 'right') or relative to a `selected_team`.
+
+        If `selected_team` is provided, rows where the shooter matches
+        `selected_team` will be oriented to the left and all other rows to the
+        right. If `selected_team` is None, behavior falls back to the simpler
+        `target`-based orientation (all left or all right).
+        """
+        import copy
+        df2 = df_in.copy()
+        try:
+            from plot import rink_goal_xs
+            left_goal_x, right_goal_x = rink_goal_xs()
+        except Exception:
+            # fallback numeric goal x positions
+            left_goal_x, right_goal_x = -89.0, 89.0
+
+        def attacked_goal_x_for_row(r):
+            # replicate logic from plot.adjust_xy_for_homeaway
+            try:
+                team_id = r.get('team_id')
+                home_id = r.get('home_id')
+                home_def = r.get('home_team_defending_side')
+                if pd.isna(team_id) or pd.isna(home_id):
+                    return right_goal_x
+                if str(team_id) == str(home_id):
+                    # shooter is home: they attack opposite of home's defended side
+                    if home_def == 'left':
+                        return right_goal_x
+                    elif home_def == 'right':
+                        return left_goal_x
+                    else:
+                        return right_goal_x
+                else:
+                    if home_def == 'left':
+                        return left_goal_x
+                    elif home_def == 'right':
+                        return right_goal_x
+                    else:
+                        return left_goal_x
+            except Exception:
+                return right_goal_x
+
+        # compute attacked goal series
+        attacked = df2.apply(attacked_goal_x_for_row, axis=1)
+
+        # determine desired goal per-row
+        if selected_team is not None:
+            tstr = str(selected_team).strip()
+            tid = None
+            try:
+                tid = int(tstr)
+            except Exception:
+                tid = None
+
+            def is_selected(row):
+                try:
+                    if tid is not None:
+                        return str(row.get('team_id')) == str(tid)
+                    shooter_id = row.get('team_id')
+                    if pd.isna(shooter_id):
+                        return False
+                    if row.get('home_id') is not None and str(row.get('home_id')) == str(row.get('team_id')):
+                        # home team membership
+                        if row.get('home_abb') is not None and str(row.get('home_abb')).upper() == tstr.upper():
+                            return True
+                    if row.get('away_id') is not None and str(row.get('away_id')) == str(row.get('team_id')):
+                        if row.get('away_abb') is not None and str(row.get('away_abb')).upper() == tstr.upper():
+                            return True
+                    # fallback: compare abbreviations if present
+                    if row.get('home_abb') is not None and str(row.get('home_abb')).upper() == tstr.upper() and str(row.get('team_id')) == str(row.get('home_id')):
+                        return True
+                    if row.get('away_abb') is not None and str(row.get('away_abb')).upper() == tstr.upper() and str(row.get('team_id')) == str(row.get('away_id')):
+                        return True
+                except Exception:
+                    return False
+                return False
+
+            # selected_role determines which rows are treated as the "selected"
+            # group. If selected_role == 'team', rows matching selected_team are
+            # oriented to the left and others to the right. If
+            # selected_role == 'other', the logic is flipped: rows matching
+            # selected_team are oriented to the right and others to the left.
+            if selected_role == 'team':
+                desired = df2.apply(lambda r: left_goal_x if is_selected(r) else right_goal_x, axis=1)
+            else:
+                desired = df2.apply(lambda r: right_goal_x if is_selected(r) else left_goal_x, axis=1)
+        else:
+            desired = left_goal_x if target == 'left' else right_goal_x
+
+        # produce adjusted coords
+        xcol = 'x'
+        ycol = 'y'
+        df2['x_a'] = df2.get('x')
+        df2['y_a'] = df2.get('y')
+        mask = (attacked != desired) & df2[xcol].notna() & df2[ycol].notna()
+        try:
+            df2.loc[mask, ['x_a', 'y_a']] = -df2.loc[mask, [xcol, ycol]].values
+        except Exception:
+            # fallback loop if vectorized assignment fails
+            for idx in df2.loc[mask].index:
+                try:
+                    df2.at[idx, 'x_a'] = -float(df2.at[idx, xcol])
+                    df2.at[idx, 'y_a'] = -float(df2.at[idx, ycol])
+                except Exception:
+                    df2.at[idx, 'x_a'] = df2.at[idx, xcol]
+                    df2.at[idx, 'y_a'] = df2.at[idx, ycol]
+        return df2
+
+    def rotate_heat_180(heat):
+        import numpy as _np
+        if heat is None:
+            return None
+        return _np.flipud(_np.fliplr(heat))
+
+    # Derive total_seconds for normalization from timing.demo_for_export using the input condition.
+    # This gives a more accurate denominator for normalize_per60 than inferring from observed timestamp ranges.
+    try:
+        import timing
+        timing_res = timing.demo_for_export(df_cond, condition)
+        agg = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
+        inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
+        team_secs = float(inter.get('team') or 0.0)
+        other_secs = float(inter.get('other') or 0.0)
+        total_seconds_cond = float(team_secs + other_secs) if (team_secs or other_secs) else None
+    except Exception:
+        total_seconds_cond = None
+
+    # compute league map with all shots oriented to the LEFT (so league baseline is offense-left)
+    df_league_left = orient_all(df_cond, target='left')
+    gx, gy, league_heat, league_xg, league_seconds = compute_xg_heatmap_from_df(
+        df_league_left, grid_res=grid_res, sigma=sigma, normalize_per60=True, total_seconds=total_seconds_cond)
 
     # prepare output dir
     base_out = Path(out_dir) / str(season)
@@ -631,38 +830,149 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             mask_team = pd.Series(False, index=df_cond.index)
 
         df_team = df_cond.loc[mask_team]
+        df_opp = df_cond.loc[~mask_team]
         n_events = int(df_team.shape[0])
         if n_events < min_events:
             # skip low-sample teams
             continue
 
-        gx_t, gy_t, team_heat, team_xg, team_seconds = compute_xg_heatmap_from_df(df_team, grid_res=grid_res, sigma=sigma, normalize_per60=True)
+        # Derive per-team timing seconds via timing.demo_for_export using the base condition + team
+        team_secs_t = None
+        other_secs_t = None
+        try:
+            import timing
+            # build a per-team condition dict based on the original `condition`
+            if isinstance(condition, dict):
+                team_condition = condition.copy()
+            else:
+                team_condition = {} if condition is None else dict(condition)
+            team_condition['team'] = team
+            timing_res_team = timing.demo_for_export(df_cond, team_condition)
+            agg_t = timing_res_team.get('aggregate', {}) if isinstance(timing_res_team, dict) else {}
+            inter_t = agg_t.get('intersection_pooled_seconds', {}) if isinstance(agg_t, dict) else {}
+            team_secs_t = float(inter_t.get('team') or 0.0)
+            other_secs_t = float(inter_t.get('other') or 0.0)
+        except Exception:
+            # fall back to season-level total_seconds_cond
+            team_secs_t = None
+            other_secs_t = None
 
-        # compute pct change safely
+        # Prepare sensible fallbacks for normalization: prefer per-team seconds when present,
+        # otherwise fall back to the season-level total_seconds_cond (if available), else None.
+        team_total_seconds_for_heat = team_secs_t if team_secs_t and team_secs_t > 0 else (total_seconds_cond if 'total_seconds_cond' in locals() else None)
+        opp_total_seconds_for_heat = other_secs_t if other_secs_t and other_secs_t > 0 else (total_seconds_cond if 'total_seconds_cond' in locals() else None)
+
+        # Filter the season-level df to only games involving this team. This ensures
+        # both heatmaps (team and opponents) are derived from the same set of games.
+        games_for_team = []
+        try:
+            games_for_team = df_cond.loc[mask_team, 'game_id'].dropna().unique().tolist()
+        except Exception:
+            games_for_team = []
+
+        if games_for_team:
+            df_games = df_cond.loc[df_cond['game_id'].isin(games_for_team)].copy()
+        else:
+            # fallback: if no game ids, just use the per-team rows and their opponents
+            df_games = pd.concat([df_team, df_opp], ignore_index=False).copy()
+
+        # Orient the combined games such that selected team shots face LEFT and
+        # opponents face RIGHT. This produces x_a/y_a coordinates suitable for
+        # both subsequent heatmap computations.
+        try:
+            df_oriented = orient_all(df_games, target='left', selected_team=team, selected_role='team')
+        except Exception:
+            # last-resort: use df_games as-is
+            df_oriented = df_games.copy()
+
+        # Team heat: compute from oriented df but ask function to restrict to the selected team
+        gx_t, gy_t, team_heat, team_xg, team_seconds = compute_xg_heatmap_from_df(
+            df_oriented, grid_res=grid_res, sigma=sigma, normalize_per60=True,
+            total_seconds=team_total_seconds_for_heat, selected_team=team, selected_role='team')
+
+        # Opponent heat: compute from the same oriented df but restrict to opponents
+        gx_o, gy_o, opp_heat, opp_xg, opp_seconds = compute_xg_heatmap_from_df(
+            df_oriented, grid_res=grid_res, sigma=sigma, normalize_per60=True,
+            total_seconds=opp_total_seconds_for_heat, selected_team=team, selected_role='other')
+
         import numpy as np
         eps = 1e-9
-        # align shapes
-        try:
-            pct = (team_heat - league_heat) / (league_heat + eps) * 100.0
-        except Exception:
-            pct = np.zeros_like(team_heat)
 
-        # plotting pct map
+        # Determine blue-line x positions (same as rink.draw_rink uses: ±25.0)
+        blue_x = 25.0
+        left_blue_x = -blue_x
+        right_blue_x = blue_x
+
+        # Create x masks for grid columns: team offensive zone is gx <= left_blue_x; opponent offense is gx >= right_blue_x
+        gx_arr = np.array(gx)
+        mask_team_zone = gx_arr <= left_blue_x
+        mask_opp_zone = gx_arr >= right_blue_x
+
+        # Mask league heat to left and right zones accordingly
+        league_left_zone = np.full_like(league_heat, np.nan)
+        league_left_zone[:, mask_team_zone] = league_heat[:, mask_team_zone]
+
+        league_right = rotate_heat_180(league_heat)
+        league_right_zone = np.full_like(league_right, np.nan)
+        league_right_zone[:, mask_opp_zone] = league_right[:, mask_opp_zone]
+
+        # Mask team and opponent heat to offensive zones
+        team_zone = np.full_like(team_heat, np.nan)
+        team_zone[:, mask_team_zone] = team_heat[:, mask_team_zone]
+
+        opp_zone = np.full_like(opp_heat, np.nan)
+        opp_zone[:, mask_opp_zone] = opp_heat[:, mask_opp_zone]
+
+        # Compute percent-difference maps only within masked zones (NaNs elsewhere)
         try:
-            fig, ax = plt.subplots(figsize=(8, 4.5))
-            draw_rink(ax=ax)
-            # center colormap at 0
-            vmax = max(abs(np.nanmin(pct)), abs(np.nanmax(pct)), 1.0)
-            im = ax.imshow(pct, extent=extent, origin='lower', cmap='RdBu_r', vmin=-vmax, vmax=vmax, zorder=1, alpha=0.9)
-            cbar = fig.colorbar(im, ax=ax)
-            cbar.set_label('pct change vs league (%)')
-            title = f"{team} vs league ({season})"
-            ax.set_title(title)
-            out_png = base_out / f'{season}_{team}_pct.png'
-            fig.savefig(out_png, dpi=150)
-            plt.close(fig)
+            pct_team = (team_zone - league_left_zone) / (league_left_zone + eps) * 100.0
         except Exception:
-            out_png = None
+            pct_team = np.full_like(team_zone, np.nan)
+
+        try:
+            pct_opp = (opp_zone - league_right_zone) / (league_right_zone + eps) * 100.0
+        except Exception:
+            pct_opp = np.full_like(opp_zone, np.nan)
+
+        # Combined summary plot: single rink with team (left) and opponents (right)
+        try:
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(1, 1, figsize=(10, 5))
+            # draw single rink
+            draw_rink(ax=ax)
+
+            # determine shared vmax from both pct arrays (ignore NaNs)
+            vals = np.hstack([
+                pct_team[~np.isnan(pct_team)].ravel() if np.any(~np.isnan(pct_team)) else np.array([0.0]),
+                pct_opp[~np.isnan(pct_opp)].ravel() if np.any(~np.isnan(pct_opp)) else np.array([0.0])
+            ])
+            if vals.size == 0:
+                vmax = 1.0
+            else:
+                vmax = max(abs(np.nanmin(vals)), abs(np.nanmax(vals)), 1.0)
+
+            cmap = plt.get_cmap('RdBu_r')
+            cmap.set_bad(color='white')
+
+            # plot team (left zone) then opponents (right zone) on same axes; NaNs ensure they don't overlap
+            im_team = ax.imshow(pct_team, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
+            im_opp = ax.imshow(pct_opp, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax, zorder=2)
+
+            # add small textual labels for clarity
+            ax.text(-80, 40, f"{team} (offense → left)", fontsize=10, fontweight='bold', ha='left')
+            ax.text(20, 40, f"Opponents (offense → right)", fontsize=10, fontweight='bold', ha='left')
+
+            # shared colorbar
+            cbar = fig.colorbar(im_opp, ax=ax, fraction=0.046, pad=0.04)
+            cbar.set_label('pct change vs league (%)')
+
+            out_png_summary = base_out / f'{season}_{team}_summary.png'
+            fig.tight_layout()
+            fig.savefig(out_png_summary, dpi=150)
+            plt.close(fig)
+        except Exception as e:
+            print('failed to create combined summary plot for', team, e)
+            out_png_summary = None
 
         # save JSON summary
         summary = {
@@ -671,7 +981,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             'team_xg': team_xg,
             'team_seconds': team_seconds,
             'team_xg_per60': (team_xg / team_seconds * 3600.0) if team_seconds > 0 else None,
-            'out_png': str(out_png) if out_png is not None else None,
+            'out_png_summary': str(out_png_summary) if out_png_summary is not None else None,
         }
         # write JSON
         try:
