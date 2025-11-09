@@ -1,34 +1,50 @@
 """
 timing.py
 
-Refactored and streamlined timing utilities originally in
-`timing_brainstorming.py`.
+Refactored timing utilities (clean, documented, and backward-compatible).
 
-Provides small, well-documented helpers to compute time intervals where
-simple conditions hold within a game's events DataFrame and a demo runner
-that aggregates intervals across games.
+This module provides a small collection of helpers useful for computing
+contiguous time intervals in game event DataFrames and for aggregating
+those intervals across games for simple analyses (used by plotting and
+xG mapping code elsewhere in the repo).
 
-Public API (keeps compatibility with previous code that called
-`demo_for_export`):
-  - load_season_df(season, data_dir)
-  - select_team_game(df, team)
-  - intervals_for_condition(df, condition, time_col, verbose)
-  - intervals_for_conditions(df, conditions, time_col, verbose)
-  - add_game_state_relative_column(df, team)
-  - demo_for_export(df, condition=None, verbose=True)
+Design goals:
+  - Readability: small focused helpers with clear docstrings.
+  - Backwards compatibility: function signatures and return structures
+    preserved so callers continue to work unchanged.
+  - Minimal third-party dependencies: only pandas and numpy.
 
-The implementation focuses on clarity and preservation of prior behavior.
+Quick example:
+  from timing import load_season_df, demo_for_export
+  df = load_season_df('20252026')
+  # Run demo on all games in the season (no 'team' provided):
+  res = demo_for_export(df, condition={'game_state':['5v5']})
+
+Note: demo_for_export will attempt to fetch a raw game feed with
+`nhl_api.get_game_feed` for each game id when available; when running
+large batches you may want to pass a DataFrame already containing the
+full game events to avoid network calls.
 """
+
 from pathlib import Path
 from typing import List, Tuple, Dict, Any, Optional
 import pandas as pd
 import numpy as np
 
+# Public API exported by this module. This keeps imports explicit and
+# documents the functions intended for external use.
+__all__ = [
+    'load_season_df', 'select_team_game', 'intervals_for_condition',
+    'intervals_for_conditions', 'add_game_state_relative_column', 'demo_for_export'
+]
+
 
 def load_season_df(season: str = '20252026', data_dir: str = 'data') -> pd.DataFrame:
-    """Load a season-level CSV from a set of likely locations.
+    """Load a season-level CSV from likely locations and return DataFrame.
 
-    Returns an empty DataFrame if no file is found.
+    The function tries several conventional locations then falls back to a
+    recursive search under `data/`. It prints which file was loaded (if
+    any) and returns an empty DataFrame when none is found.
     """
     candidates = [
         Path(data_dir) / season / f"{season}_df.csv",
@@ -61,11 +77,17 @@ def load_season_df(season: str = '20252026', data_dir: str = 'data') -> pd.DataF
 
 
 def select_team_game(df: pd.DataFrame, team: str) -> Optional[Any]:
-    """Return a reasonable list of game ids for `team` from a season df.
+    """Return reasonable game id(s) for `team`.
 
-    If no matches, return None. When games are found, prefer returning
-    a list of numeric game ids (sorted) so callers can choose the most
-    recent. This mirrors prior behavior.
+    This helper is intentionally forgiving: it will attempt to match the
+    provided `team` string against both team abbreviations (home_abb /
+    away_abb) and numeric IDs (home_id / away_id). It returns:
+      - None when no match is found.
+      - A single game id (int or str) when only one found in fallback.
+      - A list of game ids (preferably numeric and sorted) when multiple
+        matching games are present.
+
+    The function is defensive against missing columns and mixed types.
     """
     if df is None or df.empty:
         return None
@@ -140,9 +162,16 @@ def intervals_for_condition(
     time_col: str = 'total_time_elapsed_seconds',
     verbose: bool = False,
 ) -> Tuple[List[Tuple[float, float]], float, float]:
-    """Compute contiguous intervals where `condition` holds in `df`.
+    """Compute contiguous time intervals where `condition` holds.
 
-    Returns (intervals, condition_total_seconds, total_observed_seconds).
+    Implementation notes:
+      - Coerces `time_col` to numeric and drops rows without valid time.
+      - Sorts events by time so that intervals are contiguous in game-time.
+      - Treats a True run in the boolean mask as starting at the time of
+        the first row in the run and ending at the time of the next row
+        after the run (state persists until the next event).
+
+    Returns a tuple: (intervals, seconds_where_condition_true, total_observed_seconds).
     """
     if df is None or df.empty:
         return [], 0.0, 0.0
@@ -273,11 +302,17 @@ def intervals_for_conditions(
 
 
 def add_game_state_relative_column(df: pd.DataFrame, team: Any) -> pd.DataFrame:
-    """Add a column 'game_state_relative_to_team' to a game DataFrame.
+    """Add 'game_state_relative_to_team' which is relative to `team`.
 
-    See prior code for the logic; this version is slightly clearer while
-    preserving the behavior: penalty rows are censored initially, then
-    assigned from nearby faceoffs when possible.
+    For each row the value is:
+      - the existing `game_state` when the acting team is `team`.
+      - the flipped state (e.g. '5v4' -> '4v5') when the acting team is the opponent.
+
+    Penalty rows are treated specially: initially set to None, then when
+    possible they inherit a nearby faceoff's state (exact match on time
+    or the nearest faceoff within 1 second). This heuristic was used in
+    the original code to account for how penalties are logged relative to
+    faceoffs.
     """
     if df is None or df.empty:
         return df
@@ -414,6 +449,58 @@ def add_game_state_relative_column(df: pd.DataFrame, team: Any) -> pd.DataFrame:
 
 
 def demo_for_export(df, condition=None, verbose: bool = False):
+    """Aggregate interval information across games for a condition.
+
+    Behavior preserved from previous implementation:
+      - If `condition` is a dict and contains 'team', analyze games for that team only.
+      - Otherwise analyze every unique game id found in `df`.
+      - For each game compute per-side intervals (team/opponent) and an
+        intersection across the requested analysis conditions.
+      - Aggregate per-game results into per-bucket summaries where the
+        buckets are 'team' (selected/local team) and 'other' (opponent(s)).
+
+    The function returns a dict with keys 'per_game' and 'aggregate'. The
+    structure is intentionally simple and intended for human inspection
+    and downstream plotting.
+
+    Example return structure:
+      {
+        'per_game': {
+          'game_id_1': {
+            'selected_team': 'team_abbrev',
+            'opponent_team': 'opp_abbrev',
+            'sides': {
+              'team': {  # local team
+                'merged_intervals': { 'game_state': [...], ... },
+                'pooled_seconds': { 'game_state': ..., ... },
+                'total_observed': <total_seconds>,
+                'intersection_intervals': [...],
+                'pooled_intersection_seconds': <seconds>,
+              },
+              'opponent': {  # opponent team
+                'merged_intervals': { 'game_state': [...], ... },
+                'pooled_seconds': { 'game_state': ..., ... },
+                'total_observed': <total_seconds>,
+                'intersection_intervals': [...],
+                'pooled_intersection_seconds': <seconds>,
+              },
+            },
+            'game_total_observed_seconds': <total_seconds>,
+          },
+          ...
+        },
+        'aggregate': {
+          'pooled_seconds_per_condition': { 'team': {...}, 'other': {...} },
+          'intervals_per_condition': { 'team': {...}, 'other': {...} },
+          'intersection_pooled_seconds': { 'team': <seconds>, 'other': <seconds> },
+          'intersection_intervals': { 'team': [...], 'other': [...] },
+        },
+      }
+
+    The 'per_game' section contains detailed info for each game processed,
+    while 'aggregate' provides summarized totals and merged interval lists
+    for all games analyzed.
+    """
     import parse
     import nhl_api
     # Determine the team to analyze: prefer condition['team'] when provided; if
@@ -427,9 +514,21 @@ def demo_for_export(df, condition=None, verbose: bool = False):
     # If the condition dict contains keys other than 'team', those keys are
     # used as analysis conditions. Otherwise fall back to defaults.
     if isinstance(condition, dict):
-        analysis_conditions = {k: v for k, v in condition.items() if k != 'team'}
-        if not analysis_conditions:
+        # Pull out non-team keys to use as analysis conditions
+        raw_conditions = {k: v for k, v in condition.items() if k != 'team'}
+        if not raw_conditions:
+            # default analysis conditions
             analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
+        else:
+            # Normalize each value to a list of states. This avoids iterating
+            # a string as characters later when we do `for state in cond_def`.
+            analysis_conditions = {}
+            for k, v in raw_conditions.items():
+                if isinstance(v, (list, tuple, set)):
+                    analysis_conditions[k] = list(v)
+                else:
+                    # For scalar values (including strings/ints), wrap in list
+                    analysis_conditions[k] = [v]
     else:
         analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
 

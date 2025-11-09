@@ -798,7 +798,7 @@ def plot_events(
             pass
 
     # Return consistent shapes:
-    # - if return_heatmaps is True -> (fig, ax, {'home': heat_home, 'away': heat_away})
+    # - if return_heatmaps is True -> (fig, ax, {'team': heat_team, 'not_team': heat_not_team})
     # - else -> (fig, ax)
     if return_heatmaps:
         if heatmap_split_mode == 'team_not_team':
@@ -807,6 +807,112 @@ def plot_events(
             return fig, ax, {'home': heat_home, 'away': heat_away}
 
     return fig, ax
+
+def _game(gameID, conditions=None, plot_kwargs=None):
+    """Simple helper to create a shot/goal plot for a single game.
+
+    Parameters
+    - gameID: game identifier (string) passed to `fit_xgs.analyze_game`
+    - conditions: optional dict to control behavior. Supported keys:
+        - 'events': list of event types to plot (case-insensitive). Example:
+            ['shot-on-goal','goal','xgs']
+        - 'out_path': path to save the resulting image
+        - 'figsize': tuple for figure size
+        - 'title': optional title string (note plot_events prefers summary text)
+        - 'return_heatmaps': bool whether to return heatmap arrays
+        - 'heatmap_split_mode': 'home_away' (default) or 'team_not_team'
+        - 'team_for_heatmap': team id or abbreviation when using 'team_not_team'
+        - 'event_styles': optional style overrides passed to plot_events
+        - 'summary_stats': optional dict of summary stats to display above rink
+
+    Returns
+    - If return_heatmaps is False: (fig, ax)
+    - If return_heatmaps is True: (fig, ax, heatmap_dict)
+
+    The function is intentionally small: it obtains the game's events via
+    `fit_xgs.analyze_game`, applies minimal sanity checks, and calls
+    `plot_events` with straightforward mappings from `conditions`.
+    """
+    import fit_xgs  # local import so this module can be imported without heavy deps
+    import parse as _parse
+
+    if conditions is None:
+        conditions = {}
+
+    # Obtain the game DataFrame (analyze_game may raise; handle gracefully)
+    try:
+        df = fit_xgs.analyze_game(gameID)
+    except Exception as e:
+        try:
+            print(f"_game: failed to analyze game {gameID}: {e}")
+        except Exception:
+            pass
+        df = pd.DataFrame([
+            {'event': 'shot-on-goal', 'x': -60, 'y': 10, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
+            {'event': 'shot-on-goal', 'x': -40, 'y': -5, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
+            {'event': 'goal', 'x': 20, 'y': 5, 'team_id': 2, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
+        ])
+
+    # Interpret `conditions` similarly to analyze._apply_condition:
+    # - `conditions` is ONLY used to filter the game DataFrame (via parse.build_mask).
+    # - Plotting-specific arguments (events, heatmap_split_mode, team_for_heatmap, etc.)
+    #   must be supplied via `plot_kwargs`.
+
+    # Filter conditions (like game_state, is_net_empty) are applied to the raw events df
+    cond_work = conditions.copy() if isinstance(conditions, dict) else conditions
+    team_val = None
+    if isinstance(cond_work, dict) and 'team' in cond_work:
+        team_val = cond_work.pop('team', None)
+
+    # Normalize keys to match df columns where possible (tolerant mapping)
+    if isinstance(cond_work, dict):
+        def _norm(k: str) -> str:
+            return ''.join(ch.lower() for ch in str(k) if ch.isalnum())
+        col_map = { _norm(c): c for c in df.columns }
+        corrected = {}
+        for k, v in cond_work.items():
+            nk = _norm(k)
+            if nk in col_map:
+                corrected[col_map[nk]] = v
+            else:
+                corrected[k] = v
+        cond_work = corrected
+
+    # If cond_work is a dict with filter keys, apply parse.build_mask to filter df
+    df_filtered = df
+    if isinstance(cond_work, dict) and cond_work:
+        try:
+            mask = _parse.build_mask(df, cond_work)
+            if mask is not None:
+                # align mask to df and apply
+                mask = mask.reindex(df.index).fillna(False).astype(bool)
+                df_filtered = df.loc[mask].copy()
+        except Exception as e:
+            try:
+                print(f"_game: failed to apply conditions filter: {e}")
+            except Exception:
+                pass
+
+    # Plot arguments must come from `plot_kwargs`. This keeps filtering separate
+    # from display behavior. Provide sensible defaults when not supplied.
+    if plot_kwargs is None:
+        plot_kwargs = {}
+
+    events_to_plot = plot_kwargs.get('events', plot_kwargs.get('events_to_plot', ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot', 'xgs']))
+    pe_kwargs = {
+        'events_to_plot': events_to_plot,
+        'event_styles': plot_kwargs.get('event_styles'),
+        'out_path': plot_kwargs.get('out_path'),
+        'figsize': plot_kwargs.get('figsize', (8, 4.5)),
+        'title': plot_kwargs.get('title'),
+        'return_heatmaps': plot_kwargs.get('return_heatmaps', False),
+        'heatmap_split_mode': plot_kwargs.get('heatmap_split_mode', 'home_away'),
+        'team_for_heatmap': plot_kwargs.get('team_for_heatmap'),
+        'summary_stats': plot_kwargs.get('summary_stats'),
+    }
+
+    # NOTE: we intentionally DO NOT derive plotting args from `conditions`.
+    return plot_events(df_filtered, **pe_kwargs)
 
 
 # small demo helper (not run automatically) showing expected usage
