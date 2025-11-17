@@ -4,17 +4,23 @@
 from typing import Optional
 
 def xgs_map(season: str = '20252026', *,
-             csv_path: Optional[str] = None,
-             model_path: str = 'static/xg_model.joblib',
-             behavior: str = 'load',
-             out_path: str = 'static/xg_map.png',
-             orient_all_left: bool = False,
-             events_to_plot: Optional[list] = None,
-             show: bool = False,
-             return_heatmaps: bool = True,
-             # when True, return the filtered dataframe used to create the map
-             return_filtered_df: bool = True,
-             condition: Optional[object] = None):
+              csv_path: Optional[str] = None,
+              model_path: str = 'static/xg_model.joblib',
+              behavior: str = 'load',
+              out_path: str = 'static/xg_map.png',
+              orient_all_left: bool = False,
+              events_to_plot: Optional[list] = None,
+              show: bool = False,
+              return_heatmaps: bool = True,
+              # when True, return the filtered dataframe used to create the map
+              return_filtered_df: bool = True,
+              condition: Optional[object] = None,
+              # heatmap-only mode: compute and return heatmap arrays instead of plotting
+              heatmap_only: bool = False,
+              grid_res: float = 1.0,
+              sigma: float = 6.0,
+              normalize_per60: bool = False,
+              selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None):
     """Create an xG density map for a season and save a plot.
 
     This function is intentionally written as a clear sequence of steps with
@@ -152,10 +158,11 @@ def xgs_map(season: str = '20252026', *,
 
         # get classifier (respect behavior, fallback to train on failure)
         try:
-            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=str(chosen_csv))
+            # prefer explicit csv_path if provided; otherwise pass None when using data_df
+            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=csv_path or None)
         except Exception as e:
             print('xgs_map: get_clf failed with', e, '— trying to train a new model')
-            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=str(chosen_csv))
+            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path or None)
 
         # Prepare the model DataFrame using canonical feature list
         features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
@@ -239,9 +246,15 @@ def xgs_map(season: str = '20252026', *,
         return df
 
     # ------------------- Main flow -----------------------------------------
-    chosen_csv = _locate_csv()
-    print('xgs_map: loading CSV ->', chosen_csv)
-    df_all = pd.read_csv(chosen_csv)
+    # Allow caller to pass a pre-loaded DataFrame directly (useful for wrappers)
+    if data_df is not None:
+        df_all = data_df.copy()
+        chosen_csv = None
+        print('xgs_map: using provided DataFrame (in-memory) -> rows=', len(df_all))
+    else:
+        chosen_csv = _locate_csv()
+        print('xgs_map: loading CSV ->', chosen_csv)
+        df_all = pd.read_csv(chosen_csv)
 
     # Apply condition and return filtered dataframe + team_val
     df_filtered, team_val = _apply_condition(df_all)
@@ -592,7 +605,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
     import pandas as pd
     import json
     import matplotlib.pyplot as plt
-    from rink import draw_rink, rink_half_height_at_x
+    from rink import draw_rink
     import parse as _parse
 
     # load season df or accept a provided DataFrame
@@ -671,13 +684,14 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         right. If `selected_team` is None, behavior falls back to the simpler
         `target`-based orientation (all left or all right).
         """
-        import copy
         df2 = df_in.copy()
+
+        # determine goal x positions (try to use helper from plot/rink if available)
         try:
             from plot import rink_goal_xs
             left_goal_x, right_goal_x = rink_goal_xs()
         except Exception:
-            # fallback numeric goal x positions
+            # sensible defaults (distance from center to goal line)
             left_goal_x, right_goal_x = -89.0, 89.0
 
         def attacked_goal_x_for_row(r):
