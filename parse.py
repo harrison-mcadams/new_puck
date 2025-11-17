@@ -1557,6 +1557,234 @@ def _timing(df, condition):
                 # syntactically valid. Future logic can be implemented here.
                 continue
 
+def _shifts(shifts_res: Dict[str, Any], player_ids: Optional[List[Any]] = None, time_is_remaining: bool = False, combine: Optional[str] = None) -> 'pd.DataFrame':
+    """Convert shifts output from `nhl_api.get_shifts` into interval rows.
+
+    Parameters
+    - shifts_res: dict returned by `nhl_api.get_shifts` (expects keys 'all_shifts' and 'shifts_by_player').
+    - player_ids: optional list of player ids to include (int or str). If None, include all players.
+    - time_is_remaining: boolean; if True, parsed start_seconds/end_seconds are treated
+      as the time *remaining* in the period and will be converted to elapsed within the period.
+
+    Returns
+    - pandas.DataFrame with columns:
+        ['game_id','player_id','team_id','period',
+         'start_raw','end_raw','start_seconds','end_seconds',
+         'start_total_seconds','end_total_seconds','duration_seconds','raw']
+
+    Notes
+    - The helper makes a best-effort conversion of period-relative seconds into
+      absolute game seconds using the typical period lengths (1-3 => 1200s, OT => 300s).
+    - If the parsed times are missing or cannot be converted to numbers, the
+      corresponding total seconds will be None.
+    - Converting to `total_seconds` here uses the `period` field reported in the
+      shift entry; if that is missing this routine leaves total fields as None.
+    """
+    import pandas as _pd
+    import logging
+
+    if not shifts_res or not isinstance(shifts_res, dict):
+        logging.debug('_shifts(): empty or malformed shifts_res; returning empty DataFrame')
+        return _pd.DataFrame()
+
+    all_shifts = shifts_res.get('all_shifts') or []
+    if not isinstance(all_shifts, list):
+        logging.debug('_shifts(): expected all_shifts list in shifts_res; found %s', type(all_shifts))
+        return _pd.DataFrame()
+
+    # normalize player_ids to strings for tolerant comparison
+    pid_filter = None
+    if player_ids is not None:
+        pid_filter = set([str(p) for p in player_ids])
+
+    rows = []
+    for s in all_shifts:
+        if not isinstance(s, dict):
+            continue
+        pid = s.get('player_id')
+        if pid_filter is not None:
+            if str(pid) not in pid_filter:
+                continue
+
+        team_id = s.get('team_id')
+        period = s.get('period')
+        try:
+            per_num = int(period) if period is not None else None
+        except Exception:
+            per_num = None
+
+        start_secs = s.get('start_seconds')
+        end_secs = s.get('end_seconds')
+
+        # choose period length: regulation periods 1-3 -> 1200s, overtime -> 300s
+        per_len = 1200 if (per_num is None or per_num <= 3) else 300
+
+        def _to_total(sec_val):
+            if sec_val is None:
+                return None
+            try:
+                sec_int = int(sec_val)
+            except Exception:
+                try:
+                    sec_int = int(float(sec_val))
+                except Exception:
+                    return None
+            if time_is_remaining:
+                per_elapsed = max(0, per_len - sec_int)
+            else:
+                per_elapsed = sec_int
+            if per_num is None:
+                return None
+            try:
+                if per_num <= 3:
+                    return (per_num - 1) * 1200 + per_elapsed
+                else:
+                    return 3 * 1200 + (per_num - 4) * 300 + per_elapsed
+            except Exception:
+                return None
+
+        start_total = _to_total(start_secs)
+        end_total = _to_total(end_secs)
+
+        duration = None
+        if start_total is not None and end_total is not None:
+            # ensure non-negative
+            try:
+                duration = max(0, int(end_total) - int(start_total))
+            except Exception:
+                duration = None
+
+        rows.append({
+            'game_id': s.get('game_id'),
+            'player_id': pid,
+            'team_id': team_id,
+            'period': per_num,
+            'start_raw': s.get('start_raw'),
+            'end_raw': s.get('end_raw'),
+            'start_seconds': start_secs,
+            'end_seconds': end_secs,
+            'start_total_seconds': start_total,
+            'end_total_seconds': end_total,
+            'duration_seconds': duration,
+            'raw': s.get('raw'),
+        })
+
+    df = _pd.DataFrame(rows)
+    logging.debug('_shifts(): produced %d shift-interval rows (filter players=%s)', len(df), bool(pid_filter))
+    # If no combine requested, return the per-shift rows as before
+    if not player_ids or not combine:
+        return df
+
+    # Normalize combine parameter
+    cmb = str(combine).strip().lower() if combine is not None else None
+    if cmb not in {None, '', 'union', 'intersection'}:
+        logging.warning("_shifts(): unknown combine=%s; returning per-shift rows", combine)
+        return df
+
+    # Build per-player interval lists using total seconds only (skip rows without totals)
+    per_player_intervals = {}
+    for pid in player_ids:
+        pid_str = str(pid)
+        player_rows = df[df['player_id'].astype(str) == pid_str]
+        intervals = []
+        for _, r in player_rows.iterrows():
+            s = r.get('start_total_seconds')
+            e = r.get('end_total_seconds')
+            if s is None or e is None:
+                continue
+            try:
+                si = int(s); ei = int(e)
+            except Exception:
+                continue
+            if ei <= si:
+                continue
+            intervals.append((si, ei))
+        # sort intervals by start
+        intervals.sort(key=lambda x: x[0])
+        per_player_intervals[pid_str] = intervals
+
+    # Helper: merge overlapping/adjacent intervals
+    def _merge(intervals_list):
+        if not intervals_list:
+            return []
+        merged = []
+        cur_s, cur_e = intervals_list[0]
+        for s, e in intervals_list[1:]:
+            if s <= cur_e + 0:  # allow direct adjacency
+                cur_e = max(cur_e, e)
+            else:
+                merged.append((cur_s, cur_e))
+                cur_s, cur_e = s, e
+        merged.append((cur_s, cur_e))
+        return merged
+
+    # Helper: intersect two interval lists (both sorted, non-overlapping)
+    def _intersect(list_a, list_b):
+        i = 0; j = 0
+        out = []
+        while i < len(list_a) and j < len(list_b):
+            a_s, a_e = list_a[i]
+            b_s, b_e = list_b[j]
+            # find overlap
+            s = max(a_s, b_s)
+            e = min(a_e, b_e)
+            if s < e:
+                out.append((s, e))
+            # advance the interval that ends first
+            if a_e < b_e:
+                i += 1
+            else:
+                j += 1
+        return out
+
+    # Prepare lists: ensure each player's intervals are merged (non-overlapping)
+    merged_map = {pid: _merge(per_player_intervals.get(pid, [])) for pid in per_player_intervals}
+
+    combined_intervals = []
+    if cmb == 'union':
+        # union: collect all intervals from all players, merge them
+        all_intervals = []
+        for lst in merged_map.values():
+            all_intervals.extend(lst)
+        all_intervals.sort(key=lambda x: x[0])
+        combined_intervals = _merge(all_intervals)
+
+    elif cmb == 'intersection':
+        # intersection: start with first player's merged intervals and intersect sequentially
+        pid_keys = list(merged_map.keys())
+        if not pid_keys:
+            combined_intervals = []
+        else:
+            current = merged_map.get(pid_keys[0], [])
+            for k in pid_keys[1:]:
+                current = _intersect(current, merged_map.get(k, []))
+                if not current:
+                    break
+            combined_intervals = current
+
+    # Build a DataFrame from combined_intervals
+    combined_rows = []
+    for (s, e) in combined_intervals:
+        combined_rows.append({
+            'game_id': df['game_id'].iloc[0] if not df.empty else shifts_res.get('game_id'),
+            'player_id': None,
+            'team_id': None,
+            'period': None,
+            'start_raw': None,
+            'end_raw': None,
+            'start_seconds': None,
+            'end_seconds': None,
+            'start_total_seconds': s,
+            'end_total_seconds': e,
+            'duration_seconds': e - s,
+            'player_ids': list(per_player_intervals.keys()),
+            'raw': None,
+        })
+
+    cdf = _pd.DataFrame.from_records(combined_rows)
+    logging.debug('_shifts(): returning combined intervals (%s) count=%d', cmb, len(cdf))
+    return cdf
+
 if __name__ == '__main__':
 
     # let's scrape from seasons starting in 2014
