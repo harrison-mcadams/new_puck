@@ -4,8 +4,200 @@
 from typing import Optional
 import pandas as pd
 
-def xgs_map(season: str = '20252026', *,
-              csv_path: Optional[str] = None,
+def _league(season: Optional[str] = '20252026',
+            csv_path: Optional[str] = None,
+            teams: Optional[list] = None):
+    """
+    Compute league-wide xG heatmaps by pooling all teams' left-side results.
+
+    Optional `teams` allows limiting which teams to process (useful for testing).
+
+    Behavior:
+      - Loads the team list from static/teams.json.
+      - Calls `xgs_map` per team (with the team set in the condition) and
+        extracts the 'left' heatmap (team-facing) and the per-team seconds.
+      - Sums the left heatmaps across teams and sums the left_seconds.
+      - Normalizes the combined left heatmap to xG per 60 minutes by using the
+        summed left_seconds as the denominator.
+      - Saves the combined heatmap as a .npy and a PNG under static/.
+
+    Returns:
+      dict with keys:
+        - combined_norm: 2D numpy array (normalized to xG per 60)
+        - total_left_seconds: float
+        - total_left_xg: float (integral of raw summed left heat)
+        - stats: summary dict
+    """
+    import json
+    import numpy as np
+    import os
+    import matplotlib.pyplot as plt
+
+    # Load team list from static/teams.json unless explicit `teams` provided
+    if teams is None:
+        teams_path = os.path.join('static', 'teams.json')
+        with open(teams_path, 'r') as f:
+            teams_data = json.load(f)
+        team_list = [t.get('abbr') for t in teams_data if 'abbr' in t]
+    else:
+        team_list = list(teams)
+
+    condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+
+    left_maps = []
+    left_seconds = []
+    pooled_output = {}
+
+    for team in team_list:
+        condition['team'] = team
+        # call xgs_map robustly and unpack returned elements
+        try:
+            out_path, ret_heat, ret_df, summary_stats = xgs_map(
+                season=season,
+                csv_path=csv_path,
+                model_path='static/xg_model.joblib',
+                behavior='load',
+                out_path=f'static/{team}_xg_map.png',
+                orient_all_left=False,
+                events_to_plot=None,
+                show=False,
+                return_heatmaps=True,
+                condition=condition
+            )
+        except Exception as e:
+            # skip team on failure but record error
+            pooled_output[team] = {'error': str(e)}
+            continue
+
+        # unpack safely
+        heatmaps = ret_heat
+        df_filtered = ret_df
+
+        # extract left heatmap (team-facing). Accept keys 'team' or 'home' as fallback
+        left_h = None
+        if isinstance(heatmaps, dict):
+            # avoid using `or` on arrays (truth-value ambiguous)
+            if heatmaps.get('team') is not None:
+                left_h = heatmaps.get('team')
+            elif heatmaps.get('home') is not None:
+                left_h = heatmaps.get('home')
+        elif heatmaps is not None:
+            # if it's an array directly
+            left_h = heatmaps
+
+        # extract per-team seconds if available from summary_stats
+        sec = None
+        try:
+            sec = float(summary_stats.get('team_seconds')) if isinstance(summary_stats, dict) and summary_stats.get('team_seconds') is not None else None
+        except Exception:
+            sec = None
+
+        # fallback: try to estimate seconds from df_filtered using timing.demo_for_export
+        if (sec is None or sec == 0.0) and df_filtered is not None:
+            try:
+                import timing
+                t_res = timing.demo_for_export(df_filtered, {'team': team})
+                agg = t_res.get('aggregate', {}) if isinstance(t_res, dict) else {}
+                inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
+                sec = float(inter.get('team') or 0.0)
+            except Exception:
+                sec = 0.0
+
+        # record
+        pooled_output[team] = {
+            'left_map': left_h,
+            'seconds': sec,
+            'out_path': out_path,
+            'df_filtered_shape': df_filtered.shape if df_filtered is not None else None,
+            'summary_stats': summary_stats,
+        }
+
+        if left_h is not None:
+            left_maps.append(left_h)
+            left_seconds.append(float(sec or 0.0))
+
+    # sum left heatmaps
+    if left_maps:
+        # ensure consistent shapes: find first non-None shape
+        base_shape = None
+        for h in left_maps:
+            if h is not None:
+                base_shape = np.array(h).shape
+                break
+        # re-stack with nan for missing cells
+        aligned = []
+        for h in left_maps:
+            if h is None:
+                aligned.append(np.full(base_shape, np.nan))
+            else:
+                arr = np.asarray(h, dtype=float)
+                if arr.shape != base_shape:
+                    # try to broadcast or resize: raise for now
+                    raise ValueError(f'Incompatible heatmap shape for team: expected {base_shape}, got {arr.shape}')
+                aligned.append(arr)
+        left_sum = np.nansum(np.stack(aligned, axis=0), axis=0)
+    else:
+        left_sum = None
+
+    total_left_seconds = float(sum(left_seconds)) if left_seconds else 0.0
+
+    # Avoid divide-by-zero by using at least 1.0 second if zero (but warn)
+    if total_left_seconds <= 0.0:
+        total_left_seconds = 1.0
+
+    # Normalize to xG per 60min
+    combined_norm = None
+    total_left_xg = 0.0
+    if left_sum is not None:
+        combined_norm = left_sum / total_left_seconds * 3600.0
+        # total raw xG (integral of left_sum)
+        total_left_xg = float(np.nansum(left_sum))
+
+    # Save out combined heatmap to static
+    try:
+        out_dir = os.path.join('static')
+        os.makedirs(out_dir, exist_ok=True)
+        np.save(os.path.join(out_dir, f'{season}_league_left_combined.npy'), combined_norm)
+        # also save a PNG visual using masked array
+        if combined_norm is not None:
+            try:
+                m = np.ma.masked_invalid(combined_norm)
+                fig, ax = plt.subplots(figsize=(8, 4.5))
+                from rink import draw_rink
+                draw_rink(ax=ax)
+                extent = None
+                # try to infer extent from gx/gy in code that generated heatmaps (fallback to rink extents)
+                gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
+                gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
+                extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
+                cmap = plt.get_cmap('viridis')
+                try:
+                    cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
+                except Exception:
+                    pass
+                ax.imshow(m, extent=extent, origin='lower', cmap=cmap)
+                fig.savefig(os.path.join(out_dir, f'{season}_league_left_combined.png'), dpi=150)
+                plt.close(fig)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    stats = {
+        'season': season,
+        'total_left_seconds': total_left_seconds,
+        'total_left_xg': total_left_xg,
+        'xg_per60': float(np.nansum(combined_norm)) if combined_norm is not None else 0.0,
+        'n_teams': len(team_list),
+    }
+
+    return {'combined_norm': combined_norm, 'total_left_seconds': total_left_seconds, 'total_left_xg': total_left_xg, 'stats': stats, 'per_team': pooled_output}
+
+
+def xgs_map(season: Optional[str] = '20252026', *,
+            game_id: Optional[str] = None,
+
+            csv_path: Optional[str] = None,
               model_path: str = 'static/xg_model.joblib',
               behavior: str = 'load',
               out_path: str = 'static/xg_map.png',
@@ -20,7 +212,7 @@ def xgs_map(season: str = '20252026', *,
               heatmap_only: bool = False,
               grid_res: float = 1.0,
               sigma: float = 6.0,
-              normalize_per60: bool = True,
+              normalize_per60: bool = False,
               selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None,
               # new interval filtering behavior
               use_intervals: bool = True,
@@ -468,7 +660,7 @@ def xgs_map(season: str = '20252026', *,
     # Determine return structure: always return (out_path, heatmaps_or_None, filtered_df_or_None)
     ret_heat = heatmaps if return_heatmaps else None
     ret_df = df_filtered.copy() if ('df_filtered' in locals() and return_filtered_df) else None
-    return out_path, ret_heat, ret_df
+    return out_path, ret_heat, ret_df, summary_stats
 
 
 # ----------------- xG heatmap helpers (moved above the CLI so they are available)
@@ -745,8 +937,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         ('left' or 'right') or relative to a `selected_team`.
 
         If `selected_team` is provided, rows where the shooter matches
-        `selected_team` will be oriented to the left and all other rows to the
-        right. If `selected_team` is None, behavior falls back to the simpler
+        `selected_team` will be oriented to the left and all other rows to the right. If `selected_team` is None, behavior falls back to the simpler
         `target`-based orientation (all left or all right).
         """
         df2 = df_in.copy()
@@ -1094,7 +1285,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             except Exception:
                 t_secs = 0.0
             try:
-                o_secs = float(opp_seconds or 0.0)
+                o_secs = float(other_seconds or 0.0)
             except Exception:
                 o_secs = 0.0
 
@@ -1239,117 +1430,6 @@ if __name__ == '__main__':
     parser.add_argument('--run-all', action='store_true', help='Run '
                                                                'full-season '
                                                                'xG maps for '
-                                                               'all teams ('
-                                                               'simple '
-                                                               'demo)')
-    args = parser.parse_args()
+                                                                   'all teams')
 
-    # Default condition used by both single-game xgs_map and the full-season run.
-    # Edit this block directly to change the condition used in the quick full-season run.
-    condition = {'game_state': ['5v4'],
-                 'is_net_empty': [0]}
-    if args.team:
-        condition['team'] = args.team
-
-    print(f"Running xgs_map for season={args.season} team={args.team!r} out={args.out} behavior={args.behavior}")
-
-    try:
-        import parse
-
-        # If --run-all was provided, run the season-level mapping across all teams
-        if args.run_all:
-            # Parameters for the full-season maps. Tune these for speed/quality:
-            #  - grid_res: 1.0 (1 ft) is fine-quality; use 2.0/5.0 for faster runs
-            #  - sigma: gaussian kernel width in feet (6.0 is a reasonable default)
-            #  - min_events: skip teams with fewer than this many events
-            grid_res = 1.0
-            sigma = 6.0
-            min_events = 20
-            out_dir = 'static/league_vs_team_maps'
-
-            print(f"Running full-season xG maps for season {args.season} with condition={condition}")
-            results = xg_maps_for_season(args.season, condition=condition, grid_res=grid_res, sigma=sigma, out_dir=out_dir, min_events=min_events)
-            print('Full-season xG maps completed. Results keys:', list(results.keys()))
-            # Print a small summary for convenience
-            try:
-                print('League total xG:', results['league'].get('xg_total'))
-            except Exception:
-                pass
-            raise SystemExit(0)
-
-        # Otherwise run the existing one-game/one-season plotting example via xgs_map
-        out_path, heatmaps, df_filtered = xgs_map(season=args.season,
-                         csv_path=args.csv_path,
-                         model_path='static/xg_model.joblib',
-                         behavior=args.behavior,
-                         out_path=args.out,
-                         orient_all_left=args.orient_all_left,
-                         events_to_plot=None,
-                         show=False,
-                         return_heatmaps=args.return_heatmaps,
-                         condition=condition)
-        print('xgs_map completed. out=', out_path)
-        print('heatmaps:', bool(heatmaps))
-
-        import timing
-        # Pass the same `condition` dict used to filter the season into
-        # `demo_for_export`. `demo_for_export` will internally derive the
-        # analysis conditions from this `condition` (or fall back to defaults).
-        timing_result = timing.demo_for_export(df_filtered, condition)
-
-        # Print summary stats about xGs per 60 minutes
-        def _safe_heat_sum(hm, key):
-            try:
-                if hm is None:
-                    return 0.0
-                if isinstance(hm, dict) and key in hm and hm[key] is not None:
-                    import numpy as _np
-                    return float(_np.nansum(hm[key]))
-            except Exception:
-                pass
-            return 0.0
-
-        # Heatmap keys may be ('team','not_team') or ('home','away') depending on split mode
-        team_xgs = 0.0
-        other_xgs = 0.0
-        try:
-            if isinstance(heatmaps, dict):
-                if 'team' in heatmaps or 'not_team' in heatmaps:
-                    team_xgs = _safe_heat_sum(heatmaps, 'team')
-                    other_xgs = _safe_heat_sum(heatmaps, 'not_team')
-                else:
-                    team_xgs = _safe_heat_sum(heatmaps, 'home')
-                    other_xgs = _safe_heat_sum(heatmaps, 'away')
-        except Exception:
-            team_xgs = other_xgs = 0.0
-
-        # Extract intersection times from timing_result (seconds)
-        try:
-            agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
-            inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
-            team_seconds = float(inter.get('team') or 0.0)
-            other_seconds = float(inter.get('other') or 0.0)
-        except Exception:
-            team_seconds = other_seconds = 0.0
-
-        # Compute xG per 60 minutes (xG/60)
-        team_xg_per60 = (team_xgs / team_seconds * 3600.0) if team_seconds > 0 else 0.0
-        other_xg_per60 = (other_xgs / other_seconds * 3600.0) if other_seconds > 0 else 0.0
-
-        print(f"Summary: team xGS={team_xgs:.3f} over {team_seconds/60:.2f} min -> {team_xg_per60:.3f} xG/60", flush=True)
-        print(f"Summary: other xGS={other_xgs:.3f} over {other_seconds/60:.2f} min -> {other_xg_per60:.3f} xG/60", flush=True)
-
-
-        if df_filtered is not None:
-            print('Filtered df:', df_filtered.shape)
-            if df_filtered.shape[0] > 0:
-                print(df_filtered[['x', 'y', 'xgs']].describe())
-    except FileNotFoundError as fe:
-        print('Error: could not find season CSV or required files:', fe)
-    except SystemExit:
-        # allow clean exit from run-all
-        pass
-    except Exception as e:
-        import traceback as _tb
-        print('xgs_map failed:', type(e).__name__, e)
-        _tb.print_exc()
+    _league()
