@@ -285,15 +285,224 @@ def get_game_feed(game_id: int, max_retries: int = 8, backoff_base: float =
 
     raise requests.exceptions.HTTPError(f'Failed to fetch game feed for {game_id} after {max_retries} attempts')
 
+def get_shifts(game_id):
+    """Fetch and return the shifts feed JSON for the requested game.
+
+    This function is intentionally defensive and debug-friendly. It returns a
+    dictionary containing:
+      - 'game_id': the input game id
+      - 'raw': the raw JSON returned by the NHL API (or None on error)
+      - 'all_shifts': a flat list of shift dicts discovered in the payload
+      - 'shifts_by_player': a dict mapping player_id -> list of parsed shift dicts
+
+    The parser uses heuristic rules to extract common fields from varying
+    JSON shapes. For each parsed shift we attempt to pull out:
+      - player_id (int or string)
+      - team_id (when available)
+      - period (when available)
+      - start_raw / end_raw: original values from the feed
+      - start_seconds / end_seconds: best-effort numeric parse for MM:SS style values
+      - raw: the original shift dict
+
+    The function deliberately does not attempt to convert period-relative
+    MM:SS "time remaining" values into absolute game seconds because the
+    feed formats vary (some report time remaining, some report elapsed). The
+    timing module will be responsible for consistent conversion when it has
+    the full game context.
+    """
+    import logging
+    from time import sleep
+
+    url = ('https://api.nhle.com/stats/rest/en/shiftcharts?cayenneExp=gameId='
+           + str(game_id))
+    # simple retry loop to be resilient to transient network / rate errors
+    max_retries = 4
+    backoff = 1.0
+    resp = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = SESSION.get(url, timeout=10)
+            resp.raise_for_status()
+            break
+        except requests.exceptions.HTTPError as he:
+            status = getattr(resp, 'status_code', None) if resp is not None else None
+            if status == 429:
+                # rate limited; wait then retry
+                ra = None
+                try:
+                    ra = resp.headers.get('Retry-After')
+                except Exception:
+                    ra = None
+                wait = backoff if ra is None else float(ra) if ra.isdigit() else backoff
+                wait = min(300.0, wait) + random.uniform(0, 1.0)
+                logging.warning('get_shifts: 429 for game %s, sleeping %.1fs (Retry-After=%s)', game_id, wait, ra)
+                sleep(wait)
+                backoff = min(300.0, backoff * 2)
+                continue
+            if status == 403:
+                logging.warning('get_shifts: access denied (403) for game %s; returning empty structure', game_id)
+                return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}}
+            # non-retryable; re-raise
+            raise
+        except requests.exceptions.RequestException as re:
+            logging.warning('get_shifts network error for game %s: %s; attempt %d/%d', game_id, re, attempt, max_retries)
+            sleep(backoff + random.uniform(0, 1.0))
+            backoff = min(300.0, backoff * 2)
+            continue
+
+    if resp is None:
+        return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}}
+
+    try:
+        data = resp.json()
+    except Exception as e:
+        logging.warning('get_shifts: failed to parse JSON for game %s: %s', game_id, e)
+        return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}}
+
+    # Heuristic: collect lists of candidate shift entries from the JSON payload
+    candidates = []
+
+    def _collect_lists(obj):
+        """Recursively collect lists of dict-like items that look like shifts."""
+        if isinstance(obj, list):
+            # if list of dicts where dicts have 'player' or 'playerId' or 'personId', consider it
+            if obj and all(isinstance(i, dict) for i in obj):
+                sample = obj[0]
+                keys = set(sample.keys())
+                if keys & {'playerId', 'player_id', 'personId', 'player'} or keys & {'start', 'startTime', 'start_time', 'startTimeUTC'}:
+                    candidates.append(obj)
+            # still traverse list elements
+            for el in obj:
+                _collect_lists(el)
+        elif isinstance(obj, dict):
+            for v in obj.values():
+                _collect_lists(v)
+
+    _collect_lists(data)
+
+    # If we didn't find any obvious lists, try a few common top-level keys
+    if not candidates:
+        for k in ('shifts', 'data', 'shiftReports', 'shiftReport'):
+            if isinstance(data.get(k), list):
+                candidates.append(data.get(k))
+            elif isinstance(data.get(k), dict):
+                # sometimes shifts are nested under team keys
+                for v in data.get(k).values():
+                    if isinstance(v, list):
+                        candidates.append(v)
+
+    all_shifts = []
+
+    def _parse_time_to_seconds(s: Any) -> Optional[float]:
+        """Best-effort parse of MM:SS or M:SS strings to seconds (returns None if unknown)."""
+        if s is None:
+            return None
+        if isinstance(s, (int, float)):
+            return float(s)
+        if isinstance(s, str):
+            s = s.strip()
+            # match mm:ss or m:ss
+            import re
+            m = re.match(r'^(\d+):(\d{2})$', s)
+            if m:
+                try:
+                    mm = int(m.group(1))
+                    ss = int(m.group(2))
+                    return float(mm * 60 + ss)
+                except Exception:
+                    return None
+            # try ISO timestamp
+            try:
+                from datetime import datetime
+                if 'T' in s:
+                    dt = datetime.fromisoformat(s.replace('Z', '+00:00'))
+                    return dt.timestamp()
+            except Exception:
+                pass
+        return None
+
+    for lst in candidates:
+        for entry in lst:
+            if not isinstance(entry, dict):
+                continue
+            # try to extract player id
+            pid = None
+            for k in ('playerId', 'player_id', 'personId', 'playerIdRef'):
+                if k in entry:
+                    pid = entry.get(k)
+                    break
+            # sometimes nested 'player' object exists
+            if pid is None and 'player' in entry and isinstance(entry.get('player'), dict):
+                pid = entry.get('player').get('id') or entry.get('player').get('playerId')
+            # team id
+            tid = None
+            for k in ('teamId', 'team_id', 'teamIdRef'):
+                if k in entry:
+                    tid = entry.get(k)
+                    break
+            if tid is None and 'team' in entry and isinstance(entry.get('team'), dict):
+                tid = entry.get('team').get('id') or entry.get('team').get('teamId')
+
+            period = entry.get('period') or entry.get('periodNumber') or entry.get('p')
+
+            start_raw = entry.get('start') or entry.get('startTime') or entry.get('start_time') or entry.get('startTimeUTC')
+            end_raw = entry.get('end') or entry.get('endTime') or entry.get('end_time') or entry.get('endTimeUTC')
+
+            start_seconds = _parse_time_to_seconds(start_raw)
+            end_seconds = _parse_time_to_seconds(end_raw)
+
+            shift_parsed = {
+                'game_id': game_id,
+                'player_id': pid,
+                'team_id': tid,
+                'period': period,
+                'start_raw': start_raw,
+                'end_raw': end_raw,
+                'start_seconds': start_seconds,
+                'end_seconds': end_seconds,
+                'raw': entry,
+            }
+            all_shifts.append(shift_parsed)
+
+    # group by player
+    shifts_by_player = {}
+    for s in all_shifts:
+        key = s.get('player_id') or 'unknown'
+        shifts_by_player.setdefault(key, []).append(s)
+
+    return {
+        'game_id': game_id,
+        'raw': data,
+        'all_shifts': all_shifts,
+        'shifts_by_player': shifts_by_player,
+    }
+
 
 if __name__ == "__main__":
     # keep original main behavior for quick command-line inspection
     # show the most-recent PHI game by default
-    #games = get_season(team='all')
-
     game_id = get_game_id(method='most_recent', team='PHI')
+
+    # basic play-by-play feed summary
     feed = get_game_feed(game_id)
     print('GameID:', game_id)
-    # print a small summary
     if isinstance(feed, dict):
         print('Feed keys:', list(feed.keys())[:10])
+
+    # Debug: fetch and summarize shifts to help development of timing/shift logic
+    print('\nDebug: fetching shifts for game', game_id)
+    shifts_res = get_shifts(game_id)
+
+    if not shifts_res or shifts_res.get('raw') is None:
+        print('No shifts data available (possible 403 or parsing error).')
+    else:
+        total_shifts = len(shifts_res.get('all_shifts', []))
+        n_players = len(shifts_res.get('shifts_by_player', {}))
+        print(f'Parsed shifts: total={total_shifts}, players={n_players}')
+        # Print a small sample (first 3) for quick inspection
+        for i, s in enumerate(shifts_res.get('all_shifts', [])[:3]):
+            print(f' SAMPLE {i+1}: player={s.get("player_id")}, team={s.get("team_id")}, period={s.get("period")}, start={s.get("start_raw")}, end={s.get("end_raw")}')
+
+    # For deeper debugging you can inspect `shifts_res['raw']` or
+    # `shifts_res['shifts_by_player']` programmatically
+
