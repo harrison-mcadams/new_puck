@@ -704,6 +704,20 @@ def demo_for_export(df, condition=None, verbose: bool = False):
         if gdf is None or gdf.empty:
             continue
 
+        # --- Move player_cond_key/player_ids logic here, per game ---
+        player_ids = None
+        player_cond_key = None
+        if isinstance(condition, dict):
+            for k in ('player_id', 'player_ids'):
+                if k in condition:
+                    player_cond_key = k
+                    v = condition[k]
+                    if isinstance(v, (list, tuple, set)):
+                        player_ids = list(v)
+                    else:
+                        player_ids = [v]
+                    break
+
         # infer basic game metadata
         try:
             home_id = gdf['home_id'].dropna().unique().tolist()[0] if 'home_id' in gdf.columns else None
@@ -782,22 +796,42 @@ def demo_for_export(df, condition=None, verbose: bool = False):
 
             for cond_label, cond_def in analysis_conditions.items():
                 all_intervals: List[Tuple[float, float]] = []
-                for state in cond_def:
-                    if cond_label == 'game_state':
-                        cond_dict = {'game_state_relative_to_team': state}
-                    else:
-                        cond_dict = {cond_label: state}
+                # --- New: handle player_id/player_ids as a special condition ---
+                if player_cond_key and cond_label == player_cond_key:
+                    # For this condition, use shift intervals (intersection across players)
                     try:
-                        intervals, _, _ = intervals_for_condition(df_side, cond_dict, time_col='total_time_elapsed_seconds', verbose=verbose)
-                        for it in intervals:
-                            try:
-                                all_intervals.append((float(it[0]), float(it[1])))
-                            except Exception:
-                                continue
+                        # Fetch shifts for this game
+                        shifts_res = nhl_api.get_shifts(gid)
+                        # Use parse._shifts with combine='intersection'
+                        shift_df = parse._shifts(shifts_res, player_ids=player_ids, combine='intersection')
+                        # Extract intervals as (start_total_seconds, end_total_seconds)
+                        for _, row in shift_df.iterrows():
+                            s = row.get('start_total_seconds')
+                            e = row.get('end_total_seconds')
+                            if s is not None and e is not None and e > s:
+                                all_intervals.append((float(s), float(e)))
                     except Exception as e:
                         if verbose:
-                            print(f"[debug] demo_for_export: intervals_for_condition failed for {side_label} - {cond_label} state={state}: {e}")
+                            print(f"[debug] demo_for_export: failed to get shift intervals for {side_label} - {cond_label}: {e}")
                         continue
+                else:
+                    # --- Existing logic for other conditions ---
+                    for state in cond_def:
+                        if cond_label == 'game_state':
+                            cond_dict = {'game_state_relative_to_team': state}
+                        else:
+                            cond_dict = {cond_label: state}
+                        try:
+                            intervals, _, _ = intervals_for_condition(df_side, cond_dict, time_col='total_time_elapsed_seconds', verbose=verbose)
+                            for it in intervals:
+                                try:
+                                    all_intervals.append((float(it[0]), float(it[1])))
+                                except Exception:
+                                    continue
+                        except Exception as e:
+                            if verbose:
+                                print(f"[debug] demo_for_export: intervals_for_condition failed for {side_label} - {cond_label} state={state}: {e}")
+                            continue
 
                 merged_intervals = _merge_intervals(all_intervals)
                 pooled = sum((e - s) for s, e in merged_intervals) if merged_intervals else 0.0
