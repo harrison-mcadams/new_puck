@@ -2,6 +2,7 @@
 
 
 from typing import Optional
+import pandas as pd
 
 def xgs_map(season: str = '20252026', *,
               csv_path: Optional[str] = None,
@@ -20,7 +21,12 @@ def xgs_map(season: str = '20252026', *,
               grid_res: float = 1.0,
               sigma: float = 6.0,
               normalize_per60: bool = False,
-              selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None):
+              selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None,
+              # new interval filtering behavior
+              use_intervals: bool = True,
+
+              intervals_input: Optional[object] = None,
+              interval_time_col: str = 'total_time_elapsed_seconds'):
     """Create an xG density map for a season and save a plot.
 
     This function is intentionally written as a clear sequence of steps with
@@ -45,7 +51,6 @@ def xgs_map(season: str = '20252026', *,
 
     # Local imports placed here to avoid module-level side-effects when importing analyze
     from pathlib import Path
-    import pandas as pd
     import numpy as np
     import fit_xgs
     import plot as plot_mod
@@ -237,13 +242,48 @@ def xgs_map(season: str = '20252026', *,
 
             desired_goal = df.apply(lambda r: left_goal_x if is_selected(r) else right_goal_x, axis=1)
             mask_rotate = (attacked_x != desired_goal) & df['x'].notna() & df['y'].notna()
-            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']]
+            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']].values
 
         elif orient_all_left:
             mask_rotate = (attacked_x == right_goal_x) & df['x'].notna() & df['y'].notna()
-            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']]
+            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']].values
 
         return df
+
+    def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_time_elapsed_seconds', team_val: Optional[object] = None) -> pd.DataFrame:
+        """
+        Filters the input dataframe to include only rows where the event time falls within the specified intervals.
+
+        Args:
+            df_in (pd.DataFrame): The input dataframe containing event data.
+            intervals_obj (dict): The intervals object containing per-game intersection intervals.
+            time_col (str): The column name in df_in representing the event time.
+            team_val (Optional[object]): The team identifier to extract team-specific intervals.
+
+        Returns:
+            pd.DataFrame: A filtered dataframe containing only rows within the specified intervals.
+        """
+        filtered_rows = []
+
+        # Iterate over each game_id in the intervals object
+        for game_id, game_data in intervals_obj.get('per_game', {}).items():
+            # Extract the intersection intervals for the specified team
+            team_intervals = game_data['sides']['team'][
+            'intersection_intervals']
+
+            if not team_intervals:
+                continue  # Skip if no intervals are defined for this team
+
+            # Filter the dataframe for the current game_id
+            df_game = df_in[df_in['game_id'] == game_id]
+
+            # Check if each row's time_col value falls within the team_intervals
+            for _, row in df_game.iterrows():
+                if any(start <= row[time_col] <= end for start, end in team_intervals):
+                    filtered_rows.append(row)
+
+        # Create a new dataframe from the filtered rows
+        return pd.DataFrame(filtered_rows, columns=df_in.columns)
 
     # ------------------- Main flow -----------------------------------------
     # Allow caller to pass a pre-loaded DataFrame directly (useful for wrappers)
@@ -256,8 +296,28 @@ def xgs_map(season: str = '20252026', *,
         print('xgs_map: loading CSV ->', chosen_csv)
         df_all = pd.read_csv(chosen_csv)
 
-    # Apply condition and return filtered dataframe + team_val
-    df_filtered, team_val = _apply_condition(df_all)
+    # --- Single timing call: call timing.demo_for_export once on the full dataset
+    try:
+        import timing
+        try:
+            timing_full = timing.demo_for_export(df_all, condition)
+        except Exception:
+            # ensure a consistent dict shape
+            timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
+    except Exception:
+        timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
+
+    # Apply filtering: either by condition or by intervals
+    if use_intervals:
+        intervals = intervals_input if intervals_input is not None else timing_full
+        team_param = None
+        if isinstance(condition, dict):
+            team_param = condition.get('team')
+        df_filtered = _apply_intervals(df_all, intervals, time_col=interval_time_col, team_val=team_param)
+        team_val = team_param
+    else:
+        df_filtered, team_val = _apply_condition(df_all)
+
     if df_filtered.shape[0] == 0:
         print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")
     else:
@@ -278,19 +338,13 @@ def xgs_map(season: str = '20252026', *,
         warnings.warn("'orient_all_left' is deprecated in xgs_map and ignored; control orientation via plot.plot_events options.", DeprecationWarning)
 
     # Use df_with_xgs directly; plot.plot_events will compute x_a/y_a if missing.
-    df_to_plot = df_with_xgs
+    # Add orientation step here to ensure x_a/y_a are present and correct for plotting
+    df_to_plot = _orient_coordinates(df_with_xgs, team_val)
 
-    # prepare events to plot
-    if events_to_plot is None:
-        events_to_plot = ['xgs']
 
     # Compute timing and xG summary now so we can optionally display it on the plot.
-    import timing
-    try:
-        timing_result = timing.demo_for_export(df_filtered, condition)
-    except Exception as e:
-        print('Warning: timing.demo_for_export failed:', e)
-        timing_result = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
+    # Use the single timing result collected earlier (timing_full) as the canonical timing_result
+    timing_result = timing_full
 
     # Compute xG totals from df_with_xgs (sum of 'xgs' per group)
     team_xgs = 0.0
@@ -354,32 +408,38 @@ def xgs_map(season: str = '20252026', *,
 
     print('xgs_map: calling plot.plot_events ->', out_path)
 
-    # Decide heatmap split mode: if a team was specified, show team vs not_team;
-    # otherwise fall back to legacy home vs away mode.
-    heatmap_mode = 'team_not_team' if team_val is not None else 'home_away'
+    # Decide heatmap split mode:
+    # - If a team is specified, use 'team_not_team'.
+    # - If a game is specified (but not a team), use 'home_away'.
+    # - If neither team nor game is specified, use 'orient_all_left'.
+    if team_val is not None:
+        heatmap_mode = 'team_not_team'
+    elif condition is not None and isinstance(condition, dict) and 'game_id' in condition:
+        heatmap_mode = 'home_away'
+    else:
+        heatmap_mode = 'orient_all_left'
+
 
     # Call plot_events and handle both return shapes and the optional heatmap return
     if return_heatmaps:
         # For heatmap generation, ask plot_events to use the selected mode and pass team_val
         ret = plot_mod.plot_events(
             df_to_plot,
-            events_to_plot=events_to_plot,
             out_path=out_path,
             return_heatmaps=True,
             heatmap_split_mode=heatmap_mode,
             team_for_heatmap=team_val,
             summary_stats=summary_stats,
+            events_to_plot=['shot-on-goal', 'goal',
+                            'blocked-shot', 'missed-shot',
+                            'xGs'],
         )
-        if isinstance(ret, (tuple, list)):
-            if len(ret) >= 3:
-                fig, ax, heatmaps = ret[0], ret[1], ret[2]
-            elif len(ret) == 2:
-                fig, ax = ret[0], ret[1]
-                heatmaps = None
-            else:
-                raise RuntimeError('Unexpected return from plot.plot_events when return_heatmaps=True')
+        # Fix for tuple index out of range
+        # Ensure the `ret` object has enough elements before unpacking
+        if len(ret) >= 3:
+            fig, ax, heatmaps = ret[0], ret[1], ret[2]
         else:
-            raise RuntimeError('Unexpected return type from plot.plot_events when return_heatmaps=True')
+            raise ValueError("Expected at least 3 elements in 'ret', but got fewer.")
     else:
         # When not requesting heatmaps, still ensure plotting uses the same
         # mode so visuals match the heatmap logic: use heatmap_mode and team_val.
@@ -438,7 +498,6 @@ def compute_xg_heatmap_from_df(
     - heat: 2D array shape (len(gy), len(gx)) with summed xG (or xG/60 if normalized)
     """
     import numpy as np
-    import pandas as pd
     from rink import rink_half_height_at_x
 
     if df is None or df.shape[0] == 0:
@@ -641,7 +700,13 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
 
     # If xgs are missing or all zeros, try to predict using the xG classifier
     try:
-        need_predict = ('xgs' not in df_cond.columns) or (pd.to_numeric(df_cond.get('xgs', pd.Series(dtype=float)), errors='coerce').fillna(0.0).sum() == 0)
+        if 'xgs' in df_cond.columns:
+            xgs_series = pd.to_numeric(df_cond['xgs'], errors='coerce').fillna(0.0)
+        else:
+            xgs_series = pd.Series(0.0, index=df_cond.index)
+
+        need_predict = ('xgs' not in df_cond.columns) or (xgs_series.sum() == 0)
+        df_cond['xgs'] = xgs_series
     except Exception:
         need_predict = True
 
