@@ -20,7 +20,7 @@ def xgs_map(season: str = '20252026', *,
               heatmap_only: bool = False,
               grid_res: float = 1.0,
               sigma: float = 6.0,
-              normalize_per60: bool = False,
+              normalize_per60: bool = True,
               selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None,
               # new interval filtering behavior
               use_intervals: bool = True,
@@ -390,7 +390,7 @@ def xgs_map(season: str = '20252026', *,
         agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
         inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
         team_seconds = float(inter.get('team') or 0.0)
-        other_seconds = float(inter.get('other') or 0.0)
+        other_seconds = team_seconds
     except Exception:
         team_seconds = other_seconds = 0.0
 
