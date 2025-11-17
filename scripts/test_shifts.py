@@ -102,9 +102,9 @@ def main(argv=None):
     except Exception as e:
         print('Error printing DataFrame sample:', e)
 
-    # Pretty-print available player ids for convenience
-    print('\nAvailable player_ids (sample up to 30):')
-    pprint.pprint(players_avail[:30])
+    # print out some summary metrics
+    # print out total across all intervals for either the player ids inputted
+    # or the combination option provided
 
     return 0
 
