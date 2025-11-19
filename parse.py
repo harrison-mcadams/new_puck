@@ -1800,9 +1800,9 @@ if __name__ == '__main__':
             max_games=None, max_workers=8,
             verbose=True,
             # New behavior flags
-            save_raw=False,
-            save_csv=False,
-            save_json=False,
+            save_raw=True,
+            save_csv=True,
+            save_json=True,
             per_game_files=False,
             process_elaborated=True,
             save_elaborated=True,

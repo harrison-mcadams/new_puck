@@ -42,7 +42,7 @@ def _league(season: Optional[str] = '20252026',
     else:
         team_list = list(teams)
 
-    condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+    condition = {'game_state': ['5v4'], 'is_net_empty': [0]}
 
     left_maps = []
     left_seconds = []
@@ -442,40 +442,133 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
         return df
 
-    def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_time_elapsed_seconds', team_val: Optional[object] = None) -> pd.DataFrame:
+    def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_time_elapsed_seconds', team_val: Optional[object] = None, condition: Optional[dict] = None) -> pd.DataFrame:
         """
         Filters the input dataframe to include only rows where the event time falls within the specified intervals.
 
         Args:
             df_in (pd.DataFrame): The input dataframe containing event data.
-            intervals_obj (dict): The intervals object containing per-game intersection intervals.
+            intervals_obj (dict): The intervals object containing per-game intersection intervals (as produced by timing.demo_for_export).
             time_col (str): The column name in df_in representing the event time.
-            team_val (Optional[object]): The team identifier to extract team-specific intervals.
+            team_val (Optional[object]): The team identifier to extract team-specific intervals when appropriate.
+            condition (Optional[dict]): Additional per-row conditions to enforce (e.g. {'game_state': ['5v5'], 'is_net_empty':[0]}).
 
         Returns:
-            pd.DataFrame: A filtered dataframe containing only rows within the specified intervals.
+            pd.DataFrame: A filtered dataframe containing only rows within the specified intervals and satisfying `condition` when provided.
         """
+        import timing as _timing  # local import to avoid top-level circular deps
+
         filtered_rows = []
 
+        per_game = intervals_obj.get('per_game', {}) if isinstance(intervals_obj, dict) else {}
+
         # Iterate over each game_id in the intervals object
-        for game_id, game_data in intervals_obj.get('per_game', {}).items():
-            # Extract the intersection intervals for the specified team
-            team_intervals = game_data['sides']['team'][
-            'intersection_intervals']
+        for game_id, game_data in per_game.items():
+            # Determine which team perspective to use when evaluating game_state_relative_to_team
+            team_for_game = team_val if team_val is not None else game_data.get('selected_team')
+
+            # Default to using the 'team' side's intersection_intervals (preserves prior behavior)
+            team_intervals = []
+            try:
+                sides = game_data.get('sides', {})
+                team_intervals = sides.get('team', {}).get('intersection_intervals', [])
+            except Exception:
+                team_intervals = []
 
             if not team_intervals:
-                continue  # Skip if no intervals are defined for this team
+                # No team intervals defined for this game -> skip
+                continue
 
-            # Filter the dataframe for the current game_id
-            df_game = df_in[df_in['game_id'] == game_id]
+            # Subset rows for this game
+            df_game = df_in[df_in.get('game_id') == game_id]
+            if df_game is None or df_game.empty:
+                continue
 
-            # Check if each row's time_col value falls within the team_intervals
-            for _, row in df_game.iterrows():
-                if any(start <= row[time_col] <= end for start, end in team_intervals):
-                    filtered_rows.append(row)
+            # If we need to test game_state, prepare a df with game_state_relative_to_team
+            need_game_state = False
+            if condition and 'game_state' in condition:
+                need_game_state = True
+                try:
+                    df_game_rel = _timing.add_game_state_relative_column(df_game.copy(), team_for_game)
+                    gs_series = df_game_rel.get('game_state_relative_to_team')
+                except Exception:
+                    # fallback: treat as not matching
+                    gs_series = pd.Series([None] * len(df_game), index=df_game.index)
+            else:
+                gs_series = None
+
+            # Iterate rows and check both interval membership and condition satisfaction (if provided)
+            for idx, row in df_game.iterrows():
+                try:
+                    tval = row.get(time_col)
+                    if tval is None or (isinstance(tval, float) and np.isnan(tval)):
+                        continue
+                    # check if within any interval
+                    in_interval = any((float(start) <= float(tval) <= float(end)) for (start, end) in team_intervals)
+                    if not in_interval:
+                        continue
+
+                    # if no extra condition, accept the row
+                    if not condition:
+                        filtered_rows.append(row)
+                        continue
+
+                    # otherwise check each condition key/value
+                    ok = True
+                    for ckey, cval in condition.items():
+                        if ckey == 'team':
+                            # already applied via intervals selection; skip
+                            continue
+
+                        # normalize cval to list for membership testing
+                        vals = cval if isinstance(cval, (list, tuple, set)) else [cval]
+
+                        if ckey == 'game_state':
+                            # consult precomputed game_state_relative_to_team series
+                            try:
+                                v = gs_series.loc[idx]
+                            except Exception:
+                                v = None
+                            if pd.isna(v):
+                                ok = False
+                                break
+                            if str(v) not in [str(x) for x in vals]:
+                                ok = False
+                                break
+                        else:
+                            # generic column match (exact equality)
+                            # prefer to use the row's value for key if present
+                            rv = None
+                            try:
+                                rv = row.get(ckey)
+                            except Exception:
+                                rv = None
+                            # If column missing, treat as no match
+                            if rv is None or (isinstance(rv, float) and np.isnan(rv)):
+                                ok = False
+                                break
+                            # compare as strings for robustness across types
+                            if str(rv) not in [str(x) for x in vals]:
+                                ok = False
+                                break
+
+                    if ok:
+                        filtered_rows.append(row)
+                except Exception:
+                    # ignore problematic rows
+                    continue
 
         # Create a new dataframe from the filtered rows
-        return pd.DataFrame(filtered_rows, columns=df_in.columns)
+        if not filtered_rows:
+            return pd.DataFrame(columns=df_in.columns)
+        # filtered_rows may contain Series objects; convert to DataFrame preserving columns
+        try:
+            out_df = pd.DataFrame(filtered_rows)
+            # Ensure column order matches input
+            out_df = out_df.reindex(columns=df_in.columns)
+        except Exception:
+            out_df = pd.DataFrame(filtered_rows, columns=df_in.columns)
+        return out_df
 
     # ------------------- Main flow -----------------------------------------
     # Allow caller to pass a pre-loaded DataFrame directly (useful for wrappers)
@@ -505,7 +598,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
         team_param = None
         if isinstance(condition, dict):
             team_param = condition.get('team')
-        df_filtered = _apply_intervals(df_all, intervals, time_col=interval_time_col, team_val=team_param)
+        df_filtered = _apply_intervals(df_all, intervals, time_col=interval_time_col, team_val=team_param, condition=condition)
         team_val = team_param
     else:
         df_filtered, team_val = _apply_condition(df_all)
