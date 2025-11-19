@@ -275,21 +275,20 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 return found[0]
         raise FileNotFoundError(f'Could not locate a CSV for season {season}.')
 
+    # Helper: apply a condition dict to a dataframe and return (filtered_df, team_val)
     def _apply_condition(df: pd.DataFrame):
         """Apply `condition` to df and return (filtered_df, team_val).
 
-        Accepts None, dict, or callable. If a 'team' key is present in the
-        dict it is pulled out and used to filter by team (home or away).
-        Key normalization is tolerant of common naming variants.
+        Accepts None or a dict. If condition contains 'team' that key is used to
+        filter rows where home or away matches that team (by abb or id).
         """
-        # copy condition if dict to avoid mutation
         cond_work = condition.copy() if isinstance(condition, dict) else condition
 
-        team_val = None
+        team_val_local = None
         if isinstance(cond_work, dict) and 'team' in cond_work:
-            team_val = cond_work.pop('team', None)
+            team_val_local = cond_work.pop('team', None)
 
-        # normalize dict keys to dataframe columns (tolerant mapping)
+        # Normalize keys to column names where possible
         if isinstance(cond_work, dict):
             def _norm(k: str) -> str:
                 return ''.join(ch.lower() for ch in str(k) if ch.isalnum())
@@ -303,21 +302,21 @@ def xgs_map(season: Optional[str] = '20252026', *,
                     corrected[k] = v
             cond_work = corrected
 
-        # build mask using parse.build_mask (handles None, dict, or callable)
+        # Build mask via parse.build_mask when a dict is provided
         try:
             base_mask = pd.Series(True, index=df.index) if cond_work is None else _parse.build_mask(df, cond_work).reindex(df.index).fillna(False).astype(bool)
         except Exception as e:
             print('Warning: failed to apply condition filter:', e)
             base_mask = pd.Series(False, index=df.index)
 
-        # if team specified, further restrict to rows where home or away matches
-        if team_val is not None:
-            tstr = str(team_val).strip()
+        # Apply team filter if requested
+        if team_val_local is not None:
+            tstr = str(team_val_local).strip()
             tid = None
             try:
                 tid = int(tstr)
             except Exception:
-                pass
+                tid = None
             team_mask = pd.Series(False, index=df.index)
             if tid is not None:
                 if 'home_id' in df.columns:
@@ -337,8 +336,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
         if int(final_mask.sum()) == 0:
             empty = df.iloc[0:0].copy()
             empty['xgs'] = float('nan')
-            return empty, team_val
-        return df.loc[final_mask].copy(), team_val
+            return empty, team_val_local
+        return df.loc[final_mask].copy(), team_val_local
 
     def _predict_xgs(df_filtered: pd.DataFrame):
         """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
@@ -571,15 +570,76 @@ def xgs_map(season: Optional[str] = '20252026', *,
         return out_df
 
     # ------------------- Main flow -----------------------------------------
-    # Allow caller to pass a pre-loaded DataFrame directly (useful for wrappers)
-    if data_df is not None:
-        df_all = data_df.copy()
-        chosen_csv = None
-        print('xgs_map: using provided DataFrame (in-memory) -> rows=', len(df_all))
-    else:
-        chosen_csv = _locate_csv()
-        print('xgs_map: loading CSV ->', chosen_csv)
-        df_all = pd.read_csv(chosen_csv)
+    # Allow caller to specify a single game_id: fetch and parse that game's feed
+    df_all = None
+    chosen_csv = None
+    if game_id is not None:
+        try:
+            import nhl_api as _nhl_api
+            print(f"xgs_map: game_id provided ({game_id}) - fetching live feed...", flush=True)
+            feed = None
+            try:
+                feed = _nhl_api.get_game_feed(int(game_id))
+            except Exception:
+                try:
+                    feed = _nhl_api.get_game_feed(str(game_id))
+                except Exception:
+                    feed = None
+            if feed:
+                try:
+                    # use parse helpers to build the events dataframe for the single game
+                    ev_df = _parse._game(feed)
+                    if ev_df is not None and not ev_df.empty:
+                        try:
+                            df_game = _parse._elaborate(ev_df)
+                        except Exception:
+                            df_game = ev_df.copy()
+                        df_all = df_game.copy()
+                        print(f"xgs_map: loaded {len(df_all)} event rows for game {game_id}", flush=True)
+                    else:
+                        print(f"xgs_map: parsed feed but got empty events for game {game_id}", flush=True)
+                except Exception as e:
+                    print('xgs_map: parse of live feed failed:', e, flush=True)
+        except Exception as e:
+            print('xgs_map: failed to fetch live feed for game_id', game_id, e, flush=True)
+
+        # If we loaded a single game's DataFrame and condition doesn't specify a team, infer the home team
+        if df_all is not None and not df_all.empty:
+            try:
+                if condition is None or not isinstance(condition, dict):
+                    condition = {} if condition is None else dict(condition)
+                if 'team' not in condition:
+                    home_abb = None
+                    home_id = None
+                    if 'home_abb' in df_all.columns:
+                        try:
+                            home_abb = df_all['home_abb'].dropna().unique().tolist()[0]
+                        except Exception:
+                            home_abb = None
+                    if 'home_id' in df_all.columns and home_abb is None:
+                        try:
+                            home_id = df_all['home_id'].dropna().unique().tolist()[0]
+                        except Exception:
+                            home_id = None
+                    if home_abb:
+                        condition['team'] = home_abb
+                        print(f"xgs_map: inferred team='{home_abb}' from live game feed and set it in condition", flush=True)
+                    elif home_id is not None:
+                        condition['team'] = home_id
+                        print(f"xgs_map: inferred team id={home_id} from live game feed and set it in condition", flush=True)
+            except Exception:
+                pass
+
+    # If no single-game feed requested or fetch failed, fall back to provided DataFrame or CSV
+    if df_all is None:
+        if data_df is not None:
+            df_all = data_df.copy()
+            chosen_csv = None
+            print('xgs_map: using provided DataFrame (in-memory) -> rows=', len(df_all))
+        else:
+            chosen_csv = _locate_csv()
+            print('xgs_map: loading CSV ->', chosen_csv)
+            df_all = pd.read_csv(chosen_csv)
 
     # --- Single timing call: call timing.demo_for_export once on the full dataset
     try:
@@ -1524,5 +1584,6 @@ if __name__ == '__main__':
                                                                'full-season '
                                                                'xG maps for '
                                                                    'all teams')
-
+    condition = {'game_state': '5v5'}
+    xgs_map(game_id='2025020280', condition=condition)
     _league()
