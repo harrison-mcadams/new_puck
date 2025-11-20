@@ -301,7 +301,7 @@ def intervals_for_conditions(
     return results
 
 
-def add_game_state_relative_column(df: pd.DataFrame, team: Any) -> pd.DataFrame:
+def add_game_state_relative_column(df: pd.DataFrame, team: Any, debug: bool = False) -> pd.DataFrame:
     """Add 'game_state_relative_to_team' which is relative to `team`.
 
     For each row the value is:
@@ -309,10 +309,10 @@ def add_game_state_relative_column(df: pd.DataFrame, team: Any) -> pd.DataFrame:
       - the flipped state (e.g. '5v4' -> '4v5') when the acting team is the opponent.
 
     Penalty rows are treated specially: initially set to None, then when
-    possible they inherit a nearby faceoff's state (exact match on time
-    or the nearest faceoff within 1 second). This heuristic was used in
-    the original code to account for how penalties are logged relative to
-    faceoffs.
+    possible they inherit a nearby faceoff's state. This routine now prefers
+    the next faceoff at or after the penalty timestamp (within data) and
+    falls back to exact or nearest-within-1s as before. When `debug=True`
+    a concise summary is printed to help validate against external sources.
     """
     if df is None or df.empty:
         return df
@@ -419,32 +419,77 @@ def add_game_state_relative_column(df: pd.DataFrame, team: Any) -> pd.DataFrame:
     face_mask = ev_text.str.contains(r'\bface[ -]?off\b', regex=True)
 
     final_rel = [None] * len(out)
+
+    # Debug counters and samples
+    assigned_counts = {'later': 0, 'exact': 0, 'nearest': 0, 'none': 0}
+    assigned_samples = []
+
     times_arr = time_series.values
     face_mask_arr = face_mask.fillna(False).values
     for idx in range(len(out)):
         if penalty_mask.iloc[idx]:
             assigned = None
+            method = None
             tval = times_arr[idx]
             if not (tval is None or (isinstance(tval, float) and np.isnan(tval))):
                 candidate_idxs = np.where(face_mask_arr & np.isfinite(times_arr))[0]
                 if candidate_idxs.size > 0:
-                    rel_assigned = None
-                    is_exact = np.isclose(times_arr[candidate_idxs], tval, atol=1e-6, rtol=1e-8)
-                    exact_idxs = candidate_idxs[is_exact]
-                    if exact_idxs.size > 0:
-                        rel_assigned = provisional_rel[exact_idxs[0]]
+                    # Prefer the first faceoff at-or-after the penalty time
+                    later_mask = times_arr[candidate_idxs] >= tval
+                    if later_mask.any():
+                        chosen_idx = candidate_idxs[np.where(later_mask)[0][0]]
+                        assigned = provisional_rel[chosen_idx]
+                        method = 'later'
                     else:
-                        diffs = np.abs(times_arr[candidate_idxs] - tval)
-                        nearest_pos = np.argmin(diffs)
-                        if diffs[nearest_pos] <= 1.0:
-                            nearest_idx = candidate_idxs[nearest_pos]
-                            rel_assigned = provisional_rel[nearest_idx]
-                    assigned = rel_assigned
+                        # fallback to exact match
+                        is_exact = np.isclose(times_arr[candidate_idxs], tval, atol=1e-6, rtol=1e-8)
+                        exact_idxs = candidate_idxs[is_exact]
+                        if exact_idxs.size > 0:
+                            chosen_idx = exact_idxs[0]
+                            assigned = provisional_rel[chosen_idx]
+                            method = 'exact'
+                        else:
+                            # fallback to nearest within 1.0 s (legacy behavior)
+                            diffs = np.abs(times_arr[candidate_idxs] - tval)
+                            nearest_pos = np.argmin(diffs)
+                            if diffs[nearest_pos] <= 1.0:
+                                nearest_idx = candidate_idxs[nearest_pos]
+                                assigned = provisional_rel[nearest_idx]
+                                method = 'nearest'
+                            else:
+                                method = None
+                else:
+                    method = None
+            # record
             final_rel[idx] = assigned
+            if method is None:
+                assigned_counts['none'] += 1
+                if debug and len(assigned_samples) < 10:
+                    assigned_samples.append(('none', idx, tval, None, None))
+            else:
+                assigned_counts[method] += 1
+                if debug and len(assigned_samples) < 10:
+                    # find chosen faceoff time for sample if available
+                    chosen_time = None
+                    try:
+                        chosen_time = float(times_arr[chosen_idx])
+                    except Exception:
+                        chosen_time = None
+                    assigned_samples.append((method, idx, float(tval), chosen_time, assigned))
         else:
             final_rel[idx] = provisional_rel[idx]
 
     out['game_state_relative_to_team'] = final_rel
+
+    if debug:
+        total_pen = int(penalty_mask.sum())
+        print(f"add_game_state_relative_column: team={tstr} penalties_found={total_pen}")
+        print(f"  assigned_later={assigned_counts['later']}, exact={assigned_counts['exact']}, nearest={assigned_counts['nearest']}, none={assigned_counts['none']}")
+        if assigned_samples:
+            print("  sample assignments (method, row_idx, penalty_time, matched_faceoff_time, assigned_state):")
+            for s in assigned_samples:
+                print(f"    {s}")
+
     return out
 
 
