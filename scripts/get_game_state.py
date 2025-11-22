@@ -5,31 +5,14 @@ _repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if _repo_root not in sys.path:
     sys.path.insert(0, _repo_root)
 
-def get_game_state(game_id, condition=None, return_df=False):
+def get_game_state(game_id, condition=None, return_df=False, return_per_game=False):
     """Return on-ice skater-count intervals for a single game using shift data.
 
-    Parameters
-    - game_id: int or str game identifier
-    - condition: optional dict, currently supports key 'game_state' whose
-      value may be a string (e.g. '5v4') or list of strings. If provided the
-      function will also return a filtered list of intervals matching the
-      requested game_state(s).
-    - return_df: if True, return pandas.DataFrame objects; otherwise return
-      Python lists of dicts.
-
-    Returns
-    - (intervals, filtered) where `intervals` is the full list of computed
-      intervals and `filtered` is the subset matching condition (or None).
-      If return_df=True both items are DataFrames (filtered may be empty).
-
-    Notes
-    - This function uses `nhl_api.get_shifts` and `parse._shifts` to obtain
-      per-player shift intervals (in total game seconds). It then performs a
-      sweep-line across shift start/end events to compute how many players
-      (and by heuristic, skaters) are on ice for each team at all times.
-    - Skaters are computed as max(0, players_on_ice - 1) to account for the
-      presence of a goalie in the shift charts. This is a pragmatic
-      heuristic but works well in typical shift-chart data.
+    Small additions:
+      - Consolidates contiguous/overlapping intervals with the same label.
+      - Optional per-game summary output (when `return_per_game=True`) that
+        mirrors the (intervals, cond_seconds, total_seconds) structure used
+        by `timing.intervals_for_condition`.
     """
     import logging
     from collections import defaultdict
@@ -166,10 +149,49 @@ def get_game_state(game_id, condition=None, return_df=False):
             i += 1
     # no more events; nothing further to append (game end is not known here)
 
+    # Convert to DataFrame and consolidate contiguous intervals with same label
     df_intervals = _pd.DataFrame.from_records(intervals) if intervals else _pd.DataFrame()
 
-    # If a condition is provided, filter accordingly
+    def _merge_intervals(df_int: 'pd.DataFrame'):
+        if df_int is None or df_int.empty:
+            return df_int
+        # coerce numeric and sort
+        df2 = df_int.copy()
+        try:
+            df2['start'] = pd.to_numeric(df2['start'], errors='coerce')
+            df2['end'] = pd.to_numeric(df2['end'], errors='coerce')
+        except Exception:
+            pass
+        df2 = df2.sort_values(by=['label', 'start']).reset_index(drop=True)
+        merged_rows = []
+        epsilon = 1e-6
+        cur = None
+        for idx, row in df2.iterrows():
+            r = row.to_dict()
+            # skip rows with missing bounds
+            if r.get('start') is None or r.get('end') is None:
+                continue
+            if cur is None:
+                cur = r.copy()
+                continue
+            # if same label and overlapping/touching, merge
+            if r.get('label') == cur.get('label') and r.get('start') <= (cur.get('end', 0) + epsilon):
+                # extend end and keep other fields from cur (home/away ids/abbs assumed same)
+                cur['end'] = max(float(cur.get('end', 0)), float(r.get('end', 0)))
+            else:
+                merged_rows.append(cur)
+                cur = r.copy()
+        if cur is not None:
+            merged_rows.append(cur)
+        if not merged_rows:
+            return _pd.DataFrame()
+        return _pd.DataFrame.from_records(merged_rows)
+
+    df_intervals = _merge_intervals(df_intervals)
+
+    # If a condition is provided, compute filtered intervals and per-game summary
     filtered = None
+    per_game = None
     if isinstance(condition, dict) and 'game_state' in condition:
         wanted = condition.get('game_state')
         if isinstance(wanted, (list, tuple, set)):
@@ -177,14 +199,33 @@ def get_game_state(game_id, condition=None, return_df=False):
         else:
             wanted_set = {str(wanted).strip()}
         if not df_intervals.empty:
+            # rows matching any of the wanted labels
             df_filtered = df_intervals[df_intervals['label'].astype(str).isin(wanted_set)].copy()
         else:
             df_filtered = _pd.DataFrame()
         filtered = df_filtered if return_df else df_filtered.to_dict('records')
+
+        # build per-game-like output mirroring timing.intervals_for_condition
+        if not df_intervals.empty and len(df_intervals) >= 1:
+            times = sorted(list(df_intervals['start'].astype(float).tolist() + df_intervals['end'].astype(float).tolist()))
+            total_seconds = float(max(times) - min(times)) if len(times) >= 2 else 0.0
+        else:
+            total_seconds = 0.0
+        cond_seconds = 0.0
+        cond_intervals = []
+        if not df_filtered.empty:
+            for _, r in df_filtered.iterrows():
+                s = float(r['start']); e = float(r['end'])
+                cond_intervals.append((s, e))
+                cond_seconds += (e - s)
+        per_game = {str(gid): (cond_intervals, float(cond_seconds), float(total_seconds))}
     else:
         filtered = None
 
-    return (df_intervals, filtered) if return_df else (intervals, filtered)
+    # Return shape: keep backward compatible (intervals, filtered) when not requesting per_game
+    if return_per_game:
+        return (df_intervals if return_df else df_intervals.to_dict('records'), filtered, per_game)
+    return (df_intervals, filtered) if return_df else (df_intervals.to_dict('records'), filtered)
 
 
 # Simple CLI/demo
@@ -205,6 +246,7 @@ if __name__ == '__main__':
     else:
         gid = args.game_id
     cond = {'game_state': args.game_state} if args.game_state else None
+
     ints, filt = get_game_state(gid, condition=cond, return_df=True)
     print('\nAll intervals:')
     print(ints.head().to_string()) if hasattr(ints, 'head') else print(ints)
