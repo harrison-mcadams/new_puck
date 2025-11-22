@@ -306,12 +306,62 @@ def _intervals_from_goalie_presence(df_shifts: pd.DataFrame, team_id_map: Dict[A
     cls = _classify_player_roles(df_shifts)
     roles = cls.get('roles', {})
     goalie_pids = {k for k, v in roles.items() if v == 'G'}
+
+    # Fallback: if classification found no goalies, try explicit position fields in raw shift rows
+    if not goalie_pids:
+        cand = set()
+        for _, r in df_shifts.iterrows():
+            raw = r.get('raw') or {}
+            pos = None
+            try:
+                if isinstance(raw, dict):
+                    p = raw.get('player') or raw.get('person') or None
+                    if isinstance(p, dict):
+                        pos = p.get('primaryPosition') or p.get('position')
+                    pos = pos or raw.get('position') or raw.get('primaryPosition')
+            except Exception:
+                pos = None
+            if pos:
+                try:
+                    s = str(pos).upper()
+                    if s.startswith('G') or 'GOAL' in s:
+                        pid = r.get('player_id')
+                        if pid is not None:
+                            cand.add(str(pid))
+                except Exception:
+                    continue
+        if cand:
+            goalie_pids = cand
+
     if not goalie_pids:
         # cannot detect goalies robustly; return empty presence intervals
         return out
 
     # build events for goalie shifts only grouped by team
-    events = []  # (time, 'start'|'end', team_label)
+    events = []  # (time, 'start', 'end', team_label)
+    # If team_id_map doesn't include concrete ids, derive a local mapping from df_shifts
+    local_map = {}
+    try:
+        hid = team_id_map.get('home_id') if isinstance(team_id_map, dict) else None
+        aid = team_id_map.get('away_id') if isinstance(team_id_map, dict) else None
+    except Exception:
+        hid = aid = None
+    if hid in (None, '') or aid in (None, ''):
+        # derive from df_shifts order: first unique team_id -> home, second -> away
+        seen = []
+        for _, r in df_shifts.iterrows():
+            tid = r.get('team_id')
+            if tid is None:
+                continue
+            if tid not in seen:
+                seen.append(tid)
+            if len(seen) >= 2:
+                break
+        if seen:
+            local_map[str(seen[0])] = 'home'
+            if len(seen) > 1:
+                local_map[str(seen[1])] = 'away'
+    # else local_map remains empty
     for _, r in df_shifts.iterrows():
         pid = str(r.get('player_id'))
         if pid not in goalie_pids:
@@ -324,12 +374,15 @@ def _intervals_from_goalie_presence(df_shifts: pd.DataFrame, team_id_map: Dict[A
         # map team id to 'home'/'away' using provided map
         team_label = None
         try:
-            if 'home_id' in team_id_map and team_id_map['home_id'] is not None and str(tid) == str(team_id_map['home_id']):
+            if isinstance(team_id_map, dict) and team_id_map.get('home_id') is not None and str(tid) == str(team_id_map.get('home_id')):
                 team_label = 'home'
-            elif 'away_id' in team_id_map and team_id_map['away_id'] is not None and str(tid) == str(team_id_map['away_id']):
+            elif isinstance(team_id_map, dict) and team_id_map.get('away_id') is not None and str(tid) == str(team_id_map.get('away_id')):
                 team_label = 'away'
+            elif str(tid) in local_map:
+                team_label = local_map.get(str(tid))
             else:
-                team_label = 'home' if 'home_id' not in team_id_map else 'away'
+                # fallback: if only one team seen assign to home, otherwise assign away
+                team_label = 'home' if not local_map else 'away'
         except Exception:
             team_label = 'home'
         events.append((float(s), 'start', team_label))
@@ -404,7 +457,7 @@ def debug_print_game_intervals(res: Dict[str, Any], max_intervals_display: int =
     print("-" * 60)
 
 
-def compute_intervals_for_game(game_id: int, condition: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:
+def compute_intervals_for_game(game_id: int, condition: Dict[str, Any], verbose: bool = False, net_empty_mode: str = 'either') -> Dict[str, Any]:
     """Compute per-condition intervals for a single game using shifts as source.
 
     condition: dict of keys -> values where values are scalars or lists.
@@ -543,42 +596,86 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any], verbose:
                                     active[key_tid].discard(str(pid))
                                 i += 1
         elif key == 'is_net_empty':
-            # vals expected to be 0/1 (0 -> goalie present, 1 -> net empty)
-            # We computed goalie_presence as intervals where goalie IS present
-            # So invert those to get net-empty intervals
-            home_pres = goalie_presence.get('home', [])
-            away_pres = goalie_presence.get('away', [])
-            # Build full observed span
-            all_bounds = []
-            for lst in (home_pres + away_pres):
-                all_bounds.extend(lst)
-            if not all_bounds:
-                # no goalie info -> cannot compute net empty; return empty
-                key_intervals_all = []
-            else:
-                # compute observed span
-                # ensure we only consider proper (s,e) pairs
-                bounds = [(float(s), float(e)) for s_e in all_bounds for s, e in ([s_e] if isinstance(s_e, (list, tuple)) and len(s_e) == 2 else [])]
+            # Simple, robust handling of goalie-presence -> net-empty logic.
+            # goalie_presence contains lists of (s,e) for 'home' and 'away'.
+            home_pres = goalie_presence.get('home', []) or []
+            away_pres = goalie_presence.get('away', []) or []
+
+            # If we have no presence info at all, return empty
+            combined_pres = list(home_pres) + list(away_pres)
+            if not combined_pres:
+                intervals_per_condition[str(key)] = []
+                pooled_seconds_per_condition[str(key)] = 0.0
+                continue
+
+            # Compute observed bounds for complements
+            try:
+                bounds = [(float(s), float(e)) for s, e in combined_pres if s is not None and e is not None]
                 if not bounds:
-                    key_intervals_all = []
                     intervals_per_condition[str(key)] = []
                     pooled_seconds_per_condition[str(key)] = 0.0
                     continue
                 min_t = min(s for s, _ in bounds)
                 max_t = max(e for _, e in bounds)
-                home_empty = complement(home_pres, min_t, max_t)
-                away_empty = complement(away_pres, min_t, max_t)
-                # now include based on requested vals
-                for v in vals:
-                    if int(v) == 1:
-                        # net empty -> union of home_empty and away_empty depending on whether user expects team-level or both
-                        # We interpret cond as OR over sides: include both home and away empty intervals.
-                        key_intervals_all.extend(home_empty)
-                        key_intervals_all.extend(away_empty)
+            except Exception:
+                # fallback to safe defaults
+                min_t, max_t = 0.0, 0.0
+
+            # Per-side empty intervals (complements within observed span)
+            home_empty = complement(home_pres, min_t, max_t)
+            away_empty = complement(away_pres, min_t, max_t)
+
+            # Union of presences and intersection (both present)
+            union_pres = _merge_intervals(list(home_pres) + list(away_pres))
+            both_empty = complement(union_pres, min_t, max_t)
+            both_present = _intersect_multiple([home_pres, away_pres])
+
+            # Verbose debug output
+            if verbose:
+                try:
+                    def _sample(lst, n=5):
+                        try:
+                            return lst[:n]
+                        except Exception:
+                            return list(lst)[:n]
+                    print(f"[debug][is_net_empty] home_pres count={len(home_pres)} sample={_sample(home_pres)}")
+                    print(f"[debug][is_net_empty] away_pres count={len(away_pres)} sample={_sample(away_pres)}")
+                    print(f"[debug][is_net_empty] both_present count={len(both_present)} sample={_sample(both_present)}")
+                    print(f"[debug][is_net_empty] both_empty count={len(both_empty)} sample={_sample(both_empty)}")
+                except Exception:
+                    pass
+
+            # Build output intervals according to requested values and mode
+            for v in vals:
+                try:
+                    vi = int(v)
+                except Exception:
+                    # skip invalid values
+                    continue
+                if vi == 1:
+                    # net empty requested
+                    if net_empty_mode == 'either':
+                        # at least one goalie absent -> union of per-side empty intervals
+                        key_intervals_all.extend(_union_lists_of_intervals([home_empty, away_empty]))
                     else:
-                        # net not empty: union of home_pres and away_pres
-                        key_intervals_all.extend(home_pres)
-                        key_intervals_all.extend(away_pres)
+                        # 'both' mode: neither goalie present
+                        key_intervals_all.extend(both_empty)
+                else:
+                    # net not empty requested
+                    if net_empty_mode == 'either':
+                        # prefer times when both goalies are present; if empty, fall back to union of presences
+                        if both_present:
+                            key_intervals_all.extend(both_present)
+                        else:
+                            if verbose:
+                                try:
+                                    print('[debug][is_net_empty] both_present empty; falling back to union of presences')
+                                except Exception:
+                                    pass
+                            key_intervals_all.extend(union_pres)
+                    else:
+                        # 'both' mode -> require both present
+                        key_intervals_all.extend(both_present)
         elif key in ('player_id', 'player_ids'):
             # For player(s) use parse._shifts with combine='intersection' to compute
             # intervals when all provided players are simultaneously on ice.
@@ -643,7 +740,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any], verbose:
     return result
 
 
-def demo_for_export(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool = False) -> Dict[str, Any]:
+def demo_for_export(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool = False, net_empty_mode: str = 'either') -> Dict[str, Any]:
     """Compute per-game timing information for all games referenced in `df`.
 
     df: a DataFrame that contains a 'game_id' column (events-level or season-level).
@@ -662,7 +759,7 @@ def demo_for_export(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool =
     per_game: Dict[Any, Any] = {}
     for gid in gids:
         try:
-            res = compute_intervals_for_game(int(gid), condition, verbose=verbose)
+            res = compute_intervals_for_game(int(gid), condition, verbose=verbose, net_empty_mode=net_empty_mode)
             per_game[int(gid)] = res
         except Exception as e:
             if verbose:
@@ -699,6 +796,36 @@ def intervals_to_json(res: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
+def _complement_intervals(intervals: List[Interval], start: float, end: float) -> List[Interval]:
+    """Return the complement of `intervals` within [start, end].
+
+    intervals: list of (s,e); may be unsorted/overlapping. The result is a
+    sorted list of disjoint intervals covering regions inside [start,end]
+    not covered by `intervals`.
+    """
+    if intervals is None:
+        return []
+    # Merge input to get disjoint, ordered intervals
+    merged = _merge_intervals(intervals)
+    out: List[Interval] = []
+    cur = float(start)
+    for s, e in merged:
+        if e <= cur:
+            continue
+        if s > cur:
+            out.append((cur, min(s, end)))
+        cur = max(cur, e)
+        if cur >= end:
+            break
+    if cur < end:
+        out.append((cur, float(end)))
+    return out
+
+# Also provide a short public alias used elsewhere in the file (the code calls `complement(...)`)
+def complement(intervals: List[Interval], start: float, end: float) -> List[Interval]:
+    return _complement_intervals(intervals, start, end)
+
+
 if __name__ == '__main__':
     import argparse, sys
     parser = argparse.ArgumentParser(description='timing_new demo')
@@ -717,7 +844,7 @@ if __name__ == '__main__':
     else:
         gid = args.game_id
     cond = {'game_state': ['5v5'], 'is_net_empty': [0]}
-    out = compute_intervals_for_game(gid, cond, verbose=args.verbose)
+    out = compute_intervals_for_game(gid, cond, verbose=args.verbose, net_empty_mode='either')
     if args.verbose:
         debug_print_game_intervals(out)
     else:
