@@ -29,6 +29,7 @@ from collections import defaultdict
 from pathlib import Path
 import logging
 import json
+import os
 
 import pandas as pd
 import numpy as np
@@ -125,13 +126,135 @@ def _get_shifts_df(game_id: int) -> pd.DataFrame:
     """Fetch and parse shift chart for a game into a DataFrame (using parse._shifts).
 
     Returns DataFrame with columns including 'start_total_seconds' and 'end_total_seconds'.
+    This helper is defensive: if parsing fails it will try a force_refresh and
+    will save debug payloads to the nhl_api cache directory for offline analysis.
     """
-    shifts_res = nhl_api.get_shifts(game_id)
-    if not shifts_res or not isinstance(shifts_res, dict):
+    try:
+        shifts_res = nhl_api.get_shifts(game_id)
+    except Exception as e:
+        # log and return empty DataFrame
+        logging.exception('timing_new._get_shifts_df: get_shifts failed for %s: %s', game_id, e)
         return pd.DataFrame()
-    df_shifts = parse._shifts(shifts_res)
+
+    # If get_shifts returns a non-dict, coerce to dict wrapper
+    if shifts_res is None:
+        shifts_res = {}
+    if not isinstance(shifts_res, dict):
+        shifts_res = {'raw': shifts_res}
+
+    # Try parsing using parse._shifts; if empty, attempt a force_refresh retry
+    try:
+        df_shifts = parse._shifts(shifts_res)
+    except Exception as e:
+        logging.exception('timing_new._get_shifts_df: parse._shifts threw for game %s: %s', game_id, e)
+        df_shifts = None
+
+    if df_shifts is None or (hasattr(df_shifts, 'empty') and df_shifts.empty):
+        # Attempt a force-refresh from the NHL API
+        try:
+            shifts_res2 = nhl_api.get_shifts(game_id, force_refresh=True)
+        except Exception as e:
+            logging.exception('timing_new._get_shifts_df: force_refresh get_shifts failed for %s: %s', game_id, e)
+            shifts_res2 = None
+
+        # Save raw payloads for investigation
+        try:
+            cache_dir = getattr(nhl_api, '_CACHE_DIR', '.cache/nhl_api')
+            os.makedirs(cache_dir, exist_ok=True)
+            debug_path = os.path.join(cache_dir, f'debug_shifts_{game_id}.json')
+            with open(debug_path, 'w', encoding='utf-8') as fh:
+                json.dump({'first': shifts_res, 'force': shifts_res2}, fh, default=str)
+            logging.info('timing_new._get_shifts_df: wrote debug shifts JSON to %s', debug_path)
+        except Exception:
+            logging.exception('timing_new._get_shifts_df: failed to write debug shifts JSON for %s', game_id)
+
+        # Try parsing the refreshed payload
+        try:
+            df_shifts = parse._shifts(shifts_res2) if shifts_res2 is not None else None
+        except Exception as e:
+            logging.exception('timing_new._get_shifts_df: parse._shifts threw on refreshed payload for %s: %s', game_id, e)
+            df_shifts = None
+
+    # Normalize result to DataFrame and ensure expected columns exist
     if df_shifts is None:
         return pd.DataFrame()
+
+    # If parse._shifts returned a dict-like structure, coerce to DataFrame
+    if isinstance(df_shifts, dict):
+        try:
+            df_shifts = pd.DataFrame.from_records(df_shifts.get('all_shifts', []) if 'all_shifts' in df_shifts else df_shifts)
+        except Exception:
+            try:
+                df_shifts = pd.DataFrame(df_shifts)
+            except Exception:
+                return pd.DataFrame()
+
+    if not isinstance(df_shifts, pd.DataFrame):
+        try:
+            df_shifts = pd.DataFrame(df_shifts)
+        except Exception:
+            return pd.DataFrame()
+
+    # Try to harmonize column names to expected 'start_total_seconds' and 'end_total_seconds'
+    if 'start_total_seconds' not in df_shifts.columns:
+        # common alternatives
+        for alt in ('start_seconds', 'start_seconds_total', 'start_seconds_parsed', 'start_seconds_rel'):
+            if alt in df_shifts.columns:
+                df_shifts = df_shifts.rename(columns={alt: 'start_total_seconds'})
+                break
+        # if still missing, try to compute from 'start_raw' if it's an mm:ss string
+        if 'start_total_seconds' not in df_shifts.columns and 'start_raw' in df_shifts.columns:
+            def _parse_mmss(x):
+                try:
+                    if x is None:
+                        return None
+                    if isinstance(x, (int, float)):
+                        return float(x)
+                    s = str(x).strip()
+                    if ':' in s:
+                        mm, ss = s.split(':')
+                        return float(int(mm) * 60 + int(ss))
+                except Exception:
+                    return None
+            df_shifts['start_total_seconds'] = df_shifts['start_raw'].apply(_parse_mmss)
+
+    if 'end_total_seconds' not in df_shifts.columns:
+        for alt in ('end_seconds', 'end_seconds_total', 'end_seconds_parsed'):
+            if alt in df_shifts.columns:
+                df_shifts = df_shifts.rename(columns={alt: 'end_total_seconds'})
+                break
+        if 'end_total_seconds' not in df_shifts.columns and 'end_raw' in df_shifts.columns:
+            def _parse_mmss_end(x):
+                try:
+                    if x is None:
+                        return None
+                    if isinstance(x, (int, float)):
+                        return float(x)
+                    s = str(x).strip()
+                    if ':' in s:
+                        mm, ss = s.split(':')
+                        return float(int(mm) * 60 + int(ss))
+                except Exception:
+                    return None
+            df_shifts['end_total_seconds'] = df_shifts['end_raw'].apply(_parse_mmss_end)
+
+    # Coerce numeric types
+    try:
+        df_shifts['start_total_seconds'] = pd.to_numeric(df_shifts['start_total_seconds'], errors='coerce')
+        df_shifts['end_total_seconds'] = pd.to_numeric(df_shifts['end_total_seconds'], errors='coerce')
+    except Exception:
+        pass
+
+    # Drop rows missing bounds
+    try:
+        df_shifts = df_shifts.dropna(subset=['start_total_seconds', 'end_total_seconds'])
+    except Exception:
+        pass
+
+    # Final check
+    if df_shifts is None or (hasattr(df_shifts, 'empty') and df_shifts.empty):
+        return pd.DataFrame()
+
     return df_shifts
 
 
@@ -598,84 +721,11 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any], verbose:
         elif key == 'is_net_empty':
             # Simple, robust handling of goalie-presence -> net-empty logic.
             # goalie_presence contains lists of (s,e) for 'home' and 'away'.
-            home_pres = goalie_presence.get('home', []) or []
-            away_pres = goalie_presence.get('away', []) or []
-
-            # If we have no presence info at all, return empty
-            combined_pres = list(home_pres) + list(away_pres)
-            if not combined_pres:
-                intervals_per_condition[str(key)] = []
-                pooled_seconds_per_condition[str(key)] = 0.0
-                continue
-
-            # Compute observed bounds for complements
             try:
-                bounds = [(float(s), float(e)) for s, e in combined_pres if s is not None and e is not None]
-                if not bounds:
-                    intervals_per_condition[str(key)] = []
-                    pooled_seconds_per_condition[str(key)] = 0.0
-                    continue
-                min_t = min(s for s, _ in bounds)
-                max_t = max(e for _, e in bounds)
+                intervals = _build_is_net_empty_intervals(goalie_presence, vals, net_empty_mode, verbose)
+                key_intervals_all.extend(intervals)
             except Exception:
-                # fallback to safe defaults
-                min_t, max_t = 0.0, 0.0
-
-            # Per-side empty intervals (complements within observed span)
-            home_empty = complement(home_pres, min_t, max_t)
-            away_empty = complement(away_pres, min_t, max_t)
-
-            # Union of presences and intersection (both present)
-            union_pres = _merge_intervals(list(home_pres) + list(away_pres))
-            both_empty = complement(union_pres, min_t, max_t)
-            both_present = _intersect_multiple([home_pres, away_pres])
-
-            # Verbose debug output
-            if verbose:
-                try:
-                    def _sample(lst, n=5):
-                        try:
-                            return lst[:n]
-                        except Exception:
-                            return list(lst)[:n]
-                    print(f"[debug][is_net_empty] home_pres count={len(home_pres)} sample={_sample(home_pres)}")
-                    print(f"[debug][is_net_empty] away_pres count={len(away_pres)} sample={_sample(away_pres)}")
-                    print(f"[debug][is_net_empty] both_present count={len(both_present)} sample={_sample(both_present)}")
-                    print(f"[debug][is_net_empty] both_empty count={len(both_empty)} sample={_sample(both_empty)}")
-                except Exception:
-                    pass
-
-            # Build output intervals according to requested values and mode
-            for v in vals:
-                try:
-                    vi = int(v)
-                except Exception:
-                    # skip invalid values
-                    continue
-                if vi == 1:
-                    # net empty requested
-                    if net_empty_mode == 'either':
-                        # at least one goalie absent -> union of per-side empty intervals
-                        key_intervals_all.extend(_union_lists_of_intervals([home_empty, away_empty]))
-                    else:
-                        # 'both' mode: neither goalie present
-                        key_intervals_all.extend(both_empty)
-                else:
-                    # net not empty requested
-                    if net_empty_mode == 'either':
-                        # prefer times when both goalies are present; if empty, fall back to union of presences
-                        if both_present:
-                            key_intervals_all.extend(both_present)
-                        else:
-                            if verbose:
-                                try:
-                                    print('[debug][is_net_empty] both_present empty; falling back to union of presences')
-                                except Exception:
-                                    pass
-                            key_intervals_all.extend(union_pres)
-                    else:
-                        # 'both' mode -> require both present
-                        key_intervals_all.extend(both_present)
+                key_intervals_all = []
         elif key in ('player_id', 'player_ids'):
             # For player(s) use parse._shifts with combine='intersection' to compute
             # intervals when all provided players are simultaneously on ice.
@@ -756,10 +806,69 @@ def demo_for_export(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool =
 
     gids = pd.unique(df['game_id'].dropna().astype(int)).tolist()
 
+    # If caller provided a team in the condition, filter the input df so we only
+    # process games where that team played. Accept either numeric team id or
+    # abbreviation (e.g. 'PHI'). This reduces unnecessary work and matches the
+    # user's request to filter by team prior to per-game processing.
+    df_for_gids = df
+    team_filter = None
+    if isinstance(condition, dict) and 'team' in condition and condition.get('team') is not None:
+        team_filter = condition.get('team')
+        try:
+            # attempt integer team id
+            tid = int(team_filter) if (isinstance(team_filter, (int, float)) or (isinstance(team_filter, str) and str(team_filter).strip().isdigit())) else None
+        except Exception:
+            tid = None
+        if tid is not None:
+            try:
+                df_for_gids = df.loc[(df.get('home_id').astype(str) == str(tid)) | (df.get('away_id').astype(str) == str(tid))].copy()
+            except Exception:
+                # robust fallback if columns missing
+                try:
+                    df_for_gids = df.loc[(df.get('home_id') == tid) | (df.get('away_id') == tid)].copy()
+                except Exception:
+                    df_for_gids = df
+        else:
+            tstr = str(team_filter).strip().upper()
+            try:
+                df_for_gids = df.loc[(df.get('home_abb', pd.Series(dtype=object)).astype(str).str.upper() == tstr) | (df.get('away_abb', pd.Series(dtype=object)).astype(str).str.upper() == tstr)].copy()
+            except Exception:
+                df_for_gids = df
+
+    gids = pd.unique(df_for_gids['game_id'].dropna().astype(int)).tolist()
+
     per_game: Dict[Any, Any] = {}
     for gid in gids:
         try:
-            res = compute_intervals_for_game(int(gid), condition, verbose=verbose, net_empty_mode=net_empty_mode)
+            # Build a per-game condition dict so we can enforce a team selection.
+            # If the caller provided a team in `condition`, respect it. Otherwise,
+            # default to the game's home team as observed in the input `df`.
+            if isinstance(condition, dict):
+                cond_for_game = condition.copy()
+            else:
+                cond_for_game = {} if condition is None else dict(condition)
+
+            # If no explicit team provided, attempt to infer the game's home team
+            if 'team' not in cond_for_game or cond_for_game.get('team') is None:
+                try:
+                    # Subset input df to this game_id
+                    df_game_rows = df.loc[df['game_id'].astype(int) == int(gid)]
+                    home_team_val = None
+                    if 'home_abb' in df_game_rows.columns:
+                        vals = pd.unique(df_game_rows['home_abb'].dropna().astype(str))
+                        if len(vals) > 0:
+                            home_team_val = vals[0]
+                    if home_team_val is None and 'home_id' in df_game_rows.columns:
+                        vals2 = pd.unique(df_game_rows['home_id'].dropna())
+                        if len(vals2) > 0:
+                            home_team_val = vals2[0]
+                    if home_team_val is not None:
+                        cond_for_game['team'] = home_team_val
+                except Exception:
+                    # inference failed; leave cond_for_game unchanged
+                    pass
+
+            res = compute_intervals_for_game(int(gid), cond_for_game, verbose=verbose, net_empty_mode=net_empty_mode)
             per_game[int(gid)] = res
         except Exception as e:
             if verbose:
@@ -824,6 +933,104 @@ def _complement_intervals(intervals: List[Interval], start: float, end: float) -
 # Also provide a short public alias used elsewhere in the file (the code calls `complement(...)`)
 def complement(intervals: List[Interval], start: float, end: float) -> List[Interval]:
     return _complement_intervals(intervals, start, end)
+
+
+def _compute_observed_bounds(combined_pres: List[Interval]) -> Tuple[float, float]:
+    """Compute observed min and max times from a list of presence intervals.
+
+    Returns (min_t, max_t). Raises ValueError if bounds cannot be determined.
+    """
+    if not combined_pres:
+        raise ValueError('no presence intervals')
+    bounds = []
+    for s_e in combined_pres:
+        try:
+            s, e = s_e
+            if s is None or e is None:
+                continue
+            bounds.append((float(s), float(e)))
+        except Exception:
+            continue
+    if not bounds:
+        raise ValueError('no numeric bounds')
+    min_t = min(s for s, _ in bounds)
+    max_t = max(e for _, e in bounds)
+    return min_t, max_t
+
+
+def _build_is_net_empty_intervals(goalie_presence: Dict[str, List[Interval]],
+                                  vals: List[Any],
+                                  net_empty_mode: str = 'either',
+                                  verbose: bool = False) -> List[Interval]:
+    """Build intervals for is_net_empty condition from goalie_presence.
+
+    goalie_presence: {'home': [(s,e),...], 'away': [(s,e), ...]}
+    vals: list of requested values (0 or 1)
+    net_empty_mode: 'either' or 'both'
+    Returns a list of (s,e) intervals (unmerged); caller will merge later.
+    """
+    home_pres = goalie_presence.get('home', []) or []
+    away_pres = goalie_presence.get('away', []) or []
+    combined = list(home_pres) + list(away_pres)
+    if not combined:
+        return []
+    try:
+        min_t, max_t = _compute_observed_bounds(combined)
+    except Exception:
+        # fall back to a safe observed span
+        min_t, max_t = 0.0, 0.0
+
+    # complements (per-side empty)
+    home_empty = complement(home_pres, min_t, max_t)
+    away_empty = complement(away_pres, min_t, max_t)
+
+    # union of presences and intersection
+    union_pres = _merge_intervals(list(home_pres) + list(away_pres))
+    both_empty = complement(union_pres, min_t, max_t)
+    both_present = _intersect_multiple([home_pres, away_pres])
+
+    if verbose:
+        try:
+            def _sample(lst, n=5):
+                try:
+                    return lst[:n]
+                except Exception:
+                    return list(lst)[:n]
+            print(f"[debug][is_net_empty] home_pres count={len(home_pres)} sample={_sample(home_pres)}")
+            print(f"[debug][is_net_empty] away_pres count={len(away_pres)} sample={_sample(away_pres)}")
+            print(f"[debug][is_net_empty] both_present count={len(both_present)} sample={_sample(both_present)}")
+            print(f"[debug][is_net_empty] both_empty count={len(both_empty)} sample={_sample(both_empty)}")
+        except Exception:
+            pass
+
+    out_intervals: List[Interval] = []
+    for v in vals:
+        try:
+            vi = int(v)
+        except Exception:
+            continue
+        if vi == 1:
+            if net_empty_mode == 'either':
+                # either goalie absent -> union of per-side empties
+                out_intervals.extend(_union_lists_of_intervals([home_empty, away_empty]))
+            else:
+                # both mode -> neither goalie present
+                out_intervals.extend(both_empty)
+        else:
+            if net_empty_mode == 'either':
+                # prefer both present, fallback to union_pres
+                if both_present:
+                    out_intervals.extend(both_present)
+                else:
+                    if verbose:
+                        try:
+                            print('[debug][is_net_empty] both_present empty; falling back to union of presences')
+                        except Exception:
+                            pass
+                    out_intervals.extend(union_pres)
+            else:
+                out_intervals.extend(both_present)
+    return out_intervals
 
 
 if __name__ == '__main__':

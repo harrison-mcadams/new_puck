@@ -43,9 +43,28 @@ def get_game_state(game_id, condition=None, return_df=False, return_per_game=Fal
     # Convert to parsed shift rows (total seconds when available)
     df_shifts = _parse._shifts(shifts_res)
     if df_shifts is None or df_shifts.empty:
-        logging.warning('get_game_state: parsed shifts empty for game %s', gid)
-        return (None, None) if return_df else ([], [])
-
+        logging.warning('get_game_state: parsed shifts empty for game %s; attempting force-refresh of shifts', gid)
+        try:
+            shifts_res2 = nhl_api.get_shifts(gid, force_refresh=True)
+            df_shifts = _parse._shifts(shifts_res2)
+            if df_shifts is None or df_shifts.empty:
+                # Provide richer diagnostics for debugging API/format issues
+                try:
+                    summary = []
+                    if isinstance(shifts_res2, dict):
+                        if 'raw' in shifts_res2 and isinstance(shifts_res2['raw'], dict):
+                            summary = list(shifts_res2['raw'].keys())[:20]
+                        else:
+                            summary = list(shifts_res2.keys())[:20]
+                    else:
+                        summary = [str(type(shifts_res2))]
+                except Exception:
+                    summary = ['(failed to introspect shifts_res2)']
+                logging.warning('get_game_state: parsed shifts still empty after force_refresh for game %s; shifts_res2 keys/sample=%s', gid, summary)
+                return (None, None) if return_df else ([], [])
+        except Exception:
+            logging.exception('get_game_state: force-refresh get_shifts failed for game %s', gid)
+            return (None, None) if return_df else ([], [])
     # Ensure we have start/end totals
     df_shifts = df_shifts.dropna(subset=['start_total_seconds', 'end_total_seconds'])
     if df_shifts.empty:
