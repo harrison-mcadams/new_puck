@@ -807,6 +807,26 @@ def _get_roster_mapping(game_id: Any) -> Dict[str, Dict[int, int]]:
         if not feed or not isinstance(feed, dict):
             return {'home': {}, 'away': {}}
         
+        # First, extract home and away team IDs so we can map teamId to 'home'/'away'
+        home_id = None
+        away_id = None
+        if 'homeTeam' in feed and isinstance(feed['homeTeam'], dict):
+            home_id = feed['homeTeam'].get('id')
+        if 'awayTeam' in feed and isinstance(feed['awayTeam'], dict):
+            away_id = feed['awayTeam'].get('id')
+        
+        # Convert to int if they're strings
+        if home_id is not None:
+            try:
+                home_id = int(home_id)
+            except (ValueError, TypeError):
+                pass
+        if away_id is not None:
+            try:
+                away_id = int(away_id)
+            except (ValueError, TypeError):
+                pass
+        
         # Build mapping by walking the feed structure
         home_map = {}
         away_map = {}
@@ -816,11 +836,24 @@ def _get_roster_mapping(game_id: Any) -> Dict[str, Dict[int, int]]:
             if isinstance(obj, dict):
                 # Check if this dict contains team info
                 team = current_team
-                # Detect team context from common keys
-                if 'homeTeam' in obj or ('team' in obj and obj.get('team') == 'home'):
-                    team = 'home'
-                elif 'awayTeam' in obj or ('team' in obj and obj.get('team') == 'away'):
-                    team = 'away'
+                
+                # If we have a teamId field, use it to determine team (highest priority)
+                if 'teamId' in obj:
+                    try:
+                        tid = int(obj.get('teamId'))
+                        if tid == home_id:
+                            team = 'home'
+                        elif tid == away_id:
+                            team = 'away'
+                    except (ValueError, TypeError):
+                        pass
+                
+                # Otherwise, detect team context from common keys
+                if team is None or team not in ('home', 'away'):
+                    if 'homeTeam' in obj or ('team' in obj and obj.get('team') == 'home'):
+                        team = 'home'
+                    elif 'awayTeam' in obj or ('team' in obj and obj.get('team') == 'away'):
+                        team = 'away'
                 
                 # Try to extract player info from this dict
                 pid = None
@@ -858,6 +891,7 @@ def _get_roster_mapping(game_id: Any) -> Dict[str, Dict[int, int]]:
                 if pid is not None and num is not None and team in ('home', 'away'):
                     target_map = home_map if team == 'home' else away_map
                     target_map[num] = int(pid)
+                    logging.debug('_get_roster_mapping: adding %s team jersey %d -> player_id %d', team, num, pid)
                 
                 # Recurse into nested structures
                 for key, value in obj.items():
