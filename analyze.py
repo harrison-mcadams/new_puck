@@ -681,7 +681,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 try:
                     feed = _nhl_api.get_game_feed(gid)
                     break
-                except (ValueError, TypeError, Exception):
+                except Exception:
                     continue
             
             if feed:
