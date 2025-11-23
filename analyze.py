@@ -1714,7 +1714,9 @@ if __name__ == '__main__':
     parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
     # NEW: quick-run flag to generate per-team xG pct maps for the whole season
     parser.add_argument('--run-all', action='store_true', help='Run full-season xG maps for all teams')
-    
+    # NEW: allow specifying a single game id to generate an xG map for that game
+    parser.add_argument('--game-id', default=None, help='Game ID (e.g. 2025020339) to generate an xG map for a single game')
+
     args = parser.parse_args()
     
     # Execute based on arguments - only runs when called as main script
@@ -1726,7 +1728,74 @@ if __name__ == '__main__':
         xgs_map(season=args.season, condition=condition, behavior=args.behavior, 
                 out_path=args.out, orient_all_left=args.orient_all_left,
                 return_heatmaps=args.return_heatmaps, csv_path=args.csv_path)
-    else:
-        # Example: run league routine
-        _league(season=args.season, csv_path=args.csv_path)
+    elif args.game_id:
+        # Run xgs_map for a single game id. We pass the game_id explicitly and
+        # apply the standard condition (5v5 + net not empty) so the output mirrors
+        # the team-based invocation and focuses on 5v5 play with goalie present.
+        condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+        # Force returning full outputs for a single-game run so the CLI
+        # user can inspect heatmaps, filtered dataframe, and summary stats.
+        try:
+            out_path_ret, heatmaps_ret, filtered_df_ret, summary_stats_ret = xgs_map(
+                season=args.season,
+                game_id=args.game_id,
+                condition=condition,
+                behavior=args.behavior,
+                out_path=args.out,
+                orient_all_left=args.orient_all_left,
+                # ensure we get the detailed outputs for inspection
+                return_heatmaps=True,
+                return_filtered_df=True,
+                csv_path=args.csv_path,
+            )
+            print(f"xgs_map completed for game_id={args.game_id}; out_path={out_path_ret}")
+            try:
+                # report heatmaps summary (may be dict/tuple/ndarray)
+                if heatmaps_ret is None:
+                    print('heatmaps: None')
+                else:
+                    try:
+                        import numpy as _np
+                        if isinstance(heatmaps_ret, dict):
+                            print('heatmaps keys:', list(heatmaps_ret.keys()))
+                            for k, v in heatmaps_ret.items():
+                                try:
+                                    print(f"  {k}: type={type(v)}, shape={getattr(v, 'shape', None)}")
+                                except Exception:
+                                    print(f"  {k}: type={type(v)}")
+                        elif isinstance(heatmaps_ret, (_np.ndarray, list, tuple)):
+                            print('heatmaps: ndarray/list/tuple, info ->', type(heatmaps_ret), getattr(heatmaps_ret, 'shape', None))
+                        else:
+                            print('heatmaps:', type(heatmaps_ret))
+                    except Exception:
+                        print('heatmaps (repr):', repr(heatmaps_ret))
+            except Exception:
+                print('Could not introspect heatmaps')
+
+            # report filtered dataframe
+            if filtered_df_ret is None:
+                print('filtered_df: None')
+            else:
+                try:
+                    print(f"filtered_df rows={getattr(filtered_df_ret, 'shape', None)}")
+                    # attempt to persist for later inspection
+                    try:
+                        import os
+                        out_dir = 'static'
+                        os.makedirs(out_dir, exist_ok=True)
+                        csv_out = os.path.join(out_dir, f'{args.game_id}_filtered.csv')
+                        filtered_df_ret.to_csv(csv_out, index=False)
+                        print(f'Wrote filtered dataframe to {csv_out}')
+                    except Exception as e:
+                        print('Failed to save filtered dataframe:', e)
+                except Exception:
+                    print('filtered_df (repr):', repr(filtered_df_ret))
+
+            # print summary stats if present
+            try:
+                print('summary_stats:', summary_stats_ret)
+            except Exception:
+                pass
+        except Exception as e:
+            print('xgs_map for single game failed:', e)
 
