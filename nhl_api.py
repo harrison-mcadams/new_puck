@@ -794,6 +794,113 @@ def get_shifts(game_id, force_refresh: bool = False):
         return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}}
 
 
+def _get_roster_mapping(game_id: Any) -> Dict[str, Dict[int, int]]:
+    """Extract jersey number -> player_id mapping from game feed.
+    
+    Returns a dict with 'home' and 'away' keys, each containing {jersey_number: player_id}.
+    This allows team-specific mapping since jersey numbers can be reused across teams.
+    
+    Example return: {'home': {12: 8471675, 23: 8474564}, 'away': {12: 8475798, ...}}
+    """
+    try:
+        feed = get_game_feed(game_id)
+        if not feed or not isinstance(feed, dict):
+            return {'home': {}, 'away': {}}
+        
+        # Build mapping by walking the feed structure
+        home_map = {}
+        away_map = {}
+        
+        def walk_and_extract(obj, current_team=None):
+            """Recursively walk the feed and extract player info."""
+            if isinstance(obj, dict):
+                # Check if this dict contains team info
+                team = current_team
+                # Detect team context from common keys
+                if 'homeTeam' in obj or ('team' in obj and obj.get('team') == 'home'):
+                    team = 'home'
+                elif 'awayTeam' in obj or ('team' in obj and obj.get('team') == 'away'):
+                    team = 'away'
+                
+                # Try to extract player info from this dict
+                pid = None
+                num = None
+                
+                # Look for player ID in various common structures
+                # {'person': {'id': ...}, 'jerseyNumber': '12'}
+                if 'person' in obj and isinstance(obj.get('person'), dict):
+                    p = obj.get('person')
+                    pid = p.get('id') or p.get('personId') or p.get('playerId')
+                # {'player': {'id': ...}, 'number': '12'}
+                elif 'player' in obj and isinstance(obj.get('player'), dict):
+                    p = obj.get('player')
+                    pid = p.get('id') or p.get('playerId') or p.get('personId')
+                # Direct ID field
+                else:
+                    for k in ('playerId', 'personId', 'id'):
+                        if pid is None and k in obj and isinstance(obj.get(k), (int, str)):
+                            try:
+                                pid = int(obj.get(k))
+                                break
+                            except Exception:
+                                pass
+                
+                # Look for jersey number
+                for k in ('sweaterNumber', 'jerseyNumber', 'jersey', 'number'):
+                    if k in obj:
+                        try:
+                            num = int(str(obj.get(k)).strip())
+                            break
+                        except Exception:
+                            pass
+                
+                # If we found both pid and number, add to appropriate team map
+                if pid is not None and num is not None and team in ('home', 'away'):
+                    target_map = home_map if team == 'home' else away_map
+                    target_map[num] = int(pid)
+                
+                # Recurse into nested structures
+                for key, value in obj.items():
+                    # Propagate team context for known structure keys
+                    next_team = team
+                    if key in ('homeTeam', 'home'):
+                        next_team = 'home'
+                    elif key in ('awayTeam', 'away'):
+                        next_team = 'away'
+                    walk_and_extract(value, next_team)
+                    
+            elif isinstance(obj, list):
+                for el in obj:
+                    walk_and_extract(el, current_team)
+        
+        walk_and_extract(feed)
+        
+        # Also try common top-level structures in NHL API feeds
+        # rosterSpots structure: [{playerId: ..., sweaterNumber: ..., teamId: ...}, ...]
+        if 'rosterSpots' in feed:
+            for spot in feed.get('rosterSpots', []):
+                if isinstance(spot, dict):
+                    pid = spot.get('playerId')
+                    num = spot.get('sweaterNumber') or spot.get('jerseyNumber')
+                    team_id = spot.get('teamId')
+                    # Determine home/away from teamId if possible
+                    # This is harder without knowing which team is which, so we skip if no other context
+                    if pid and num:
+                        try:
+                            num = int(num)
+                            pid = int(pid)
+                            # Without clear home/away designation, add to both (will be overwritten by more specific finds)
+                            # Better: only add if we can determine team
+                        except Exception:
+                            pass
+        
+        return {'home': home_map, 'away': away_map}
+        
+    except Exception as e:
+        logging.warning('_get_roster_mapping: failed for game %s: %s', game_id, e)
+        return {'home': {}, 'away': {}}
+
+
 def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: bool = False) -> Dict[str, Any]:
     """Fallback: obtain shift information by scraping NHL official HTML reports.
 
@@ -1527,7 +1634,34 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                 if all_shifts:
                     break
 
+        # Map jersey numbers to canonical player_id values
+        roster_map = _get_roster_mapping(game_id)
+        mapped_count = 0
+        unmapped_count = 0
+        unmapped_players = set()
+        
+        for shift in all_shifts:
+            team_side = shift.get('team_side')
+            player_number = shift.get('player_number')
+            
+            if player_number is not None and team_side in ('home', 'away'):
+                team_roster = roster_map.get(team_side, {})
+                canonical_id = team_roster.get(player_number)
+                
+                if canonical_id is not None:
+                    shift['player_id'] = canonical_id
+                    mapped_count += 1
+                else:
+                    # Keep jersey number as player_id if mapping not found
+                    unmapped_count += 1
+                    unmapped_players.add((team_side, player_number, shift.get('player_name')))
+        
+        if unmapped_count > 0:
+            logging.debug('get_shifts_from_nhl_html: mapped %d shifts, %d unmapped (players: %s)', 
+                         mapped_count, unmapped_count, unmapped_players)
+        
         # Build shifts_by_player mapping from all_shifts (populate for both per-player and event-derived)
+        # Now use canonical player_id values
         shifts_by_player = {}
         for s in all_shifts:
             keyp = s.get('player_id') if s.get('player_id') is not None else s.get('player_number') if s.get('player_number') is not None else 'unknown'
@@ -1535,7 +1669,19 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
 
         result = {'game_id': game_id, 'raw': '\n\n'.join(raw_combined), 'all_shifts': all_shifts, 'shifts_by_player': shifts_by_player}
         if debug:
-            result['debug'] = {'urls_tried': tried_urls, 'tables_scanned': tables_scanned, 'players_scanned': players_scanned, 'found_shifts': len(all_shifts)}
+            result['debug'] = {
+                'urls_tried': tried_urls, 
+                'tables_scanned': tables_scanned, 
+                'players_scanned': players_scanned, 
+                'found_shifts': len(all_shifts),
+                'roster_mapping': {
+                    'home_players': len(roster_map.get('home', {})),
+                    'away_players': len(roster_map.get('away', {})),
+                    'mapped_shifts': mapped_count,
+                    'unmapped_shifts': unmapped_count,
+                    'unmapped_players': list(unmapped_players)
+                }
+            }
         return result
 
     except Exception as e:
