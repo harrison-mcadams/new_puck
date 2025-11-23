@@ -13,6 +13,8 @@ import logging
 import requests
 import random
 import time
+import re
+import unicodedata
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 import email.utils as email_utils
@@ -20,6 +22,10 @@ import os
 import json
 import hashlib
 from collections import deque
+
+# Pattern for removing punctuation in name normalization
+_PUNCTUATION_PATTERN = re.compile(r"[,.'\"]")
+_WHITESPACE_PATTERN = re.compile(r"\s+")
 
 # Simple on-disk and in-memory cache to reduce repeated API calls
 _CACHE_DIR = os.path.join('.cache', 'nhl_api')
@@ -994,8 +1000,6 @@ def _normalize_name(n: str) -> str:
     if not n:
         return ''
     s = str(n).lower().strip()
-    import re
-    import unicodedata
     
     # Normalize Unicode characters (decompose accented chars)
     # NFD decomposes characters like 'ü' into 'u' + combining diaeresis
@@ -1007,9 +1011,9 @@ def _normalize_name(n: str) -> str:
         pass
     
     # Remove common punctuation and special characters
-    s = re.sub(r"[,.'\"]", '', s)
+    s = _PUNCTUATION_PATTERN.sub('', s)
     # Collapse multiple spaces to single space
-    s = re.sub(r"\s+", ' ', s)
+    s = _WHITESPACE_PATTERN.sub(' ', s)
     return s
 
 
@@ -1026,8 +1030,17 @@ def _build_name_to_id_map(game_id: Any) -> Dict[str, int]:
         
         name_map = {}
         
-        def walk_and_extract_names(obj):
-            """Recursively walk the feed and extract player names and IDs."""
+        def walk_and_extract_names(obj, depth=0):
+            """Recursively walk the feed and extract player names and IDs.
+            
+            Args:
+                obj: The object to walk (dict, list, or other)
+                depth: Current recursion depth (for limiting traversal)
+            """
+            # Limit recursion depth to prevent excessive traversal
+            if depth > 20:
+                return
+            
             if isinstance(obj, dict):
                 # Try to extract player info from this dict
                 pid = None
@@ -1089,11 +1102,11 @@ def _build_name_to_id_map(game_id: Any) -> Dict[str, int]:
                 
                 # Recurse into nested structures
                 for value in obj.values():
-                    walk_and_extract_names(value)
+                    walk_and_extract_names(value, depth + 1)
                     
             elif isinstance(obj, list):
                 for el in obj:
-                    walk_and_extract_names(el)
+                    walk_and_extract_names(el, depth + 1)
         
         walk_and_extract_names(feed)
         

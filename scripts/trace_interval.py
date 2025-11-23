@@ -71,12 +71,20 @@ def format_shift(shift: Dict[str, Any]) -> str:
     return f"  Player #{pnum} ({pname}) [ID:{pid}] Team:{tside}({tid}) Period:{period} [{start}s - {end}s]"
 
 
-def count_skaters_by_team(shifts: List[Dict[str, Any]], team_ids: Dict[str, int], 
+def count_skaters_by_team(shifts: List[Dict[str, Any]], 
                            home_id: int = None, away_id: int = None) -> Dict[str, int]:
     """Count active skaters by team at a specific moment.
     
     Note: This is a simplified count that doesn't distinguish goalies.
     For accurate game state, we'd need to classify players as goalies vs skaters.
+    
+    Args:
+        shifts: List of active shifts
+        home_id: Team ID for home team
+        away_id: Team ID for away team
+    
+    Returns:
+        Dict with counts: {'home': X, 'away': Y, 'unknown': Z}
     """
     counts = {'home': 0, 'away': 0, 'unknown': 0}
     
@@ -133,7 +141,7 @@ def trace_interval(game_id: str, start_seconds: float, end_seconds: float, sourc
             
             if overlapping:
                 # Count by team
-                counts = count_skaters_by_team(overlapping, team_ids, home_id, away_id)
+                counts = count_skaters_by_team(overlapping, home_id, away_id)
                 print(f"\nPlayer count: Home={counts['home']}, Away={counts['away']}, Unknown={counts['unknown']}")
                 print(f"Estimated game state: {counts['home']}v{counts['away']}")
                 
@@ -176,7 +184,7 @@ def trace_interval(game_id: str, start_seconds: float, end_seconds: float, sourc
             
             if overlapping:
                 # Count by team
-                counts = count_skaters_by_team(overlapping, team_ids, home_id, away_id)
+                counts = count_skaters_by_team(overlapping, home_id, away_id)
                 print(f"\nPlayer count: Home={counts['home']}, Away={counts['away']}, Unknown={counts['unknown']}")
                 print(f"Estimated game state: {counts['home']}v{counts['away']}")
                 
