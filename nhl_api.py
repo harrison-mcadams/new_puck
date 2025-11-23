@@ -779,6 +779,27 @@ def get_shifts(game_id, force_refresh: bool = False):
                 shift_parsed = {'game_id': game_id, 'player_id': pid, 'team_id': tid, 'period': period, 'start_raw': start_raw, 'end_raw': end_raw, 'start_seconds': start_seconds, 'end_seconds': end_seconds, 'raw': entry}
                 all_shifts.append(shift_parsed)
 
+        # Remove zero-length shifts where start and end seconds are identical
+        try:
+            before_len = len(all_shifts)
+            filtered = []
+            for s in all_shifts:
+                ss = s.get('start_seconds')
+                es = s.get('end_seconds')
+                try:
+                    if ss is not None and es is not None and float(ss) == float(es):
+                        # drop this zero-length interval
+                        continue
+                except Exception:
+                    pass
+                filtered.append(s)
+            removed_cnt = before_len - len(filtered)
+            if removed_cnt:
+                logging.info('get_shifts: removed %d zero-length shifts for game %s', removed_cnt, game_id)
+            all_shifts = filtered
+        except Exception:
+            pass
+
         shifts_by_player = {}
         for s in all_shifts:
             keyp = s.get('player_id') or 'unknown'
@@ -963,6 +984,113 @@ def _get_team_ids(game_id: Any) -> Dict[str, Optional[int]]:
     except Exception as e:
         logging.warning('_get_team_ids: failed for game %s: %s', game_id, e)
         return {'home': None, 'away': None}
+
+
+def _normalize_name(n: str) -> str:
+    """Normalize a player name for matching purposes.
+    
+    Removes punctuation, extra whitespace, and converts to lowercase.
+    """
+    if not n:
+        return ''
+    s = str(n).lower().strip()
+    import re
+    # Remove common punctuation and special characters
+    s = re.sub(r"[,.'\"]", '', s)
+    # Collapse multiple spaces to single space
+    s = re.sub(r"\s+", ' ', s)
+    return s
+
+
+def _build_name_to_id_map(game_id: Any) -> Dict[str, int]:
+    """Build a mapping from normalized player name to player_id from game feed.
+    
+    Returns a dict mapping normalized names to player IDs.
+    Example: {'john smith': 8471675, ...}
+    """
+    try:
+        feed = get_game_feed(game_id)
+        if not feed or not isinstance(feed, dict):
+            return {}
+        
+        name_map = {}
+        
+        def walk_and_extract_names(obj):
+            """Recursively walk the feed and extract player names and IDs."""
+            if isinstance(obj, dict):
+                # Try to extract player info from this dict
+                pid = None
+                name = None
+                
+                # Look for player ID
+                if 'person' in obj and isinstance(obj.get('person'), dict):
+                    p = obj.get('person')
+                    pid = p.get('id') or p.get('personId') or p.get('playerId')
+                    # Try to get full name
+                    fname = p.get('firstName') or p.get('first_name')
+                    lname = p.get('lastName') or p.get('last_name')
+                    if fname and lname:
+                        name = f"{fname} {lname}"
+                    elif 'fullName' in p:
+                        name = p.get('fullName')
+                    elif 'name' in p:
+                        name = p.get('name')
+                elif 'player' in obj and isinstance(obj.get('player'), dict):
+                    p = obj.get('player')
+                    pid = p.get('id') or p.get('playerId') or p.get('personId')
+                    fname = p.get('firstName') or p.get('first_name')
+                    lname = p.get('lastName') or p.get('last_name')
+                    if fname and lname:
+                        name = f"{fname} {lname}"
+                    elif 'fullName' in p:
+                        name = p.get('fullName')
+                    elif 'name' in p:
+                        name = p.get('name')
+                else:
+                    # Direct fields
+                    for k in ('playerId', 'personId', 'id'):
+                        if pid is None and k in obj:
+                            try:
+                                pid = int(obj.get(k))
+                                break
+                            except Exception:
+                                pass
+                    # Try to get name
+                    if 'fullName' in obj:
+                        name = obj.get('fullName')
+                    elif 'name' in obj and isinstance(obj.get('name'), str):
+                        name = obj.get('name')
+                    elif 'firstName' in obj and 'lastName' in obj:
+                        fname = obj.get('firstName')
+                        lname = obj.get('lastName')
+                        if fname and lname:
+                            name = f"{fname} {lname}"
+                
+                # If we found both pid and name, add to map
+                if pid is not None and name:
+                    try:
+                        normalized = _normalize_name(name)
+                        if normalized:
+                            name_map[normalized] = int(pid)
+                            logging.debug('_build_name_to_id_map: adding %s -> %d', normalized, pid)
+                    except Exception:
+                        pass
+                
+                # Recurse into nested structures
+                for value in obj.values():
+                    walk_and_extract_names(value)
+                    
+            elif isinstance(obj, list):
+                for el in obj:
+                    walk_and_extract_names(el)
+        
+        walk_and_extract_names(feed)
+        
+        return name_map
+        
+    except Exception as e:
+        logging.warning('_build_name_to_id_map: failed for game %s: %s', game_id, e)
+        return {}
 
 
 def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: bool = False) -> Dict[str, Any]:
@@ -1701,6 +1829,7 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
         # Map jersey numbers to canonical player_id values and set team_id
         roster_map = _get_roster_mapping(game_id)
         team_ids = _get_team_ids(game_id)
+        name_map = _build_name_to_id_map(game_id)
         mapped_count = 0
         unmapped_count = 0
         unmapped_players = set()
@@ -1709,26 +1838,57 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
         for shift in all_shifts:
             team_side = shift.get('team_side')
             player_number = shift.get('player_number')
+            player_name = shift.get('player_name')
             
-            # Set team_id based on team_side
+            # Set team_id based on team_side if available
             if team_side in ('home', 'away'):
                 team_id = team_ids.get(team_side)
                 if team_id is not None:
                     shift['team_id'] = team_id
                     team_id_set_count += 1
             
-            # Map player_number to canonical player_id
+            # Try to map player_number to canonical player_id
+            canonical_id = None
+            
+            # First: Try jersey number mapping for detected team_side
             if player_number is not None and team_side in ('home', 'away'):
                 team_roster = roster_map.get(team_side, {})
                 canonical_id = team_roster.get(player_number)
+            
+            # Second: Try name-based mapping if jersey mapping failed
+            if canonical_id is None and player_name:
+                normalized = _normalize_name(player_name)
+                canonical_id = name_map.get(normalized)
+            
+            # Third: Try other team's roster (jersey number might be wrongly attributed to team_side)
+            if canonical_id is None and player_number is not None:
+                other_side = 'away' if team_side == 'home' else 'home'
+                other_roster = roster_map.get(other_side, {})
+                alt = other_roster.get(player_number)
+                if alt is not None:
+                    canonical_id = alt
+                    # Correct the team_side and team_id
+                    shift['team_side'] = other_side
+                    other_team_id = team_ids.get(other_side)
+                    if other_team_id is not None:
+                        shift['team_id'] = other_team_id
+            
+            # If we found a canonical ID, set it
+            if canonical_id is not None:
+                shift['player_id'] = int(canonical_id)
+                mapped_count += 1
                 
-                if canonical_id is not None:
-                    shift['player_id'] = canonical_id
-                    mapped_count += 1
-                else:
-                    # Keep jersey number as player_id if mapping not found
-                    unmapped_count += 1
-                    unmapped_players.add((team_side, player_number, shift.get('player_name')))
+                # If team_id is still not set, try to infer it from the canonical_id
+                if not shift.get('team_id'):
+                    # Check which team's roster contains this player_id
+                    if canonical_id in roster_map.get('home', {}).values():
+                        shift['team_id'] = team_ids.get('home')
+                    elif canonical_id in roster_map.get('away', {}).values():
+                        shift['team_id'] = team_ids.get('away')
+            else:
+                # Keep jersey number as player_id if mapping not found
+                unmapped_count += 1
+                unmapped_players.add((team_side, player_number, player_name))
         
         # Log mapping statistics for debugging
         if debug or unmapped_count > 0:
@@ -1738,8 +1898,8 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
             
             logging.info(
                 'get_shifts_from_nhl_html game %s: roster has %d players (home: %d, away: %d), '
-                'mapped %d/%d shifts, team_id set for %d/%d shifts', 
-                game_id, total_roster_players, home_players, away_players,
+                'name_map has %d entries, mapped %d/%d shifts, team_id set for %d/%d shifts', 
+                game_id, total_roster_players, home_players, away_players, len(name_map),
                 mapped_count, len(all_shifts), team_id_set_count, len(all_shifts)
             )
             if unmapped_count > 0:
