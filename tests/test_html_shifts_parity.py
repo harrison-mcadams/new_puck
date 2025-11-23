@@ -11,6 +11,10 @@ import parse
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
 
+# NHL player IDs are typically 7-8 digits; jersey numbers are 1-99
+# This constant helps distinguish between the two
+MIN_VALID_NHL_PLAYER_ID = 1000
+
 
 class DummyResponse:
     def __init__(self, text, status_code=200):
@@ -92,11 +96,11 @@ def test_html_shifts_parity_checks():
         numeric_ids = pd.to_numeric(player_ids, errors='coerce')
         assert numeric_ids.notnull().all(), "player_id contains non-numeric values"
         
-        # Check 5: Mapped player_ids should be >= 1000 (real NHL IDs, not jersey numbers)
+        # Check 5: Mapped player_ids should be >= MIN_VALID_NHL_PLAYER_ID (real NHL IDs, not jersey numbers)
         mapped_ids = numeric_ids[numeric_ids >= 100]  # Filter to likely mapped IDs
         if len(mapped_ids) > 0:
-            assert (mapped_ids >= 1000).all(), \
-                f"Some player_id values look like jersey numbers: {mapped_ids[mapped_ids < 1000].tolist()}"
+            assert (mapped_ids >= MIN_VALID_NHL_PLAYER_ID).all(), \
+                f"Some player_id values look like jersey numbers: {mapped_ids[mapped_ids < MIN_VALID_NHL_PLAYER_ID].tolist()}"
         
     finally:
         nhl_api.SESSION.get = orig_get

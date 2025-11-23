@@ -4,6 +4,10 @@ import nhl_api
 
 FIXTURE_DIR = os.path.join(os.path.dirname(__file__), 'fixtures')
 
+# NHL player IDs are typically 7-8 digits; jersey numbers are 1-99
+# This constant helps distinguish between the two
+MIN_VALID_NHL_PLAYER_ID = 1000
+
 class DummyResponse:
     def __init__(self, text, status_code=200):
         self.text = text
@@ -59,7 +63,7 @@ def test_both_teams_get_player_id_mapped():
             # player_id should be a large number (NHL player IDs are typically 7-8 digits)
             # NOT the jersey number (which is typically 1-99)
             if player_number is not None and player_id is not None:
-                assert player_id != player_number or player_id >= 1000, \
+                assert player_id != player_number or player_id >= MIN_VALID_NHL_PLAYER_ID, \
                     f"player_id {player_id} looks like jersey number {player_number} (team_id={team_id})"
         
         print(f"✓ Test passed: all {len(res['all_shifts'])} shifts have canonical player_id")
