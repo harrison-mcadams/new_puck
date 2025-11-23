@@ -875,25 +875,6 @@ def _get_roster_mapping(game_id: Any) -> Dict[str, Dict[int, int]]:
         
         walk_and_extract(feed)
         
-        # Also try common top-level structures in NHL API feeds
-        # rosterSpots structure: [{playerId: ..., sweaterNumber: ..., teamId: ...}, ...]
-        if 'rosterSpots' in feed:
-            for spot in feed.get('rosterSpots', []):
-                if isinstance(spot, dict):
-                    pid = spot.get('playerId')
-                    num = spot.get('sweaterNumber') or spot.get('jerseyNumber')
-                    team_id = spot.get('teamId')
-                    # Determine home/away from teamId if possible
-                    # This is harder without knowing which team is which, so we skip if no other context
-                    if pid and num:
-                        try:
-                            num = int(num)
-                            pid = int(pid)
-                            # Without clear home/away designation, add to both (will be overwritten by more specific finds)
-                            # Better: only add if we can determine team
-                        except Exception:
-                            pass
-        
         return {'home': home_map, 'away': away_map}
         
     except Exception as e:
@@ -1656,9 +1637,16 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                     unmapped_count += 1
                     unmapped_players.add((team_side, player_number, shift.get('player_name')))
         
-        if unmapped_count > 0:
-            logging.debug('get_shifts_from_nhl_html: mapped %d shifts, %d unmapped (players: %s)', 
-                         mapped_count, unmapped_count, unmapped_players)
+        # Log mapping statistics for debugging
+        if debug or unmapped_count > 0:
+            total_roster_players = len(roster_map.get('home', {})) + len(roster_map.get('away', {}))
+            logging.info('get_shifts_from_nhl_html game %s: roster has %d players (home: %d, away: %d), mapped %d/%d shifts', 
+                        game_id, total_roster_players, 
+                        len(roster_map.get('home', {})), len(roster_map.get('away', {})),
+                        mapped_count, len(all_shifts))
+            if unmapped_count > 0:
+                logging.warning('get_shifts_from_nhl_html game %s: %d unmapped shifts for players: %s', 
+                               game_id, unmapped_count, unmapped_players)
         
         # Build shifts_by_player mapping from all_shifts (populate for both per-player and event-derived)
         # Now use canonical player_id values
