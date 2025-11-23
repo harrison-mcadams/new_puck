@@ -959,7 +959,9 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                 # skip per-player summary tables which tend to include 'shf' and 'avg' or 'toi' in headers
                 hj = ' '.join(header_cells).replace('\u00a0', ' ')
                 hj_norm = re.sub(r"\s+", ' ', hj.lower())
-                if (('shf' in hj_norm and 'avg' in hj_norm) or ('ev tot' in hj_norm) or ('pp tot' in hj_norm) or ('sh tot' in hj_norm) or ('toi' in hj_norm and 'avg' in hj_norm)):
+                # stronger summary detection: if header contains metrics like SHF, AVG, TOI, or TOT columns, skip
+                if (('shf' in hj_norm and 'avg' in hj_norm) or ('ev tot' in hj_norm) or ('pp tot' in hj_norm) or ('sh tot' in hj_norm) or ('toi' in hj_norm and 'avg' in hj_norm) or any(x in hj_norm for x in ('shf', 'avg', 'toi')) and ('tot' in hj_norm or 'pp' in hj_norm)):
+                    # informational skip
                     continue
 
                 # build index map
@@ -976,6 +978,9 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                     elif 'shift' in h or h.strip().startswith('#') or '#' in h:
                         idx_map['#'] = i
                     elif 'elapsed' in h:
+                        idx_map.setdefault('start', i)
+                    elif 'time' in h and 'on ice' not in h:
+                        # sometimes header uses 'Time' rather than 'Start'
                         idx_map.setdefault('start', i)
 
                 if not any(k in idx_map for k in ('#', 'start', 'end', 'duration')):
@@ -1019,7 +1024,7 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                     walker = tbl.previous_elements
                     collected = []
                     for j, el in enumerate(walker):
-                        if j > 80:
+                        if j > 160:
                             break
                         txt = None
                         if getattr(el, 'string', None):
@@ -1095,116 +1100,217 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                 players_scanned += 1
 
                 # parse rows after header_row for numbered shifts
-                for dr in rows[header_row + 1:]:
-                    cells = [clean_cell_text(c) for c in dr.find_all(['td', 'th'])]
+                # Improved parsing: iterate rows sequentially to handle tables that include
+                # multiple players and repeated player headings inside the same table.
+                # Seed the current player from the previously-inferred pnum/player_name so
+                # the first player's shift rows (which may immediately follow the header)
+                # are attributed correctly.
+                current_pnum = pnum
+                current_player_name = player_name
+                current_heading_text = heading_text
+                current_idx_map = None
+                for r in rows:
+                    cells = [clean_cell_text(c) for c in r.find_all(['td', 'th'])]
                     if not cells:
                         continue
+
+                    joined = ' '.join([c for c in cells if c])
+                    lowjoined = joined.lower()
+
+                    # detect summary rows and skip
+                    if re.search(r"per\s+shf|avg|toi|ev tot|pp tot|sh tot", lowjoined):
+                        # reset header mapping when encountering summaries
+                        current_idx_map = None
+                        continue
+
+                    # detect player heading within the table
+                    heading_found = False
+                    for s in cells:
+                        ss = re.sub(r"\s+", ' ', s).strip()
+                        if not looks_like_player_heading(ss):
+                            continue
+                        for pat in player_heading_patterns:
+                            m = pat.match(ss)
+                            if not m:
+                                continue
+                            groups = m.groups()
+                            pnum = None
+                            pname = None
+                            if len(groups) == 3:
+                                g1, g2, g3 = groups[0].strip(), groups[1].strip(), groups[2].strip()
+                                if g1.isdigit():
+                                    pnum = int(g1); last = g2; first = g3; pname = (first + ' ' + last).strip()
+                                elif g3.isdigit():
+                                    pnum = int(g3); last = g1; first = g2; pname = (first + ' ' + last).strip()
+                            elif len(groups) == 2:
+                                g1, g2 = groups[0].strip(), groups[1].strip()
+                                if g1.isdigit():
+                                    pnum = int(g1); pname = g2
+                                else:
+                                    pname = (g1 + ' ' + g2).strip()
+                            if pnum is not None or pname is not None:
+                                current_pnum = pnum
+                                current_player_name = pname
+                                current_heading_text = ss
+                                heading_found = True
+                                break
+                    if heading_found:
+                        # a heading resets header mapping; header likely follows
+                        current_idx_map = None
+                        continue
+
+                    # detect header row inside the table
+                    # header likely contains '#' or 'shift' and some time columns
+                    is_header = False
+                    hdr_cells = [c.lower() for c in cells]
+                    if (any('shift' in t or t.strip().startswith('#') or t.strip() == '#' for t in hdr_cells)
+                            and any(k in ' '.join(hdr_cells) for k in ('start', 'end', 'duration', 'time', 'elapsed', 'per'))):
+                        # build index map
+                        m_idx = {}
+                        for i, h in enumerate(hdr_cells):
+                            if 'per' in h and 'ev' not in h:
+                                m_idx['period'] = i
+                            elif 'start' in h and 'elapsed' not in h:
+                                m_idx['start'] = i
+                            elif 'end' in h:
+                                m_idx['end'] = i
+                            elif 'duration' in h:
+                                m_idx['duration'] = i
+                            elif 'shift' in h or h.strip().startswith('#') or '#' in h:
+                                m_idx['#'] = i
+                            elif 'elapsed' in h:
+                                m_idx.setdefault('start', i)
+                            elif 'time' in h and 'on ice' not in h:
+                                m_idx.setdefault('start', i)
+                        # require at least one of the core indices
+                        if any(k in m_idx for k in ('#', 'start', 'end', 'duration')):
+                            current_idx_map = m_idx
+                            continue
+
+                    # if we have a header mapping and a current player, parse numeric shift rows
                     first = cells[0] if cells else ''
-                    # require first cell be a small integer shift index
-                    if not re.search(r"^\s*\d+\s*$", first):
-                        # skip repeated headers or summary rows
+                    if current_idx_map and re.search(r"^\s*\d+\s*$", first):
+                        # skip summary rows inside
                         lowjoin = ' '.join([c.lower() for c in cells])
                         if re.search(r"per\s+shf|avg|toi|ev tot|pp tot|sh tot", lowjoin):
                             continue
-                        continue
 
-                    period_txt = cells[idx_map.get('period')] if idx_map.get('period') is not None and idx_map.get('period') < len(cells) else None
-                    start_txt = cells[idx_map.get('start')] if idx_map.get('start') is not None and idx_map.get('start') < len(cells) else None
-                    end_txt = cells[idx_map.get('end')] if idx_map.get('end') is not None and idx_map.get('end') < len(cells) else None
+                        period_txt = cells[current_idx_map.get('period')] if current_idx_map.get('period') is not None and current_idx_map.get('period') < len(cells) else None
+                        start_txt = cells[current_idx_map.get('start')] if current_idx_map.get('start') is not None and current_idx_map.get('start') < len(cells) else None
+                        end_txt = cells[current_idx_map.get('end')] if current_idx_map.get('end') is not None and current_idx_map.get('end') < len(cells) else None
 
-                    start_mmss = None
-                    end_mmss = None
-                    if start_txt:
-                        m = re.search(r"(\d{1,2}:\d{2})", start_txt)
-                        start_mmss = m.group(1) if m else None
-                    if end_txt:
-                        m = re.search(r"(\d{1,2}:\d{2})", end_txt)
-                        end_mmss = m.group(1) if m else None
+                        # Fallback mm:ss search
+                        def find_first_mmss(seq):
+                            for c in seq:
+                                if not c:
+                                    continue
+                                m = re.search(r"(\d{1,2}:\d{2})", c)
+                                if m:
+                                    return m.group(1)
+                            return None
+                        def find_last_mmss(seq):
+                            for c in reversed(seq):
+                                if not c:
+                                    continue
+                                m = re.search(r"(\d{1,2}:\d{2})", c)
+                                if m:
+                                    return m.group(1)
+                            return None
 
-                    start_secs = mmss_to_seconds(start_mmss) if start_mmss else None
-                    end_secs = mmss_to_seconds(end_mmss) if end_mmss else None
+                        start_mmss = None
+                        end_mmss = None
+                        if start_txt:
+                            m = re.search(r"(\d{1,2}:\d{2})", start_txt)
+                            start_mmss = m.group(1) if m else None
+                        if end_txt:
+                            m = re.search(r"(\d{1,2}:\d{2})", end_txt)
+                            end_mmss = m.group(1) if m else None
 
-                    # if end missing, try duration -> compute end
-                    if end_secs is None and idx_map.get('duration') is not None and idx_map.get('duration') < len(cells):
-                        dur_txt = cells[idx_map.get('duration')]
-                        dur_secs = mmss_to_seconds(dur_txt)
-                        if start_secs is not None and dur_secs is not None:
-                            end_secs = start_secs + dur_secs
-                            # format end_mmss
-                            try:
+                        if start_mmss is None:
+                            start_mmss = find_first_mmss(cells)
+                        if end_mmss is None:
+                            end_mmss = find_last_mmss(cells)
+
+                        start_secs = mmss_to_seconds(start_mmss) if start_mmss else None
+                        end_secs = mmss_to_seconds(end_mmss) if end_mmss else None
+
+                        # if end missing, try duration
+                        if end_secs is None and current_idx_map.get('duration') is not None and current_idx_map.get('duration') < len(cells):
+                            dur_txt = cells[current_idx_map.get('duration')]
+                            dur_secs = mmss_to_seconds(dur_txt)
+                            if start_secs is not None and dur_secs is not None:
+                                end_secs = start_secs + dur_secs
+                                try:
+                                    mm = int(end_secs) // 60
+                                    ss = int(end_secs) % 60
+                                    end_mmss = f"{mm:01d}:{ss:02d}"
+                                except Exception:
+                                    pass
+
+                        # infer start when missing but end and duration present
+                        if start_secs is None and end_secs is not None and current_idx_map.get('duration') is not None and current_idx_map.get('duration') < len(cells):
+                            dur_txt = cells[current_idx_map.get('duration')]
+                            dur_secs = mmss_to_seconds(dur_txt)
+                            if dur_secs is not None:
+                                inferred_start = end_secs - dur_secs
+                                if inferred_start is not None and inferred_start >= 0:
+                                    start_secs = inferred_start
+                                    try:
+                                        mm = int(start_secs) // 60
+                                        ss = int(start_secs) % 60
+                                        start_mmss = f"{mm:01d}:{ss:02d}"
+                                    except Exception:
+                                        start_mmss = None
+
+                        per_val = None
+                        try:
+                            if period_txt is not None:
+                                pt = str(period_txt).strip().upper()
+                                if pt == 'OT':
+                                    per_val = 4
+                                else:
+                                    mm = re.search(r"(\d+)", pt)
+                                    if mm:
+                                        per_val = int(mm.group(1))
+                        except Exception:
+                            per_val = None
+
+                        total_start = period_time_to_total(per_val, start_mmss) if start_mmss and per_val is not None else None
+                        total_end = period_time_to_total(per_val, end_mmss) if end_mmss and per_val is not None else None
+
+                        # format numeric seconds into mm:ss when missing
+                        try:
+                            if start_secs is not None and (not start_mmss):
+                                mm = int(start_secs) // 60
+                                ss = int(start_secs) % 60
+                                start_mmss = f"{mm:01d}:{ss:02d}"
+                            if end_secs is not None and (not end_mmss):
                                 mm = int(end_secs) // 60
                                 ss = int(end_secs) % 60
                                 end_mmss = f"{mm:01d}:{ss:02d}"
-                            except Exception:
-                                pass
+                        except Exception:
+                            pass
 
-                    # NEW: if start missing but end and duration available, infer start
-                    if start_secs is None and end_secs is not None and idx_map.get('duration') is not None and idx_map.get('duration') < len(cells):
-                        dur_txt = cells[idx_map.get('duration')]
-                        dur_secs = mmss_to_seconds(dur_txt)
-                        if dur_secs is not None:
-                            inferred_start = end_secs - dur_secs
-                            if inferred_start is not None and inferred_start >= 0:
-                                start_secs = inferred_start
-                                try:
-                                    mm = int(start_secs) // 60
-                                    ss = int(start_secs) % 60
-                                    start_mmss = f"{mm:01d}:{ss:02d}"
-                                except Exception:
-                                    start_mmss = None
-
-                    # compute seconds
-                    start_secs = start_secs if start_secs is not None else None
-                    end_secs = end_secs if end_secs is not None else None
-
-                    per_val = None
-                    try:
-                        if period_txt is not None:
-                            pt = str(period_txt).strip().upper()
-                            if pt == 'OT':
-                                per_val = 4
-                            else:
-                                mm = re.search(r"(\d+)", pt)
-                                if mm:
-                                    per_val = int(mm.group(1))
-                    except Exception:
-                        per_val = None
-
-                    # compute total seconds since start of game
-                    total_start = period_time_to_total(per_val, start_mmss) if start_mmss and per_val is not None else None
-                    total_end = period_time_to_total(per_val, end_mmss) if end_mmss and per_val is not None else None
-
-                    # If we have numeric seconds but missing raw mm:ss, format them
-                    try:
-                        if start_secs is not None and (not start_mmss):
-                            mm = int(start_secs) // 60
-                            ss = int(start_secs) % 60
-                            start_mmss = f"{mm:01d}:{ss:02d}"
-                        if end_secs is not None and (not end_mmss):
-                            mm = int(end_secs) // 60
-                            ss = int(end_secs) % 60
-                            end_mmss = f"{mm:01d}:{ss:02d}"
-                    except Exception:
-                        pass
-
-                    shift = {
-                        'game_id': game_id,
-                        'player_id': pnum if pnum is not None else None,
-                        'player_number': pnum,
-                        'player_name': player_name,
-                        'team_id': None,
-                        'team_side': 'home' if venue_tag == 'H' else 'away',
-                        'period': per_val,
-                        'start_raw': start_mmss,
-                        'end_raw': end_mmss,
-                        'start_seconds': start_secs,
-                        'end_seconds': end_secs,
-                        'start_total_seconds': total_start,
-                        'end_total_seconds': total_end,
-                        'raw': {'player_heading': heading_text, 'row_cells': cells}
-                    }
-
-                    all_shifts.append(shift)
+                        shift = {
+                            'game_id': game_id,
+                            'player_id': current_pnum if current_pnum is not None else None,
+                            'player_number': current_pnum,
+                            'player_name': current_player_name,
+                            'team_id': None,
+                            'team_side': 'home' if venue_tag == 'H' else 'away',
+                            'period': per_val,
+                            'start_raw': start_mmss,
+                            'end_raw': end_mmss,
+                            'start_seconds': start_secs,
+                            'end_seconds': end_secs,
+                            'start_total_seconds': total_start,
+                            'end_total_seconds': total_end,
+                            'raw': {'player_heading': current_heading_text, 'row_cells': cells}
+                        }
+                        all_shifts.append(shift)
+                        continue
+                    # otherwise, nothing to do for this row
+                    continue
 
         # If we didn't find any per-player shifts, fall back to event-style parsing
         if not all_shifts:
@@ -1420,6 +1526,12 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                         break
                 if all_shifts:
                     break
+
+        # Build shifts_by_player mapping from all_shifts (populate for both per-player and event-derived)
+        shifts_by_player = {}
+        for s in all_shifts:
+            keyp = s.get('player_id') if s.get('player_id') is not None else s.get('player_number') if s.get('player_number') is not None else 'unknown'
+            shifts_by_player.setdefault(keyp, []).append(s)
 
         result = {'game_id': game_id, 'raw': '\n\n'.join(raw_combined), 'all_shifts': all_shifts, 'shifts_by_player': shifts_by_player}
         if debug:
