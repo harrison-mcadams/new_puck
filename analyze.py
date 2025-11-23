@@ -4,34 +4,16 @@
 from typing import Optional
 import pandas as pd
 
-# Prefer the new timing implementation but keep fallback helpers from the legacy module.
-# This injects `timing_new` as the module name `timing` so the rest of the code can continue
-# to call `import timing` or `import timing as _timing` without widespread edits.
-import importlib, sys
+# Import timing module with preference for timing_new
+import sys
 try:
-    timing_old = importlib.import_module('timing')
-except Exception:
-    timing_old = None
-try:
-    timing_new = importlib.import_module('timing_new')
-except Exception:
-    timing_new = None
-
-if timing_new is not None:
-    # Register timing_new under the name 'timing' so downstream local imports pick it up.
-    sys.modules['timing'] = timing_new
-    timing = timing_new
-    # Copy a few legacy helpers into timing_new if they exist in the old module but not in timing_new.
-    if timing_old is not None:
-        for name in ('load_season_df', 'add_game_state_relative_column'):
-            if not hasattr(timing, name) and hasattr(timing_old, name):
-                try:
-                    setattr(timing, name, getattr(timing_old, name))
-                except Exception:
-                    pass
-else:
-    # Fall back to the legacy timing module when timing_new isn't available.
-    timing = timing_old
+    import timing_new as timing
+    sys.modules['timing'] = timing
+except ImportError:
+    try:
+        import timing
+    except ImportError:
+        timing = None
 
 def _league(season: Optional[str] = '20252026',
             csv_path: Optional[str] = None,
@@ -319,16 +301,12 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
         # Normalize keys to column names where possible
         if isinstance(cond_work, dict):
-            def _norm(k: str) -> str:
-                return ''.join(ch.lower() for ch in str(k) if ch.isalnum())
-            col_map = { _norm(c): c for c in df.columns }
+            # Normalize key to alphanumeric lowercase
+            col_map = {''.join(ch.lower() for ch in str(c) if ch.isalnum()): c for c in df.columns}
             corrected = {}
             for k, v in cond_work.items():
-                nk = _norm(k)
-                if nk in col_map:
-                    corrected[col_map[nk]] = v
-                else:
-                    corrected[k] = v
+                nk = ''.join(ch.lower() for ch in str(k) if ch.isalnum())
+                corrected[col_map.get(nk, k)] = v
             cond_work = corrected
 
         # Build mask via parse.build_mask when a dict is provided
@@ -341,23 +319,21 @@ def xgs_map(season: Optional[str] = '20252026', *,
         # Apply team filter if requested
         if team_val_local is not None:
             tstr = str(team_val_local).strip()
-            tid = None
+            # Try to parse as int ID, otherwise use as abbreviation
             try:
                 tid = int(tstr)
-            except Exception:
-                tid = None
-            team_mask = pd.Series(False, index=df.index)
-            if tid is not None:
+                team_mask = pd.Series(False, index=df.index)
                 if 'home_id' in df.columns:
-                    team_mask = team_mask | (df['home_id'].astype(str) == str(tid))
+                    team_mask |= df['home_id'].astype(str) == str(tid)
                 if 'away_id' in df.columns:
-                    team_mask = team_mask | (df['away_id'].astype(str) == str(tid))
-            else:
+                    team_mask |= df['away_id'].astype(str) == str(tid)
+            except ValueError:
                 tupper = tstr.upper()
+                team_mask = pd.Series(False, index=df.index)
                 if 'home_abb' in df.columns:
-                    team_mask = team_mask | (df['home_abb'].astype(str).str.upper() == tupper)
+                    team_mask |= df['home_abb'].astype(str).str.upper() == tupper
                 if 'away_abb' in df.columns:
-                    team_mask = team_mask | (df['away_abb'].astype(str).str.upper() == tupper)
+                    team_mask |= df['away_abb'].astype(str).str.upper() == tupper
             final_mask = base_mask & team_mask
         else:
             final_mask = base_mask
@@ -1738,11 +1714,20 @@ if __name__ == '__main__':
     parser.set_defaults(return_heatmaps=True)
     parser.add_argument('--csv-path', default=None, help='Optional explicit CSV path to use (overrides season search)')
     # NEW: quick-run flag to generate per-team xG pct maps for the whole season
-    parser.add_argument('--run-all', action='store_true', help='Run '
-                                                               'full-season '
-                                                               'xG maps for '
-                                                                   'all teams')
-    condition = {'game_state': '5v5'}
-    xgs_map(game_id='2025020280', condition=condition)
-    _league()
+    parser.add_argument('--run-all', action='store_true', help='Run full-season xG maps for all teams')
+    
+    args = parser.parse_args()
+    
+    # Execute based on arguments - only runs when called as main script
+    if args.run_all:
+        condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+        xg_maps_for_season(args.season, condition=condition, behavior=args.behavior, csv_path=args.csv_path)
+    elif args.team:
+        condition = {'game_state': ['5v5'], 'is_net_empty': [0], 'team': args.team}
+        xgs_map(season=args.season, condition=condition, behavior=args.behavior, 
+                out_path=args.out, orient_all_left=args.orient_all_left,
+                return_heatmaps=args.return_heatmaps, csv_path=args.csv_path)
+    else:
+        # Example: run league routine
+        _league(season=args.season, csv_path=args.csv_path)
 
