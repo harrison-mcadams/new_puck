@@ -902,9 +902,9 @@ def _get_team_ids(game_id: Any) -> Dict[str, Optional[int]]:
         if 'awayTeam' in feed and isinstance(feed['awayTeam'], dict):
             away_id = feed['awayTeam'].get('id')
         
-        # Fallback: search for teams in rosterSpots or other nested structures
+        # Fallback: search for teams in boxscore, linescore, or plays structures
         if home_id is None or away_id is None:
-            for key in ['rosterSpots', 'boxscore', 'linescore', 'plays']:
+            for key in ['boxscore', 'linescore', 'plays']:
                 if key in feed and isinstance(feed[key], dict):
                     obj = feed[key]
                     if home_id is None and 'home' in obj and isinstance(obj['home'], dict):
@@ -1699,10 +1699,15 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
         # Log mapping statistics for debugging
         if debug or unmapped_count > 0:
             total_roster_players = len(roster_map.get('home', {})) + len(roster_map.get('away', {}))
-            logging.info('get_shifts_from_nhl_html game %s: roster has %d players (home: %d, away: %d), mapped %d/%d shifts, team_id set for %d/%d shifts', 
-                        game_id, total_roster_players, 
-                        len(roster_map.get('home', {})), len(roster_map.get('away', {})),
-                        mapped_count, len(all_shifts), team_id_set_count, len(all_shifts))
+            home_players = len(roster_map.get('home', {}))
+            away_players = len(roster_map.get('away', {}))
+            
+            logging.info(
+                'get_shifts_from_nhl_html game %s: roster has %d players (home: %d, away: %d), '
+                'mapped %d/%d shifts, team_id set for %d/%d shifts', 
+                game_id, total_roster_players, home_players, away_players,
+                mapped_count, len(all_shifts), team_id_set_count, len(all_shifts)
+            )
             if unmapped_count > 0:
                 logging.warning('get_shifts_from_nhl_html game %s: %d unmapped shifts for players: %s', 
                                game_id, unmapped_count, unmapped_players)
