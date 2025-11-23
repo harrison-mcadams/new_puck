@@ -17,9 +17,13 @@ class DummyResponse:
     def json(self):
         raise ValueError('No JSON')
 
-def _patch_session_get(tmpfile_path):
+def _patch_session_get(tmpfile_path, only_home=False):
     # return a function that mimics requests.Session.get
     def _get(url, timeout=10):
+        # If only_home is True, only return content for TH (home) URLs
+        if only_home and '/TV' in url:
+            # Simulate a 404 for away report
+            raise Exception('404 Not Found')
         with open(tmpfile_path, 'r', encoding='utf-8') as fh:
             return DummyResponse(fh.read(), status_code=200)
     return _get
@@ -27,10 +31,10 @@ def _patch_session_get(tmpfile_path):
 
 def test_parse_sample_html(tmp_path):
     fp = os.path.join(FIXTURE_DIR, 'shift_sample.html')
-    # patch SESSION.get to read local file
+    # patch SESSION.get to read local file (only for home report)
     orig_get = nhl_api.SESSION.get
     try:
-        nhl_api.SESSION.get = _patch_session_get(fp)
+        nhl_api.SESSION.get = _patch_session_get(fp, only_home=True)
         res = nhl_api.get_shifts_from_nhl_html(9999999999, force_refresh=True, debug=True)
         assert isinstance(res, dict)
         assert 'all_shifts' in res
