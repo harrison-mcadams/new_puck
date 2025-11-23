@@ -15,35 +15,79 @@ except ImportError:
     except ImportError:
         timing = None
 
-def _league(season: Optional[str] = '20252026',
-            csv_path: Optional[str] = None,
-            teams: Optional[list] = None):
+def league(season: Optional[str] = '20252026',
+           csv_path: Optional[str] = None,
+           teams: Optional[list] = None,
+           mode: str = 'compute',
+           baseline_path: Optional[str] = None):
     """
-    Compute league-wide xG heatmaps by pooling all teams' left-side results.
+    Compute or load league-wide xG baseline heatmaps.
 
-    Optional `teams` allows limiting which teams to process (useful for testing).
+    This function provides a league average xGs_per60 baseline for comparing
+    individual teams. It can either compute the baseline from scratch or load
+    a previously computed baseline from disk.
 
-    Behavior:
-      - Loads the team list from static/teams.json.
-      - Calls `xgs_map` per team (with the team set in the condition) and
-        extracts the 'left' heatmap (team-facing) and the per-team seconds.
-      - Sums the left heatmaps across teams and sums the left_seconds.
-      - Normalizes the combined left heatmap to xG per 60 minutes by using the
-        summed left_seconds as the denominator.
-      - Saves the combined heatmap as a .npy and a PNG under static/.
+    Args:
+        season: Season string (e.g., '20252026')
+        csv_path: Optional path to season CSV data
+        teams: Optional list of team abbreviations to include (defaults to all teams)
+        mode: 'compute' to calculate baseline, 'load' to read from disk
+        baseline_path: Optional custom path for baseline files (defaults to static/)
+
+    Behavior (compute mode):
+      - Loads the team list from static/teams.json
+      - Calls `xgs_map` per team to extract team-facing heatmaps and seconds
+      - Pools all team heatmaps and normalizes to xG per 60 minutes
+      - Saves the combined heatmap and stats to disk for future loads
+
+    Behavior (load mode):
+      - Loads precomputed baseline from disk
+      - Returns cached league statistics without recomputation
 
     Returns:
       dict with keys:
         - combined_norm: 2D numpy array (normalized to xG per 60)
         - total_left_seconds: float
         - total_left_xg: float (integral of raw summed left heat)
-        - stats: summary dict
+        - stats: summary dict (season, n_teams, xg_per60, etc.)
+        - per_team: dict mapping team -> summary stats
     """
     import json
     import numpy as np
     import os
     import matplotlib.pyplot as plt
 
+    # Determine baseline file paths
+    if baseline_path is None:
+        baseline_path = os.path.join('static')
+    os.makedirs(baseline_path, exist_ok=True)
+    
+    baseline_npy = os.path.join(baseline_path, f'{season}_league_baseline.npy')
+    baseline_json = os.path.join(baseline_path, f'{season}_league_baseline.json')
+
+    # Load mode: read precomputed baseline from disk
+    if mode == 'load':
+        try:
+            combined_norm = np.load(baseline_npy)
+            with open(baseline_json, 'r') as f:
+                saved_data = json.load(f)
+            
+            print(f"league: loaded baseline from {baseline_npy} and {baseline_json}")
+            return {
+                'combined_norm': combined_norm,
+                'total_left_seconds': saved_data.get('total_left_seconds', 0.0),
+                'total_left_xg': saved_data.get('total_left_xg', 0.0),
+                'stats': saved_data.get('stats', {}),
+                'per_team': saved_data.get('per_team', {}),
+            }
+        except Exception as e:
+            print(f"league: failed to load baseline (mode='load'): {e}")
+            print("league: falling back to compute mode")
+            mode = 'compute'
+
+    # Compute mode: calculate baseline from scratch
+    print(f"league: computing baseline for season {season}")
+    
     # Load team list from static/teams.json unless explicit `teams` provided
     if teams is None:
         teams_path = os.path.join('static', 'teams.json')
@@ -202,7 +246,235 @@ def _league(season: Optional[str] = '20252026',
         'n_teams': len(team_list),
     }
 
+    # Save baseline files for future load mode
+    try:
+        np.save(baseline_npy, combined_norm)
+        with open(baseline_json, 'w') as f:
+            json.dump({
+                'total_left_seconds': total_left_seconds,
+                'total_left_xg': total_left_xg,
+                'stats': stats,
+                'per_team': pooled_output,
+            }, f, indent=2)
+        print(f"league: saved baseline to {baseline_npy} and {baseline_json}")
+    except Exception as e:
+        print(f"league: failed to save baseline files: {e}")
+
     return {'combined_norm': combined_norm, 'total_left_seconds': total_left_seconds, 'total_left_xg': total_left_xg, 'stats': stats, 'per_team': pooled_output}
+
+
+def season_analysis(season: Optional[str] = '20252026',
+                    csv_path: Optional[str] = None,
+                    teams: Optional[list] = None,
+                    baseline_mode: str = 'load',
+                    out_dir: Optional[str] = None,
+                    **xgs_map_kwargs):
+    """
+    Run unified season-level analysis: compute per-team xG maps relative to league baseline.
+
+    This function orchestrates a complete season analysis workflow:
+    1. Obtains league baseline (compute or load)
+    2. For each team, calls xgs_map to generate team-specific heatmaps
+    3. Computes relative maps (team xG - league baseline)
+    4. Plots relative maps with consistent styling
+    5. Saves cross-team summary statistics for table compilation
+
+    Args:
+        season: Season string (e.g., '20252026')
+        csv_path: Optional path to season CSV data
+        teams: Optional list of team abbreviations (defaults to all teams)
+        baseline_mode: 'compute' or 'load' for league baseline
+        out_dir: Output directory for results (defaults to static/)
+        **xgs_map_kwargs: Additional arguments passed to xgs_map (e.g., colorbar settings)
+
+    Returns:
+        dict with keys:
+            - baseline: league baseline result
+            - teams: dict mapping team -> analysis results
+            - summary_table: cross-team statistics DataFrame
+    """
+    import json
+    import numpy as np
+    import os
+    import pandas as pd
+    import matplotlib.pyplot as plt
+
+    # Set up output directory
+    if out_dir is None:
+        out_dir = os.path.join('static', f'{season}_season_analysis')
+    os.makedirs(out_dir, exist_ok=True)
+
+    # Step 1: Get league baseline
+    print(f"season_analysis: obtaining league baseline (mode={baseline_mode})")
+    baseline_result = league(season=season, csv_path=csv_path, teams=teams, mode=baseline_mode)
+    league_baseline_map = baseline_result.get('combined_norm')
+    
+    if league_baseline_map is None:
+        print("season_analysis: failed to obtain league baseline; aborting")
+        return {'baseline': baseline_result, 'teams': {}, 'summary_table': pd.DataFrame()}
+
+    # Step 2: Load team list
+    if teams is None:
+        teams_path = os.path.join('static', 'teams.json')
+        try:
+            with open(teams_path, 'r') as f:
+                teams_data = json.load(f)
+            team_list = [t.get('abbr') for t in teams_data if 'abbr' in t]
+        except Exception as e:
+            print(f"season_analysis: failed to load teams.json: {e}")
+            return {'baseline': baseline_result, 'teams': {}, 'summary_table': pd.DataFrame()}
+    else:
+        team_list = list(teams)
+
+    print(f"season_analysis: processing {len(team_list)} teams")
+
+    # Step 3: Process each team
+    condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+    team_results = {}
+    summary_rows = []
+
+    for team in team_list:
+        print(f"\nseason_analysis: processing team {team}")
+        condition['team'] = team
+        
+        try:
+            # Call xgs_map to get team-specific heatmap
+            out_path, ret_heat, ret_df, summary_stats = xgs_map(
+                season=season,
+                csv_path=csv_path,
+                model_path='static/xg_model.joblib',
+                behavior='load',
+                out_path=os.path.join(out_dir, f'{team}_xg_map.png'),
+                orient_all_left=False,
+                events_to_plot=None,
+                show=False,
+                return_heatmaps=True,
+                return_filtered_df=False,
+                condition=condition,
+                **xgs_map_kwargs
+            )
+
+            # Extract team heatmap (prefer 'team' key, fallback to 'home')
+            team_map = None
+            if isinstance(ret_heat, dict):
+                team_map = ret_heat.get('team') or ret_heat.get('home')
+            elif ret_heat is not None:
+                team_map = ret_heat
+
+            if team_map is None:
+                print(f"season_analysis: no heatmap returned for team {team}")
+                team_results[team] = {'error': 'no_heatmap'}
+                continue
+
+            # Step 4: Compute relative map (team - league baseline)
+            team_map_array = np.asarray(team_map, dtype=float)
+            
+            # Ensure shapes match
+            if team_map_array.shape != league_baseline_map.shape:
+                print(f"season_analysis: shape mismatch for {team}: {team_map_array.shape} vs {league_baseline_map.shape}")
+                team_results[team] = {'error': 'shape_mismatch'}
+                continue
+
+            relative_map = team_map_array - league_baseline_map
+
+            # Step 5: Plot relative map
+            try:
+                from rink import draw_rink
+                m = np.ma.masked_invalid(relative_map)
+                fig, ax = plt.subplots(figsize=(8, 4.5))
+                draw_rink(ax=ax)
+                
+                # Use diverging colormap for relative values (centered at 0)
+                gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
+                gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
+                extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
+                
+                cmap = plt.get_cmap('RdBu_r')  # diverging colormap
+                try:
+                    cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
+                except Exception:
+                    pass
+                
+                # Symmetric color limits around zero
+                vmax = np.nanmax(np.abs(m))
+                im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, 
+                              vmin=-vmax, vmax=vmax)
+                
+                # Add colorbar
+                cbar = plt.colorbar(im, ax=ax)
+                cbar.set_label('Relative xG/60 vs League Avg', rotation=270, labelpad=20)
+                
+                ax.set_title(f'{team} - Relative xG/60 (vs League Baseline)')
+                
+                relative_map_path = os.path.join(out_dir, f'{team}_relative_map.png')
+                fig.savefig(relative_map_path, dpi=150, bbox_inches='tight')
+                plt.close(fig)
+                
+                print(f"season_analysis: saved relative map to {relative_map_path}")
+            except Exception as e:
+                print(f"season_analysis: failed to plot relative map for {team}: {e}")
+
+            # Save relative map as .npy
+            try:
+                np.save(os.path.join(out_dir, f'{team}_relative_map.npy'), relative_map)
+            except Exception:
+                pass
+
+            # Step 6: Compile summary statistics
+            team_xg_per60 = summary_stats.get('team_xg_per60', 0.0) if summary_stats else 0.0
+            league_avg_xg_per60 = baseline_result['stats'].get('xg_per60', 0.0)
+            relative_xg_per60 = team_xg_per60 - league_avg_xg_per60
+
+            summary_row = {
+                'team': team,
+                'team_xg_per60': team_xg_per60,
+                'league_avg_xg_per60': league_avg_xg_per60,
+                'relative_xg_per60': relative_xg_per60,
+                'team_xgs': summary_stats.get('team_xgs', 0.0) if summary_stats else 0.0,
+                'team_seconds': summary_stats.get('team_seconds', 0.0) if summary_stats else 0.0,
+            }
+            summary_rows.append(summary_row)
+
+            team_results[team] = {
+                'summary_stats': summary_stats,
+                'relative_map': relative_map,
+                'relative_map_path': relative_map_path,
+                'out_path': out_path,
+            }
+
+        except Exception as e:
+            print(f"season_analysis: error processing team {team}: {e}")
+            team_results[team] = {'error': str(e)}
+
+    # Step 7: Create cross-team summary table
+    summary_table = pd.DataFrame(summary_rows)
+    if not summary_table.empty:
+        # Sort by relative_xg_per60 descending
+        summary_table = summary_table.sort_values('relative_xg_per60', ascending=False)
+        
+        # Save summary table
+        summary_csv = os.path.join(out_dir, f'{season}_team_summary.csv')
+        summary_json = os.path.join(out_dir, f'{season}_team_summary.json')
+        
+        try:
+            summary_table.to_csv(summary_csv, index=False)
+            print(f"\nseason_analysis: saved summary table to {summary_csv}")
+        except Exception as e:
+            print(f"season_analysis: failed to save summary CSV: {e}")
+        
+        try:
+            summary_table.to_json(summary_json, orient='records', indent=2)
+            print(f"season_analysis: saved summary table to {summary_json}")
+        except Exception as e:
+            print(f"season_analysis: failed to save summary JSON: {e}")
+
+    print(f"\nseason_analysis: complete. Processed {len(team_results)} teams.")
+    
+    return {
+        'baseline': baseline_result,
+        'teams': team_results,
+        'summary_table': summary_table,
+    }
 
 
 def xgs_map(season: Optional[str] = '20252026', *,
@@ -1736,6 +2008,7 @@ if __name__ == '__main__':
     """
 
     import argparse
+    import json
 
     parser = argparse.ArgumentParser(prog='analyze.py', description='Run xgs_map for a season and team (example).')
     parser.add_argument('--season', default='20252026', help='Season string (e.g. 20252026)')
@@ -1751,13 +2024,47 @@ if __name__ == '__main__':
     parser.add_argument('--run-all', action='store_true', help='Run full-season xG maps for all teams')
     # NEW: allow specifying a single game id to generate an xG map for that game
     parser.add_argument('--game-id', default=None, help='Game ID (e.g. 2025020339) to generate an xG map for a single game')
+    # NEW: league baseline options
+    parser.add_argument('--league-baseline', action='store_true', help='Compute or load league baseline xG map')
+    parser.add_argument('--baseline-mode', choices=['compute', 'load'], default='load', 
+                       help='Mode for league baseline: compute (calculate from data) or load (read from disk)')
+    # NEW: season analysis option
+    parser.add_argument('--season-analysis', action='store_true', 
+                       help='Run unified season analysis: compute per-team maps relative to league baseline')
 
     args = parser.parse_args()
     
     # Execute based on arguments - only runs when called as main script
-    if args.run_all:
-        condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
-        xg_maps_for_season(args.season, condition=condition, behavior=args.behavior, csv_path=args.csv_path)
+    if args.league_baseline:
+        # Compute or load league baseline
+        print(f"Running league baseline analysis (mode={args.baseline_mode})")
+        result = league(season=args.season, csv_path=args.csv_path, mode=args.baseline_mode)
+        print("\nLeague baseline stats:")
+        print(json.dumps(result.get('stats', {}), indent=2))
+    elif args.season_analysis:
+        # Run unified season analysis
+        print(f"Running unified season analysis for {args.season}")
+        result = season_analysis(
+            season=args.season,
+            csv_path=args.csv_path,
+            baseline_mode=args.baseline_mode,
+        )
+        print("\nSeason analysis complete!")
+        if 'summary_table' in result and not result['summary_table'].empty:
+            print("\nTop 10 teams by relative xG/60:")
+            print(result['summary_table'].head(10).to_string(index=False))
+    elif args.run_all:
+        # Use the new unified season_analysis routine instead of xg_maps_for_season
+        print(f"Running season analysis for all teams (season={args.season})")
+        result = season_analysis(
+            season=args.season,
+            csv_path=args.csv_path,
+            baseline_mode=args.baseline_mode,
+        )
+        print("\nSeason analysis complete!")
+        if 'summary_table' in result and not result['summary_table'].empty:
+            print("\nTeam rankings by relative xG/60:")
+            print(result['summary_table'].to_string(index=False))
     elif args.team:
         condition = {'game_state': ['5v5'], 'is_net_empty': [0], 'team': args.team}
         xgs_map(season=args.season, condition=condition, behavior=args.behavior, 
