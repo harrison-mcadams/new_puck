@@ -10,8 +10,11 @@ import pandas as pd
 import sys
 import os
 
-# Add parent directory to path to import analyze module
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add parent directory to path - using relative path from test location
+test_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(test_dir)
+if parent_dir not in sys.path:
+    sys.path.insert(0, parent_dir)
 
 import analyze
 

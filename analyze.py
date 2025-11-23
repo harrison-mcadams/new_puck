@@ -613,12 +613,12 @@ def xgs_map(season: Optional[str] = '20252026', *,
                         
                         if needs_validation:
                             # Build a temporary dataframe from matched rows for validation
-                            df_matched = df_game.loc[unique_idx].copy()
+                            df_matched = df_game.loc[unique_idx]
                             
                             # If game_state is in condition, add game_state_relative_to_team column
                             if 'game_state' in condition and hasattr(_timing, 'add_game_state_relative_column'):
                                 try:
-                                    df_matched = _timing.add_game_state_relative_column(df_matched, team_for_game)
+                                    df_matched = _timing.add_game_state_relative_column(df_matched.copy(), team_for_game)
                                     # Replace game_state column with relative version for condition matching
                                     if 'game_state_relative_to_team' in df_matched.columns:
                                         df_matched['game_state'] = df_matched['game_state_relative_to_team']
@@ -632,9 +632,9 @@ def xgs_map(season: Optional[str] = '20252026', *,
                                 if validation_condition:
                                     condition_mask = _parse.build_mask(df_matched, validation_condition)
                                     condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
-                                    # Filter unique_idx to only include rows that pass the condition
-                                    validated_idx = [ii for ii in unique_idx if ii in df_matched.index and condition_mask.loc[ii]]
-                                    unique_idx = validated_idx
+                                    # Filter unique_idx using vectorized boolean indexing
+                                    validated_mask = pd.Series([ii in df_matched.index and condition_mask.loc[ii] for ii in unique_idx], index=unique_idx)
+                                    unique_idx = [ii for ii, keep in zip(unique_idx, validated_mask) if keep]
                             except Exception as e:
                                 print(f"_apply_intervals: failed to validate condition for game {gid_str}: {e}")
                     
