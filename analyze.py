@@ -355,6 +355,8 @@ def season_analysis(season: Optional[str] = '20252026',
             )
 
             # Extract team heatmap (prefer 'team' key, fallback to 'home')
+            # Note: xgs_map may return heatmaps as dict with 'team'/'other' keys
+            # when team is specified, or 'home'/'away' keys for game-level analysis
             team_map = None
             if isinstance(ret_heat, dict):
                 team_map = ret_heat.get('team') or ret_heat.get('home')
@@ -392,7 +394,8 @@ def season_analysis(season: Optional[str] = '20252026',
                 cmap = plt.get_cmap('RdBu_r')  # diverging colormap
                 try:
                     cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
-                except Exception:
+                except AttributeError:
+                    # Some matplotlib versions don't support set_bad on colormap objects
                     pass
                 
                 # Symmetric color limits around zero

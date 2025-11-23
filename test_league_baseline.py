@@ -69,7 +69,12 @@ def test_league_load_mode():
         baseline_json = os.path.join(static_dir, '20252026_league_baseline.json')
         
         # Create dummy data
-        dummy_map = np.random.rand(86, 201) * 0.05  # Small random values
+        # Heatmap dimensions: 86 rows (y-axis: -42.5 to 42.5 in 1.0 steps) x 
+        #                     201 cols (x-axis: -100 to 100 in 1.0 steps)
+        # These match the standard rink dimensions used by the xgs_map function
+        HEATMAP_Y_DIM = 86  # -42.5 to 42.5 (rink half-height)
+        HEATMAP_X_DIM = 201  # -100 to 100 (rink length)
+        dummy_map = np.random.rand(HEATMAP_Y_DIM, HEATMAP_X_DIM) * 0.05  # Small random values
         dummy_stats = {
             'total_left_seconds': 1000.0,
             'total_left_xg': 50.0,
