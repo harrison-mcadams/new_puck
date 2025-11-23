@@ -882,6 +882,55 @@ def _get_roster_mapping(game_id: Any) -> Dict[str, Dict[int, int]]:
         return {'home': {}, 'away': {}}
 
 
+def _get_team_ids(game_id: Any) -> Dict[str, Optional[int]]:
+    """Extract team IDs for home and away teams from game feed.
+    
+    Returns a dict with 'home' and 'away' keys mapping to team IDs.
+    Example return: {'home': 1, 'away': 6}
+    """
+    try:
+        feed = get_game_feed(game_id)
+        if not feed or not isinstance(feed, dict):
+            return {'home': None, 'away': None}
+        
+        home_id = None
+        away_id = None
+        
+        # Try to extract from common structures
+        if 'homeTeam' in feed and isinstance(feed['homeTeam'], dict):
+            home_id = feed['homeTeam'].get('id')
+        if 'awayTeam' in feed and isinstance(feed['awayTeam'], dict):
+            away_id = feed['awayTeam'].get('id')
+        
+        # Fallback: search for teams in rosterSpots or other nested structures
+        if home_id is None or away_id is None:
+            for key in ['rosterSpots', 'boxscore', 'linescore', 'plays']:
+                if key in feed and isinstance(feed[key], dict):
+                    obj = feed[key]
+                    if home_id is None and 'home' in obj and isinstance(obj['home'], dict):
+                        home_id = obj['home'].get('team', {}).get('id')
+                    if away_id is None and 'away' in obj and isinstance(obj['away'], dict):
+                        away_id = obj['away'].get('team', {}).get('id')
+        
+        # Convert to int if they're strings
+        if home_id is not None:
+            try:
+                home_id = int(home_id)
+            except (ValueError, TypeError):
+                pass
+        if away_id is not None:
+            try:
+                away_id = int(away_id)
+            except (ValueError, TypeError):
+                pass
+        
+        return {'home': home_id, 'away': away_id}
+        
+    except Exception as e:
+        logging.warning('_get_team_ids: failed for game %s: %s', game_id, e)
+        return {'home': None, 'away': None}
+
+
 def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: bool = False) -> Dict[str, Any]:
     """Fallback: obtain shift information by scraping NHL official HTML reports.
 
@@ -1615,16 +1664,26 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                 if all_shifts:
                     break
 
-        # Map jersey numbers to canonical player_id values
+        # Map jersey numbers to canonical player_id values and set team_id
         roster_map = _get_roster_mapping(game_id)
+        team_ids = _get_team_ids(game_id)
         mapped_count = 0
         unmapped_count = 0
         unmapped_players = set()
+        team_id_set_count = 0
         
         for shift in all_shifts:
             team_side = shift.get('team_side')
             player_number = shift.get('player_number')
             
+            # Set team_id based on team_side
+            if team_side in ('home', 'away'):
+                team_id = team_ids.get(team_side)
+                if team_id is not None:
+                    shift['team_id'] = team_id
+                    team_id_set_count += 1
+            
+            # Map player_number to canonical player_id
             if player_number is not None and team_side in ('home', 'away'):
                 team_roster = roster_map.get(team_side, {})
                 canonical_id = team_roster.get(player_number)
@@ -1640,10 +1699,10 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
         # Log mapping statistics for debugging
         if debug or unmapped_count > 0:
             total_roster_players = len(roster_map.get('home', {})) + len(roster_map.get('away', {}))
-            logging.info('get_shifts_from_nhl_html game %s: roster has %d players (home: %d, away: %d), mapped %d/%d shifts', 
+            logging.info('get_shifts_from_nhl_html game %s: roster has %d players (home: %d, away: %d), mapped %d/%d shifts, team_id set for %d/%d shifts', 
                         game_id, total_roster_players, 
                         len(roster_map.get('home', {})), len(roster_map.get('away', {})),
-                        mapped_count, len(all_shifts))
+                        mapped_count, len(all_shifts), team_id_set_count, len(all_shifts))
             if unmapped_count > 0:
                 logging.warning('get_shifts_from_nhl_html game %s: %d unmapped shifts for players: %s', 
                                game_id, unmapped_count, unmapped_players)
@@ -1662,6 +1721,8 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                 'tables_scanned': tables_scanned, 
                 'players_scanned': players_scanned, 
                 'found_shifts': len(all_shifts),
+                'team_ids': team_ids,
+                'team_id_set_count': team_id_set_count,
                 'roster_mapping': {
                     'home_players': len(roster_map.get('home', {})),
                     'away_players': len(roster_map.get('away', {})),
