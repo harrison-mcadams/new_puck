@@ -989,12 +989,23 @@ def _get_team_ids(game_id: Any) -> Dict[str, Optional[int]]:
 def _normalize_name(n: str) -> str:
     """Normalize a player name for matching purposes.
     
-    Removes punctuation, extra whitespace, and converts to lowercase.
+    Removes punctuation, extra whitespace, converts to lowercase, and handles accented characters.
     """
     if not n:
         return ''
     s = str(n).lower().strip()
     import re
+    import unicodedata
+    
+    # Normalize Unicode characters (decompose accented chars)
+    # NFD decomposes characters like 'ü' into 'u' + combining diaeresis
+    try:
+        s = unicodedata.normalize('NFD', s)
+        # Remove combining characters (accents, diacritics)
+        s = ''.join(c for c in s if not unicodedata.combining(c))
+    except Exception:
+        pass
+    
     # Remove common punctuation and special characters
     s = re.sub(r"[,.'\"]", '', s)
     # Collapse multiple spaces to single space
