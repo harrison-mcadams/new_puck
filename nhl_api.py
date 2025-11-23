@@ -1124,12 +1124,38 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                     start_secs = mmss_to_seconds(start_mmss) if start_mmss else None
                     end_secs = mmss_to_seconds(end_mmss) if end_mmss else None
 
-                    # if end missing, try duration
+                    # if end missing, try duration -> compute end
                     if end_secs is None and idx_map.get('duration') is not None and idx_map.get('duration') < len(cells):
                         dur_txt = cells[idx_map.get('duration')]
                         dur_secs = mmss_to_seconds(dur_txt)
                         if start_secs is not None and dur_secs is not None:
                             end_secs = start_secs + dur_secs
+                            # format end_mmss
+                            try:
+                                mm = int(end_secs) // 60
+                                ss = int(end_secs) % 60
+                                end_mmss = f"{mm:01d}:{ss:02d}"
+                            except Exception:
+                                pass
+
+                    # NEW: if start missing but end and duration available, infer start
+                    if start_secs is None and end_secs is not None and idx_map.get('duration') is not None and idx_map.get('duration') < len(cells):
+                        dur_txt = cells[idx_map.get('duration')]
+                        dur_secs = mmss_to_seconds(dur_txt)
+                        if dur_secs is not None:
+                            inferred_start = end_secs - dur_secs
+                            if inferred_start is not None and inferred_start >= 0:
+                                start_secs = inferred_start
+                                try:
+                                    mm = int(start_secs) // 60
+                                    ss = int(start_secs) % 60
+                                    start_mmss = f"{mm:01d}:{ss:02d}"
+                                except Exception:
+                                    start_mmss = None
+
+                    # compute seconds
+                    start_secs = start_secs if start_secs is not None else None
+                    end_secs = end_secs if end_secs is not None else None
 
                     per_val = None
                     try:
@@ -1147,6 +1173,19 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                     # compute total seconds since start of game
                     total_start = period_time_to_total(per_val, start_mmss) if start_mmss and per_val is not None else None
                     total_end = period_time_to_total(per_val, end_mmss) if end_mmss and per_val is not None else None
+
+                    # If we have numeric seconds but missing raw mm:ss, format them
+                    try:
+                        if start_secs is not None and (not start_mmss):
+                            mm = int(start_secs) // 60
+                            ss = int(start_secs) % 60
+                            start_mmss = f"{mm:01d}:{ss:02d}"
+                        if end_secs is not None and (not end_mmss):
+                            mm = int(end_secs) // 60
+                            ss = int(end_secs) % 60
+                            end_mmss = f"{mm:01d}:{ss:02d}"
+                    except Exception:
+                        pass
 
                     shift = {
                         'game_id': game_id,
@@ -1166,8 +1205,6 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                     }
 
                     all_shifts.append(shift)
-                    keyp = pnum if pnum is not None else player_name
-                    shifts_by_player.setdefault(keyp, []).append(shift)
 
         # If we didn't find any per-player shifts, fall back to event-style parsing
         if not all_shifts:
@@ -1346,6 +1383,21 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                                 else:
                                     end_seconds = it.get('end_total') - (3 * 1200) - ((per - 4) * 300)
 
+                            # ensure raw mm:ss strings exist when we have numeric seconds
+                            s_raw = it.get('start_mmss')
+                            e_raw = it.get('end_mmss')
+                            try:
+                                if start_seconds is not None and not s_raw:
+                                    mm = int(start_seconds) // 60
+                                    ss = int(start_seconds) % 60
+                                    s_raw = f"{mm:01d}:{ss:02d}"
+                                if end_seconds is not None and not e_raw:
+                                    mm = int(end_seconds) // 60
+                                    ss = int(end_seconds) % 60
+                                    e_raw = f"{mm:01d}:{ss:02d}"
+                            except Exception:
+                                pass
+
                             shift = {
                                 'game_id': game_id,
                                 'player_id': num,
@@ -1354,8 +1406,8 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                                 'team_id': None,
                                 'team_side': side,
                                 'period': per,
-                                'start_raw': it.get('start_mmss'),
-                                'end_raw': it.get('end_mmss'),
+                                'start_raw': s_raw,
+                                'end_raw': e_raw,
                                 'start_seconds': start_seconds,
                                 'end_seconds': end_seconds,
                                 'start_total_seconds': it.get('start_total'),
@@ -1363,8 +1415,6 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                                 'raw': {'inferred_from_event_table': True}
                             }
                             all_shifts.append(shift)
-                            keyp = num
-                            shifts_by_player.setdefault(keyp, []).append(shift)
 
                     if all_shifts:
                         break
