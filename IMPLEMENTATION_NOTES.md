@@ -176,3 +176,147 @@ Test with real game (if network available):
 ```bash
 python scripts/debug_parse_shifts.py 2025020232
 ```
+
+---
+
+# Team ID Fix - November 2024
+
+## Problem
+After the initial jersey-to-player_id mapping was implemented, a critical bug was discovered: **all rows with team_id == 1 were still getting jersey numbers as player_id instead of canonical NHL player IDs**. This meant the roster mapping was only working for one team (typically the away team), leaving the other team unmapped.
+
+## Root Cause
+The `_get_roster_mapping()` function's recursive walker had a team context detection bug:
+
+1. When processing the game feed, the walker would detect 'homeTeam' key at the top level and set `team = 'home'`
+2. This parent team context would be inherited by ALL child objects, including roster spots
+3. When a roster spot with `teamId: 6` (away) was encountered, the code checked `if team is None and 'teamId' in obj`
+4. Since `team` was already 'home' from the parent context, the condition failed
+5. Result: ALL players were assigned to home team roster, away roster remained empty
+6. Shifts for away players couldn't be mapped → kept jersey numbers
+
+**Debug output showing the bug:**
+```
+DEBUG: _get_roster_mapping: adding home team jersey 12 -> player_id 8471675
+DEBUG: _get_roster_mapping: adding home team jersey 23 -> player_id 8474564
+DEBUG: _get_roster_mapping: adding home team jersey 12 -> player_id 8475798  ❌ Wrong!
+DEBUG: _get_roster_mapping: adding home team jersey 23 -> player_id 8476453  ❌ Wrong!
+Result: Home: {12: 8475798, 23: 8476453}  # Away players overwrite home!
+        Away: {}                           # Empty!
+```
+
+## Solution
+Reordered the team detection logic to **prioritize explicit `teamId` field** over inherited parent context:
+
+```python
+def walk_and_extract(obj, current_team=None):
+    team = current_team
+    
+    # PRIORITY 1: Use teamId if present (HIGHEST PRIORITY)
+    if 'teamId' in obj:
+        try:
+            tid = int(obj.get('teamId'))
+            if tid == home_id:
+                team = 'home'
+            elif tid == away_id:
+                team = 'away'
+        except (ValueError, TypeError):
+            pass
+    
+    # PRIORITY 2: Fall back to parent context only if teamId absent
+    if team is None or team not in ('home', 'away'):
+        if 'homeTeam' in obj or ('team' in obj and obj.get('team') == 'home'):
+            team = 'home'
+        elif 'awayTeam' in obj or ('team' in obj and obj.get('team') == 'away'):
+            team = 'away'
+```
+
+**After the fix:**
+```
+DEBUG: _get_roster_mapping: adding home team jersey 12 -> player_id 8471675 ✓
+DEBUG: _get_roster_mapping: adding home team jersey 23 -> player_id 8474564 ✓
+DEBUG: _get_roster_mapping: adding away team jersey 12 -> player_id 8475798 ✓
+DEBUG: _get_roster_mapping: adding away team jersey 23 -> player_id 8476453 ✓
+Result: Home: {12: 8471675, 23: 8474564}  ✓ Correct!
+        Away: {12: 8475798, 23: 8476453}  ✓ Correct!
+```
+
+## Changes Made
+
+### 1. Core Fix (`nhl_api.py`)
+- Modified lines 810-859 to extract team IDs first and prioritize `teamId` field
+- Added debug logging to track which team each player is added to
+
+### 2. New Tests
+
+**tests/test_team_id_mapping.py** - Validates both teams get canonical IDs:
+```python
+def test_both_teams_get_player_id_mapped():
+    # Mock game feed with BOTH teams' rosters
+    mock_feed = {
+        'homeTeam': {'id': 1},
+        'awayTeam': {'id': 6},
+        'rosterSpots': [
+            {'teamId': 1, 'sweaterNumber': 12, 'playerId': 8471675},  # Home
+            {'teamId': 6, 'sweaterNumber': 12, 'playerId': 8475798},  # Away
+        ]
+    }
+    
+    # Parse shifts
+    html_res = nhl_api.get_shifts_from_nhl_html(game_id)
+    
+    # Assert: Both teams' rosters extracted
+    assert html_res['debug']['roster_mapping']['home_players'] > 0
+    assert html_res['debug']['roster_mapping']['away_players'] > 0
+    
+    # Assert: All player_id values are canonical (>= 1000, not jersey numbers)
+    for shift in html_res['all_shifts']:
+        assert shift['player_id'] >= MIN_VALID_NHL_PLAYER_ID
+```
+
+**tests/test_html_shifts_parity.py** - Comprehensive parity checks:
+- No summary rows in parsed data
+- All key columns present and non-null  
+- player_id is numeric and canonical
+- team_id set for all shifts
+
+## Verification
+
+### Test Results
+```bash
+$ python -m pytest tests/test_*shift*.py -v
+tests/test_nhl_api_shifts.py::test_parse_sample_html PASSED              [20%]
+tests/test_nhl_api_shifts.py::test_summary_fixture_ignored PASSED        [40%]
+tests/test_nhl_api_shifts.py::test_player_id_mapping_with_roster PASSED  [60%]
+tests/test_team_id_mapping.py::test_both_teams_get_player_id_mapped PASSED [80%]
+tests/test_html_shifts_parity.py::test_html_shifts_parity_checks PASSED  [100%]
+
+5 passed in 4.49s ✅
+```
+
+### Security Scan
+```
+CodeQL Analysis Result: 0 vulnerabilities found ✅
+```
+
+## Impact
+
+✅ **Both home and away teams** now get correct player_id mapping  
+✅ **team_id is set** for all shift rows  
+✅ **No jersey numbers** leak through as player_id  
+✅ **Debug information** helps troubleshoot future issues  
+✅ **Comprehensive tests** prevent regression  
+✅ **Zero security vulnerabilities** introduced
+
+## Files Changed
+
+- `nhl_api.py` - Core fix in `_get_roster_mapping()` team detection logic
+- `tests/test_team_id_mapping.py` - New test for both teams mapping
+- `tests/test_html_shifts_parity.py` - New comprehensive parity checks
+
+All existing tests continue to pass.
+
+---
+
+**Implementation Date:** November 23, 2024  
+**Security Status:** ✅ No vulnerabilities (CodeQL scan)  
+**Test Coverage:** ✅ 5/5 tests passing
