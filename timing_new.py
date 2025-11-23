@@ -15,8 +15,11 @@ Design:
    times where no goalie is on ice for a team.
  - Compute `player_id(s)` intervals using `parse._shifts(..., combine='intersection')`.
  - Provide simple utilities to merge, union, and intersect interval lists.
+ - Integrated HTML fallback: _get_shifts_df() and get_shifts_with_html_fallback()
+   automatically fall back to HTML parsing when API shifts are empty/minimal.
 
 Public API (minimal, explicit):
+ - get_shifts_with_html_fallback(game_id, min_rows_threshold=5)
  - compute_intervals_for_game(game_id, condition)
  - demo_for_export(df, condition)
 
@@ -45,6 +48,50 @@ except Exception:
 
 
 Interval = Tuple[float, float]
+
+
+def get_shifts_with_html_fallback(game_id: int, min_rows_threshold: int = 5) -> Dict[str, Any]:
+    """Wrapper to get shifts with automatic HTML fallback when API returns empty/minimal data.
+    
+    This is a convenience function that can be used in place of nhl_api.get_shifts()
+    when you want automatic fallback to HTML parsing if the API response is insufficient.
+    
+    Parameters:
+        game_id: NHL game ID
+        min_rows_threshold: Minimum number of shifts required to consider API response valid (default 5)
+    
+    Returns:
+        Dict with keys: 'game_id', 'raw', 'all_shifts', 'shifts_by_player'
+        Same format as nhl_api.get_shifts() and nhl_api.get_shifts_from_nhl_html()
+    """
+    try:
+        shifts_res = nhl_api.get_shifts(game_id)
+    except Exception as e:
+        logging.exception('get_shifts_with_html_fallback: get_shifts failed for %s: %s', game_id, e)
+        shifts_res = {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}}
+    
+    # Check if response is empty or minimal
+    all_shifts = shifts_res.get('all_shifts', []) if isinstance(shifts_res, dict) else []
+    
+    if not all_shifts or len(all_shifts) < min_rows_threshold:
+        logging.info(
+            'get_shifts_with_html_fallback: API shifts %s for game %s (%d rows); using HTML fallback',
+            'empty' if not all_shifts else 'minimal', game_id, len(all_shifts)
+        )
+        try:
+            html_res = nhl_api.get_shifts_from_nhl_html(game_id, force_refresh=True, debug=True)
+            if html_res and isinstance(html_res, dict) and html_res.get('all_shifts'):
+                logging.info(
+                    'get_shifts_with_html_fallback: HTML fallback successful for game %s (%d shifts)',
+                    game_id, len(html_res.get('all_shifts', []))
+                )
+                return html_res
+            else:
+                logging.warning('get_shifts_with_html_fallback: HTML fallback also returned empty for game %s', game_id)
+        except Exception as e:
+            logging.exception('get_shifts_with_html_fallback: HTML fallback failed for %s: %s', game_id, e)
+    
+    return shifts_res
 
 
 def _merge_intervals(intervals: List[Interval], eps: float = 1e-9) -> List[Interval]:
@@ -122,12 +169,20 @@ def _intersect_multiple(list_of_lists: List[List[Interval]]) -> List[Interval]:
     return res
 
 
-def _get_shifts_df(game_id: int) -> pd.DataFrame:
+def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
     """Fetch and parse shift chart for a game into a DataFrame (using parse._shifts).
 
     Returns DataFrame with columns including 'start_total_seconds' and 'end_total_seconds'.
     This helper is defensive: if parsing fails it will try a force_refresh and
     will save debug payloads to the nhl_api cache directory for offline analysis.
+    
+    Integrated HTML Fallback:
+    If the API response is empty or contains fewer than min_rows_threshold shifts,
+    this function will automatically fall back to get_shifts_from_nhl_html.
+    
+    Parameters:
+        game_id: NHL game ID
+        min_rows_threshold: Minimum number of shifts required to consider API response valid (default 5)
     """
     try:
         shifts_res = nhl_api.get_shifts(game_id)
@@ -174,6 +229,34 @@ def _get_shifts_df(game_id: int) -> pd.DataFrame:
         except Exception as e:
             logging.exception('timing_new._get_shifts_df: parse._shifts threw on refreshed payload for %s: %s', game_id, e)
             df_shifts = None
+    
+    # Check if we have minimal/insufficient data and need HTML fallback
+    need_html_fallback = False
+    if df_shifts is None or (hasattr(df_shifts, 'empty') and df_shifts.empty):
+        need_html_fallback = True
+        logging.info('timing_new._get_shifts_df: API shifts empty for game %s; will try HTML fallback', game_id)
+    elif len(df_shifts) < min_rows_threshold:
+        need_html_fallback = True
+        logging.info('timing_new._get_shifts_df: API shifts minimal (%d rows) for game %s; will try HTML fallback', 
+                    len(df_shifts), game_id)
+    
+    # If API response is insufficient, try HTML fallback
+    if need_html_fallback:
+        try:
+            logging.info('timing_new._get_shifts_df: attempting HTML fallback for game %s', game_id)
+            html_shifts_res = nhl_api.get_shifts_from_nhl_html(game_id, force_refresh=True, debug=True)
+            if html_shifts_res and isinstance(html_shifts_res, dict):
+                df_html = parse._shifts(html_shifts_res)
+                if df_html is not None and not df_html.empty:
+                    logging.info('timing_new._get_shifts_df: HTML fallback successful for game %s (%d shifts)', 
+                                game_id, len(df_html))
+                    df_shifts = df_html
+                else:
+                    logging.warning('timing_new._get_shifts_df: HTML fallback returned empty DataFrame for game %s', game_id)
+            else:
+                logging.warning('timing_new._get_shifts_df: HTML fallback returned invalid result for game %s', game_id)
+        except Exception as e:
+            logging.exception('timing_new._get_shifts_df: HTML fallback failed for game %s: %s', game_id, e)
 
     # Normalize result to DataFrame and ensure expected columns exist
     if df_shifts is None:
