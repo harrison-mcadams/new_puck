@@ -674,14 +674,16 @@ def xgs_map(season: Optional[str] = '20252026', *,
         try:
             import nhl_api as _nhl_api
             print(f"xgs_map: game_id provided ({game_id}) - fetching live feed...", flush=True)
+            
+            # Try fetching game feed (coerce to int or str as needed)
             feed = None
-            try:
-                feed = _nhl_api.get_game_feed(int(game_id))
-            except Exception:
+            for gid in [int(game_id), str(game_id)]:
                 try:
-                    feed = _nhl_api.get_game_feed(str(game_id))
-                except Exception:
-                    feed = None
+                    feed = _nhl_api.get_game_feed(gid)
+                    break
+                except (ValueError, TypeError, Exception):
+                    continue
+            
             if feed:
                 try:
                     # use parse helpers to build the events dataframe for the single game
@@ -739,15 +741,12 @@ def xgs_map(season: Optional[str] = '20252026', *,
             df_all = pd.read_csv(chosen_csv)
 
     # --- Single timing call: call timing.demo_for_export once on the full dataset
-    try:
-        import timing
+    timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
+    if timing is not None:
         try:
             timing_full = timing.demo_for_export(df_all, condition)
-        except Exception:
-            # ensure a consistent dict shape
-            timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
-    except Exception:
-        timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
+        except Exception as e:
+            print(f'Warning: timing.demo_for_export failed: {e}; using empty timing structure')
 
     # Apply filtering: either by condition or by intervals
     if use_intervals:
