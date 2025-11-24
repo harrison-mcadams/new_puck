@@ -28,3 +28,9 @@ Thumbs.db
 # Temporary files
 tmp/
 *.tmp
+
+# Generated baseline files (can be regenerated)
+*_league_baseline.npy
+*_league_baseline.json
+*_league_left_combined.npy
+*_league_left_combined.png

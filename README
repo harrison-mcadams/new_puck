@@ -8,6 +8,7 @@ Goals and scope
 - Parse a single game's live feed into a simple list of event objects.
 - Produce a demo plot of shot locations from that game and save it to `static/shot_plot.png`.
 - Serve a minimal Flask site that shows the generated plot.
+- **NEW**: Generate league-wide xG baselines and per-team relative xG maps for season-level analysis.
 
 Quickstart (macOS / bash)
 1. Create and activate a virtual environment (recommended):
@@ -35,6 +36,54 @@ python demo_plot.py
 python app.py
 ```
 
+## League Baseline & Season Analysis
+
+The `analyze.py` module now includes powerful season-level analysis capabilities:
+
+### Compute League Baseline
+Generate a league-wide xG baseline (average across all teams):
+
+```bash
+python analyze.py --season 20252026 --league-baseline --baseline-mode compute
+```
+
+### Load Pre-computed Baseline
+Load a previously computed baseline (much faster):
+
+```bash
+python analyze.py --season 20252026 --league-baseline --baseline-mode load
+```
+
+### Run Full Season Analysis
+Generate per-team xG maps relative to the league baseline:
+
+```bash
+python analyze.py --season 20252026 --season-analysis --baseline-mode load
+```
+
+This will:
+- Load or compute the league baseline
+- Generate xG maps for each team
+- Compute relative maps (team xG/60 - league average)
+- Save cross-team summary statistics to CSV/JSON
+- Create visualizations with diverging colormaps showing teams above/below league average
+
+### Quick Season Analysis
+Use the `--run-all` flag to run the full unified season analysis:
+
+```bash
+python analyze.py --season 20252026 --run-all
+```
+
+### Output Files
+Season analysis creates:
+- `static/[SEASON]_season_analysis/` directory containing:
+  - `[TEAM]_xg_map.png` - Team-specific xG heatmap
+  - `[TEAM]_relative_map.png` - Relative xG map vs league baseline
+  - `[TEAM]_relative_map.npy` - Numpy array of relative map
+  - `[SEASON]_team_summary.csv` - Cross-team statistics table
+  - `[SEASON]_team_summary.json` - JSON version of summary
+
 Project layout
 - `requirements.txt` — minimal Python dependencies (Flask, requests, matplotlib)
 - `rink.py` — code to draw a hockey rink using matplotlib
@@ -43,6 +92,9 @@ Project layout
 - `demo_plot.py` — script that fetches a game, parses shot/goal events, and creates a shot plot saved to `static/shot_plot.png`
 - `app.py` — minimal Flask app that serves a page with the generated plot
 - `templates/index.html` — simple template for the web UI
+- `analyze.py` — **NEW**: xG analysis, league baselines, and season-level comparisons
+- `timing.py` — interval-based filtering and game state analysis
+- `fit_xgs.py` — xG model training and prediction
 
 Initial tasks mapping (status: implemented)
 1) Rink plotting code — Done (`rink.py`).
@@ -50,6 +102,7 @@ Initial tasks mapping (status: implemented)
 3) Game -> events parser — Done (`parse_events.py`).
 4) Demo: shot location plot — Done (`demo_plot.py`).
 5) Basic website — Done (`app.py`, `templates/index.html`).
+6) **NEW**: League baseline & season analysis — Done (`analyze.py`)
 
 Notes and next steps
 - This is a starter implementation to get a working pipeline. Improvements to consider:
