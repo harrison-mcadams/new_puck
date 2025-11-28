@@ -1,0 +1,50 @@
+[
+  {
+    "team": "FLA",
+    "team_xg_per60": 3.42,
+    "league_avg_xg_per60": 2.95,
+    "relative_xg_per60": 0.47,
+    "team_xgs": 185.4,
+    "team_seconds": 3250.0
+  },
+  {
+    "team": "EDM",
+    "team_xg_per60": 3.38,
+    "league_avg_xg_per60": 2.95,
+    "relative_xg_per60": 0.43,
+    "team_xgs": 178.2,
+    "team_seconds": 3160.0
+  },
+  {
+    "team": "TOR",
+    "team_xg_per60": 3.25,
+    "league_avg_xg_per60": 2.95,
+    "relative_xg_per60": 0.30,
+    "team_xgs": 172.5,
+    "team_seconds": 3180.0
+  },
+  {
+    "team": "COL",
+    "team_xg_per60": 3.18,
+    "league_avg_xg_per60": 2.95,
+    "relative_xg_per60": 0.23,
+    "team_xgs": 168.9,
+    "team_seconds": 3190.0
+  },
+  {
+    "team": "PHI",
+    "team_xg_per60": 2.85,
+    "league_avg_xg_per60": 2.95,
+    "relative_xg_per60": -0.10,
+    "team_xgs": 155.3,
+    "team_seconds": 3270.0
+  },
+  {
+    "team": "SJS",
+    "team_xg_per60": 2.45,
+    "league_avg_xg_per60": 2.95,
+    "relative_xg_per60": -0.50,
+    "team_xgs": 132.8,
+    "team_seconds": 3255.0
+  }
+]

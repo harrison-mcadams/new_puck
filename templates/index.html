@@ -1,0 +1,410 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Shot Plot</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+    }
+
+    /* remove default image border so the plot has no gray outline */
+    img {
+      max-width: 100%;
+      height: auto;
+      border: none;
+    }
+
+    .controls {
+      margin-top: 1rem;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .controls form {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+    }
+
+    .controls input[type="text"] {
+      padding: 0.4rem 0.6rem;
+      font-size: 0.95rem;
+    }
+
+    /* Revert: keep manual input simple and comparable to other controls */
+    /* (removed wrapper/debug styles and dynamic sizing; use inline min-width on element) */
+    .controls button {
+      padding: 0.45rem 0.8rem;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    /* Center the main plot image */
+    .plot {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin-top: 1rem;
+    }
+
+    /* remove any shadow/outline for a clean image */
+    .plot img {
+      max-width: 900px;
+      width: 100%;
+      box-shadow: none;
+      border: none;
+    }
+  </style>
+</head>
+
+<body>
+
+
+  {% if exists %}
+  <div class="plot">
+    <img src="{{ url_for('static', filename=img) }}" alt="shot plot" />
+  </div>
+  {% else %}
+  <p>No plot found. Run <code>python demo_plot.py</code> to fetch data and generate the plot.</p>
+  {% endif %}
+
+  <div style="text-align: center; margin-top: 1rem;">
+    <a href="{{ url_for('league_stats') }}" style="text-decoration: none; color: #007bff; font-weight: bold;">View
+      League Stats (2025-2026)</a>
+  </div>
+
+  <div class="controls">
+    <form id="replotForm" action="{{ url_for('replot') }}" method="post">
+      <div id="selectors" style="display:flex; gap:0.6rem; align-items:center;">
+        <div style="display:flex; flex-direction:column; align-items:flex-start;">
+          <label for="team_select">Team:</label>
+          <select id="team_select" name="team_select" style="min-width:180px;">
+            <option value="">-- select team --</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-start;">
+          <label for="game_select">Games:</label>
+          <select id="game_select" style="min-width:260px;">
+            <option value="">-- select game --</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:flex-start;">
+          <label for="game_manual">Game ID:</label>
+          <input type="text" id="game_manual" placeholder="e.g. 2025020196"
+            style="min-width:260px; padding:0.4rem 0.6rem; font-size:0.95rem;" />
+        </div>
+      </div>
+      <!-- hidden field the server expects -->
+      <input type="hidden" id="game" name="game" value="" />
+
+      <button type="submit">Plot</button>
+    </form>
+  </div>
+  <script>
+    (function () {
+      const teamSelect = document.getElementById('team_select');
+      const gameSelect = document.getElementById('game_select');
+      const manualInput = document.getElementById('game_manual');
+      const hiddenInput = document.getElementById('game');
+      const form = document.getElementById('replotForm');
+
+      const FALLBACK_TEAMS = [
+        { abbr: 'BOS', name: 'Bruins' },
+        { abbr: 'NYR', name: 'Rangers' },
+        { abbr: 'PHI', name: 'Flyers' },
+        { abbr: 'PIT', name: 'Penguins' },
+        { abbr: 'TOR', name: 'Maple Leafs' },
+        { abbr: 'CHI', name: 'Blackhawks' }
+      ];
+
+      // cache games mapping and teams list in memory
+      let gamesByTeam = null;
+      let teamsList = null;
+      // reverse index: game id -> array of team keys that have this game
+      let gamesById = null;
+
+      function clearGames() {
+        gameSelect.innerHTML = '<option value="">-- select game --</option>';
+      }
+
+      function populateTeamSelect(teams) {
+        teamSelect.disabled = true;
+        teamSelect.innerHTML = '<option value="">-- select team --</option>';
+        clearGames();
+        if (!Array.isArray(teams) || teams.length === 0) teams = FALLBACK_TEAMS;
+        teams.forEach(t => {
+          const opt = document.createElement('option');
+          opt.value = (t.abbr || t.abbreviation || t.code || '').toString();
+          opt.textContent = `${opt.value} - ${t.name || t.teamName || ''}`;
+          teamSelect.appendChild(opt);
+        });
+        teamSelect.disabled = false;
+        try { teamSelect.focus(); } catch (e) { }
+      }
+
+      async function loadStaticTeams() {
+        try {
+          const res = await fetch('/static/teams.json?_=' + Date.now());
+          if (!res.ok) {
+            populateTeamSelect(FALLBACK_TEAMS);
+            return;
+          }
+          const teams = await res.json();
+          if (!teams || !Array.isArray(teams) || teams.length === 0) {
+            populateTeamSelect(FALLBACK_TEAMS);
+            return;
+          }
+          teamsList = teams; // store for fuzzy name matching later
+          populateTeamSelect(teams);
+          // ensure games map is loaded so we can safely auto-select a default team
+          try { await ensureGamesMap(); } catch (e) { /* ignore */ }
+          // now auto-select the default (PHI) and load its games if present
+          try {
+            const defaultTeam = 'PHI';
+            if (Array.from(teamSelect.options).some(o => o.value === defaultTeam)) {
+              teamSelect.value = defaultTeam;
+              loadGamesForTeam(defaultTeam, true);
+            }
+          } catch (e) { /* ignore */ }
+        } catch (err) {
+          console.error('Error loading teams.json:', err);
+          populateTeamSelect(FALLBACK_TEAMS);
+        }
+      }
+
+      async function ensureGamesMap() {
+        if (gamesByTeam) return gamesByTeam;
+        try {
+          const res = await fetch('/static/games_by_team.json?_=' + Date.now());
+          if (!res.ok) {
+            // don't spam logs on minor fetch issues; only show error
+            console.error('Could not load games_by_team.json; status=' + res.status);
+            gamesByTeam = {};
+            return gamesByTeam;
+          }
+          try {
+            gamesByTeam = await res.json();
+          } catch (errJson) {
+            console.error('Failed to parse games_by_team.json:', errJson);
+            gamesByTeam = {};
+            return gamesByTeam;
+          }
+          // build reverse index for quick opponent inference
+          try {
+            gamesById = {};
+            for (const teamKey of Object.keys(gamesByTeam || {})) {
+              const list = gamesByTeam[teamKey] || [];
+              for (const gg of list) {
+                if (!gg) continue;
+                const gid = (gg.id != null) ? String(gg.id) : (gg.gamePk != null ? String(gg.gamePk) : (gg.gameId != null ? String(gg.gameId) : null));
+                if (!gid) continue;
+                if (!gamesById[gid]) gamesById[gid] = [];
+                const tku = teamKey.toString().toUpperCase();
+                if (gamesById[gid].indexOf(tku) === -1) gamesById[gid].push(tku);
+              }
+            }
+          } catch (e) { /* ignore index build errors */ }
+          return gamesByTeam;
+        } catch (err) {
+          console.error('Error loading games_by_team.json:', err);
+          gamesByTeam = {};
+          return gamesByTeam;
+        }
+      }
+
+      async function loadGamesForTeam(team, autoSelectMostRecent = false) {
+        clearGames();
+        if (!team) return;
+        const teamStr = (team || '').toString().trim();
+        const teamKeyUpper = teamStr.toUpperCase();
+        const map = await ensureGamesMap();
+        let games = [];
+        try {
+          if (map) {
+            games = map[teamStr] || map[teamKeyUpper] || map[teamStr.toLowerCase()] || [];
+            if ((!games || games.length === 0)) {
+              const teamLower = teamStr.toLowerCase();
+              for (const k of Object.keys(map)) {
+                try {
+                  if (!k) continue;
+                  const kl = k.toString().toLowerCase();
+                  if (kl === teamLower || kl.indexOf(teamLower) !== -1) {
+                    games = map[k];
+                    break;
+                  }
+                  const list = map[k] || [];
+                  if (Array.isArray(list)) {
+                    for (const gg of list) {
+                      const lab = (gg && (gg.label || gg.start || '') || '').toString().toLowerCase();
+                      if (lab.indexOf(teamLower) !== -1) {
+                        games = list;
+                        break;
+                      }
+                    }
+                    if (games && games.length) break;
+                  }
+                } catch (err) { /* ignore per-key errors */ }
+              }
+            }
+          }
+        } catch (e) {
+          games = [];
+        }
+        if (!games || !Array.isArray(games) || games.length === 0) {
+          try {
+            const infoOpt = document.createElement('option');
+            infoOpt.disabled = true;
+            infoOpt.selected = true;
+            const availableKeys = map ? Object.keys(map).slice(0, 12) : [];
+            infoOpt.textContent = `No games found for ${teamStr}. Keys checked: ${availableKeys.join(', ')}`;
+            gameSelect.appendChild(infoOpt);
+          } catch (e) { /* ignore */ }
+          return;
+        }
+        // Sort games chronologically (oldest first) using the 'start' or 'gameDate' field.
+        const sortedGames = (games || []).slice().map(gg => ({
+          orig: gg,
+          startRaw: (gg.start || gg.gameDate || (gg.label || '').split(' - ')[0] || null),
+          ts: (function (s) { const t = Date.parse(s); return isNaN(t) ? null : t; })((gg.start || gg.gameDate || (gg.label || '').split(' - ')[0] || null))
+        })).sort((a, b) => {
+          const ta = a.ts === null ? Infinity : a.ts;
+          const tb = b.ts === null ? Infinity : b.ts;
+          return ta - tb;
+        }).map(x => x.orig);
+
+        // populate the dropdown in chronological order (oldest -> newest)
+        sortedGames.forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          let display = '';
+          const lbl = (g.label || '').toString();
+          const start = g.start || g.gameDate || '';
+          let datePart = '';
+          try {
+            if (start) {
+              const dt = new Date(start);
+              if (!isNaN(dt)) {
+                const y = dt.getUTCFullYear();
+                const m = String(dt.getUTCMonth() + 1).padStart(2, '0');
+                const d = String(dt.getUTCDate()).padStart(2, '0');
+                datePart = `${y}-${m}-${d}`;
+              }
+            }
+          } catch (e) { datePart = ''; }
+
+          let opp = '';
+          let venue = '';
+          try {
+            const mopp = lbl.match(/vs\s+([^\s()\-]+)/i);
+            if (mopp) opp = mopp[1].trim();
+            const mvenue = lbl.match(/\((home|away)\)/i);
+            if (mvenue) venue = mvenue[1].toLowerCase();
+          } catch (e) { opp = ''; venue = ''; }
+
+          if (!opp) {
+            try {
+              const gid = g.id != null ? String(g.id) : null;
+              if (gid && gamesById && Array.isArray(gamesById[gid])) {
+                const teamsForGame = gamesById[gid].filter(tk => tk.toUpperCase() !== teamKeyUpper);
+                if (teamsForGame && teamsForGame.length > 0) {
+                  opp = teamsForGame[0];
+                }
+              }
+            } catch (e) { /* ignore */ }
+          }
+
+          if (opp) {
+            if (venue === 'home') {
+              display = `${teamStr} vs ${opp}`;
+            } else if (venue === 'away') {
+              display = `${opp} vs ${teamStr}`;
+            } else {
+              display = `${teamStr} vs ${opp}`;
+            }
+            if (datePart) display += `, ${datePart}`;
+          } else {
+            if (datePart) {
+              display = `${teamStr} - ${datePart}`;
+            } else {
+              display = `${teamStr} - ${g.id || lbl}`;
+            }
+          }
+
+          opt.textContent = display;
+          gameSelect.appendChild(opt);
+        });
+
+        // If requested, auto-select the game closest to now without going over.
+        try {
+          if (autoSelectMostRecent && gameSelect.options.length > 1) {
+            const now = Date.now();
+            let chosenIdx = -1;
+            for (let i = sortedGames.length - 1; i >= 0; --i) {
+              const s = (sortedGames[i].start || sortedGames[i].gameDate || (sortedGames[i].label || '').split(' - ')[0] || null);
+              const t = s ? Date.parse(s) : NaN;
+              if (!isNaN(t) && t <= now) { chosenIdx = i; break; }
+            }
+            if (chosenIdx === -1) {
+              for (let i = 0; i < sortedGames.length; ++i) {
+                const s = (sortedGames[i].start || sortedGames[i].gameDate || (sortedGames[i].label || '').split(' - ')[0] || null);
+                const t = s ? Date.parse(s) : NaN;
+                if (!isNaN(t) && t > now) { chosenIdx = i; break; }
+              }
+            }
+            if (chosenIdx === -1) chosenIdx = sortedGames.length - 1;
+
+            const optIndex = 1 + chosenIdx;
+            if (optIndex >= 1 && optIndex < gameSelect.options.length) {
+              gameSelect.selectedIndex = optIndex;
+              const chosenVal = gameSelect.options[optIndex].value;
+              hiddenInput.value = chosenVal;
+              manualInput.value = chosenVal;
+            }
+          }
+        } catch (e) { /* ignore auto-selection errors */ }
+      }
+
+      teamSelect.addEventListener('change', (e) => { loadGamesForTeam(e.target.value, false); });
+      gameSelect.addEventListener('change', (e) => {
+        const v = (e.target.value || '').toString().trim();
+        hiddenInput.value = v;
+        manualInput.value = v;
+      });
+
+      manualInput.addEventListener('input', function () {
+        try {
+          const mv = (this.value || '').trim();
+          hiddenInput.value = mv.replace(/\s+/g, '');
+          if (mv.length > 0) {
+            gameSelect.selectedIndex = 0; // clear selection
+          }
+        } catch (e) {/* ignore */ }
+      });
+
+      form.addEventListener('submit', (e) => {
+        const manualVal = (manualInput.value || '').toString().trim();
+        const selectVal = (gameSelect.value || '').toString().trim();
+        const hiddenVal = (hiddenInput.value || '').toString().trim();
+        let finalGame = '';
+        if (manualVal !== '') finalGame = manualVal.replace(/\s+/g, '');
+        else if (selectVal !== '') finalGame = selectVal.replace(/\s+/g, '');
+        else finalGame = hiddenVal.replace(/\s+/g, '');
+
+        if (finalGame === '') {
+          e.preventDefault();
+          return false;
+        }
+        hiddenInput.value = finalGame;
+      });
+
+      // initial load
+      loadStaticTeams();
+    })();
+  </script>
+</body>
+
+</html>

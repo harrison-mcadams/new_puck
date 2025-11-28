@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>League Stats (2025-2026)</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; }
+      h1 { margin-bottom: 1.5rem; }
+      table { border-collapse: collapse; width: 100%; max-width: 800px; margin-bottom: 2rem; }
+      th, td { text-align: left; padding: 0.75rem; border-bottom: 1px solid #ddd; }
+      th { background-color: #f4f4f4; font-weight: bold; }
+      tr:hover { background-color: #f9f9f9; }
+      .positive { color: green; font-weight: bold; }
+      .negative { color: red; font-weight: bold; }
+      .back-link { display: inline-block; margin-bottom: 1rem; text-decoration: none; color: #007bff; }
+      .back-link:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    <a href="{{ url_for('index') }}" class="back-link">&larr; Back to Plot</a>
+    
+    <h1>League Stats (2025-2026)</h1>
+    
+    {% if stats %}
+    <table>
+      <thead>
+        <tr>
+          <th>Team</th>
+          <th>xG / 60</th>
+          <th>Rel to League</th>
+          <th>Total xG</th>
+          <th>Minutes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in stats %}
+        <tr>
+          <td>{{ row.team }}</td>
+          <td>{{ "%.2f"|format(row.team_xg_per60) }}</td>
+          <td class="{{ 'positive' if row.relative_xg_per60 > 0 else 'negative' }}">
+            {{ "%+.2f"|format(row.relative_xg_per60) }}
+          </td>
+          <td>{{ "%.1f"|format(row.team_xgs) }}</td>
+          <td>{{ "%.1f"|format(row.team_seconds / 60) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p>No stats available. Please run the analysis script.</p>
+    {% endif %}
+    
+  </body>
+</html>

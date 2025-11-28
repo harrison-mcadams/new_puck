@@ -1,0 +1,708 @@
+--- Running League Baseline Repro ---
+Calling analyze.league with condition={'game_state': ['5v5']}
+league: computing baseline for season 20252026
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=20
+_apply_intervals: game 2025010073 rows_in_game=224 parsed_intervals=8 team_for_game=ANA
+_apply_intervals: game 2025010073 df_game_rows=224
+_apply_intervals: game 2025020056 rows_in_game=261 parsed_intervals=7 team_for_game=ANA
+_apply_intervals: game 2025020056 df_game_rows=261
+_apply_intervals: game 2025020021 rows_in_game=310 parsed_intervals=4 team_for_game=ANA
+_apply_intervals: game 2025020021 df_game_rows=310
+_apply_intervals: game 2025010090 rows_in_game=287 parsed_intervals=7 team_for_game=ANA
+_apply_intervals: game 2025010090 df_game_rows=287
+_apply_intervals: game 2025020036 rows_in_game=294 parsed_intervals=9 team_for_game=ANA
+_apply_intervals: game 2025020036 df_game_rows=294
+_apply_intervals: game 2025020111 rows_in_game=309 parsed_intervals=6 team_for_game=ANA
+_apply_intervals: game 2025020111 df_game_rows=309
+_apply_intervals: game 2025020197 rows_in_game=268 parsed_intervals=4 team_for_game=ANA
+_apply_intervals: game 2025020197 df_game_rows=268
+_apply_intervals: game 2025020211 rows_in_game=294 parsed_intervals=10 team_for_game=ANA
+_apply_intervals: game 2025020211 df_game_rows=294
+_apply_intervals: game 2025020105 rows_in_game=285 parsed_intervals=4 team_for_game=ANA
+_apply_intervals: game 2025020105 df_game_rows=285
+_apply_intervals: game 2025020070 rows_in_game=291 parsed_intervals=8 team_for_game=ANA
+_apply_intervals: game 2025020070 df_game_rows=291
+_apply_intervals: game 2025020153 rows_in_game=297 parsed_intervals=7 team_for_game=ANA
+_apply_intervals: game 2025020153 df_game_rows=297
+_apply_intervals: game 2025020091 rows_in_game=296 parsed_intervals=6 team_for_game=ANA
+_apply_intervals: game 2025020091 df_game_rows=296
+_apply_intervals: game 2025020129 rows_in_game=316 parsed_intervals=6 team_for_game=ANA
+_apply_intervals: game 2025020129 df_game_rows=316
+_apply_intervals: game 2025020180 rows_in_game=286 parsed_intervals=10 team_for_game=ANA
+_apply_intervals: game 2025020180 df_game_rows=286
+_apply_intervals: game 2025020272 rows_in_game=297 parsed_intervals=9 team_for_game=ANA
+_apply_intervals: game 2025020272 df_game_rows=297
+_apply_intervals: game 2025020284 rows_in_game=259 parsed_intervals=8 team_for_game=ANA
+_apply_intervals: game 2025020284 df_game_rows=259
+_apply_intervals: game 2025020224 rows_in_game=264 parsed_intervals=9 team_for_game=ANA
+_apply_intervals: game 2025020224 df_game_rows=264
+_apply_intervals: game 2025020242 rows_in_game=298 parsed_intervals=5 team_for_game=ANA
+_apply_intervals: game 2025020242 df_game_rows=298
+_apply_intervals: game 2025020251 rows_in_game=278 parsed_intervals=9 team_for_game=ANA
+_apply_intervals: game 2025020251 df_game_rows=278
+_apply_intervals: game 2025020262 rows_in_game=296 parsed_intervals=8 team_for_game=ANA
+_apply_intervals: game 2025020262 df_game_rows=296
+Filtered season dataframe to 4431 events by condition {'game_state': ['5v5'], 'team': 'ANA'} team='ANA'
+DEBUG: Inferred total_seconds_used=71820.0 from 20 games (range=3591.0)
+DEBUG: Inferred total_seconds_used=71820.0 from 20 games (range=3591.0)
+Saved plot to static/ANA_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=22
+_apply_intervals: game 2025010078 rows_in_game=257 parsed_intervals=13 team_for_game=BOS
+_apply_intervals: game 2025010078 df_game_rows=257
+_apply_intervals: game 2025020040 rows_in_game=309 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020040 df_game_rows=309
+_apply_intervals: game 2025020024 rows_in_game=291 parsed_intervals=8 team_for_game=BOS
+_apply_intervals: game 2025020024 df_game_rows=291
+_apply_intervals: game 2025020005 rows_in_game=328 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020005 df_game_rows=328
+_apply_intervals: game 2025020008 rows_in_game=283 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020008 df_game_rows=283
+_apply_intervals: game 2025010095 rows_in_game=287 parsed_intervals=8 team_for_game=BOS
+_apply_intervals: game 2025010095 df_game_rows=287
+_apply_intervals: game 2025020111 rows_in_game=309 parsed_intervals=6 team_for_game=BOS
+_apply_intervals: game 2025020111 df_game_rows=309
+_apply_intervals: game 2025020069 rows_in_game=309 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020069 df_game_rows=309
+_apply_intervals: game 2025020085 rows_in_game=287 parsed_intervals=8 team_for_game=BOS
+_apply_intervals: game 2025020085 df_game_rows=287
+_apply_intervals: game 2025020092 rows_in_game=296 parsed_intervals=11 team_for_game=BOS
+_apply_intervals: game 2025020092 df_game_rows=296
+_apply_intervals: game 2025020205 rows_in_game=283 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020205 df_game_rows=283
+_apply_intervals: game 2025020154 rows_in_game=240 parsed_intervals=9 team_for_game=BOS
+_apply_intervals: game 2025020154 df_game_rows=240
+_apply_intervals: game 2025020149 rows_in_game=277 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020149 df_game_rows=277
+_apply_intervals: game 2025020103 rows_in_game=297 parsed_intervals=9 team_for_game=BOS
+_apply_intervals: game 2025020103 df_game_rows=297
+_apply_intervals: game 2025020128 rows_in_game=286 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020128 df_game_rows=286
+_apply_intervals: game 2025020271 rows_in_game=269 parsed_intervals=5 team_for_game=BOS
+_apply_intervals: game 2025020271 df_game_rows=269
+_apply_intervals: game 2025020285 rows_in_game=328 parsed_intervals=13 team_for_game=BOS
+_apply_intervals: game 2025020285 df_game_rows=328
+_apply_intervals: game 2025020167 rows_in_game=300 parsed_intervals=9 team_for_game=BOS
+_apply_intervals: game 2025020167 df_game_rows=300
+_apply_intervals: game 2025020181 rows_in_game=241 parsed_intervals=3 team_for_game=BOS
+_apply_intervals: game 2025020181 df_game_rows=241
+_apply_intervals: game 2025020234 rows_in_game=323 parsed_intervals=7 team_for_game=BOS
+_apply_intervals: game 2025020234 df_game_rows=323
+_apply_intervals: game 2025020218 rows_in_game=270 parsed_intervals=5 team_for_game=BOS
+_apply_intervals: game 2025020218 df_game_rows=270
+_apply_intervals: game 2025020256 rows_in_game=307 parsed_intervals=10 team_for_game=BOS
+_apply_intervals: game 2025020256 df_game_rows=307
+Filtered season dataframe to 4813 events by condition {'game_state': ['5v5'], 'team': 'BOS'} team='BOS'
+DEBUG: Inferred total_seconds_used=79068.0 from 22 games (range=3594.0)
+DEBUG: Inferred total_seconds_used=79068.0 from 22 games (range=3594.0)
+Saved plot to static/BOS_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=20
+_apply_intervals: game 2025010076 rows_in_game=250 parsed_intervals=8 team_for_game=BUF
+_apply_intervals: game 2025010076 df_game_rows=250
+_apply_intervals: game 2025010085 rows_in_game=276 parsed_intervals=7 team_for_game=BUF
+_apply_intervals: game 2025010085 df_game_rows=276
+_apply_intervals: game 2025020024 rows_in_game=291 parsed_intervals=8 team_for_game=BUF
+_apply_intervals: game 2025020024 df_game_rows=291
+_apply_intervals: game 2025020009 rows_in_game=298 parsed_intervals=9 team_for_game=BUF
+_apply_intervals: game 2025020009 df_game_rows=298
+_apply_intervals: game 2025020039 rows_in_game=292 parsed_intervals=9 team_for_game=BUF
+_apply_intervals: game 2025020039 df_game_rows=292
+_apply_intervals: game 2025020109 rows_in_game=293 parsed_intervals=8 team_for_game=BUF
+_apply_intervals: game 2025020109 df_game_rows=293
+_apply_intervals: game 2025020123 rows_in_game=278 parsed_intervals=5 team_for_game=BUF
+_apply_intervals: game 2025020123 df_game_rows=278
+_apply_intervals: game 2025020186 rows_in_game=288 parsed_intervals=9 team_for_game=BUF
+_apply_intervals: game 2025020186 df_game_rows=288
+_apply_intervals: game 2025020203 rows_in_game=243 parsed_intervals=5 team_for_game=BUF
+_apply_intervals: game 2025020203 df_game_rows=243
+_apply_intervals: game 2025020076 rows_in_game=326 parsed_intervals=10 team_for_game=BUF
+_apply_intervals: game 2025020076 df_game_rows=326
+_apply_intervals: game 2025020057 rows_in_game=291 parsed_intervals=7 team_for_game=BUF
+_apply_intervals: game 2025020057 df_game_rows=291
+_apply_intervals: game 2025020095 rows_in_game=273 parsed_intervals=5 team_for_game=BUF
+_apply_intervals: game 2025020095 df_game_rows=273
+_apply_intervals: game 2025020275 rows_in_game=291 parsed_intervals=7 team_for_game=BUF
+_apply_intervals: game 2025020275 df_game_rows=291
+_apply_intervals: game 2025020287 rows_in_game=281 parsed_intervals=9 team_for_game=BUF
+_apply_intervals: game 2025020287 df_game_rows=281
+_apply_intervals: game 2025020167 rows_in_game=300 parsed_intervals=9 team_for_game=BUF
+_apply_intervals: game 2025020167 df_game_rows=300
+_apply_intervals: game 2025020132 rows_in_game=265 parsed_intervals=8 team_for_game=BUF
+_apply_intervals: game 2025020132 df_game_rows=265
+_apply_intervals: game 2025020152 rows_in_game=284 parsed_intervals=4 team_for_game=BUF
+_apply_intervals: game 2025020152 df_game_rows=284
+_apply_intervals: game 2025020219 rows_in_game=229 parsed_intervals=6 team_for_game=BUF
+_apply_intervals: game 2025020219 df_game_rows=229
+_apply_intervals: game 2025020238 rows_in_game=307 parsed_intervals=5 team_for_game=BUF
+_apply_intervals: game 2025020238 df_game_rows=307
+_apply_intervals: game 2025020267 rows_in_game=272 parsed_intervals=3 team_for_game=BUF
+_apply_intervals: game 2025020267 df_game_rows=272
+Filtered season dataframe to 4323 events by condition {'game_state': ['5v5'], 'team': 'BUF'} team='BUF'
+DEBUG: Inferred total_seconds_used=71800.0 from 20 games (range=3590.0)
+DEBUG: Inferred total_seconds_used=71800.0 from 20 games (range=3590.0)
+Saved plot to static/BUF_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=19
+_apply_intervals: game 2025020014 rows_in_game=309 parsed_intervals=6 team_for_game=CAR
+_apply_intervals: game 2025020014 df_game_rows=309
+_apply_intervals: game 2025020030 rows_in_game=315 parsed_intervals=8 team_for_game=CAR
+_apply_intervals: game 2025020030 df_game_rows=315
+_apply_intervals: game 2025010091 rows_in_game=242 parsed_intervals=4 team_for_game=CAR
+_apply_intervals: game 2025010091 df_game_rows=242
+_apply_intervals: game 2025020055 rows_in_game=285 parsed_intervals=8 team_for_game=CAR
+_apply_intervals: game 2025020055 df_game_rows=285
+_apply_intervals: game 2025020121 rows_in_game=335 parsed_intervals=11 team_for_game=CAR
+_apply_intervals: game 2025020121 df_game_rows=335
+_apply_intervals: game 2025020206 rows_in_game=268 parsed_intervals=7 team_for_game=CAR
+_apply_intervals: game 2025020206 df_game_rows=268
+_apply_intervals: game 2025020097 rows_in_game=264 parsed_intervals=6 team_for_game=CAR
+_apply_intervals: game 2025020097 df_game_rows=264
+_apply_intervals: game 2025020070 rows_in_game=291 parsed_intervals=8 team_for_game=CAR
+_apply_intervals: game 2025020070 df_game_rows=291
+_apply_intervals: game 2025020155 rows_in_game=299 parsed_intervals=7 team_for_game=CAR
+_apply_intervals: game 2025020155 df_game_rows=299
+_apply_intervals: game 2025020086 rows_in_game=318 parsed_intervals=4 team_for_game=CAR
+_apply_intervals: game 2025020086 df_game_rows=318
+_apply_intervals: game 2025020171 rows_in_game=321 parsed_intervals=8 team_for_game=CAR
+_apply_intervals: game 2025020171 df_game_rows=321
+_apply_intervals: game 2025020181 rows_in_game=241 parsed_intervals=3 team_for_game=CAR
+_apply_intervals: game 2025020181 df_game_rows=241
+_apply_intervals: game 2025020138 rows_in_game=325 parsed_intervals=6 team_for_game=CAR
+_apply_intervals: game 2025020138 df_game_rows=325
+_apply_intervals: game 2025020279 rows_in_game=288 parsed_intervals=5 team_for_game=CAR
+_apply_intervals: game 2025020279 df_game_rows=288
+_apply_intervals: game 2025020289 rows_in_game=282 parsed_intervals=4 team_for_game=CAR
+_apply_intervals: game 2025020289 df_game_rows=282
+_apply_intervals: game 2025020222 rows_in_game=304 parsed_intervals=5 team_for_game=CAR
+_apply_intervals: game 2025020222 df_game_rows=304
+_apply_intervals: game 2025020246 rows_in_game=284 parsed_intervals=8 team_for_game=CAR
+_apply_intervals: game 2025020246 df_game_rows=284
+_apply_intervals: game 2025020238 rows_in_game=307 parsed_intervals=5 team_for_game=CAR
+_apply_intervals: game 2025020238 df_game_rows=307
+_apply_intervals: game 2025020259 rows_in_game=296 parsed_intervals=9 team_for_game=CAR
+_apply_intervals: game 2025020259 df_game_rows=296
+Filtered season dataframe to 4409 events by condition {'game_state': ['5v5'], 'team': 'CAR'} team='CAR'
+DEBUG: Inferred total_seconds_used=68172.0 from 19 games (range=3588.0)
+DEBUG: Inferred total_seconds_used=68172.0 from 19 games (range=3588.0)
+Saved plot to static/CAR_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=19
+_apply_intervals: game 2025010093 rows_in_game=267 parsed_intervals=5 team_for_game=CBJ
+_apply_intervals: game 2025010093 df_game_rows=267
+_apply_intervals: game 2025020045 rows_in_game=289 parsed_intervals=7 team_for_game=CBJ
+_apply_intervals: game 2025020045 df_game_rows=289
+_apply_intervals: game 2025020033 rows_in_game=319 parsed_intervals=8 team_for_game=CBJ
+_apply_intervals: game 2025020033 df_game_rows=319
+_apply_intervals: game 2025020016 rows_in_game=309 parsed_intervals=6 team_for_game=CBJ
+_apply_intervals: game 2025020016 df_game_rows=309
+_apply_intervals: game 2025020125 rows_in_game=266 parsed_intervals=7 team_for_game=CBJ
+_apply_intervals: game 2025020125 df_game_rows=266
+_apply_intervals: game 2025020189 rows_in_game=269 parsed_intervals=6 team_for_game=CBJ
+_apply_intervals: game 2025020189 df_game_rows=269
+_apply_intervals: game 2025020195 rows_in_game=263 parsed_intervals=6 team_for_game=CBJ
+_apply_intervals: game 2025020195 df_game_rows=263
+_apply_intervals: game 2025020215 rows_in_game=287 parsed_intervals=5 team_for_game=CBJ
+_apply_intervals: game 2025020215 df_game_rows=287
+_apply_intervals: game 2025020166 rows_in_game=286 parsed_intervals=4 team_for_game=CBJ
+_apply_intervals: game 2025020166 df_game_rows=286
+_apply_intervals: game 2025020106 rows_in_game=274 parsed_intervals=5 team_for_game=CBJ
+_apply_intervals: game 2025020106 df_game_rows=274
+_apply_intervals: game 2025020134 rows_in_game=296 parsed_intervals=6 team_for_game=CBJ
+_apply_intervals: game 2025020134 df_game_rows=296
+_apply_intervals: game 2025020082 rows_in_game=297 parsed_intervals=7 team_for_game=CBJ
+_apply_intervals: game 2025020082 df_game_rows=297
+_apply_intervals: game 2025020274 rows_in_game=251 parsed_intervals=5 team_for_game=CBJ
+_apply_intervals: game 2025020274 df_game_rows=251
+_apply_intervals: game 2025020067 rows_in_game=267 parsed_intervals=4 team_for_game=CBJ
+_apply_intervals: game 2025020067 df_game_rows=267
+_apply_intervals: game 2025020290 rows_in_game=322 parsed_intervals=4 team_for_game=CBJ
+_apply_intervals: game 2025020290 df_game_rows=322
+_apply_intervals: game 2025020152 rows_in_game=284 parsed_intervals=4 team_for_game=CBJ
+_apply_intervals: game 2025020152 df_game_rows=284
+_apply_intervals: game 2025020241 rows_in_game=265 parsed_intervals=6 team_for_game=CBJ
+_apply_intervals: game 2025020241 df_game_rows=265
+_apply_intervals: game 2025020254 rows_in_game=279 parsed_intervals=5 team_for_game=CBJ
+_apply_intervals: game 2025020254 df_game_rows=279
+_apply_intervals: game 2025020264 rows_in_game=274 parsed_intervals=5 team_for_game=CBJ
+_apply_intervals: game 2025020264 df_game_rows=274
+Filtered season dataframe to 4300 events by condition {'game_state': ['5v5'], 'team': 'CBJ'} team='CBJ'
+DEBUG: Inferred total_seconds_used=68248.0 from 19 games (range=3592.0)
+DEBUG: Inferred total_seconds_used=68248.0 from 19 games (range=3592.0)
+Saved plot to static/CBJ_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=22
+_apply_intervals: game 2025010077 rows_in_game=257 parsed_intervals=10 team_for_game=CGY
+_apply_intervals: game 2025010077 df_game_rows=257
+_apply_intervals: game 2025010089 rows_in_game=319 parsed_intervals=9 team_for_game=CGY
+_apply_intervals: game 2025010089 df_game_rows=319
+_apply_intervals: game 2025020019 rows_in_game=284 parsed_intervals=10 team_for_game=CGY
+_apply_intervals: game 2025020019 df_game_rows=284
+_apply_intervals: game 2025020006 rows_in_game=325 parsed_intervals=7 team_for_game=CGY
+_apply_intervals: game 2025020006 df_game_rows=325
+_apply_intervals: game 2025020053 rows_in_game=287 parsed_intervals=4 team_for_game=CGY
+_apply_intervals: game 2025020053 df_game_rows=287
+_apply_intervals: game 2025020023 rows_in_game=302 parsed_intervals=10 team_for_game=CGY
+_apply_intervals: game 2025020023 df_game_rows=302
+_apply_intervals: game 2025020110 rows_in_game=275 parsed_intervals=8 team_for_game=CGY
+_apply_intervals: game 2025020110 df_game_rows=275
+_apply_intervals: game 2025020126 rows_in_game=281 parsed_intervals=14 team_for_game=CGY
+_apply_intervals: game 2025020126 df_game_rows=281
+_apply_intervals: game 2025020183 rows_in_game=266 parsed_intervals=8 team_for_game=CGY
+_apply_intervals: game 2025020183 df_game_rows=266
+_apply_intervals: game 2025020196 rows_in_game=260 parsed_intervals=3 team_for_game=CGY
+_apply_intervals: game 2025020196 df_game_rows=260
+_apply_intervals: game 2025020215 rows_in_game=287 parsed_intervals=5 team_for_game=CGY
+_apply_intervals: game 2025020215 df_game_rows=287
+_apply_intervals: game 2025020087 rows_in_game=268 parsed_intervals=7 team_for_game=CGY
+_apply_intervals: game 2025020087 df_game_rows=268
+_apply_intervals: game 2025020060 rows_in_game=280 parsed_intervals=10 team_for_game=CGY
+_apply_intervals: game 2025020060 df_game_rows=280
+_apply_intervals: game 2025020168 rows_in_game=300 parsed_intervals=7 team_for_game=CGY
+_apply_intervals: game 2025020168 df_game_rows=300
+_apply_intervals: game 2025020276 rows_in_game=243 parsed_intervals=6 team_for_game=CGY
+_apply_intervals: game 2025020276 df_game_rows=243
+_apply_intervals: game 2025020146 rows_in_game=281 parsed_intervals=5 team_for_game=CGY
+_apply_intervals: game 2025020146 df_game_rows=281
+_apply_intervals: game 2025020096 rows_in_game=279 parsed_intervals=10 team_for_game=CGY
+_apply_intervals: game 2025020096 df_game_rows=279
+_apply_intervals: game 2025020294 rows_in_game=304 parsed_intervals=4 team_for_game=CGY
+_apply_intervals: game 2025020294 df_game_rows=304
+_apply_intervals: game 2025020151 rows_in_game=284 parsed_intervals=7 team_for_game=CGY
+_apply_intervals: game 2025020151 df_game_rows=284
+_apply_intervals: game 2025020229 rows_in_game=283 parsed_intervals=6 team_for_game=CGY
+_apply_intervals: game 2025020229 df_game_rows=283
+_apply_intervals: game 2025020249 rows_in_game=279 parsed_intervals=6 team_for_game=CGY
+_apply_intervals: game 2025020249 df_game_rows=279
+_apply_intervals: game 2025020260 rows_in_game=266 parsed_intervals=5 team_for_game=CGY
+_apply_intervals: game 2025020260 df_game_rows=266
+Filtered season dataframe to 4752 events by condition {'game_state': ['5v5'], 'team': 'CGY'} team='CGY'
+DEBUG: Inferred total_seconds_used=78914.0 from 22 games (range=3587.0)
+DEBUG: Inferred total_seconds_used=78914.0 from 22 games (range=3587.0)
+Saved plot to static/CGY_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=20
+_apply_intervals: game 2025010086 rows_in_game=245 parsed_intervals=9 team_for_game=CHI
+_apply_intervals: game 2025010086 df_game_rows=245
+_apply_intervals: game 2025010097 rows_in_game=291 parsed_intervals=7 team_for_game=CHI
+_apply_intervals: game 2025010097 df_game_rows=291
+_apply_intervals: game 2025020001 rows_in_game=303 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020001 df_game_rows=303
+_apply_intervals: game 2025020008 rows_in_game=283 parsed_intervals=7 team_for_game=CHI
+_apply_intervals: game 2025020008 df_game_rows=283
+_apply_intervals: game 2025020048 rows_in_game=238 parsed_intervals=7 team_for_game=CHI
+_apply_intervals: game 2025020048 df_game_rows=238
+_apply_intervals: game 2025020031 rows_in_game=288 parsed_intervals=13 team_for_game=CHI
+_apply_intervals: game 2025020031 df_game_rows=288
+_apply_intervals: game 2025020113 rows_in_game=265 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020113 df_game_rows=265
+_apply_intervals: game 2025020192 rows_in_game=244 parsed_intervals=5 team_for_game=CHI
+_apply_intervals: game 2025020192 df_game_rows=244
+_apply_intervals: game 2025020202 rows_in_game=259 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020202 df_game_rows=259
+_apply_intervals: game 2025020216 rows_in_game=261 parsed_intervals=4 team_for_game=CHI
+_apply_intervals: game 2025020216 df_game_rows=261
+_apply_intervals: game 2025020074 rows_in_game=299 parsed_intervals=8 team_for_game=CHI
+_apply_intervals: game 2025020074 df_game_rows=299
+_apply_intervals: game 2025020059 rows_in_game=261 parsed_intervals=5 team_for_game=CHI
+_apply_intervals: game 2025020059 df_game_rows=261
+_apply_intervals: game 2025020091 rows_in_game=296 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020091 df_game_rows=296
+_apply_intervals: game 2025020174 rows_in_game=255 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020174 df_game_rows=255
+_apply_intervals: game 2025020144 rows_in_game=262 parsed_intervals=7 team_for_game=CHI
+_apply_intervals: game 2025020144 df_game_rows=262
+_apply_intervals: game 2025020291 rows_in_game=276 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020291 df_game_rows=276
+_apply_intervals: game 2025020160 rows_in_game=307 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020160 df_game_rows=307
+_apply_intervals: game 2025020229 rows_in_game=283 parsed_intervals=6 team_for_game=CHI
+_apply_intervals: game 2025020229 df_game_rows=283
+_apply_intervals: game 2025020244 rows_in_game=278 parsed_intervals=8 team_for_game=CHI
+_apply_intervals: game 2025020244 df_game_rows=278
+_apply_intervals: game 2025020268 rows_in_game=265 parsed_intervals=4 team_for_game=CHI
+_apply_intervals: game 2025020268 df_game_rows=265
+Filtered season dataframe to 4329 events by condition {'game_state': ['5v5'], 'team': 'CHI'} team='CHI'
+DEBUG: Inferred total_seconds_used=71660.0 from 20 games (range=3583.0)
+DEBUG: Inferred total_seconds_used=71660.0 from 20 games (range=3583.0)
+Saved plot to static/CHI_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=21
+_apply_intervals: game 2025010074 rows_in_game=269 parsed_intervals=5 team_for_game=COL
+_apply_intervals: game 2025010074 df_game_rows=269
+_apply_intervals: game 2025010092 rows_in_game=286 parsed_intervals=10 team_for_game=COL
+_apply_intervals: game 2025010092 df_game_rows=286
+_apply_intervals: game 2025020003 rows_in_game=307 parsed_intervals=10 team_for_game=COL
+_apply_intervals: game 2025020003 df_game_rows=307
+_apply_intervals: game 2025020039 rows_in_game=292 parsed_intervals=9 team_for_game=COL
+_apply_intervals: game 2025020039 df_game_rows=292
+_apply_intervals: game 2025020018 rows_in_game=318 parsed_intervals=8 team_for_game=COL
+_apply_intervals: game 2025020018 df_game_rows=318
+_apply_intervals: game 2025020034 rows_in_game=285 parsed_intervals=7 team_for_game=COL
+_apply_intervals: game 2025020034 df_game_rows=285
+_apply_intervals: game 2025020121 rows_in_game=335 parsed_intervals=11 team_for_game=COL
+_apply_intervals: game 2025020121 df_game_rows=335
+_apply_intervals: game 2025020184 rows_in_game=270 parsed_intervals=6 team_for_game=COL
+_apply_intervals: game 2025020184 df_game_rows=270
+_apply_intervals: game 2025020209 rows_in_game=275 parsed_intervals=9 team_for_game=COL
+_apply_intervals: game 2025020209 df_game_rows=275
+_apply_intervals: game 2025020067 rows_in_game=267 parsed_intervals=4 team_for_game=COL
+_apply_intervals: game 2025020067 df_game_rows=267
+_apply_intervals: game 2025020085 rows_in_game=287 parsed_intervals=8 team_for_game=COL
+_apply_intervals: game 2025020085 df_game_rows=287
+_apply_intervals: game 2025020107 rows_in_game=289 parsed_intervals=4 team_for_game=COL
+_apply_intervals: game 2025020107 df_game_rows=289
+_apply_intervals: game 2025020128 rows_in_game=286 parsed_intervals=7 team_for_game=COL
+_apply_intervals: game 2025020128 df_game_rows=286
+_apply_intervals: game 2025020178 rows_in_game=271 parsed_intervals=7 team_for_game=COL
+_apply_intervals: game 2025020178 df_game_rows=271
+_apply_intervals: game 2025020275 rows_in_game=291 parsed_intervals=7 team_for_game=COL
+_apply_intervals: game 2025020275 df_game_rows=291
+_apply_intervals: game 2025020300 rows_in_game=266 parsed_intervals=7 team_for_game=COL
+_apply_intervals: game 2025020300 df_game_rows=266
+_apply_intervals: game 2025020140 rows_in_game=285 parsed_intervals=3 team_for_game=COL
+_apply_intervals: game 2025020140 df_game_rows=285
+_apply_intervals: game 2025020161 rows_in_game=301 parsed_intervals=8 team_for_game=COL
+_apply_intervals: game 2025020161 df_game_rows=301
+_apply_intervals: game 2025020240 rows_in_game=259 parsed_intervals=9 team_for_game=COL
+_apply_intervals: game 2025020240 df_game_rows=259
+_apply_intervals: game 2025020250 rows_in_game=278 parsed_intervals=9 team_for_game=COL
+_apply_intervals: game 2025020250 df_game_rows=278
+_apply_intervals: game 2025020262 rows_in_game=296 parsed_intervals=8 team_for_game=COL
+_apply_intervals: game 2025020262 df_game_rows=296
+Filtered season dataframe to 4677 events by condition {'game_state': ['5v5'], 'team': 'COL'} team='COL'
+DEBUG: Inferred total_seconds_used=75495.0 from 21 games (range=3595.0)
+DEBUG: Inferred total_seconds_used=75495.0 from 21 games (range=3595.0)
+Saved plot to static/COL_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=20
+_apply_intervals: game 2025010092 rows_in_game=286 parsed_intervals=10 team_for_game=DAL
+_apply_intervals: game 2025010092 df_game_rows=286
+_apply_intervals: game 2025020017 rows_in_game=299 parsed_intervals=9 team_for_game=DAL
+_apply_intervals: game 2025020017 df_game_rows=299
+_apply_intervals: game 2025020054 rows_in_game=283 parsed_intervals=7 team_for_game=DAL
+_apply_intervals: game 2025020054 df_game_rows=283
+_apply_intervals: game 2025020119 rows_in_game=268 parsed_intervals=8 team_for_game=DAL
+_apply_intervals: game 2025020119 df_game_rows=268
+_apply_intervals: game 2025020034 rows_in_game=285 parsed_intervals=7 team_for_game=DAL
+_apply_intervals: game 2025020034 df_game_rows=285
+_apply_intervals: game 2025020185 rows_in_game=261 parsed_intervals=4 team_for_game=DAL
+_apply_intervals: game 2025020185 df_game_rows=261
+_apply_intervals: game 2025020207 rows_in_game=265 parsed_intervals=6 team_for_game=DAL
+_apply_intervals: game 2025020207 df_game_rows=265
+_apply_intervals: game 2025020083 rows_in_game=245 parsed_intervals=5 team_for_game=DAL
+_apply_intervals: game 2025020083 df_game_rows=245
+_apply_intervals: game 2025020068 rows_in_game=268 parsed_intervals=8 team_for_game=DAL
+_apply_intervals: game 2025020068 df_game_rows=268
+_apply_intervals: game 2025020106 rows_in_game=274 parsed_intervals=5 team_for_game=DAL
+_apply_intervals: game 2025020106 df_game_rows=274
+_apply_intervals: game 2025020145 rows_in_game=276 parsed_intervals=6 team_for_game=DAL
+_apply_intervals: game 2025020145 df_game_rows=276
+_apply_intervals: game 2025020169 rows_in_game=269 parsed_intervals=7 team_for_game=DAL
+_apply_intervals: game 2025020169 df_game_rows=269
+_apply_intervals: game 2025020270 rows_in_game=255 parsed_intervals=7 team_for_game=DAL
+_apply_intervals: game 2025020270 df_game_rows=255
+_apply_intervals: game 2025020159 rows_in_game=267 parsed_intervals=8 team_for_game=DAL
+_apply_intervals: game 2025020159 df_game_rows=267
+_apply_intervals: game 2025020138 rows_in_game=325 parsed_intervals=6 team_for_game=DAL
+_apply_intervals: game 2025020138 df_game_rows=325
+_apply_intervals: game 2025020293 rows_in_game=255 parsed_intervals=4 team_for_game=DAL
+_apply_intervals: game 2025020293 df_game_rows=255
+_apply_intervals: game 2025020224 rows_in_game=264 parsed_intervals=9 team_for_game=DAL
+_apply_intervals: game 2025020224 df_game_rows=264
+_apply_intervals: game 2025020233 rows_in_game=240 parsed_intervals=9 team_for_game=DAL
+_apply_intervals: game 2025020233 df_game_rows=240
+_apply_intervals: game 2025020258 rows_in_game=241 parsed_intervals=6 team_for_game=DAL
+_apply_intervals: game 2025020258 df_game_rows=241
+_apply_intervals: game 2025020248 rows_in_game=259 parsed_intervals=7 team_for_game=DAL
+_apply_intervals: game 2025020248 df_game_rows=259
+Filtered season dataframe to 4186 events by condition {'game_state': ['5v5'], 'team': 'DAL'} team='DAL'
+DEBUG: Inferred total_seconds_used=71740.0 from 20 games (range=3587.0)
+DEBUG: Inferred total_seconds_used=71740.0 from 20 games (range=3587.0)
+Saved plot to static/DAL_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=21
+_apply_intervals: game 2025020025 rows_in_game=259 parsed_intervals=7 team_for_game=DET
+_apply_intervals: game 2025020025 df_game_rows=259
+_apply_intervals: game 2025010079 rows_in_game=274 parsed_intervals=7 team_for_game=DET
+_apply_intervals: game 2025010079 df_game_rows=274
+_apply_intervals: game 2025020010 rows_in_game=255 parsed_intervals=8 team_for_game=DET
+_apply_intervals: game 2025020010 df_game_rows=255
+_apply_intervals: game 2025010100 rows_in_game=308 parsed_intervals=8 team_for_game=DET
+_apply_intervals: game 2025010100 df_game_rows=308
+_apply_intervals: game 2025020043 rows_in_game=290 parsed_intervals=6 team_for_game=DET
+_apply_intervals: game 2025020043 df_game_rows=290
+_apply_intervals: game 2025020109 rows_in_game=293 parsed_intervals=8 team_for_game=DET
+_apply_intervals: game 2025020109 df_game_rows=293
+_apply_intervals: game 2025020115 rows_in_game=286 parsed_intervals=9 team_for_game=DET
+_apply_intervals: game 2025020115 df_game_rows=286
+_apply_intervals: game 2025020198 rows_in_game=276 parsed_intervals=5 team_for_game=DET
+_apply_intervals: game 2025020198 df_game_rows=276
+_apply_intervals: game 2025020210 rows_in_game=258 parsed_intervals=3 team_for_game=DET
+_apply_intervals: game 2025020210 df_game_rows=258
+_apply_intervals: game 2025020072 rows_in_game=297 parsed_intervals=7 team_for_game=DET
+_apply_intervals: game 2025020072 df_game_rows=297
+_apply_intervals: game 2025020058 rows_in_game=283 parsed_intervals=4 team_for_game=DET
+_apply_intervals: game 2025020058 df_game_rows=283
+_apply_intervals: game 2025020090 rows_in_game=242 parsed_intervals=2 team_for_game=DET
+_apply_intervals: game 2025020090 df_game_rows=242
+_apply_intervals: game 2025020133 rows_in_game=273 parsed_intervals=8 team_for_game=DET
+_apply_intervals: game 2025020133 df_game_rows=273
+_apply_intervals: game 2025020158 rows_in_game=244 parsed_intervals=5 team_for_game=DET
+_apply_intervals: game 2025020158 df_game_rows=244
+_apply_intervals: game 2025020272 rows_in_game=297 parsed_intervals=9 team_for_game=DET
+_apply_intervals: game 2025020272 df_game_rows=297
+_apply_intervals: game 2025020287 rows_in_game=281 parsed_intervals=9 team_for_game=DET
+_apply_intervals: game 2025020287 df_game_rows=281
+_apply_intervals: game 2025020177 rows_in_game=292 parsed_intervals=6 team_for_game=DET
+_apply_intervals: game 2025020177 df_game_rows=292
+_apply_intervals: game 2025020299 rows_in_game=297 parsed_intervals=7 team_for_game=DET
+_apply_intervals: game 2025020299 df_game_rows=297
+_apply_intervals: game 2025020180 rows_in_game=286 parsed_intervals=10 team_for_game=DET
+_apply_intervals: game 2025020180 df_game_rows=286
+_apply_intervals: game 2025020227 rows_in_game=292 parsed_intervals=8 team_for_game=DET
+_apply_intervals: game 2025020227 df_game_rows=292
+_apply_intervals: game 2025020244 rows_in_game=278 parsed_intervals=8 team_for_game=DET
+_apply_intervals: game 2025020244 df_game_rows=278
+Filtered season dataframe to 4541 events by condition {'game_state': ['5v5'], 'team': 'DET'} team='DET'
+DEBUG: Inferred total_seconds_used=75369.0 from 21 games (range=3589.0)
+DEBUG: Inferred total_seconds_used=75369.0 from 21 games (range=3589.0)
+Saved plot to static/DET_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=22
+_apply_intervals: game 2025010087 rows_in_game=231 parsed_intervals=6 team_for_game=EDM
+_apply_intervals: game 2025010087 df_game_rows=231
+_apply_intervals: game 2025020035 rows_in_game=274 parsed_intervals=8 team_for_game=EDM
+_apply_intervals: game 2025020035 df_game_rows=274
+_apply_intervals: game 2025010075 rows_in_game=227 parsed_intervals=8 team_for_game=EDM
+_apply_intervals: game 2025010075 df_game_rows=227
+_apply_intervals: game 2025020051 rows_in_game=238 parsed_intervals=3 team_for_game=EDM
+_apply_intervals: game 2025020051 df_game_rows=238
+_apply_intervals: game 2025020006 rows_in_game=325 parsed_intervals=7 team_for_game=EDM
+_apply_intervals: game 2025020006 df_game_rows=325
+_apply_intervals: game 2025020122 rows_in_game=260 parsed_intervals=6 team_for_game=EDM
+_apply_intervals: game 2025020122 df_game_rows=260
+_apply_intervals: game 2025020065 rows_in_game=267 parsed_intervals=8 team_for_game=EDM
+_apply_intervals: game 2025020065 df_game_rows=267
+_apply_intervals: game 2025020192 rows_in_game=244 parsed_intervals=5 team_for_game=EDM
+_apply_intervals: game 2025020192 df_game_rows=244
+_apply_intervals: game 2025020078 rows_in_game=261 parsed_intervals=7 team_for_game=EDM
+_apply_intervals: game 2025020078 df_game_rows=261
+_apply_intervals: game 2025020090 rows_in_game=242 parsed_intervals=2 team_for_game=EDM
+_apply_intervals: game 2025020090 df_game_rows=242
+_apply_intervals: game 2025020099 rows_in_game=228 parsed_intervals=6 team_for_game=EDM
+_apply_intervals: game 2025020099 df_game_rows=228
+_apply_intervals: game 2025020147 rows_in_game=256 parsed_intervals=5 team_for_game=EDM
+_apply_intervals: game 2025020147 df_game_rows=256
+_apply_intervals: game 2025020200 rows_in_game=243 parsed_intervals=4 team_for_game=EDM
+_apply_intervals: game 2025020200 df_game_rows=243
+_apply_intervals: game 2025020139 rows_in_game=260 parsed_intervals=5 team_for_game=EDM
+_apply_intervals: game 2025020139 df_game_rows=260
+_apply_intervals: game 2025020162 rows_in_game=238 parsed_intervals=4 team_for_game=EDM
+_apply_intervals: game 2025020162 df_game_rows=238
+_apply_intervals: game 2025020207 rows_in_game=265 parsed_intervals=6 team_for_game=EDM
+_apply_intervals: game 2025020207 df_game_rows=265
+_apply_intervals: game 2025020274 rows_in_game=251 parsed_intervals=5 team_for_game=EDM
+_apply_intervals: game 2025020274 df_game_rows=251
+_apply_intervals: game 2025020289 rows_in_game=282 parsed_intervals=4 team_for_game=EDM
+_apply_intervals: game 2025020289 df_game_rows=282
+_apply_intervals: game 2025020175 rows_in_game=262 parsed_intervals=5 team_for_game=EDM
+_apply_intervals: game 2025020175 df_game_rows=262
+_apply_intervals: game 2025020240 rows_in_game=259 parsed_intervals=9 team_for_game=EDM
+_apply_intervals: game 2025020240 df_game_rows=259
+_apply_intervals: game 2025020254 rows_in_game=279 parsed_intervals=5 team_for_game=EDM
+_apply_intervals: game 2025020254 df_game_rows=279
+_apply_intervals: game 2025020266 rows_in_game=248 parsed_intervals=6 team_for_game=EDM
+_apply_intervals: game 2025020266 df_game_rows=248
+Filtered season dataframe to 4544 events by condition {'game_state': ['5v5'], 'team': 'EDM'} team='EDM'
+DEBUG: Inferred total_seconds_used=78958.0 from 22 games (range=3589.0)
+DEBUG: Inferred total_seconds_used=78958.0 from 22 games (range=3589.0)
+Saved plot to static/EDM_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=20
+_apply_intervals: game 2025010080 rows_in_game=328 parsed_intervals=17 team_for_game=FLA
+_apply_intervals: game 2025010080 df_game_rows=328
+_apply_intervals: game 2025010099 rows_in_game=372 parsed_intervals=10 team_for_game=FLA
+_apply_intervals: game 2025010099 df_game_rows=372
+_apply_intervals: game 2025020012 rows_in_game=275 parsed_intervals=6 team_for_game=FLA
+_apply_intervals: game 2025020012 df_game_rows=275
+_apply_intervals: game 2025020001 rows_in_game=303 parsed_intervals=6 team_for_game=FLA
+_apply_intervals: game 2025020001 df_game_rows=303
+_apply_intervals: game 2025020044 rows_in_game=248 parsed_intervals=10 team_for_game=FLA
+_apply_intervals: game 2025020044 df_game_rows=248
+_apply_intervals: game 2025020027 rows_in_game=291 parsed_intervals=7 team_for_game=FLA
+_apply_intervals: game 2025020027 df_game_rows=291
+_apply_intervals: game 2025020114 rows_in_game=289 parsed_intervals=6 team_for_game=FLA
+_apply_intervals: game 2025020114 df_game_rows=289
+_apply_intervals: game 2025020185 rows_in_game=261 parsed_intervals=4 team_for_game=FLA
+_apply_intervals: game 2025020185 df_game_rows=261
+_apply_intervals: game 2025020211 rows_in_game=294 parsed_intervals=10 team_for_game=FLA
+_apply_intervals: game 2025020211 df_game_rows=294
+_apply_intervals: game 2025020064 rows_in_game=282 parsed_intervals=9 team_for_game=FLA
+_apply_intervals: game 2025020064 df_game_rows=282
+_apply_intervals: game 2025020058 rows_in_game=283 parsed_intervals=4 team_for_game=FLA
+_apply_intervals: game 2025020058 df_game_rows=283
+_apply_intervals: game 2025020273 rows_in_game=291 parsed_intervals=7 team_for_game=FLA
+_apply_intervals: game 2025020273 df_game_rows=291
+_apply_intervals: game 2025020130 rows_in_game=281 parsed_intervals=6 team_for_game=FLA
+_apply_intervals: game 2025020130 df_game_rows=281
+_apply_intervals: game 2025020076 rows_in_game=326 parsed_intervals=10 team_for_game=FLA
+_apply_intervals: game 2025020076 df_game_rows=326
+_apply_intervals: game 2025020283 rows_in_game=286 parsed_intervals=10 team_for_game=FLA
+_apply_intervals: game 2025020283 df_game_rows=286
+_apply_intervals: game 2025020103 rows_in_game=297 parsed_intervals=9 team_for_game=FLA
+_apply_intervals: game 2025020103 df_game_rows=297
+_apply_intervals: game 2025020153 rows_in_game=297 parsed_intervals=7 team_for_game=FLA
+_apply_intervals: game 2025020153 df_game_rows=297
+_apply_intervals: game 2025020243 rows_in_game=277 parsed_intervals=7 team_for_game=FLA
+_apply_intervals: game 2025020243 df_game_rows=277
+_apply_intervals: game 2025020226 rows_in_game=243 parsed_intervals=7 team_for_game=FLA
+_apply_intervals: game 2025020226 df_game_rows=243
+_apply_intervals: game 2025020255 rows_in_game=262 parsed_intervals=5 team_for_game=FLA
+_apply_intervals: game 2025020255 df_game_rows=262
+Filtered season dataframe to 4127 events by condition {'game_state': ['5v5'], 'team': 'FLA'} team='FLA'
+DEBUG: Inferred total_seconds_used=71600.0 from 20 games (range=3580.0)
+DEBUG: Inferred total_seconds_used=71600.0 from 20 games (range=3580.0)
+Saved plot to static/FLA_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=21
+_apply_intervals: game 2025010081 rows_in_game=232 parsed_intervals=4 team_for_game=LAK
+_apply_intervals: game 2025010081 df_game_rows=232
+_apply_intervals: game 2025010090 rows_in_game=287 parsed_intervals=7 team_for_game=LAK
+_apply_intervals: game 2025010090 df_game_rows=287
+_apply_intervals: game 2025020022 rows_in_game=317 parsed_intervals=8 team_for_game=LAK
+_apply_intervals: game 2025020022 df_game_rows=317
+_apply_intervals: game 2025020003 rows_in_game=307 parsed_intervals=10 team_for_game=LAK
+_apply_intervals: game 2025020003 df_game_rows=307
+_apply_intervals: game 2025020047 rows_in_game=313 parsed_intervals=8 team_for_game=LAK
+_apply_intervals: game 2025020047 df_game_rows=313
+_apply_intervals: game 2025020007 rows_in_game=322 parsed_intervals=6 team_for_game=LAK
+_apply_intervals: game 2025020007 df_game_rows=322
+_apply_intervals: game 2025020119 rows_in_game=268 parsed_intervals=8 team_for_game=LAK
+_apply_intervals: game 2025020119 df_game_rows=268
+_apply_intervals: game 2025020191 rows_in_game=277 parsed_intervals=5 team_for_game=LAK
+_apply_intervals: game 2025020191 df_game_rows=277
+_apply_intervals: game 2025020212 rows_in_game=238 parsed_intervals=8 team_for_game=LAK
+_apply_intervals: game 2025020212 df_game_rows=238
+_apply_intervals: game 2025020104 rows_in_game=241 parsed_intervals=6 team_for_game=LAK
+_apply_intervals: game 2025020104 df_game_rows=241
+_apply_intervals: game 2025020144 rows_in_game=262 parsed_intervals=7 team_for_game=LAK
+_apply_intervals: game 2025020144 df_game_rows=262
+_apply_intervals: game 2025020137 rows_in_game=301 parsed_intervals=4 team_for_game=LAK
+_apply_intervals: game 2025020137 df_game_rows=301
+_apply_intervals: game 2025020165 rows_in_game=233 parsed_intervals=6 team_for_game=LAK
+_apply_intervals: game 2025020165 df_game_rows=233
+_apply_intervals: game 2025020071 rows_in_game=228 parsed_intervals=5 team_for_game=LAK
+_apply_intervals: game 2025020071 df_game_rows=228
+_apply_intervals: game 2025020177 rows_in_game=292 parsed_intervals=6 team_for_game=LAK
+_apply_intervals: game 2025020177 df_game_rows=292
+_apply_intervals: game 2025020086 rows_in_game=318 parsed_intervals=4 team_for_game=LAK
+_apply_intervals: game 2025020086 df_game_rows=318
+_apply_intervals: game 2025020286 rows_in_game=231 parsed_intervals=5 team_for_game=LAK
+_apply_intervals: game 2025020286 df_game_rows=231
+_apply_intervals: game 2025020226 rows_in_game=243 parsed_intervals=7 team_for_game=LAK
+_apply_intervals: game 2025020226 df_game_rows=243
+_apply_intervals: game 2025020245 rows_in_game=256 parsed_intervals=7 team_for_game=LAK
+_apply_intervals: game 2025020245 df_game_rows=256
+_apply_intervals: game 2025020269 rows_in_game=261 parsed_intervals=4 team_for_game=LAK
+_apply_intervals: game 2025020269 df_game_rows=261
+_apply_intervals: game 2025020257 rows_in_game=257 parsed_intervals=6 team_for_game=LAK
+_apply_intervals: game 2025020257 df_game_rows=257
+Filtered season dataframe to 4425 events by condition {'game_state': ['5v5'], 'team': 'LAK'} team='LAK'
+DEBUG: Inferred total_seconds_used=75390.0 from 21 games (range=3590.0)
+DEBUG: Inferred total_seconds_used=75390.0 from 21 games (range=3590.0)
+Saved plot to static/LAK_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=21
+_apply_intervals: game 2025010086 rows_in_game=245 parsed_intervals=9 team_for_game=MIN
+_apply_intervals: game 2025010086 df_game_rows=245
+_apply_intervals: game 2025020033 rows_in_game=319 parsed_intervals=8 team_for_game=MIN
+_apply_intervals: game 2025020033 df_game_rows=319
+_apply_intervals: game 2025020054 rows_in_game=283 parsed_intervals=7 team_for_game=MIN
+_apply_intervals: game 2025020054 df_game_rows=283
+_apply_intervals: game 2025020047 rows_in_game=313 parsed_intervals=8 team_for_game=MIN
+_apply_intervals: game 2025020047 df_game_rows=313
+_apply_intervals: game 2025020015 rows_in_game=264 parsed_intervals=6 team_for_game=MIN
+_apply_intervals: game 2025020015 df_game_rows=264
+_apply_intervals: game 2025020081 rows_in_game=256 parsed_intervals=6 team_for_game=MIN
+_apply_intervals: game 2025020081 df_game_rows=256
+_apply_intervals: game 2025020073 rows_in_game=275 parsed_intervals=7 team_for_game=MIN
+_apply_intervals: game 2025020073 df_game_rows=275
+_apply_intervals: game 2025020093 rows_in_game=289 parsed_intervals=5 team_for_game=MIN
+_apply_intervals: game 2025020093 df_game_rows=289
+_apply_intervals: game 2025020190 rows_in_game=277 parsed_intervals=7 team_for_game=MIN
+_apply_intervals: game 2025020190 df_game_rows=277
+_apply_intervals: game 2025020208 rows_in_game=276 parsed_intervals=6 team_for_game=MIN
+_apply_intervals: game 2025020208 df_game_rows=276
+_apply_intervals: game 2025020157 rows_in_game=282 parsed_intervals=5 team_for_game=MIN
+_apply_intervals: game 2025020157 df_game_rows=282
+_apply_intervals: game 2025020173 rows_in_game=265 parsed_intervals=6 team_for_game=MIN
+_apply_intervals: game 2025020173 df_game_rows=265
+_apply_intervals: game 2025020108 rows_in_game=274 parsed_intervals=6 team_for_game=MIN
+_apply_intervals: game 2025020108 df_game_rows=274
+_apply_intervals: game 2025020142 rows_in_game=277 parsed_intervals=7 team_for_game=MIN
+_apply_intervals: game 2025020142 df_game_rows=277
+_apply_intervals: game 2025020131 rows_in_game=311 parsed_intervals=7 team_for_game=MIN
+_apply_intervals: game 2025020131 df_game_rows=311
+_apply_intervals: game 2025020284 rows_in_game=259 parsed_intervals=8 team_for_game=MIN
+_apply_intervals: game 2025020284 df_game_rows=259
+_apply_intervals: game 2025020298 rows_in_game=267 parsed_intervals=7 team_for_game=MIN
+_apply_intervals: game 2025020298 df_game_rows=267
+_apply_intervals: game 2025020222 rows_in_game=304 parsed_intervals=5 team_for_game=MIN
+_apply_intervals: game 2025020222 df_game_rows=304
+_apply_intervals: game 2025020249 rows_in_game=279 parsed_intervals=6 team_for_game=MIN
+_apply_intervals: game 2025020249 df_game_rows=279
+_apply_intervals: game 2025020261 rows_in_game=237 parsed_intervals=8 team_for_game=MIN
+_apply_intervals: game 2025020261 df_game_rows=237
+_apply_intervals: game 2025020228 rows_in_game=246 parsed_intervals=4 team_for_game=MIN
+_apply_intervals: game 2025020228 df_game_rows=246
+Filtered season dataframe to 4574 events by condition {'game_state': ['5v5'], 'team': 'MIN'} team='MIN'
+DEBUG: Inferred total_seconds_used=75432.0 from 21 games (range=3592.0)
+DEBUG: Inferred total_seconds_used=75432.0 from 21 games (range=3592.0)
+Saved plot to static/MIN_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv
+_apply_intervals: intervals per_game count=19
+_apply_intervals: game 2025020010 rows_in_game=255 parsed_intervals=8 team_for_game=MTL
+_apply_intervals: game 2025020010 df_game_rows=255
+_apply_intervals: game 2025010096 rows_in_game=255 parsed_intervals=5 team_for_game=MTL
+_apply_intervals: game 2025010096 df_game_rows=255
+_apply_intervals: game 2025020050 rows_in_game=288 parsed_intervals=6 team_for_game=MTL
+_apply_intervals: game 2025020050 df_game_rows=288
+_apply_intervals: game 2025020004 rows_in_game=279 parsed_intervals=5 team_for_game=MTL
+_apply_intervals: game 2025020004 df_game_rows=279
+_apply_intervals: game 2025020031 rows_in_game=288 parsed_intervals=13 team_for_game=MTL
+_apply_intervals: game 2025020031 df_game_rows=288
+_apply_intervals: game 2025020122 rows_in_game=260 parsed_intervals=6 team_for_game=MTL
+_apply_intervals: game 2025020122 df_game_rows=260
+_apply_intervals: game 2025020110 rows_in_game=275 parsed_intervals=8 team_for_game=MTL
+_apply_intervals: game 2025020110 df_game_rows=275
+_apply_intervals: game 2025020187 rows_in_game=266 parsed_intervals=5 team_for_game=MTL
+_apply_intervals: game 2025020187 df_game_rows=266
+_apply_intervals: game 2025020204 rows_in_game=299 parsed_intervals=9 team_for_game=MTL
+_apply_intervals: game 2025020204 df_game_rows=299
+_apply_intervals: game 2025020080 rows_in_game=256 parsed_intervals=7 team_for_game=MTL
+_apply_intervals: game 2025020080 df_game_rows=256
+_apply_intervals: game 2025020062 rows_in_game=235 parsed_intervals=6 team_for_game=MTL
+_apply_intervals: game 2025020062 df_game_rows=235
+_apply_intervals: game 2025020285 rows_in_game=328 parsed_intervals=13 team_for_game=MTL
+_apply_intervals: game 2025020285 df_game_rows=328
+_apply_intervals: game 2025020270 rows_in_game=255 parsed_intervals=7 team_for_game=MTL
+_apply_intervals: game 2025020270 df_game_rows=255
+_apply_intervals: game 2025020095 rows_in_game=273 parsed_intervals=5 team_for_game=MTL
+_apply_intervals: game 2025020095 df_game_rows=273
+_apply_intervals: game 2025020136 rows_in_game=270 parsed_intervals=6 team_for_game=MTL
+_apply_intervals: game 2025020136 df_game_rows=270
+_apply_intervals: game 2025020164 rows_in_game=235 parsed_intervals=8 team_for_game=MTL
+_apply_intervals: game 2025020164 df_game_rows=235
+_apply_intervals: game 2025020235 rows_in_game=253 parsed_intervals=5 team_for_game=MTL
+_apply_intervals: game 2025020235 df_game_rows=253
+_apply_intervals: game 2025020220 rows_in_game=237 parsed_intervals=7 team_for_game=MTL
+_apply_intervals: game 2025020220 df_game_rows=237
+_apply_intervals: game 2025020257 rows_in_game=257 parsed_intervals=6 team_for_game=MTL
+_apply_intervals: game 2025020257 df_game_rows=257
+Filtered season dataframe to 3906 events by condition {'game_state': ['5v5'], 'team': 'MTL'} team='MTL'
+DEBUG: Inferred total_seconds_used=68096.0 from 19 games (range=3584.0)
+DEBUG: Inferred total_seconds_used=68096.0 from 19 games (range=3584.0)
+Saved plot to static/MTL_xg_map.png
+xgs_map: loading CSV -> data/20252026/20252026_df.csv

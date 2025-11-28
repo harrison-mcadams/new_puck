@@ -1,0 +1,52 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Cache directories
+.cache/
+*.cache
+
+# Test/coverage
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+*.tmp
+
+# Project specific
+.venv/
+data/
+*.joblib
+repro_*.txt
+
+# Generated images (root)
+*.png
+
+# Static generated files
+static/*.png
+static/*.csv
+static/*.npy
+static/*.json
+!static/teams.json
+
+# Generated baseline files (can be regenerated)
+*_league_baseline.npy
+*_league_baseline.json
+*_league_left_combined.npy
+*_league_left_combined.png
