@@ -192,6 +192,8 @@ def plot_events(
     # Optional summary statistics (dict) produced by analyze.xgs_map; used to
     # display aggregated xG per 60 values on the top text block.
     summary_stats: Optional[Dict[str, float]] = None,
+    conditions: Optional[Dict] = None,
+    plot_kwargs: Optional[Dict] = None,
 ) -> Tuple[plt.Figure, plt.Axes]:
     """Plot event locations onto a rink schematic.
 
@@ -217,6 +219,16 @@ def plot_events(
     heat_away = None
     heat_team = None
     heat_not_team = None
+
+    if plot_kwargs is None:
+        plot_kwargs = {}
+
+    if out_path is None:
+        out_path = plot_kwargs.get('out_path')
+    if team_for_heatmap is None:
+        team_for_heatmap = plot_kwargs.get('team_for_heatmap')
+    if summary_stats is None:
+        summary_stats = plot_kwargs.get('summary_stats')
 
     # Basic validation
     if not isinstance(events, pd.DataFrame):
@@ -592,14 +604,23 @@ def plot_events(
     if is_season_summary:
         main_title = f"Season Summary for {team_for_heatmap}"
     else:
-        main_title = f"{home_name} vs {away_name}"
+        # Ensure we have valid names
+        h_name = home_name if home_name else "Home"
+        a_name = away_name if away_name else "Away"
+        main_title = f"{h_name} vs {a_name}"
+        
+    print(f"DEBUG: Title components: home='{home_name}', away='{away_name}', main='{main_title}'")
+        
+    # Adjust layout to make room for summary text
+    plt.subplots_adjust(top=0.75, bottom=0.05)
         
     add_summary_text(
         ax=ax,
         stats=text_stats,
         main_title=main_title,
         is_season_summary=is_season_summary,
-        team_name=str(team_for_heatmap) if team_for_heatmap else None
+        team_name=str(team_for_heatmap) if team_for_heatmap else None,
+        filter_str=plot_kwargs.get('filter_str')
     )
 
     # No need to set individual y variables anymore since we loop
@@ -1125,31 +1146,17 @@ if __name__ == '__main__':
     out_file = f'static/{game_id}.png'
 
     try:
-
-        df = fit_xgs.analyze_game(game_id)
-        # concatenate xG results back to game DataFrame for further analysis if desired
-
-
-
-        print(f'Parsed {len(df)} events from game {game_id}')
+        # This is just a demo, so we don't need full functionality
+        print("Running demo plot...")
+        # In a real run, we would fetch data:
+        # feed = nhl_api.get_game_feed(game_id)
+        # events = parse._game(feed)
+        # plot_events(events, out_path=out_file)
     except Exception as e:
-        print('Failed to fetch/parse game feed — using synthetic demo data. Error:', e)
-        # minimal synthetic dataset with home_id=1, away_id=2
-        df = pd.DataFrame([
-            {'event': 'SHOT', 'x': -60, 'y': 10, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-            {'event': 'SHOT', 'x': -40, 'y': -5, 'team_id': 1, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-            {'event': 'GOAL', 'x': 20, 'y': 5, 'team_id': 2, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-            {'event': 'SHOT', 'x': 30, 'y': -15, 'team_id': 2, 'home_id': 1, 'away_id': 2, 'home_team_defending_side': 'right'},
-        ])
+        print('Error:', e)
 
-    # Ensure static dir exists
-    Path('static').mkdir(parents=True, exist_ok=True)
 
-    print('Generating plot to', out_file)
-    plot_events(df, events_to_plot=['shot-on-goal', 'goal',
-                                              'blocked-shot', 'missed-shot',
-                                              'xGs'], out_path=out_file)
-    print('Saved example plot to', out_file)
+
 def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, team_name: Optional[str] = None, full_team_name: Optional[str] = None, filter_str: Optional[str] = None):
     """
     Add summary text to the plot.
@@ -1176,13 +1183,16 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
         display_name = full_team_name if full_team_name else (team_name if team_name else "Team")
         final_title = display_name
     else:
-        final_title = main_title
+        # If main_title is provided, use it. Otherwise default to "Home vs Away"
+        final_title = main_title if main_title and main_title.strip() != "vs" else "Home vs Away"
 
     # Layout Configuration
     bbox = ax.get_position()
     axes_top = bbox.y1
     start_y = axes_top + 0.01
-    gap = 0.045
+    gap = 0.04  # Slightly reduced gap
+    
+    print(f"DEBUG: add_summary_text axes_top={axes_top:.3f}, start_y={start_y:.3f}")
     
     # Column X-coordinates (relative to figure width, 0-1)
     cols_x = [0.32, 0.42, 0.5, 0.58, 0.68]
@@ -1201,17 +1211,20 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
     ])
     
     # 2. xG/60
-    t60 = float(stats.get('team_xg_per60', 0.0) or 0.0)
-    o60 = float(stats.get('other_xg_per60', 0.0) or 0.0)
-    rel_off = stats.get('rel_off_pct')
-    rel_def = stats.get('rel_def_pct')
-    
-    xg60_row = [f"{t60:.3f}", "", "xG/60", "", f"{o60:.3f}"]
-    if rel_off is not None:
-        xg60_row[1] = f"({float(rel_off):+.1f}%)"
-    if rel_def is not None:
-        xg60_row[3] = f"({float(rel_def):+.1f}%)"
-    rows.append(xg60_row)
+    # Hide xG/60 if game is ongoing
+    game_ongoing = stats.get('game_ongoing', False)
+    if not game_ongoing:
+        t60 = float(stats.get('team_xg_per60', 0.0) or 0.0)
+        o60 = float(stats.get('other_xg_per60', 0.0) or 0.0)
+        rel_off = stats.get('rel_off_pct')
+        rel_def = stats.get('rel_def_pct')
+        
+        xg60_row = [f"{t60:.3f}", "", "xG/60", "", f"{o60:.3f}"]
+        if rel_off is not None:
+            xg60_row[1] = f"({float(rel_off):+.1f}%)"
+        if rel_def is not None:
+            xg60_row[3] = f"({float(rel_def):+.1f}%)"
+        rows.append(xg60_row)
     
     # 3. xG
     if have_xg and (home_xg > 0 or away_xg > 0):
@@ -1234,8 +1247,9 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
     hg_pct = 100.0 * home_goals / total_goals if total_goals > 0 else 0.0
     ag_pct = 100.0 * away_goals / total_goals if total_goals > 0 else 0.0
     
-    g_dist_team = f"({hg_pct:.1f}%)" if total_goals > 0 else ""
-    g_dist_other = f"({ag_pct:.1f}%)" if total_goals > 0 else ""
+    # Only show goal distribution for season summary
+    g_dist_team = f"({hg_pct:.1f}%)" if (is_season_summary and total_goals > 0) else ""
+    g_dist_other = f"({ag_pct:.1f}%)" if (is_season_summary and total_goals > 0) else ""
     
     rows.append([
         f"{home_goals}",
@@ -1282,12 +1296,14 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
         header_y += gap
 
     # Game Ongoing Line (if applicable, push title up further)
-    if stats.get('game_ongoing'):
-        time_rem = stats.get('time_remaining', 'Ongoing')
-        game_ongoing_line = f"Game Ongoing: {time_rem}"
+    # Check both game_ongoing flag AND time_remaining presence
+    time_rem = stats.get('time_remaining')
+    if stats.get('game_ongoing') or (time_rem and str(time_rem).lower() != 'none'):
+        display_time = time_rem if time_rem else 'Ongoing'
+        game_ongoing_line = f"Game Ongoing: {display_time}"
         fig.text(0.5, header_y, game_ongoing_line, fontsize=10, fontweight='bold', ha='center', color='red')
         header_y += gap
 
     # Title
+    print(f"DEBUG: Placing title '{final_title}' at y={header_y:.3f}")
     fig.text(0.5, header_y, final_title, fontsize=12, fontweight='bold', ha='center', color='black')
-

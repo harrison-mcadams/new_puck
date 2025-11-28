@@ -79,15 +79,13 @@ def index():
 def replot():
     """Trigger re-generation of the plot and redirect back to index.
 
-    Accepts an optional form field `game` (integer). If omitted the code will
-    attempt to use `plot_game.get_gameID(method='most_recent')` as a sensible
-    default. Errors are returned as 500 responses for easier debugging.
-
-    See module docstring for notes on improving this to a background job.
+    Accepts an optional form field `game` (integer) and `condition` (JSON string).
     """
     try:
         import plot
         import fit_xgs
+        import analyze
+        import json
     except Exception as e:
         return (f"plotting modules not available: {e}", 500)
 
@@ -112,31 +110,31 @@ def replot():
             game_val = cleaned
         logger.debug("replot: received game field '%s' -> normalized '%s'", raw_game, game_val)
 
+    # Parse condition
+    raw_condition = (request.form.get('condition') or '{}').strip()
+    condition = {}
+    try:
+        if raw_condition:
+            condition = json.loads(raw_condition)
+    except Exception as e:
+        logger.warning(f"Failed to parse condition JSON: {e}")
+        # Fallback to empty condition or handle error? For now, empty.
+        condition = {}
+
     out_path = os.path.join(app.static_folder or 'static', 'shot_plot.png')
 
     try:
-        try:
-            df = fit_xgs.analyze_game(game_val)
-        except Exception as e:
-            # Log the error and traceback; produce a placeholder plot and continue
-            logger.exception('Error analyzing game (will produce placeholder plot): %s', e)
-            try:
-                plot.plot_events(pd.DataFrame([]), events_to_plot=['shot-on-goal', 'goal'], out_path=out_path)
-            except Exception as e2:
-                logger.exception('Error creating placeholder plot: %s', e2)
-            return redirect(url_for('index'))
-
-        if df is None or getattr(df, 'shape', (0,))[0] == 0:
-            plot.plot_events(pd.DataFrame([]), events_to_plot=['shot-on-goal', 'goal'], out_path=out_path)
-        else:
-            try:
-                plot.plot_events(df, events_to_plot=['shot-on-goal','missed-shot','blocked-shot','goal','xgs'], out_path=out_path)
-            except Exception as e:
-                logger.exception('Error plotting events; producing placeholder instead: %s', e)
-                try:
-                    plot.plot_events(pd.DataFrame([]), events_to_plot=['shot-on-goal', 'goal'], out_path=out_path)
-                except Exception as e2:
-                    logger.exception('Error creating fallback placeholder plot: %s', e2)
+        # Use analyze.xgs_map which handles filtering and plotting
+        # We pass game_id (if any) and the condition.
+        # Note: xgs_map expects game_id as a keyword argument.
+        analyze.xgs_map(
+            game_id=game_val,
+            condition=condition,
+            out_path=out_path,
+            show=False,
+            # Ensure we don't try to open a window
+            return_heatmaps=False
+        )
     except Exception as e:
         logger.exception('Unhandled error in replot handler: %s', e)
         return (f"Error generating plot: {e}", 500)

@@ -302,6 +302,160 @@ def league(season: Optional[str] = '20252026',
     return {'combined_norm': combined_norm, 'total_left_seconds': total_left_seconds, 'total_left_xg': total_left_xg, 'stats': stats, 'per_team': pooled_output}
 
 
+
+def calculate_shot_attempts(df: pd.DataFrame, team_val: str) -> dict:
+    """
+    Calculate shot attempts (Corsi) stats from the filtered dataframe.
+    
+    Args:
+        df: Filtered DataFrame containing event data.
+        team_val: Team identifier (abbreviation or ID) to filter for.
+        
+    Returns:
+        dict: Dictionary containing:
+            - home_attempts: int (Team shot attempts)
+            - away_attempts: int (Opponent shot attempts)
+            - home_shot_pct: float (Team CF%)
+            - away_shot_pct: float (Opponent CF%)
+    """
+    stats = {
+        'home_attempts': 0,
+        'away_attempts': 0,
+        'home_shot_pct': 0.0,
+        'away_shot_pct': 0.0
+    }
+    
+    if df is None or df.empty:
+        return stats
+        
+    # Filter for shot attempts
+    attempts_df = df[df['event'].astype(str).str.strip().str.lower().isin(['shot-on-goal', 'missed-shot', 'blocked-shot'])]
+    
+    if attempts_df.empty:
+        return stats
+        
+    # Identify team rows
+    def _is_team_row(r):
+        try:
+            # Check if team_id matches team (which is an abbr here)
+            # We need to match abbr to home_abb/away_abb to find team_id
+            tupper = str(team_val).upper()
+            home_abb = r.get('home_abb')
+            away_abb = r.get('away_abb')
+            if home_abb is not None and str(home_abb).upper() == tupper:
+                return str(r.get('team_id')) == str(r.get('home_id'))
+            if away_abb is not None and str(away_abb).upper() == tupper:
+                return str(r.get('team_id')) == str(r.get('away_id'))
+            return False
+        except Exception:
+            return False
+
+    is_team_mask = attempts_df.apply(_is_team_row, axis=1)
+    team_attempts = int(is_team_mask.sum())
+    opp_attempts = int((~is_team_mask).sum())
+    
+    stats['home_attempts'] = team_attempts
+    stats['away_attempts'] = opp_attempts
+    
+    total_attempts = team_attempts + opp_attempts
+    if total_attempts > 0:
+        stats['home_shot_pct'] = 100.0 * team_attempts / total_attempts
+        stats['away_shot_pct'] = 100.0 * opp_attempts / total_attempts
+        
+    return stats
+
+
+def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map, other_seconds, baseline_threshold=1e-6):
+    """
+    Compute the relative xG map (Team vs League and Defense vs League).
+    
+    Args:
+        team_map: Raw team heatmap (offense).
+        league_baseline_left: League baseline heatmap (offense, left-oriented).
+        team_seconds: Total seconds for team normalization.
+        other_map: Raw other heatmap (defense).
+        other_seconds: Total seconds for other normalization.
+        baseline_threshold: Threshold to avoid division by zero.
+        
+    Returns:
+        tuple: (combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60)
+    """
+    import numpy as np
+    
+    # 1. Normalization to xGs/60
+    if team_seconds <= 0: team_seconds = 1.0
+    if other_seconds <= 0: other_seconds = 1.0
+
+    # Normalize team map (Offense, Left)
+    team_map_norm = np.asarray(team_map, dtype=float) / team_seconds * 3600.0
+    
+    # Normalize other map (Defense, Right)
+    if other_map is not None:
+        other_map_norm = np.asarray(other_map, dtype=float) / other_seconds * 3600.0
+    else:
+        other_map_norm = np.zeros_like(team_map_norm)
+
+    # 2. League Baselines
+    # league_baseline_left is already Left-oriented (Offense)
+    
+    # Create Right-oriented baseline (Defense) by flipping Left baseline
+    # Assuming standard rink symmetry
+    league_baseline_right = np.fliplr(league_baseline_left)
+
+    # 3. Compute % Change Relative to Baseline
+    # Formula: (Team - League) / League
+    
+    # Grid setup
+    gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
+    gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
+    XX, YY = np.meshgrid(gx, gy)
+    
+    # Masks
+    # Left Zone: x <= -24.0 (Offense)
+    # Right Zone: x >= 24.0 (Defense)
+    # Neutral Zone: -24.0 < x < 24.0 (Masked)
+    mask_left = (XX <= -24.0)
+    mask_right = (XX >= 24.0)
+    
+    # Initialize combined map with NaNs
+    combined_rel_map = np.full_like(team_map_norm, np.nan)
+    
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # Left Side: Offense vs League Left
+        denom_l = np.maximum(league_baseline_left, baseline_threshold)
+        rel_l = (team_map_norm - league_baseline_left) / denom_l
+        
+        has_signal_l = (team_map_norm > baseline_threshold) | (league_baseline_left > baseline_threshold)
+        valid_l = mask_left & has_signal_l
+        
+        combined_rel_map[valid_l] = rel_l[valid_l]
+        
+        # Right Side: Defense vs League Right
+        denom_r = np.maximum(league_baseline_right, baseline_threshold)
+        rel_r = (other_map_norm - league_baseline_right) / denom_r
+        
+        has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right > baseline_threshold)
+        valid_r = mask_right & has_signal_r
+        
+        combined_rel_map[valid_r] = rel_r[valid_r]
+
+    # Calculate aggregate relative stats
+    team_xg_per60 = np.nansum(team_map_norm)
+    other_xg_per60 = np.nansum(other_map_norm)
+    league_avg_xg_per60 = np.nansum(league_baseline_left)
+    
+    relative_off_per60 = team_xg_per60 - league_avg_xg_per60
+    relative_def_per60 = other_xg_per60 - league_avg_xg_per60
+    
+    rel_off_pct = 0.0
+    rel_def_pct = 0.0
+    if league_avg_xg_per60 > 1e-6:
+        rel_off_pct = (relative_off_per60 / league_avg_xg_per60) * 100.0
+        rel_def_pct = (relative_def_per60 / league_avg_xg_per60) * 100.0
+        
+    return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
+
+
 def season_analysis(season: Optional[str] = '20252026',
                     csv_path: Optional[str] = None,
                     teams: Optional[list] = None,
@@ -422,144 +576,33 @@ def season_analysis(season: Optional[str] = '20252026',
                     team_results[team] = {'error': 'no_heatmap'}
                     continue
 
-            # Calculate relative stats EARLY so they are available for plotting
-            team_xg_per60 = summary_stats.get('team_xg_per60', 0.0) if summary_stats else 0.0
-            other_xg_per60 = summary_stats.get('other_xg_per60', 0.0) if summary_stats else 0.0
-            league_avg_xg_per60 = baseline_result['stats'].get('xg_per60', 0.0)
-            
-            relative_off_per60 = team_xg_per60 - league_avg_xg_per60
-            relative_def_per60 = other_xg_per60 - league_avg_xg_per60 # Positive means bad defense (more allowed)
-            
-            # Calculate % change for display
-            rel_off_pct = 0.0
-            rel_def_pct = 0.0
-            if league_avg_xg_per60 > 1e-6:
-                rel_off_pct = (relative_off_per60 / league_avg_xg_per60) * 100.0
-                rel_def_pct = (relative_def_per60 / league_avg_xg_per60) * 100.0
-                
-            # Update summary_stats with relative metrics
+            # Calculate Shot Attempts (SA)
+            sa_stats = calculate_shot_attempts(ret_df, team)
             if summary_stats is None:
                 summary_stats = {}
+            summary_stats.update(sa_stats)
+
+            # Step 4: Compute Relative Maps
+            # Get seconds for normalization
+            team_seconds = float(summary_stats.get('team_seconds', 0.0))
+            other_seconds = float(summary_stats.get('other_seconds', 0.0))
+            
+            combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60 = compute_relative_map(
+                team_map, league_baseline_map, team_seconds, other_map, other_seconds
+            )
+            
+            # Update summary_stats with relative metrics
             summary_stats['rel_off_pct'] = rel_off_pct
             summary_stats['rel_def_pct'] = rel_def_pct
             
-            # Calculate Shot Attempts (SA) from ret_df
-            if ret_df is not None and not ret_df.empty:
-                # Filter for shot attempts
-                attempts_df = ret_df[ret_df['event'].astype(str).str.strip().str.lower().isin(['shot-on-goal', 'missed-shot', 'blocked-shot'])]
-                
-                if not attempts_df.empty:
-                    # Identify team rows
-                    def _is_team_row(r):
-                        try:
-                            # Check if team_id matches team (which is an abbr here)
-                            # We need to match abbr to home_abb/away_abb to find team_id
-                            tupper = str(team).upper()
-                            home_abb = r.get('home_abb')
-                            away_abb = r.get('away_abb')
-                            if home_abb is not None and str(home_abb).upper() == tupper:
-                                return str(r.get('team_id')) == str(r.get('home_id'))
-                            if away_abb is not None and str(away_abb).upper() == tupper:
-                                return str(r.get('team_id')) == str(r.get('away_id'))
-                            return False
-                        except Exception:
-                            return False
+            # Retrieve per-60 stats for summary table
+            team_xg_per60 = summary_stats.get('team_xg_per60', 0.0)
+            other_xg_per60 = summary_stats.get('other_xg_per60', 0.0)
+            league_avg_xg_per60 = baseline_result['stats'].get('xg_per60', 0.0)
 
-                    is_team_mask = attempts_df.apply(_is_team_row, axis=1)
-                    team_attempts = int(is_team_mask.sum())
-                    opp_attempts = int((~is_team_mask).sum())
-                    
-                    summary_stats['home_attempts'] = team_attempts
-                    summary_stats['away_attempts'] = opp_attempts
-                    
-                    total_attempts = team_attempts + opp_attempts
-                    if total_attempts > 0:
-                        summary_stats['home_shot_pct'] = 100.0 * team_attempts / total_attempts
-                        summary_stats['away_shot_pct'] = 100.0 * opp_attempts / total_attempts
-                    else:
-                        summary_stats['home_shot_pct'] = 0.0
-                        summary_stats['away_shot_pct'] = 0.0
-
-            # Step 4: Compute Relative Maps (Explicit Logic)
-            
-            # 1. Normalization to xGs/60
-            # Get seconds for normalization
-            team_seconds = 1.0
-            other_seconds = 1.0
-            if summary_stats:
-                team_seconds = float(summary_stats.get('team_seconds', 0.0))
-                other_seconds = float(summary_stats.get('other_seconds', 0.0))
-            
-            if team_seconds <= 0: team_seconds = 1.0
-            if other_seconds <= 0: other_seconds = 1.0
-
-            # Normalize team map (Offense, Left)
-            team_map_norm = np.asarray(team_map, dtype=float) / team_seconds * 3600.0
-            
-            # Normalize other map (Defense, Right)
-            if other_map is not None:
-                other_map_norm = np.asarray(other_map, dtype=float) / other_seconds * 3600.0
-            else:
-                other_map_norm = np.zeros_like(team_map_norm)
-
-            # 2. League Baselines
-            # league_baseline_map is already Left-oriented (Offense)
-            league_baseline_left = league_baseline_map
-            
-            # Create Right-oriented baseline (Defense) by flipping Left baseline
-            # Assuming standard rink symmetry
-            league_baseline_right = np.fliplr(league_baseline_left)
-
-            # 3. Compute % Change Relative to Baseline
-            # Formula: (Team - League) / League
-            
-            # Grid setup
+            # Grid setup for plotting
             gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
             gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
-            XX, YY = np.meshgrid(gx, gy)
-            
-            # Masks
-            # Left Zone: x <= -24.0 (Offense)
-            # Right Zone: x >= 24.0 (Defense)
-            # Neutral Zone: -24.0 < x < 24.0 (Masked)
-            # We use 24.0 to be safe and ensure no gap between heatmap and blue line (which is ~1ft wide visually?)
-            # Actually, let's just use exact 24.0 but inclusive.
-            mask_left = (XX <= -24.0)
-            mask_right = (XX >= 24.0)
-            
-            baseline_threshold = 1e-6
-            
-            # Initialize combined map with NaNs
-            combined_rel_map = np.full_like(team_map_norm, np.nan)
-            
-            with np.errstate(divide='ignore', invalid='ignore'):
-                # Left Side: Offense vs League Left
-                # (Team - League) / League
-                # Use safe denominator: max(league, threshold)
-                denom_l = np.maximum(league_baseline_left, baseline_threshold)
-                # Valid if in zone AND (league has signal OR team has signal)
-                # Actually, we just want to show everything in the zone.
-                # If league is near zero, relative change will be large (capped later).
-                # If both are near zero, we can set to 0.
-                
-                # Calculate raw relative change
-                rel_l = (team_map_norm - league_baseline_left) / denom_l
-                
-                # Mask out areas where both are negligible to avoid noise
-                has_signal_l = (team_map_norm > baseline_threshold) | (league_baseline_left > baseline_threshold)
-                valid_l = mask_left & has_signal_l
-                
-                combined_rel_map[valid_l] = rel_l[valid_l]
-                
-                # Right Side: Defense vs League Right
-                # (Other - LeagueRight) / LeagueRight
-                denom_r = np.maximum(league_baseline_right, baseline_threshold)
-                rel_r = (other_map_norm - league_baseline_right) / denom_r
-                
-                has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right > baseline_threshold)
-                valid_r = mask_right & has_signal_r
-                
-                combined_rel_map[valid_r] = rel_r[valid_r]
 
             # Step 5: Plot combined relative map
             try:
@@ -1253,6 +1296,11 @@ def xgs_map(season: Optional[str] = '20252026', *,
     # Allow caller to specify a single game_id: fetch and parse that game's feed
     df_all = None
     chosen_csv = None
+    
+    # Variables to capture game status from live feed
+    game_ongoing = False
+    time_remaining = None
+    
     if game_id is not None:
         try:
             import nhl_api as _nhl_api
@@ -1268,6 +1316,49 @@ def xgs_map(season: Optional[str] = '20252026', *,
                     continue
             
             if feed:
+                # Capture game status immediately
+                try:
+                    # Debug feed structure
+                    print(f"DEBUG: Feed keys: {list(feed.keys())}", flush=True)
+                    
+                    # Try standard path
+                    status_data = feed.get('gameData', {}).get('status', {})
+                    status = status_data.get('abstractGameState')
+                    detailed_state = status_data.get('detailedState')
+                    
+                    # Try alternative path (new API)
+                    if not status:
+                        status = feed.get('gameState')
+                        
+                    print(f"DEBUG: Game Status: abstract='{status}', detailed='{detailed_state}'", flush=True)
+                    
+                    if status in ('Live', 'In Progress', 'LIVE', 'IN_PROGRESS') or (status == 'Final' and detailed_state == 'In Progress'): 
+                        game_ongoing = True
+                    
+                    # Try to get time remaining
+                    # Old API: liveData.linescore
+                    linescore = feed.get('liveData', {}).get('linescore', {})
+                    period = linescore.get('currentPeriodOrdinal')
+                    time_rem = linescore.get('currentPeriodTimeRemaining')
+                    
+                    # New API: clock / periodDescriptor
+                    if not time_rem:
+                        clock = feed.get('clock', {})
+                        time_rem = clock.get('timeRemaining')
+                        period_desc = feed.get('periodDescriptor', {})
+                        period = period_desc.get('number')
+                        if period:
+                            period = f"P{period}"
+                            
+                    if period and time_rem:
+                        time_remaining = f"{time_rem} {period}"
+                        print(f"DEBUG: Time Remaining: {time_remaining}", flush=True)
+                    else:
+                        if game_ongoing:
+                            time_remaining = "In Progress"
+                except Exception as e:
+                    print(f"DEBUG: Error extracting game status: {e}", flush=True)
+
                 try:
                     # use parse helpers to build the events dataframe for the single game
                     ev_df = _parse._game(feed)
@@ -1347,7 +1438,23 @@ def xgs_map(season: Optional[str] = '20252026', *,
             print(f'Warning: timing.demo_for_export failed: {e}; using empty timing structure')
 
     # Apply filtering: either by condition or by intervals
-    if use_intervals:
+
+    # Determine if we should use intervals for filtering.
+    # We only strictly need intervals if the condition involves game state or other shift-dependent properties.
+    # If the condition is simple (e.g. empty or just team), we prefer to skip interval filtering
+    # to ensure we capture all events, including recent ones in live games where shift data might lag.
+    should_use_intervals = use_intervals
+    if should_use_intervals and intervals_input is None:
+        if condition is None:
+             should_use_intervals = False
+        elif isinstance(condition, dict):
+             # Keys that require shift/interval data
+             interval_keys = ['game_state', 'is_net_empty']
+             if not any(k in condition for k in interval_keys):
+                 should_use_intervals = False
+                 print("xgs_map: condition does not require shift data; skipping interval filtering to include all events")
+
+    if should_use_intervals:
         intervals = intervals_input if intervals_input is not None else timing_full
         team_param = None
         if isinstance(condition, dict):
@@ -1501,51 +1608,6 @@ def xgs_map(season: Optional[str] = '20252026', *,
     if 'game_id' in df_filtered.columns:
         n_games = df_filtered['game_id'].nunique()
     
-    # Check for game status if this was a single game fetch
-    game_ongoing = False
-    time_remaining = None
-    # We can't easily access 'feed' here as it was local to the if game_id block.
-    # However, we can check if n_games == 1 and if we can infer status.
-    # Better yet, let's capture it earlier if possible, but for now let's rely on
-    # what we have. If we want 'game_ongoing', we really should have captured it 
-    # when we fetched the feed.
-    
-    # Let's see if we can pass it through. 
-    # Actually, let's just add n_games for now. 
-    # For game_ongoing, we need to look at where feed was fetched.
-    # It was lines 983-1013.
-    # We can't easily access it here without changing the structure significantly 
-    # or re-fetching (bad).
-    # But wait, we are in the same function scope? No, feed was inside `if game_id is not None:`.
-    # So `feed` variable is not available here if we defined it inside the if block?
-    # Python variables in if blocks ARE available outside if the block executed.
-    # So if game_id was not None, `feed` should be available.
-    
-    if game_id is not None:
-        try:
-            # Check if feed variable exists and has data
-            if 'feed' in locals() and feed:
-                # NHL API structure varies, but usually:
-                # feed['gameData']['status']['abstractGameState'] == 'Live' or 'Final'
-                # or feed['liveData']['linescore']...
-                # Let's try to extract safely
-                try:
-                    status = feed.get('gameData', {}).get('status', {}).get('abstractGameState')
-                    if status == 'Live':
-                        game_ongoing = True
-                        # Try to get time remaining
-                        linescore = feed.get('liveData', {}).get('linescore', {})
-                        period = linescore.get('currentPeriodOrdinal')
-                        time_rem = linescore.get('currentPeriodTimeRemaining')
-                        if period and time_rem:
-                            time_remaining = f"{time_rem} {period}"
-                        else:
-                            time_remaining = "In Progress"
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
     summary_stats = {
         'team_xgs': team_xgs,
         'other_xgs': other_xgs,
@@ -1559,6 +1621,38 @@ def xgs_map(season: Optional[str] = '20252026', *,
         'game_ongoing': game_ongoing,
         'time_remaining': time_remaining,
     }
+
+    # Construct filter string for display
+    filter_str = ""
+    if condition:
+        # Filter out 'team' and 'player_id' from display
+        display_cond = {k: v for k, v in condition.items() if k not in ['team', 'player_id', 'player_ids']}
+        if display_cond:
+            parts = []
+            for k, v in display_cond.items():
+                # Format key (e.g. game_state -> Game State)
+                key_fmt = k.replace('_', ' ').title()
+                # Format value
+                val_fmt = str(v)
+                if isinstance(v, list):
+                    val_fmt = ",".join(map(str, v))
+                parts.append(f"{key_fmt}: {val_fmt}")
+            filter_str = " | ".join(parts)
+        else:
+            # If condition provided but empty (or only team), explicitly say "All Events"
+            # UNLESS it was None originally (but we normalized to {}).
+            # But here we are inside `if condition`.
+            # If the user passed {}, display_cond is empty.
+            # We want to show "All Events" if they passed {} to override defaults.
+            # But we don't know if they passed {} or if we defaulted to {}?
+            # Actually, earlier we did `condition = {} if condition is None else dict(condition)`.
+            # So we can't distinguish easily.
+            # However, if display_cond is empty, it means no filtering on game state etc.
+            # So "All Events" is accurate.
+            filter_str = "All Events"
+    else:
+        # If condition is None (shouldn't happen due to earlier normalization) or empty
+        filter_str = "All Events"
 
     # Decide heatmap split mode:
     # - If a team is specified, use 'team_not_team'.
@@ -2394,24 +2488,39 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
 
 
 if __name__ == '__main__':
-    """Command-line example for running xgs_map for a season and a team.
+    """Command-line interface for xG analysis and mapping.
 
-    Usage examples (from project root):
-      python analyze.py --season 20252026 --team PHI
-      python analyze.py --season 20252026 --team PHI --out static/PHI_map.png --orient-all-left
+    This script provides tools for generating xG heatmaps and analyzing team performance
+    relative to league baselines. It supports single-game analysis, full-season analysis,
+    and league baseline computation.
+
+    Usage Examples:
+
+    1. Generate a standard xG map for a specific team and season:
+       python analyze.py --season 20252026 --team PHI
+
+    2. Generate an xG map for a single game (using game ID):
+       python analyze.py --game-id 2025020339
+
+    3. Generate an xG map for a single game with specific conditions (e.g., 5v5 only):
+       python analyze.py --game-id 2025020339 --condition '{"game_state": "5v5"}'
+
+    4. Generate an xG map for a single game with NO filtering (empty condition):
+       python analyze.py --game-id 2025020339 --condition '{}'
+
+    5. Run a full season analysis for all teams (relative to league baseline):
+       python analyze.py --season 20252026 --season-analysis
+
+    6. Compute a new league baseline for a season:
+       python analyze.py --season 20252026 --league-baseline --baseline-mode compute
+
+    7. Run analysis for a specific team with custom output path and orientation:
+       python analyze.py --season 20252026 --team PHI --out static/PHI_custom.png --orient-all-left
 
     Notes:
-      - This example constructs a minimal `condition` dictionary with the
-        requested team (``{'team': TEAM}``) and passes it to xgs_map. The
-        heavy lifting (CSV lookup, optional model loading/training, plotting)
-        is performed by xgs_map.
-      - If you prefer to run non-interactively from a script, call
-        xgs_map(...) directly from Python, passing a `condition` dict.
-
-    The parser below also supports a quick "run all teams" mode which calls
-    `xg_maps_for_season`. That quick-run mode is intentionally simple and
-    easy to edit: change the `condition` and parameters below to control what
-    is computed for the full season.
+      - The `--condition` argument accepts a JSON string to filter events.
+      - The `--season-analysis` flag runs the comprehensive workflow used for generating
+        relative performance maps and summary statistics.
     """
 
     import argparse
@@ -2504,10 +2613,16 @@ if __name__ == '__main__':
     elif args.game_id:
         # Run xgs_map for a single game id. We pass the game_id explicitly.
         # Use provided condition if available, otherwise default to 5v5 + net not empty.
-        if parsed_condition:
+        if parsed_condition is not None:
             condition = parsed_condition.copy()
         else:
             condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+            
+        # If output path is the default, change it to use the game_id
+        out_path_arg = args.out
+        if out_path_arg == 'static/xg_map_example.png':
+            out_path_arg = f'static/{args.game_id}.png'
+            
         # Force returning full outputs for a single-game run so the CLI
         # user can inspect heatmaps, filtered dataframe, and summary stats.
         try:
@@ -2516,7 +2631,7 @@ if __name__ == '__main__':
                 game_id=args.game_id,
                 condition=condition,
                 behavior=args.behavior,
-                out_path=args.out,
+                out_path=out_path_arg,
                 orient_all_left=args.orient_all_left,
                 # ensure we get the detailed outputs for inspection
                 return_heatmaps=True,

@@ -562,8 +562,16 @@ def demo_for_export(df, condition=None, verbose: bool = False):
         # Pull out non-team keys to use as analysis conditions
         raw_conditions = {k: v for k, v in condition.items() if k != 'team'}
         if not raw_conditions:
-            # default analysis conditions
-            analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
+            # If condition was explicitly provided as empty dict (or just team),
+            # we should NOT default to 5v5. We should analyze "all" (no filter).
+            # However, intervals_for_condition needs something to iterate.
+            # We can pass a dummy condition that is always true, or just use empty dict?
+            # intervals_for_condition with empty dict returns full duration.
+            # So we can set analysis_conditions to {'all': [True]} or similar to get one bucket.
+            # But wait, the caller might expect 'game_state' keys in the output?
+            # If the user passed {}, they probably want to see everything.
+            # Let's use a dummy 'all' condition.
+            analysis_conditions = {'all': [True]}
         else:
             # Normalize each value to a list of states. This avoids iterating
             # a string as characters later when we do `for state in cond_def`.
@@ -575,6 +583,7 @@ def demo_for_export(df, condition=None, verbose: bool = False):
                     # For scalar values (including strings/ints), wrap in list
                     analysis_conditions[k] = [v]
     else:
+        # condition is None or non-dict -> apply defaults
         analysis_conditions = {'game_state': ['5v5'], 'is_net_empty': [0, 1]}
 
     # Determine gids to analyze:

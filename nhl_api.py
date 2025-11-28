@@ -496,8 +496,30 @@ def get_game_feed(game_id: int, max_retries: int = 3, backoff_base: float =
     url = f'https://api-web.nhle.com/v1/gamecenter/{game_id}/play-by-play'
 
     # Attempt to use cached response
+    # Attempt to use cached response
     if not force_refresh:
         cached = _cache_get('game_feed', str(game_id))
+        if cached is not None:
+            # Check if game is live. If so, enforce a shorter TTL (e.g. 60s)
+            # to ensure we don't serve stale data for ongoing games.
+            is_live = False
+            # New API: 'gameState' at top level
+            if cached.get('gameState') in ('LIVE', 'IN_PROGRESS', 'CRIT'):
+                is_live = True
+            # Old API: nested gameData.status.abstractGameState
+            elif cached.get('gameData', {}).get('status', {}).get('abstractGameState') in ('Live', 'In Progress'):
+                is_live = True
+
+            if is_live:
+                try:
+                    path = _cache_path('game_feed', str(game_id))
+                    if os.path.exists(path):
+                        age = time.time() - os.path.getmtime(path)
+                        if age > 60:  # 1 minute TTL for live games
+                            cached = None  # Treat as cache miss
+                except Exception:
+                    pass
+
         if cached is not None:
             return cached
 
