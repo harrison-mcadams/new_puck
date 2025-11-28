@@ -396,7 +396,7 @@ def season_analysis(season: Optional[str] = '20252026',
                 events_to_plot=None,
                 show=False,
                 return_heatmaps=True,
-                return_filtered_df=False,
+                return_filtered_df=True, # Request filtered DF to calculate attempts
                 condition=condition,
                 **xgs_map_kwargs
             )
@@ -421,6 +421,64 @@ def season_analysis(season: Optional[str] = '20252026',
                     print(f"season_analysis: no 'team' heatmap returned for {team}")
                     team_results[team] = {'error': 'no_heatmap'}
                     continue
+
+            # Calculate relative stats EARLY so they are available for plotting
+            team_xg_per60 = summary_stats.get('team_xg_per60', 0.0) if summary_stats else 0.0
+            other_xg_per60 = summary_stats.get('other_xg_per60', 0.0) if summary_stats else 0.0
+            league_avg_xg_per60 = baseline_result['stats'].get('xg_per60', 0.0)
+            
+            relative_off_per60 = team_xg_per60 - league_avg_xg_per60
+            relative_def_per60 = other_xg_per60 - league_avg_xg_per60 # Positive means bad defense (more allowed)
+            
+            # Calculate % change for display
+            rel_off_pct = 0.0
+            rel_def_pct = 0.0
+            if league_avg_xg_per60 > 1e-6:
+                rel_off_pct = (relative_off_per60 / league_avg_xg_per60) * 100.0
+                rel_def_pct = (relative_def_per60 / league_avg_xg_per60) * 100.0
+                
+            # Update summary_stats with relative metrics
+            if summary_stats is None:
+                summary_stats = {}
+            summary_stats['rel_off_pct'] = rel_off_pct
+            summary_stats['rel_def_pct'] = rel_def_pct
+            
+            # Calculate Shot Attempts (SA) from ret_df
+            if ret_df is not None and not ret_df.empty:
+                # Filter for shot attempts
+                attempts_df = ret_df[ret_df['event'].astype(str).str.strip().str.lower().isin(['shot-on-goal', 'missed-shot', 'blocked-shot'])]
+                
+                if not attempts_df.empty:
+                    # Identify team rows
+                    def _is_team_row(r):
+                        try:
+                            # Check if team_id matches team (which is an abbr here)
+                            # We need to match abbr to home_abb/away_abb to find team_id
+                            tupper = str(team).upper()
+                            home_abb = r.get('home_abb')
+                            away_abb = r.get('away_abb')
+                            if home_abb is not None and str(home_abb).upper() == tupper:
+                                return str(r.get('team_id')) == str(r.get('home_id'))
+                            if away_abb is not None and str(away_abb).upper() == tupper:
+                                return str(r.get('team_id')) == str(r.get('away_id'))
+                            return False
+                        except Exception:
+                            return False
+
+                    is_team_mask = attempts_df.apply(_is_team_row, axis=1)
+                    team_attempts = int(is_team_mask.sum())
+                    opp_attempts = int((~is_team_mask).sum())
+                    
+                    summary_stats['home_attempts'] = team_attempts
+                    summary_stats['away_attempts'] = opp_attempts
+                    
+                    total_attempts = team_attempts + opp_attempts
+                    if total_attempts > 0:
+                        summary_stats['home_shot_pct'] = 100.0 * team_attempts / total_attempts
+                        summary_stats['away_shot_pct'] = 100.0 * opp_attempts / total_attempts
+                    else:
+                        summary_stats['home_shot_pct'] = 0.0
+                        summary_stats['away_shot_pct'] = 0.0
 
             # Step 4: Compute Relative Maps (Explicit Logic)
             
@@ -526,7 +584,75 @@ def season_analysis(season: Optional[str] = '20252026',
                 m = np.ma.masked_invalid(combined_rel_map)
                 im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax)
                 
-                ax.set_title(f'{team} - Relative xG/60\n(Left: Offense, Right: Defense)', fontsize=14)
+                # Add summary text using the shared function
+                from plot import add_summary_text
+                
+                # Prepare stats for summary text
+                # We need to ensure summary_stats has what add_summary_text needs
+                # It needs 'home_xg', 'away_xg' (mapped from team/other), etc.
+                # But add_summary_text uses 'home_xg' etc. if 'team_xgs' is not present?
+                # Actually add_summary_text prefers 'team_xgs' if is_season_summary is True?
+                # Let's check add_summary_text logic:
+                # if is_season_summary:
+                #    if have_xg and summary_stats and 'team_xgs' in summary_stats:
+                #        team_xg_disp = home_xg (which is stats['home_xg'])
+                # Wait, add_summary_text extracts home_xg from stats['home_xg'].
+                # So we should populate stats['home_xg'] with team_xgs.
+                
+                text_stats = summary_stats.copy() if summary_stats else {}
+                text_stats['home_xg'] = text_stats.get('team_xgs', 0.0)
+                text_stats['away_xg'] = text_stats.get('other_xgs', 0.0)
+                text_stats['have_xg'] = True
+                
+                # Also goals
+                text_stats['home_goals'] = text_stats.get('team_goals', 0)
+                text_stats['away_goals'] = text_stats.get('other_goals', 0)
+                
+                # Attempts (SA) - now populated
+                
+                # Get full team name
+                full_team_name = None
+                try:
+                    # team_list is available in scope? No, it's local to season_analysis.
+                    # But we have 'teams_data' if we loaded it?
+                    # Let's reload or reuse. 'teams_data' was loaded at start of season_analysis.
+                    # Check if teams_data is available.
+                    # It is defined in line 367: teams_data = json.load(f)
+                    # We can iterate it.
+                    if 'teams_data' in locals() and teams_data:
+                        for t_obj in teams_data:
+                            if t_obj.get('abbr') == team:
+                                full_team_name = t_obj.get('name')
+                                break
+                except Exception:
+                    pass
+                
+                # Construct filter string
+                filter_str = ""
+                if condition:
+                    parts = []
+                    # Exclude 'team' from filter string as it's in the title
+                    for k, v in condition.items():
+                        if k == 'team':
+                            continue
+                        # Format key: game_state -> Game State
+                        key_fmt = k.replace('_', ' ').title()
+                        val_fmt = str(v)
+                        if isinstance(v, list):
+                            val_fmt = ",".join(map(str, v))
+                        parts.append(f"{key_fmt}: {val_fmt}")
+                    if parts:
+                        filter_str = " | ".join(parts)
+                
+                add_summary_text(
+                    ax=ax,
+                    stats=text_stats,
+                    main_title=f"Relative xG/60: {team}",
+                    is_season_summary=True,
+                    team_name=team,
+                    full_team_name=full_team_name,
+                    filter_str=filter_str
+                )
                 ax.axis('off')
                 
                 # Colorbar
@@ -553,12 +679,20 @@ def season_analysis(season: Optional[str] = '20252026',
 
             # Step 6: Compile summary statistics
             # (Keep existing summary stats logic, maybe add defensive stats)
-            team_xg_per60 = summary_stats.get('team_xg_per60', 0.0) if summary_stats else 0.0
-            other_xg_per60 = summary_stats.get('other_xg_per60', 0.0) if summary_stats else 0.0
-            league_avg_xg_per60 = baseline_result['stats'].get('xg_per60', 0.0)
+            # Note: relative stats already calculated above
             
-            relative_off_per60 = team_xg_per60 - league_avg_xg_per60
-            relative_def_per60 = other_xg_per60 - league_avg_xg_per60 # Positive means bad defense (more allowed)
+            # Calculate % change for display
+            rel_off_pct = 0.0
+            rel_def_pct = 0.0
+            if league_avg_xg_per60 > 1e-6:
+                rel_off_pct = (relative_off_per60 / league_avg_xg_per60) * 100.0
+                rel_def_pct = (relative_def_per60 / league_avg_xg_per60) * 100.0
+                
+            # Update summary_stats with relative metrics so plot.py can use them
+            if summary_stats is None:
+                summary_stats = {}
+            summary_stats['rel_off_pct'] = rel_off_pct
+            summary_stats['rel_def_pct'] = rel_def_pct
 
             summary_row = {
                 'team': team,
@@ -567,6 +701,8 @@ def season_analysis(season: Optional[str] = '20252026',
                 'relative_off_per60': relative_off_per60,
                 'other_xg_per60': other_xg_per60,
                 'relative_def_per60': relative_def_per60,
+                'rel_off_pct': rel_off_pct,
+                'rel_def_pct': rel_def_pct,
                 'team_xgs': summary_stats.get('team_xgs', 0.0) if summary_stats else 0.0,
                 'team_seconds': summary_stats.get('team_seconds', 0.0) if summary_stats else 0.0,
             }

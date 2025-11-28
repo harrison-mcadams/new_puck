@@ -504,7 +504,7 @@ def plot_events(
     else:
         home_shot_pct = away_shot_pct = 0.0
 
-    # xG totals if available (column 'xgs')
+    # Calculate xG totals with correct grouping
     home_xg = 0.0
     away_xg = 0.0
     have_xg = False
@@ -520,80 +520,12 @@ def plot_events(
     if not have_xg and 'xgs' in df.columns:
         try:
             have_xg = True
-            for _, r in df.iterrows():
-                val = r.get('xgs')
-                try:
-                    xv = float(val)
-                except Exception:
-                    continue
-                if 'team_id' in df.columns and home_id is not None and str(r.get('team_id')) == str(home_id):
-                    home_xg += xv
-                else:
-                    away_xg += xv
-        except Exception:
-            have_xg = False
-
-    # Format text lines: main title, score, xG per60 line (from summary_stats),
-    # full xG line, shots line
-    
-    # Determine if this is a season summary for a specific team
-    # We treat it as a season summary only if we have more than 1 game,
-    # otherwise we prefer the specific game title (Home vs Away).
-    n_games = int(summary_stats.get('n_games', 0)) if summary_stats else 0
-    is_season_summary = (heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None and n_games > 1)
-    
-    if is_season_summary:
-        main_title = f"Season Summary for {team_for_heatmap}"
-        # For season summary, we might not have a single score. 
-        # If summary_stats has 'n_games', we can show that instead of score or alongside it.
-        team_seconds = float(summary_stats.get('team_seconds', 0.0)) if summary_stats else 0.0
-        minutes = int(round(team_seconds / 60.0))
-        
-        if n_games > 0:
-            score_line = f"{n_games} Games - {minutes} Minutes"
-        else:
-            score_line = "" # Fallback if no game count
-            
-    else:
-        main_title = f"{home_name} vs {away_name}"
-        score_line = f"{home_goals} - {away_goals}"
-
-    # Check for ongoing game status (passed via summary_stats usually)
-    game_ongoing_line = None
-    if summary_stats and summary_stats.get('game_ongoing'):
-        time_rem = summary_stats.get('time_remaining', 'Ongoing')
-        game_ongoing_line = f"Game Ongoing: {time_rem}"
-
-    # xG per 60 from summary_stats (if provided)
-    xg_per60_line = None
-    if isinstance(summary_stats, dict):
-        try:
-            t60 = float(summary_stats.get('team_xg_per60', 0.0) or 0.0)
-            o60 = float(summary_stats.get('other_xg_per60', 0.0) or 0.0)
-            # Centered around xG/60
-            xg_per60_line = f"{t60:.3f} - xG/60 - {o60:.3f}"
-        except Exception:
-            xg_per60_line = None
-
-    if have_xg and (home_xg or away_xg):
-        total_xg = home_xg + away_xg
-        if total_xg > 0:
-            hx_pct = 100.0 * home_xg / total_xg
-            ax_pct = 100.0 * away_xg / total_xg
-        else:
-            hx_pct = ax_pct = 0.0
-        
-        if is_season_summary:
-             if have_xg and summary_stats and 'team_xgs' in summary_stats:
-                 team_xg_disp = home_xg
-                 other_xg_disp = away_xg
-             else:
-                 # Fallback: re-sum based on team_for_heatmap logic for the text display
-                 team_xg_disp = 0.0
-                 other_xg_disp = 0.0
-                 
-                 # Helper to check if row is team
-                 def _is_team_row_local(r):
+            # If team_not_team, we need to sum based on team membership
+            if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+                team_xg_sum = 0.0
+                other_xg_sum = 0.0
+                
+                def _is_team_row_local(r):
                     try:
                         if str(team_for_heatmap).strip().isdigit():
                             return str(r.get('team_id')) == str(int(team_for_heatmap))
@@ -607,109 +539,70 @@ def plot_events(
                         return False
                     except Exception:
                         return False
-    
-                 # We can use the 'xgs' column in df
-                 for _, r in df.iterrows():
-                     val = r.get('xgs')
-                     try:
-                         xv = float(val)
-                     except:
-                         xv = 0.0
-                     if _is_team_row_local(r):
-                         team_xg_disp += xv
-                     else:
-                         other_xg_disp += xv
-             
-             total_disp = team_xg_disp + other_xg_disp
-             if total_disp > 0:
-                 t_pct = 100.0 * team_xg_disp / total_disp
-                 o_pct = 100.0 * other_xg_disp / total_disp
-             else:
-                 t_pct = o_pct = 0.0
-             
-             xg_line = f"{team_xg_disp:.2f} ({t_pct:.1f}%) - xG - {other_xg_disp:.2f} ({o_pct:.1f}%)"
-             
-        else:
-            xg_line = f"{home_xg:.2f} ({hx_pct:.1f}%) - xG - {away_xg:.2f} ({ax_pct:.1f}%)"
-    else:
-        xg_line = "xG: N/A"
 
-    if is_season_summary:
-        shots_line = f"{home_attempts} ({home_shot_pct:.1f}%) - SA - {away_attempts} ({away_shot_pct:.1f}%)"
-    else:
-        shots_line = f"{home_attempts} ({home_shot_pct:.1f}%) - SA - {away_attempts} ({away_shot_pct:.1f}%)"
-
-    # Goals line (from summary_stats if available)
-    goals_line = None
-    if summary_stats and 'team_goals' in summary_stats and 'other_goals' in summary_stats:
-        try:
-            tg = int(summary_stats.get('team_goals', 0))
-            og = int(summary_stats.get('other_goals', 0))
-            goals_line = f"{tg} - Goals - {og}"
+                for _, r in df.iterrows():
+                    val = r.get('xgs')
+                    try:
+                        xv = float(val)
+                    except Exception:
+                        continue
+                    if _is_team_row_local(r):
+                        team_xg_sum += xv
+                    else:
+                        other_xg_sum += xv
+                
+                home_xg = team_xg_sum
+                away_xg = other_xg_sum
+            else:
+                # Legacy home/away
+                for _, r in df.iterrows():
+                    val = r.get('xgs')
+                    try:
+                        xv = float(val)
+                    except Exception:
+                        continue
+                    if 'team_id' in df.columns and home_id is not None and str(r.get('team_id')) == str(home_id):
+                        home_xg += xv
+                    else:
+                        away_xg += xv
         except Exception:
-            goals_line = None
+            have_xg = False
 
-    # Derive positions from the axes bounding box so the shots line sits just
-    # above the rink. Use a larger inter-line gap to avoid overlap.
-    bbox = ax.get_position()
-    axes_top = bbox.y1
-
-    # place shots line slightly above axes top
-    shots_y = axes_top + 0.01 # Increased from 0.006
-    # inter-line gap (increase by ~5% relative to earlier small gaps)
-    gap = 0.045 # Increased from 0.035
-    xg_y = shots_y + gap
+    # Determine if this is a season summary for a specific team
+    n_games = int(summary_stats.get('n_games', 0)) if summary_stats else 0
+    is_season_summary = (heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None and n_games > 1)
     
-    # If we have a goals_line, allocate another gap for it
-    if goals_line is not None:
-         goals_y = xg_y + gap
-         xg_per60_y_base = goals_y + gap
-    else:
-         goals_y = None
-         xg_per60_y_base = xg_y + gap
-    # If we have an xg_per60_line, allocate another gap for it
-    if xg_per60_line is not None:
-         xg_per60_y = xg_per60_y_base
-         score_y = xg_per60_y + gap
-    else:
-         xg_per60_y = None
-         score_y = xg_per60_y_base
+    # Prepare arguments for add_summary_text
+    text_stats = summary_stats.copy() if summary_stats else {}
     
-    if game_ongoing_line is not None:
-        ongoing_y = score_y + gap
-        main_y = ongoing_y + gap
-    else:
-        ongoing_y = None
-        main_y = score_y + gap
-
-    # clamp to figure
-    shots_y = max(0.0, min(0.995, shots_y))
-    xg_y = max(0.0, min(0.995, xg_y))
-    if goals_y is not None:
-        goals_y = max(0.0, min(0.995, goals_y))
-    if xg_per60_y is not None:
-         xg_per60_y = max(0.0, min(0.995, xg_per60_y))
-    score_y = max(0.0, min(0.995, score_y))
-    if ongoing_y is not None:
-        ongoing_y = max(0.0, min(0.995, ongoing_y))
-    main_y = max(0.0, min(0.995, main_y))
-
-    # Slightly reduce main/score fonts to help avoid overlap at small figure sizes
-    fig.text(0.5, main_y, main_title, fontsize=12, fontweight='bold', ha='center')
+    text_stats['home_goals'] = home_goals
+    text_stats['away_goals'] = away_goals
+    text_stats['home_attempts'] = home_attempts
+    text_stats['away_attempts'] = away_attempts
+    text_stats['home_shot_pct'] = home_shot_pct
+    text_stats['away_shot_pct'] = away_shot_pct
     
-    if ongoing_y is not None:
-        fig.text(0.5, ongoing_y, game_ongoing_line, fontsize=10, fontweight='bold', ha='center', color='red')
+    if have_xg:
+        text_stats['home_xg'] = home_xg
+        text_stats['away_xg'] = away_xg
+        text_stats['have_xg'] = True
+    else:
+        text_stats['have_xg'] = False
         
-    fig.text(0.5, score_y, score_line, fontsize=10, fontweight='bold', ha='center')
-    # render the xG per60 line (if available) between score and xG line
-    if xg_per60_line is not None:
-         fig.text(0.5, xg_per60_y, xg_per60_line, fontsize=9, fontweight='bold', ha='center')
-    
-    if goals_line is not None:
-        fig.text(0.5, goals_y, goals_line, fontsize=9, fontweight='bold', ha='center')
+    if is_season_summary:
+        main_title = f"Season Summary for {team_for_heatmap}"
+    else:
+        main_title = f"{home_name} vs {away_name}"
+        
+    add_summary_text(
+        ax=ax,
+        stats=text_stats,
+        main_title=main_title,
+        is_season_summary=is_season_summary,
+        team_name=str(team_for_heatmap) if team_for_heatmap else None
+    )
 
-    fig.text(0.5, xg_y, xg_line, fontsize=9, fontweight='normal', ha='center')
-    fig.text(0.5, shots_y, shots_line, fontsize=9, fontweight='normal', ha='center')
+    # No need to set individual y variables anymore since we loop
 
     # NOTE: do not save here — we need to overlay heatmap (if requested)
     # before writing the final image. Saving occurs after the heatmap block.
@@ -1257,3 +1150,144 @@ if __name__ == '__main__':
                                               'blocked-shot', 'missed-shot',
                                               'xGs'], out_path=out_file)
     print('Saved example plot to', out_file)
+def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, team_name: Optional[str] = None, full_team_name: Optional[str] = None, filter_str: Optional[str] = None):
+    """
+    Add summary text to the plot.
+    
+    stats: dictionary containing stats like 'home_goals', 'away_goals', 'home_xg', etc.
+    """
+    fig = ax.figure
+    
+    # Extract stats
+    home_goals = stats.get('home_goals', 0)
+    away_goals = stats.get('away_goals', 0)
+    home_attempts = stats.get('home_attempts', 0)
+    away_attempts = stats.get('away_attempts', 0)
+    home_shot_pct = stats.get('home_shot_pct', 0.0)
+    away_shot_pct = stats.get('away_shot_pct', 0.0)
+    
+    home_xg = stats.get('home_xg', 0.0)
+    away_xg = stats.get('away_xg', 0.0)
+    have_xg = stats.get('have_xg', False)
+    
+    # Title Logic
+    if is_season_summary:
+        # Use full team name if available, otherwise team_name (abbr)
+        display_name = full_team_name if full_team_name else (team_name if team_name else "Team")
+        final_title = display_name
+    else:
+        final_title = main_title
+
+    # Layout Configuration
+    bbox = ax.get_position()
+    axes_top = bbox.y1
+    start_y = axes_top + 0.01
+    gap = 0.045
+    
+    # Column X-coordinates (relative to figure width, 0-1)
+    cols_x = [0.32, 0.42, 0.5, 0.58, 0.68]
+    cols_align = ['right', 'center', 'center', 'center', 'left']
+    
+    # Data Rows (Bottom to Top)
+    rows = []
+    
+    # 1. Shots (SA)
+    rows.append([
+        f"{home_attempts}", 
+        f"({home_shot_pct:.1f}%)", 
+        "SA", 
+        f"({away_shot_pct:.1f}%)", 
+        f"{away_attempts}"
+    ])
+    
+    # 2. xG/60
+    t60 = float(stats.get('team_xg_per60', 0.0) or 0.0)
+    o60 = float(stats.get('other_xg_per60', 0.0) or 0.0)
+    rel_off = stats.get('rel_off_pct')
+    rel_def = stats.get('rel_def_pct')
+    
+    xg60_row = [f"{t60:.3f}", "", "xG/60", "", f"{o60:.3f}"]
+    if rel_off is not None:
+        xg60_row[1] = f"({float(rel_off):+.1f}%)"
+    if rel_def is not None:
+        xg60_row[3] = f"({float(rel_def):+.1f}%)"
+    rows.append(xg60_row)
+    
+    # 3. xG
+    if have_xg and (home_xg > 0 or away_xg > 0):
+        total_xg = home_xg + away_xg
+        hx_pct = 100.0 * home_xg / total_xg if total_xg > 0 else 0.0
+        ax_pct = 100.0 * away_xg / total_xg if total_xg > 0 else 0.0
+        
+        rows.append([
+            f"{home_xg:.2f}",
+            f"({hx_pct:.1f}%)",
+            "xG",
+            f"({ax_pct:.1f}%)",
+            f"{away_xg:.2f}"
+        ])
+    else:
+        rows.append(["-", "", "xG", "", "-"])
+        
+    # 4. Goals
+    total_goals = home_goals + away_goals
+    hg_pct = 100.0 * home_goals / total_goals if total_goals > 0 else 0.0
+    ag_pct = 100.0 * away_goals / total_goals if total_goals > 0 else 0.0
+    
+    g_dist_team = f"({hg_pct:.1f}%)" if total_goals > 0 else ""
+    g_dist_other = f"({ag_pct:.1f}%)" if total_goals > 0 else ""
+    
+    rows.append([
+        f"{home_goals}",
+        g_dist_team,
+        "Goals",
+        g_dist_other,
+        f"{away_goals}"
+    ])
+    
+    # Plot Rows
+    current_y = start_y
+    font_size = 9
+    font_weight = 'normal'
+    
+    for row in rows:
+        for i, text in enumerate(row):
+            if text:
+                fig.text(cols_x[i], current_y, text, 
+                         fontsize=font_size, fontweight=font_weight, 
+                         ha=cols_align[i], color='black')
+        current_y += gap
+        
+    # Header Section (Filter, Score, Title)
+    # Start slightly above the table
+    header_y = current_y + 0.005 # Small extra buffer
+    
+    # Filter Line
+    if filter_str:
+        fig.text(0.5, header_y, filter_str, fontsize=9, fontweight='bold', ha='center', color='black')
+        header_y += gap
+        
+    # Score Line
+    if is_season_summary:
+        n_games = int(stats.get('n_games', 0))
+        team_seconds = float(stats.get('team_seconds', 0.0))
+        minutes = int(round(team_seconds / 60.0))
+        if n_games > 0:
+            score_line = f"{n_games} Games - {minutes} Minutes"
+            fig.text(0.5, header_y, score_line, fontsize=10, fontweight='bold', ha='center', color='black')
+            header_y += gap
+    else:
+        score_line = f"{home_goals} - {away_goals}"
+        fig.text(0.5, header_y, score_line, fontsize=10, fontweight='bold', ha='center', color='black')
+        header_y += gap
+
+    # Game Ongoing Line (if applicable, push title up further)
+    if stats.get('game_ongoing'):
+        time_rem = stats.get('time_remaining', 'Ongoing')
+        game_ongoing_line = f"Game Ongoing: {time_rem}"
+        fig.text(0.5, header_y, game_ongoing_line, fontsize=10, fontweight='bold', ha='center', color='red')
+        header_y += gap
+
+    # Title
+    fig.text(0.5, header_y, final_title, fontsize=12, fontweight='bold', ha='center', color='black')
+
