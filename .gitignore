@@ -33,16 +33,17 @@ tmp/
 .venv/
 data/
 *.joblib
+*.joblibx
 repro_*.txt
 
 # Generated images (root)
 *.png
 
 # Static generated files
-static/*.png
-static/*.csv
-static/*.npy
-static/*.json
+static/**/*.png
+static/**/*.csv
+static/**/*.npy
+static/**/*.json
 !static/teams.json
 
 # Generated baseline files (can be regenerated)
