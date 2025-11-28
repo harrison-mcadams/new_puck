@@ -405,58 +405,135 @@ def season_analysis(season: Optional[str] = '20252026',
             # Note: xgs_map may return heatmaps as dict with 'team'/'other' keys
             # when team is specified, or 'home'/'away' keys for game-level analysis
             team_map = None
+            other_map = None
+            
             if isinstance(ret_heat, dict):
                 team_map = ret_heat.get('team')
+                other_map = ret_heat.get('other') # Defense (shots against)
+                
                 if team_map is None:
                     team_map = ret_heat.get('home')
-            elif ret_heat is not None:
-                team_map = ret_heat
+                other_map = ret_heat.get('other')
+                if other_map is None:
+                    other_map = ret_heat.get('not_team')
+                
+                if team_map is None:
+                    print(f"season_analysis: no 'team' heatmap returned for {team}")
+                    team_results[team] = {'error': 'no_heatmap'}
+                    continue
 
-            if team_map is None:
-                print(f"season_analysis: no heatmap returned for team {team}")
-                team_results[team] = {'error': 'no_heatmap'}
-                continue
-
-            # Step 4: Compute relative map (team - league baseline)
-            team_map_array = np.asarray(team_map, dtype=float)
+            # Step 4: Compute Relative Maps (Explicit Logic)
             
-            # Ensure shapes match
-            if team_map_array.shape != league_baseline_map.shape:
-                print(f"season_analysis: shape mismatch for {team}: {team_map_array.shape} vs {league_baseline_map.shape}")
-                team_results[team] = {'error': 'shape_mismatch'}
-                continue
+            # 1. Normalization to xGs/60
+            # Get seconds for normalization
+            team_seconds = 1.0
+            other_seconds = 1.0
+            if summary_stats:
+                team_seconds = float(summary_stats.get('team_seconds', 0.0))
+                other_seconds = float(summary_stats.get('other_seconds', 0.0))
+            
+            if team_seconds <= 0: team_seconds = 1.0
+            if other_seconds <= 0: other_seconds = 1.0
 
-            relative_map = team_map_array - league_baseline_map
+            # Normalize team map (Offense, Left)
+            team_map_norm = np.asarray(team_map, dtype=float) / team_seconds * 3600.0
+            
+            # Normalize other map (Defense, Right)
+            if other_map is not None:
+                other_map_norm = np.asarray(other_map, dtype=float) / other_seconds * 3600.0
+            else:
+                other_map_norm = np.zeros_like(team_map_norm)
 
-            # Step 5: Plot relative map
+            # 2. League Baselines
+            # league_baseline_map is already Left-oriented (Offense)
+            league_baseline_left = league_baseline_map
+            
+            # Create Right-oriented baseline (Defense) by flipping Left baseline
+            # Assuming standard rink symmetry
+            league_baseline_right = np.fliplr(league_baseline_left)
+
+            # 3. Compute % Change Relative to Baseline
+            # Formula: (Team - League) / League
+            
+            # Grid setup
+            gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
+            gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
+            XX, YY = np.meshgrid(gx, gy)
+            
+            # Masks
+            # Left Zone: x <= -24.0 (Offense)
+            # Right Zone: x >= 24.0 (Defense)
+            # Neutral Zone: -24.0 < x < 24.0 (Masked)
+            # We use 24.0 to be safe and ensure no gap between heatmap and blue line (which is ~1ft wide visually?)
+            # Actually, let's just use exact 24.0 but inclusive.
+            mask_left = (XX <= -24.0)
+            mask_right = (XX >= 24.0)
+            
+            baseline_threshold = 1e-6
+            
+            # Initialize combined map with NaNs
+            combined_rel_map = np.full_like(team_map_norm, np.nan)
+            
+            with np.errstate(divide='ignore', invalid='ignore'):
+                # Left Side: Offense vs League Left
+                # (Team - League) / League
+                # Use safe denominator: max(league, threshold)
+                denom_l = np.maximum(league_baseline_left, baseline_threshold)
+                # Valid if in zone AND (league has signal OR team has signal)
+                # Actually, we just want to show everything in the zone.
+                # If league is near zero, relative change will be large (capped later).
+                # If both are near zero, we can set to 0.
+                
+                # Calculate raw relative change
+                rel_l = (team_map_norm - league_baseline_left) / denom_l
+                
+                # Mask out areas where both are negligible to avoid noise
+                has_signal_l = (team_map_norm > baseline_threshold) | (league_baseline_left > baseline_threshold)
+                valid_l = mask_left & has_signal_l
+                
+                combined_rel_map[valid_l] = rel_l[valid_l]
+                
+                # Right Side: Defense vs League Right
+                # (Other - LeagueRight) / LeagueRight
+                denom_r = np.maximum(league_baseline_right, baseline_threshold)
+                rel_r = (other_map_norm - league_baseline_right) / denom_r
+                
+                has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right > baseline_threshold)
+                valid_r = mask_right & has_signal_r
+                
+                combined_rel_map[valid_r] = rel_r[valid_r]
+
+            # Step 5: Plot combined relative map
             try:
                 from rink import draw_rink
-                m = np.ma.masked_invalid(relative_map)
-                fig, ax = plt.subplots(figsize=(8, 4.5))
+                
+                fig, ax = plt.subplots(figsize=(10, 5))
                 draw_rink(ax=ax)
                 
-                # Use diverging colormap for relative values (centered at 0)
-                gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
-                gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
-                extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
+                # Determine vmin/vmax
+                # Use robust max to avoid single-pixel outliers blowing out the scale?
+                # Or just cap at 300% (3.0) as before.
+                vmax = np.nanmax(np.abs(combined_rel_map))
+                if vmax > 3.0: vmax = 3.0 # Cap at 300%
                 
-                cmap = plt.get_cmap('RdBu_r')  # diverging colormap
+                extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
+                cmap = plt.get_cmap('RdBu_r')
                 try:
                     cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
-                except AttributeError:
-                    # Some matplotlib versions don't support set_bad on colormap objects
+                except:
                     pass
                 
-                # Symmetric color limits around zero
-                vmax = np.nanmax(np.abs(m))
-                im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, 
-                              vmin=-vmax, vmax=vmax)
+                m = np.ma.masked_invalid(combined_rel_map)
+                im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax)
                 
-                # Add colorbar
-                cbar = plt.colorbar(im, ax=ax)
-                cbar.set_label('Relative xG/60 vs League Avg', rotation=270, labelpad=20)
+                ax.set_title(f'{team} - Relative xG/60\n(Left: Offense, Right: Defense)', fontsize=14)
+                ax.axis('off')
                 
-                ax.set_title(f'{team} - Relative xG/60 (vs League Baseline)')
+                # Colorbar
+                cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+                cbar.set_label('Relative % Change vs League', rotation=270, labelpad=20)
+                import matplotlib.ticker as mticker
+                cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
                 
                 relative_map_path = os.path.join(out_dir, f'{team}_relative_map.png')
                 fig.savefig(relative_map_path, dpi=150, bbox_inches='tight')
@@ -465,23 +542,31 @@ def season_analysis(season: Optional[str] = '20252026',
                 print(f"season_analysis: saved relative map to {relative_map_path}")
             except Exception as e:
                 print(f"season_analysis: failed to plot relative map for {team}: {e}")
+                import traceback
+                traceback.print_exc()
 
-            # Save relative map as .npy
+            # Save relative maps as .npy
             try:
-                np.save(os.path.join(out_dir, f'{team}_relative_map.npy'), relative_map)
+                np.save(os.path.join(out_dir, f'{team}_relative_combined.npy'), combined_rel_map)
             except Exception:
                 pass
 
             # Step 6: Compile summary statistics
+            # (Keep existing summary stats logic, maybe add defensive stats)
             team_xg_per60 = summary_stats.get('team_xg_per60', 0.0) if summary_stats else 0.0
+            other_xg_per60 = summary_stats.get('other_xg_per60', 0.0) if summary_stats else 0.0
             league_avg_xg_per60 = baseline_result['stats'].get('xg_per60', 0.0)
-            relative_xg_per60 = team_xg_per60 - league_avg_xg_per60
+            
+            relative_off_per60 = team_xg_per60 - league_avg_xg_per60
+            relative_def_per60 = other_xg_per60 - league_avg_xg_per60 # Positive means bad defense (more allowed)
 
             summary_row = {
                 'team': team,
                 'team_xg_per60': team_xg_per60,
                 'league_avg_xg_per60': league_avg_xg_per60,
-                'relative_xg_per60': relative_xg_per60,
+                'relative_off_per60': relative_off_per60,
+                'other_xg_per60': other_xg_per60,
+                'relative_def_per60': relative_def_per60,
                 'team_xgs': summary_stats.get('team_xgs', 0.0) if summary_stats else 0.0,
                 'team_seconds': summary_stats.get('team_seconds', 0.0) if summary_stats else 0.0,
             }
@@ -489,7 +574,6 @@ def season_analysis(season: Optional[str] = '20252026',
 
             team_results[team] = {
                 'summary_stats': summary_stats,
-                'relative_map': relative_map,
                 'relative_map_path': relative_map_path,
                 'out_path': out_path,
             }
@@ -501,8 +585,8 @@ def season_analysis(season: Optional[str] = '20252026',
     # Step 7: Create cross-team summary table
     summary_table = pd.DataFrame(summary_rows)
     if not summary_table.empty:
-        # Sort by relative_xg_per60 descending
-        summary_table = summary_table.sort_values('relative_xg_per60', ascending=False)
+        # Sort by relative_off_per60 descending
+        summary_table = summary_table.sort_values('relative_off_per60', ascending=False)
         
         # Save summary table
         summary_csv = os.path.join(out_dir, f'{season}_team_summary.csv')
