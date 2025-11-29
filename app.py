@@ -241,11 +241,13 @@ def league_stats():
     """Render the league statistics page."""
     import json
     
-    # Try to load the summary JSON
-    # In a real app, we might want to make the season configurable
-    # Load summary from static/league_stats/summary.json
-    season = "20252026"
-    summary_path = os.path.join(app.static_folder or "static", "league_stats", "summary.json")
+    # Get query parameters
+    season = request.args.get('season', '20252026')
+    game_state = request.args.get('game_state', '5v5')
+    
+    # Load summary from static/league_stats/{season}/{game_state}/summary.json
+    summary_path = os.path.join(app.static_folder or "static", "league_stats", season, game_state, "summary.json")
+    scatter_path = f"league_stats/{season}/{game_state}/scatter.png"
     
     stats = []
     if os.path.exists(summary_path):
@@ -255,7 +257,25 @@ def league_stats():
         except Exception as e:
             logger.error(f"Failed to load league stats: {e}")
             
-    return render_template("league_stats.html", stats=stats)
+    return render_template("league_stats.html", stats=stats, season=season, game_state=game_state, scatter_img=scatter_path)
+
+
+@app.route("/team_stats/<season>/<game_state>/<team>")
+def team_stats(season, game_state, team):
+    """Render the team statistics page with relative map."""
+    
+    # Construct paths
+    # Map is at static/league_stats/{season}/{game_state}/{team}_relative_map.png
+    relative_map = f"league_stats/{season}/{game_state}/{team}_relative_map.png"
+    
+    # We might want to pass some stats too, but for now just the map
+    # We could load the summary.json to get stats for this team if needed
+    
+    return render_template("team_stats.html", 
+                         season=season, 
+                         game_state=game_state, 
+                         team=team, 
+                         relative_map=relative_map)
 
 
 @app.route('/admin/flush_cache', methods=['POST'])

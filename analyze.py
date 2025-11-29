@@ -161,11 +161,11 @@ def league(season: Optional[str] = '20252026',
         except Exception:
             sec = None
 
-        # fallback: try to estimate seconds from df_filtered using timing.demo_for_export
+        # fallback: try to estimate seconds from df_filtered using timing.compute_game_timing
         if (sec is None or sec == 0.0) and df_filtered is not None:
             try:
                 import timing
-                t_res = timing.demo_for_export(df_filtered, {'team': team})
+                t_res = timing.compute_game_timing(df_filtered, {'team': team})
                 agg = t_res.get('aggregate', {}) if isinstance(t_res, dict) else {}
                 inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
                 sec = float(inter.get('team') or 0.0)
@@ -627,10 +627,12 @@ def season_analysis(season: Optional[str] = '20252026',
         
         try:
             # Call xgs_map to get team-specific heatmap
-            # Pass pre-loaded df_season as data_df to use predicted xGs
+            # Pass pre-loaded df_season as data_df ONLY if it's a DataFrame
+            data_df_arg = df_season if not isinstance(df_season, str) else None
+            
             out_path, ret_heat, ret_df, summary_stats = xgs_map(
                 season=season,
-                data_df=df_season,
+                data_df=data_df_arg,
                 csv_path=csv_path,
                 model_path='static/xg_model.joblib',
                 behavior='load',
@@ -1089,7 +1091,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
         Args:
             df_in (pd.DataFrame): The input dataframe containing event data.
-            intervals_obj (dict): The intervals object containing per-game intersection intervals (as produced by timing.demo_for_export).
+            intervals_obj (dict): The intervals object containing per-game intersection intervals (as produced by timing.compute_game_timing).
             time_col (str): The column name in df_in representing the event time.
             team_val (Optional[object]): The team identifier to extract team-specific intervals when appropriate.
             condition (Optional[dict]): Additional per-row conditions to enforce (e.g. {'game_state': ['5v5'], 'is_net_empty':[0]}).
@@ -1479,13 +1481,13 @@ def xgs_map(season: Optional[str] = '20252026', *,
             print('xgs_map: loading CSV ->', chosen_csv)
             df_all = pd.read_csv(chosen_csv)
 
-    # --- Single timing call: call timing.demo_for_export once on the full dataset
+    # --- Single timing call: call timing.compute_game_timing once on the full dataset
     timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
     if timing is not None:
         try:
-            timing_full = timing.demo_for_export(df_all, condition)
+            timing_full = timing.compute_game_timing(df_all, condition)
         except Exception as e:
-            print(f'Warning: timing.demo_for_export failed: {e}; using empty timing structure')
+            print(f'Warning: timing.compute_game_timing failed: {e}; using empty timing structure')
 
     # Apply filtering: either by condition or by intervals
 
@@ -1509,26 +1511,56 @@ def xgs_map(season: Optional[str] = '20252026', *,
         team_param = None
         if isinstance(condition, dict):
             team_param = condition.get('team')
-        try:
-            # debug: print a summary of the intervals object
+        
+        # Check if we actually have interval data for the relevant games
+        has_interval_data = False
+        if isinstance(intervals, dict):
+            # Check if 'per_game' has any entries
+            if intervals.get('per_game'):
+                has_interval_data = True
+            # If we are processing a specific game_id, check if it exists in per_game
+            if game_id is not None:
+                # Normalize game_id to int for lookup (timing uses ints usually)
+                try:
+                    gid_int = int(game_id)
+                    if gid_int not in intervals.get('per_game', {}):
+                        has_interval_data = False
+                        print(f"xgs_map: Interval data missing for game {game_id}")
+                except Exception:
+                    pass
+        
+        if not has_interval_data:
+            print(f"xgs_map: WARNING: Interval data missing or empty. Falling back to condition filtering for condition {condition}")
+            df_filtered, team_val = _apply_condition(df_all)
+            
+            # Discrepancy check (optional/diagnostic): 
+            # If we were to run interval filtering on empty intervals, we'd get 0 rows.
+            # Here we are getting condition-filtered rows.
+            # We can log that we are "saving" the user from a 0-row result.
+            if not df_filtered.empty:
+                print(f"xgs_map: Fallback recovered {len(df_filtered)} events that would have been lost with missing interval data.")
+                
+        else:
             try:
-                if isinstance(intervals, dict):
-                    per_games_count = len(intervals.get('per_game', {}))
-                else:
-                    per_games_count = len(intervals) if hasattr(intervals, '__len__') else 0
-                print(f"_apply_intervals: intervals per_game count={per_games_count}")
-            except Exception:
-                pass
+                # debug: print a summary of the intervals object
+                try:
+                    if isinstance(intervals, dict):
+                        per_games_count = len(intervals.get('per_game', {}))
+                    else:
+                        per_games_count = len(intervals) if hasattr(intervals, '__len__') else 0
+                    print(f"_apply_intervals: intervals per_game count={per_games_count}")
+                except Exception:
+                    pass
 
-            df_filtered = _apply_intervals(df_all, intervals, time_col=interval_time_col, team_val=team_param, condition=condition)
-            if df_filtered is None:
-                print('_apply_intervals returned None; falling back to empty DataFrame')
+                df_filtered = _apply_intervals(df_all, intervals, time_col=interval_time_col, team_val=team_param, condition=condition)
+                if df_filtered is None:
+                    print('_apply_intervals returned None; falling back to empty DataFrame')
+                    df_filtered = pd.DataFrame(columns=df_all.columns if df_all is not None else [])
+            except Exception as e:
+                print('Exception while applying intervals:', type(e).__name__, e)
+                # fallback to empty dataframe
                 df_filtered = pd.DataFrame(columns=df_all.columns if df_all is not None else [])
-        except Exception as e:
-            print('Exception while applying intervals:', type(e).__name__, e)
-            # fallback to empty dataframe
-            df_filtered = pd.DataFrame(columns=df_all.columns if df_all is not None else [])
-        team_val = team_param
+            team_val = team_param
     else:
         df_filtered, team_val = _apply_condition(df_all)
 
@@ -2173,11 +2205,11 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             return None
         return _np.flipud(_np.fliplr(heat))
 
-    # Derive total_seconds for normalization from timing.demo_for_export using the input condition.
+    # Derive total_seconds for normalization from timing.compute_game_timing using the input condition.
     # This gives a more accurate denominator for normalize_per60 than inferring from observed timestamp ranges.
     try:
         import timing
-        timing_res = timing.demo_for_export(df_cond, condition)
+        timing_res = timing.compute_game_timing(df_cond, condition)
         agg = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
         inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
         team_secs = float(inter.get('team') or 0.0)
@@ -2263,19 +2295,19 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             # skip low-sample teams
             continue
 
-        # Derive per-team timing seconds via timing.demo_for_export using the base condition + team
-        team_secs_t = None
-        other_secs_t = None
+        # Derive per-team timing seconds via timing.compute_game_timing using the base condition + team
+        # Use timing.compute_game_timing to get precise intervals for this team
         try:
             import timing
-            # build a per-team condition dict based on the original `condition`
-            if isinstance(condition, dict):
-                team_condition = condition.copy()
-            else:
-                team_condition = {} if condition is None else dict(condition)
-            team_condition['team'] = team
-            timing_res_team = timing.demo_for_export(df_cond, team_condition)
-            agg_t = timing_res_team.get('aggregate', {}) if isinstance(timing_res_team, dict) else {}
+            # We want to filter intervals where game_state='5v5' (or whatever is in condition)
+            # AND is_net_empty matches our request.
+            # compute_game_timing expects a condition dict.
+            cond_for_timing = condition.copy() if condition else {}
+            # Ensure team is set so we get team-relative stats
+            cond_for_timing['team'] = team
+            
+            timing_res = timing.compute_game_timing(df_games, cond_for_timing, verbose=False)
+            agg_t = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
             inter_t = agg_t.get('intersection_pooled_seconds', {}) if isinstance(agg_t, dict) else {}
             team_secs_t = float(inter_t.get('team') or 0.0)
             other_secs_t = float(inter_t.get('other') or 0.0)

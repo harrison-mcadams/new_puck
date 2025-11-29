@@ -73,6 +73,32 @@
       padding: 0 1rem;
     }
 
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .tab {
+      padding: 0.8rem 1.5rem;
+      text-decoration: none;
+      color: var(--text-secondary);
+      font-weight: 600;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .tab:hover {
+      color: var(--primary-color);
+    }
+
+    .tab.active {
+      color: var(--primary-color);
+      border-bottom-color: var(--primary-color);
+    }
+
     /* Cards */
     .card {
       background: var(--surface-color);
@@ -149,6 +175,20 @@
       font-variant-numeric: tabular-nums;
     }
 
+    /* Scatter Plot */
+    .scatter-container {
+      display: flex;
+      justify-content: center;
+      padding: 1rem;
+    }
+
+    .scatter-container img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+
     /* Grid for Maps */
     .maps-grid {
       display: grid;
@@ -212,6 +252,11 @@
       .maps-grid {
         grid-template-columns: 1fr;
       }
+
+      .tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+      }
     }
   </style>
 </head>
@@ -226,17 +271,27 @@
       </div>
       <nav>
         <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
-        <a href="#" class="nav-link active">League Stats</a>
+        <a href="{{ url_for('league_stats') }}" class="nav-link active">League Stats</a>
       </nav>
     </div>
   </header>
 
   <main class="app-container">
 
+    <!-- Tabs -->
+    <div class="tabs">
+      <a href="{{ url_for('league_stats', season=season, game_state='5v5') }}"
+        class="tab {% if game_state == '5v5' %}active{% endif %}">5v5</a>
+      <a href="{{ url_for('league_stats', season=season, game_state='5v4') }}"
+        class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
+      <a href="{{ url_for('league_stats', season=season, game_state='4v5') }}"
+        class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
+    </div>
+
     <!-- Summary Table -->
     <div class="card">
       <div class="card-header">
-        <h2>League Summary (5v5)</h2>
+        <h2>League Summary ({{ game_state }})</h2>
       </div>
       <div class="card-body">
         {% if stats %}
@@ -262,7 +317,12 @@
           <tbody>
             {% for row in stats %}
             <tr>
-              <td><strong>{{ row.Team }}</strong></td>
+              <td>
+                <a href="{{ url_for('team_stats', season=season, game_state=game_state, team=row.Team) }}"
+                  style="color:var(--primary-color); text-decoration:none; font-weight:bold;">
+                  {{ row.Team }}
+                </a>
+              </td>
               <td class="num">{{ row.GP }}</td>
               <td class="num">{{ row.TOI }}</td>
               <td class="num">{{ row.GF }}</td>
@@ -282,32 +342,23 @@
         </table>
         {% else %}
         <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
-          No league statistics available. Please run the analysis script.
+          No league statistics available for {{ game_state }}. Please run the analysis script.
         </p>
         {% endif %}
       </div>
     </div>
 
-    <!-- Team Maps -->
+    <!-- Scatter Plot -->
     <div class="card">
       <div class="card-header">
-        <h2>Team Performance Maps (5v5)</h2>
+        <h2>xG Rates Scatter ({{ game_state }})</h2>
       </div>
-      <div class="card-body">
+      <div class="card-body scatter-container">
         {% if stats %}
-        <div class="maps-grid">
-          {% for row in stats %}
-          <div class="map-item">
-            <div class="map-header">{{ row.Team }}</div>
-            <a href="{{ url_for('static', filename=row.Image) }}" target="_blank">
-              <img src="{{ url_for('static', filename=row.Image) }}" alt="{{ row.Team }} xG Map" loading="lazy">
-            </a>
-          </div>
-          {% endfor %}
-        </div>
+        <img src="{{ url_for('static', filename=scatter_img) }}" alt="xG Scatter Plot" loading="lazy">
         {% else %}
         <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
-          No maps available.
+          No scatter plot available.
         </p>
         {% endif %}
       </div>
@@ -316,12 +367,12 @@
   </main>
 
   <script>
-    function sortTable(n, isNumeric=false) {
+    function sortTable(n, isNumeric = false) {
       var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
       table = document.getElementById("statsTable");
       switching = true;
       dir = "asc";
-      
+
       // Reset headers
       var headers = table.getElementsByTagName("th");
       for (i = 0; i < headers.length; i++) {
@@ -335,10 +386,11 @@
           shouldSwitch = false;
           x = rows[i].getElementsByTagName("TD")[n];
           y = rows[i + 1].getElementsByTagName("TD")[n];
-          
-          var xContent = x.innerHTML.toLowerCase();
-          var yContent = y.innerHTML.toLowerCase();
-          
+
+          // For the Team column (index 0), we need to get the text content of the link
+          var xContent = (n === 0) ? x.innerText.toLowerCase() : x.innerHTML.toLowerCase();
+          var yContent = (n === 0) ? y.innerText.toLowerCase() : y.innerHTML.toLowerCase();
+
           if (isNumeric) {
             xContent = parseFloat(xContent) || 0;
             yContent = parseFloat(yContent) || 0;
@@ -359,7 +411,7 @@
         if (shouldSwitch) {
           rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
           switching = true;
-          switchcount ++;
+          switchcount++;
         } else {
           if (switchcount == 0 && dir == "asc") {
             dir = "desc";
@@ -367,7 +419,7 @@
           }
         }
       }
-      
+
       // Set header class
       if (dir == "asc") {
         headers[n].classList.add("sorted-asc");

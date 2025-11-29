@@ -657,6 +657,12 @@ def plot_events(
         else:
             events_with_xg = events_with_xg[[]]
 
+        heat_team = None
+        heat_not_team = None
+        heat_home = None
+        heat_away = None
+        heat_all_arr = None
+
         if not events_with_xg.empty:
             # ensure adjusted coords exist; if either 'x_a' or 'y_a' is missing
             # (for example they were not created earlier), compute them now.
@@ -925,15 +931,15 @@ def _game(gameID, conditions=None, plot_kwargs=None):
          'summary_stats': plot_kwargs.get('summary_stats'),
      }
 
-    # --- TIMING: call timing.demo_for_export to get interval/timing info for this filtered game
+    # --- TIMING: call timing.compute_game_timing to get interval/timing info for this filtered game
     timing_info = None
     try:
         import timing as _timing
-        # Always call demo_for_export on the events-level dataframe we have
+        # Always call compute_game_timing on the events-level dataframe we have
         # available (prefer the filtered dataframe). This avoids any season
         # CSV loading here and keeps _game lightweight and deterministic.
         df_for_timing = df_filtered if isinstance(df_filtered, pd.DataFrame) and not df_filtered.empty else (df if isinstance(df, pd.DataFrame) else None)
-        demo_res = _timing.demo_for_export(df_for_timing, condition=conditions, verbose=False)
+        demo_res = _timing.compute_game_timing(df_for_timing, condition=conditions, verbose=False)
         timing_info = demo_res
         # Try to extract per-game info for this game id
         per_game_info = None
