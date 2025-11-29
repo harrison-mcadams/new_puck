@@ -1292,6 +1292,13 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
             header_y += gap
     else:
         score_line = f"{home_goals} - {away_goals}"
+        # Add TOI if available (useful for player/state filters)
+        team_seconds = float(stats.get('team_seconds', 0.0))
+        if team_seconds > 0:
+            m = int(team_seconds // 60)
+            s = int(team_seconds % 60)
+            score_line += f" | TOI: {m:02d}:{s:02d}"
+        
         fig.text(0.5, header_y, score_line, fontsize=10, fontweight='bold', ha='center', color='black')
         header_y += gap
 

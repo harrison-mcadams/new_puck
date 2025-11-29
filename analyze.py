@@ -1218,8 +1218,9 @@ def xgs_map(season: Optional[str] = '20252026', *,
                             
                             # Build a mask using parse.build_mask to test condition against matched rows
                             try:
-                                # Create a condition without 'team' key for build_mask validation
-                                validation_condition = {k: v for k, v in condition.items() if k != 'team'}
+                                # Create a condition without 'team' or player keys for build_mask validation
+                                # We rely on intervals for player presence; row-level validation would exclude events by others.
+                                validation_condition = {k: v for k, v in condition.items() if k not in ['team', 'player_id', 'player_ids']}
                                 if validation_condition:
                                     condition_mask = _parse.build_mask(df_matched, validation_condition)
                                     condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
@@ -1449,7 +1450,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
              should_use_intervals = False
         elif isinstance(condition, dict):
              # Keys that require shift/interval data
-             interval_keys = ['game_state', 'is_net_empty']
+             interval_keys = ['game_state', 'is_net_empty', 'player_id', 'player_ids']
              if not any(k in condition for k in interval_keys):
                  should_use_intervals = False
                  print("xgs_map: condition does not require shift data; skipping interval filtering to include all events")
