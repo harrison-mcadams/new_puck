@@ -1149,6 +1149,102 @@ def _build_name_to_id_map(game_id: Any) -> Dict[str, int]:
         logging.warning('_build_name_to_id_map: failed for game %s: %s', game_id, e)
         return {}
 
+def get_player_details(game_id: Any) -> Dict[int, Dict[str, Any]]:
+    """Extract player details (name, number, team_id) from game feed.
+    
+    Returns a dict mapping player_id to a dict of details:
+    {8471675: {'name': 'Sidney Crosby', 'number': 87, 'team_id': 5}, ...}
+    """
+    try:
+        feed = get_game_feed(game_id)
+        if not feed or not isinstance(feed, dict):
+            return {}
+        
+        details_map = {}
+        
+        def walk_and_extract_details(obj, depth=0):
+            if depth > 20:
+                return
+            
+            if isinstance(obj, dict):
+                pid = None
+                name = None
+                num = None
+                tid = None
+                
+                # Extract ID
+                if 'person' in obj and isinstance(obj.get('person'), dict):
+                    p = obj.get('person')
+                    pid = p.get('id') or p.get('personId') or p.get('playerId')
+                    fname = p.get('firstName') or p.get('first_name')
+                    lname = p.get('lastName') or p.get('last_name')
+                    if fname and lname:
+                        name = f"{fname} {lname}"
+                    elif 'fullName' in p:
+                        name = p.get('fullName')
+                elif 'player' in obj and isinstance(obj.get('player'), dict):
+                    p = obj.get('player')
+                    pid = p.get('id') or p.get('playerId') or p.get('personId')
+                    fname = p.get('firstName') or p.get('first_name')
+                    lname = p.get('lastName') or p.get('last_name')
+                    if fname and lname:
+                        name = f"{fname} {lname}"
+                    elif 'fullName' in p:
+                        name = p.get('fullName')
+                else:
+                    for k in ('playerId', 'personId', 'id'):
+                        if pid is None and k in obj:
+                            try:
+                                pid = int(obj.get(k))
+                                break
+                            except Exception:
+                                pass
+                    if 'fullName' in obj:
+                        name = obj.get('fullName')
+                
+                # Extract Number
+                for k in ('sweaterNumber', 'jerseyNumber', 'jersey', 'number'):
+                    if k in obj:
+                        try:
+                            num = int(str(obj.get(k)).strip())
+                            break
+                        except Exception:
+                            pass
+                
+                # Extract Team ID
+                if 'teamId' in obj:
+                    tid = obj.get('teamId')
+                elif 'currentTeam' in obj and isinstance(obj.get('currentTeam'), dict):
+                    tid = obj.get('currentTeam').get('id')
+                
+                if pid is not None:
+                    try:
+                        pid = int(pid)
+                        if pid not in details_map:
+                            details_map[pid] = {}
+                        if name:
+                            details_map[pid]['name'] = name
+                        if num is not None:
+                            details_map[pid]['number'] = num
+                        if tid is not None:
+                            details_map[pid]['team_id'] = tid
+                    except Exception:
+                        pass
+                
+                for value in obj.values():
+                    walk_and_extract_details(value, depth + 1)
+            
+            elif isinstance(obj, list):
+                for el in obj:
+                    walk_and_extract_details(el, depth + 1)
+
+        walk_and_extract_details(feed)
+        return details_map
+
+    except Exception as e:
+        logging.warning('get_player_details: failed for game %s: %s', game_id, e)
+        return {}
+
 
 def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: bool = False) -> Dict[str, Any]:
     """Fallback: obtain shift information by scraping NHL official HTML reports.

@@ -1,0 +1,26 @@
+[
+  {
+    "team":"PHI",
+    "team_xg_per60":2.0,
+    "league_avg_xg_per60":2.5,
+    "relative_off_per60":0,
+    "other_xg_per60":2.0,
+    "relative_def_per60":0,
+    "rel_off_pct":0.0,
+    "rel_def_pct":0.0,
+    "team_xgs":0.0,
+    "team_seconds":100.0
+  },
+  {
+    "team":"PIT",
+    "team_xg_per60":2.0,
+    "league_avg_xg_per60":2.5,
+    "relative_off_per60":0,
+    "other_xg_per60":2.0,
+    "relative_def_per60":0,
+    "rel_off_pct":0.0,
+    "rel_def_pct":0.0,
+    "team_xgs":0.0,
+    "team_seconds":100.0
+  }
+]

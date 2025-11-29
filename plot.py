@@ -609,7 +609,7 @@ def plot_events(
         a_name = away_name if away_name else "Away"
         main_title = f"{h_name} vs {a_name}"
         
-    print(f"DEBUG: Title components: home='{home_name}', away='{away_name}', main='{main_title}'")
+
         
     # Adjust layout to make room for summary text
     plt.subplots_adjust(top=0.75, bottom=0.05)
@@ -672,6 +672,23 @@ def plot_events(
             xcol = 'x_a' if 'x_a' in events_with_xg.columns else 'x'
             ycol = 'y_a' if 'y_a' in events_with_xg.columns else 'y'
 
+            # helper to convert heat -> rgba image (reused)
+            def heat_to_rgba(h, color, alpha_scale=hm_alpha):
+                try:
+                    maxv = float(np.nanmax(h)) if np.nanmax(h) > 0 else 0.0
+                except Exception:
+                    maxv = 0.0
+                if maxv <= 0:
+                    return None
+                norm = np.clip(h / maxv, 0.0, 1.0)
+                rgba = np.zeros((h.shape[0], h.shape[1], 4), dtype=float)
+                r, g, b, _ = mcolors.to_rgba(color)
+                rgba[..., 0] = r
+                rgba[..., 1] = g
+                rgba[..., 2] = b
+                rgba[..., 3] = norm * alpha_scale
+                return rgba
+
             # Use the canonical heatmap computation in analyze.compute_xg_heatmap_from_df
             try:
                 import analyze
@@ -689,9 +706,7 @@ def plot_events(
                         events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False)
                     # Overlay as a single color (e.g., black)
                     all_color = 'black'
-                    rgba_all = heat_to_rgba(heat_all, all_color) if heat_all is not None else None
-                    if rgba_all is not None:
-                        ax.imshow(rgba_all, extent=extent, origin='lower', zorder=1)
+
                     heat_home = None
                     heat_away = None
                     heat_team = None
@@ -736,22 +751,7 @@ def plot_events(
                         home_color = evx.get('home_color', home_color)
                         away_color = evx.get('away_color', away_color)
 
-                # helper to convert heat -> rgba image (reused)
-                def heat_to_rgba(h, color, alpha_scale=hm_alpha):
-                    try:
-                        maxv = float(np.nanmax(h)) if np.nanmax(h) > 0 else 0.0
-                    except Exception:
-                        maxv = 0.0
-                    if maxv <= 0:
-                        return None
-                    norm = np.clip(h / maxv, 0.0, 1.0)
-                    rgba = np.zeros((h.shape[0], h.shape[1], 4), dtype=float)
-                    r, g, b, _ = mcolors.to_rgba(color)
-                    rgba[..., 0] = r
-                    rgba[..., 1] = g
-                    rgba[..., 2] = b
-                    rgba[..., 3] = norm * alpha_scale
-                    return rgba
+
 
                 # render overlays
                 if heatmap_split_mode == 'team_not_team':
@@ -1198,7 +1198,7 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
     start_y = axes_top + 0.01
     gap = 0.04  # Slightly reduced gap
     
-    print(f"DEBUG: add_summary_text axes_top={axes_top:.3f}, start_y={start_y:.3f}")
+
     
     # Column X-coordinates (relative to figure width, 0-1)
     cols_x = [0.32, 0.42, 0.5, 0.58, 0.68]
@@ -1321,5 +1321,5 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
         header_y += gap
 
     # Title
-    print(f"DEBUG: Placing title '{final_title}' at y={header_y:.3f}")
+
     fig.text(0.5, header_y, final_title, fontsize=12, fontweight='bold', ha='center', color='black')
