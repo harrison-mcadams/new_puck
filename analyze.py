@@ -2243,6 +2243,11 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
     results = {'season': season, 'league': {'gx': list(gx), 'gy': list(gy), 'xg_total': float(league_xg), 'seconds': float(league_seconds)}}
     results['teams'] = {}
 
+    # Lists to store per-team stats for the summary plot
+    all_team_names = []
+    all_team_xg_per60 = []
+    all_opp_xg_per60 = []
+
     for team in sorted(teams):
         # team membership mask
         try:
@@ -2516,12 +2521,11 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             out_png_summary = None
 
         # Calculate Goals
-        team_xg = float(summary_stats.get('team_xgs', 0.0))
-        opp_xg = float(summary_stats.get('other_xgs', 0.0))
+        # team_xg and opp_xg are already computed above
         team_goals = 0
         opp_goals = 0
         try:
-            goals_df = ret_df[ret_df['event'].astype(str).str.strip().str.lower() == 'goal']
+            goals_df = df_games[df_games['event'].astype(str).str.strip().str.lower() == 'goal']
             if not goals_df.empty:
                 # Reuse calculate_shot_attempts logic or simple mask
                 # We need to identify team vs opp
@@ -2555,8 +2559,8 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             'opp_xg_per60': (opp_xg / team_seconds * 3600.0) if team_seconds > 0 else None,
             'team_goals': team_goals,
             'opp_goals': opp_goals,
-            'team_attempts': sa_stats.get('home_attempts', 0),
-            'opp_attempts': sa_stats.get('away_attempts', 0),
+            'team_attempts': 0,
+            'opp_attempts': 0,
             'out_png_summary': str(out_png_summary) if out_png_summary is not None else None,
         }
         # write JSON
@@ -2568,6 +2572,53 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             pass
 
         results['teams'][team] = summary
+
+        # Append to lists for summary plot
+        if summary.get('team_xg_per60') is not None and summary.get('opp_xg_per60') is not None:
+            all_team_names.append(team)
+            all_team_xg_per60.append(summary['team_xg_per60'])
+            all_opp_xg_per60.append(summary['opp_xg_per60'])
+
+    # Generate Season Summary Plot: xG For vs xG Against
+    if all_team_names:
+        try:
+            fig, ax = plt.subplots(figsize=(10, 8))
+            
+            # Scatter plot
+            ax.scatter(all_team_xg_per60, all_opp_xg_per60, alpha=0.7, c='blue', edgecolors='k')
+            
+            # Add labels
+            for i, txt in enumerate(all_team_names):
+                ax.annotate(txt, (all_team_xg_per60[i], all_opp_xg_per60[i]), 
+                            xytext=(5, 5), textcoords='offset points', fontsize=9)
+            
+            # Unity line
+            try:
+                min_val = min(min(all_team_xg_per60), min(all_opp_xg_per60))
+                max_val = max(max(all_team_xg_per60), max(all_opp_xg_per60))
+                margin = (max_val - min_val) * 0.1
+                line_min = max(0, min_val - margin)
+                line_max = max_val + margin
+                ax.plot([line_min, line_max], [line_min, line_max], 'k--', alpha=0.5, label='Even')
+                
+                # Set limits to be square-ish if possible, or at least cover the data
+                ax.set_xlim(line_min, line_max)
+                ax.set_ylim(line_min, line_max)
+            except Exception:
+                pass
+            
+            # Labels and Title
+            ax.set_xlabel('xG For / 60')
+            ax.set_ylabel('xG Against / 60')
+            ax.set_title(f'Season Analysis {season}: xG Performance')
+            ax.grid(True, linestyle=':', alpha=0.6)
+            
+            out_plot = base_out / f'{season}_season_comparison.png'
+            fig.savefig(out_plot, dpi=150)
+            plt.close(fig)
+            print(f"Saved season comparison plot to {out_plot}")
+        except Exception as e:
+            print(f"Failed to generate season comparison plot: {e}")
 
     # save a small league summary JSON
     try:

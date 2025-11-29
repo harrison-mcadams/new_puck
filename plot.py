@@ -1304,9 +1304,12 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
 
     # Game Ongoing Line (if applicable, push title up further)
     # Check both game_ongoing flag AND time_remaining presence
+    # Game Ongoing Line (if applicable, push title up further)
+    # Check both game_ongoing flag AND time_remaining presence
     time_rem = stats.get('time_remaining')
-    if stats.get('game_ongoing') or (time_rem and str(time_rem).lower() != 'none'):
-        display_time = time_rem if time_rem else 'Ongoing'
+    # Fix: Only show if game is actually ongoing. Previously showed if time_rem was present (e.g. '00:00 P3')
+    if stats.get('game_ongoing'):
+        display_time = time_rem if (time_rem and str(time_rem).lower() != 'none') else 'Ongoing'
         game_ongoing_line = f"Game Ongoing: {display_time}"
         fig.text(0.5, header_y, game_ongoing_line, fontsize=10, fontweight='bold', ha='center', color='red')
         header_y += gap
