@@ -990,7 +990,9 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
             else:
                 pids = vals
             try:
-                shift_df = parse._shifts(nhl_api.get_shifts(game_id), player_ids=pids, combine='intersection')
+                # Use robust fetch with fallback
+                shifts_payload = get_shifts_with_html_fallback(game_id)
+                shift_df = parse._shifts(shifts_payload, player_ids=pids, combine='intersection')
                 for _, r in shift_df.iterrows():
                     s = r.get('start_total_seconds'); e = r.get('end_total_seconds')
                     if s is not None and e is not None and e > s:

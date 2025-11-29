@@ -77,6 +77,36 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
     except Exception:
         away_abb = None
 
+    # Build player map for name lookup
+    player_map = {}
+    try:
+        # New API: rosterSpots
+        roster = game_feed.get('rosterSpots', [])
+        if isinstance(roster, list):
+            for p in roster:
+                pid = p.get('playerId')
+                # Name might be nested or direct
+                fname = p.get('firstName', {}).get('default') if isinstance(p.get('firstName'), dict) else p.get('firstName')
+                lname = p.get('lastName', {}).get('default') if isinstance(p.get('lastName'), dict) else p.get('lastName')
+                if pid and fname and lname:
+                    player_map[pid] = f"{fname} {lname}"
+        
+        # Old API / Fallback: gameData.players
+        if not player_map:
+            players = game_feed.get('gameData', {}).get('players', {})
+            if isinstance(players, dict):
+                for pid_key, pdata in players.items():
+                    name = pdata.get('fullName')
+                    if name:
+                        # pid_key might be "ID8478402"
+                        try:
+                            clean_pid = int(str(pid_key).replace('ID', ''))
+                            player_map[clean_pid] = name
+                        except Exception:
+                            pass
+    except Exception:
+        pass
+
     for idx, p in enumerate(plays):
         if not isinstance(p, dict):
             continue
@@ -128,8 +158,11 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
             period_time_type = None
 
         player_id = None
+        player_name = None
         if isinstance(details, dict):
-            player_id = details.get('shootingPlayerId') or details.get('playerId')
+            player_id = details.get('shootingPlayerId') or details.get('playerId') or details.get('scoringPlayerId')
+            if player_id:
+                player_name = player_map.get(player_id)
 
         team_id = details.get('eventOwnerTeamId') if isinstance(details, dict) else None
         team_abbrev = None
@@ -406,7 +439,10 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                     'is_net_empty': is_net_empty,
                     'period': period,
                     'period_time': period_time,
+                    'period': period,
+                    'period_time': period_time,
                     'player_id': player_id,
+                    'player_name': player_name,
                     'team_id': team_id,
                     'home_id': home_id,
                     'away_id': away_id,

@@ -1694,6 +1694,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
             out_path=out_path,
             heatmap_split_mode=heatmap_mode,
             team_for_heatmap=team_val,
+            summary_stats=summary_stats,
         )
         if isinstance(ret, (tuple, list)):
             if len(ret) >= 2:
@@ -1707,6 +1708,13 @@ def xgs_map(season: Optional[str] = '20252026', *,
     if show:
         try:
             fig.show()
+        except Exception:
+            pass
+    else:
+        # Close the figure to prevent leaks
+        try:
+            import matplotlib.pyplot as plt
+            plt.close(fig)
         except Exception:
             pass
 

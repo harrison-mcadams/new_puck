@@ -18,7 +18,9 @@ from flask import Flask, render_template, redirect, url_for, request
 import os
 import pandas as pd
 import logging
-
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
 if not logger.handlers:
@@ -44,6 +46,8 @@ DEFAULT_TEAMS = [
 # session. Keys map to (timestamp, payload). TTL in seconds.
 _CACHE = {}
 _CACHE_TTL = 300
+# Store metadata about the last loaded game to populate UI filters
+_LAST_GAME_METADATA = {}
 
 
 def _cache_get(key):
@@ -72,20 +76,28 @@ def index():
     img_filename = "shot_plot.png"
     img_path = os.path.join(app.static_folder or "static", img_filename)
     exists = os.path.exists(img_path)
-    return render_template("index.html", exists=exists, img=img_filename)
+    
+    # Pass metadata to template
+    return render_template("index.html", exists=exists, img=img_filename, metadata=_LAST_GAME_METADATA)
 
 
 @app.route("/replot", methods=["POST"])
 def replot():
     """Trigger re-generation of the plot and redirect back to index.
 
-    Accepts an optional form field `game` (integer) and `condition` (JSON string).
+    Accepts form fields:
+    - game: Game ID
+    - game_state: list of game states (e.g. '5v5')
+    - is_net_empty: '0', '1', or '' (any)
+    - player_id: Player ID (int) or '' (any)
+    - condition: JSON string (fallback/legacy)
     """
     try:
         import plot
         import fit_xgs
         import analyze
         import json
+        import numpy as np
     except Exception as e:
         return (f"plotting modules not available: {e}", 500)
 
@@ -110,16 +122,48 @@ def replot():
             game_val = cleaned
         logger.debug("replot: received game field '%s' -> normalized '%s'", raw_game, game_val)
 
-    # Parse condition
-    raw_condition = (request.form.get('condition') or '{}').strip()
+    # Construct condition from form fields
     condition = {}
-    try:
-        if raw_condition:
-            condition = json.loads(raw_condition)
-    except Exception as e:
-        logger.warning(f"Failed to parse condition JSON: {e}")
-        # Fallback to empty condition or handle error? For now, empty.
-        condition = {}
+    
+    # 1. Game State (Multi-select)
+    game_states = request.form.getlist('game_state')
+    if game_states:
+        # If "Any" (empty string) is selected, it overrides specific selections -> No Filter
+        if '' in game_states:
+            pass
+        else:
+            # Filter out empty strings and set condition
+            valid_states = [s for s in game_states if s.strip()]
+            if valid_states:
+                condition['game_state'] = valid_states
+
+    # 2. Net Empty
+    net_empty = request.form.get('is_net_empty')
+    if net_empty is not None and net_empty.strip() != '':
+        try:
+            condition['is_net_empty'] = [int(net_empty)]
+        except Exception:
+            pass
+
+    # 3. Player ID
+    player_id = request.form.get('player_id')
+    if player_id and player_id.strip():
+        try:
+            condition['player_id'] = int(player_id)
+        except Exception:
+            pass
+
+    # 4. JSON Fallback (if no specific fields provided, or to augment?)
+    # If condition is still empty, check the JSON field
+    if not condition:
+        raw_condition = (request.form.get('condition') or '{}').strip()
+        try:
+            if raw_condition:
+                loaded = json.loads(raw_condition)
+                if isinstance(loaded, dict):
+                    condition = loaded
+        except Exception as e:
+            logger.warning(f"Failed to parse condition JSON: {e}")
 
     out_path = os.path.join(app.static_folder or 'static', 'shot_plot.png')
 
@@ -127,14 +171,64 @@ def replot():
         # Use analyze.xgs_map which handles filtering and plotting
         # We pass game_id (if any) and the condition.
         # Note: xgs_map expects game_id as a keyword argument.
-        analyze.xgs_map(
+        ret = analyze.xgs_map(
             game_id=game_val,
             condition=condition,
             out_path=out_path,
             show=False,
             # Ensure we don't try to open a window
-            return_heatmaps=False
+            return_heatmaps=False,
+            # Default behavior: show only shots on goal and goals, plus the xG heatmap
+            events_to_plot=['shot-on-goal', 'goal', 'xgs'],
+            return_filtered_df=True
         )
+        
+        # Explicitly close the figure to prevent memory leaks and plot stacking
+        # in the persistent web server process.
+        # xgs_map returns (out_path, heatmaps, df, summary_stats)
+        # It closes the figure internally now (via my fix in analyze.py), so we don't strictly need to here,
+        # but the return signature is different from what I thought earlier.
+        # Earlier I thought it returned (fig, ax).
+        # But analyze.py returns (out_path, ret_heat, ret_df, summary_stats).
+        # So ret[0] is out_path. plt.close(ret[0]) would be wrong.
+        # Since I fixed analyze.py to close the figure, I can remove the plt.close logic here or just call plt.close('all').
+        plt.close('all')
+
+        # Extract metadata from returned DataFrame (ret[2])
+        if isinstance(ret, tuple) and len(ret) >= 3:
+            df = ret[2]
+            if df is not None and not df.empty:
+                # Extract unique game states
+                states = sorted(df['game_state'].dropna().unique().tolist())
+                
+                # Extract players (id and name)
+                players = []
+                if 'player_id' in df.columns:
+                    # Check if player_name exists
+                    has_name = 'player_name' in df.columns
+                    # Get unique pairs
+                    if has_name:
+                        pairs = df[['player_id', 'player_name']].dropna().drop_duplicates()
+                        for _, row in pairs.iterrows():
+                            players.append({'id': int(row['player_id']), 'name': row['player_name']})
+                    else:
+                        # Just IDs
+                        pids = df['player_id'].dropna().unique()
+                        for pid in pids:
+                            players.append({'id': int(pid), 'name': f"Player {int(pid)}"})
+                
+                # Sort players by name
+                players.sort(key=lambda x: x['name'])
+                
+                # Update global metadata
+                global _LAST_GAME_METADATA
+                _LAST_GAME_METADATA = {
+                    'game_id': game_val,
+                    'game_states': states,
+                    'players': players,
+                    'current_condition': condition
+                }
+
     except Exception as e:
         logger.exception('Unhandled error in replot handler: %s', e)
         return (f"Error generating plot: {e}", 500)
@@ -179,7 +273,7 @@ def admin_flush_cache():
 
 
 if __name__ == '__main__':
-    logger.info('Starting Flask development server on http://127.0.0.1:5000')
+    logger.info('Starting Flask development server on http://192.168.1.224:5000')
     import sys
     sys.stdout.flush()
-    app.run(host='127.0.0.1', port=5000, debug=True)
+    app.run(host='192.168.1.224', port=5000, debug=True)
