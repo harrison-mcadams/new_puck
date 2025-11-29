@@ -243,8 +243,9 @@ def league_stats():
     
     # Try to load the summary JSON
     # In a real app, we might want to make the season configurable
+    # Load summary from static/league_stats/summary.json
     season = "20252026"
-    summary_path = os.path.join(app.static_folder or "static", f"{season}_season_analysis", f"{season}_team_summary.json")
+    summary_path = os.path.join(app.static_folder or "static", "league_stats", "summary.json")
     
     stats = []
     if os.path.exists(summary_path):

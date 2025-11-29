@@ -456,6 +456,54 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
 
 
+def _predict_xgs(df_filtered: pd.DataFrame, model_path='static/xg_model.joblib', behavior='load', csv_path=None):
+    """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
+
+    Meta is (final_feature_names, categorical_levels_map) to be reused by callers.
+    """
+    import pandas as pd
+    import numpy as np
+    import fit_xgs
+
+    df = df_filtered
+    if df.shape[0] == 0:
+        return df, None, None
+
+    need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all())
+    if not need_predict:
+        return df, None, None
+
+    # get classifier (respect behavior, fallback to train on failure)
+    try:
+        # prefer explicit csv_path if provided; otherwise pass None when using data_df
+        # Use csv_path passed in
+        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=csv_path)
+    except Exception as e:
+        print('xgs_map: get_clf failed with', e, '— trying to train a new model')
+        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path)
+
+    # Prepare the model DataFrame using canonical feature list
+    features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+    df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
+
+    # prefer classifier's expected features when available
+    final_features = feature_names if feature_names is not None else final_feature_cols_game
+
+    # ensure xgs column exists
+    df['xgs'] = np.nan
+
+    # predict probabilities when possible
+    if clf is not None and df_model.shape[0] > 0 and final_features:
+        try:
+            X = df_model[final_features].values
+            probs = clf.predict_proba(X)[:, 1]
+            df.loc[df_model.index, 'xgs'] = probs
+        except Exception:
+            pass
+
+    return df, clf, (final_features, cat_levels)
+
+
 def season_analysis(season: Optional[str] = '20252026',
                     csv_path: Optional[str] = None,
                     teams: Optional[list] = None,
@@ -502,6 +550,8 @@ def season_analysis(season: Optional[str] = '20252026',
     if out_dir is None:
         out_dir = os.path.join('static', f'{season}_season_analysis')
     os.makedirs(out_dir, exist_ok=True)
+    from pathlib import Path
+    base_out = Path(out_dir)
 
     # Step 1: Get league baseline
     print(f"season_analysis: obtaining league baseline (mode={baseline_mode})")
@@ -512,6 +562,43 @@ def season_analysis(season: Optional[str] = '20252026',
     if league_baseline_map is None:
         print("season_analysis: failed to obtain league baseline; aborting")
         return {'baseline': baseline_result, 'teams': {}, 'summary_table': pd.DataFrame()}
+
+    # Ensure xG predictions exist on the source data
+    # This is critical if the CSV doesn't have xgs or if we want to ensure coverage
+    try:
+        # We need to access the dataframe used for baseline or load it if not available
+        # But baseline_result doesn't return the df.
+        # We should load the df here if we haven't.
+        if csv_path:
+             import timing
+             df_season = timing.load_season_df(season, csv_path=csv_path)
+        else:
+             import timing
+             df_season = timing.load_season_df(season)
+        
+        # Filter if needed (though we filter per team later)
+        # Actually, we should predict on the full df to be efficient?
+        # Or just let xgs_map handle it?
+        # xgs_map handles it per call!
+        # But xgs_map didn't seem to persist it or return it in a way that helped?
+        # Wait, xgs_map returns summary_stats.
+        # If xgs_map failed to predict, it's because of the condition matching 0 rows?
+        # No, GP was 25.
+        # The issue might be that xgs_map's internal prediction logic failed.
+        # I'll force prediction here on the main DF and pass it?
+        # But season_analysis calls xgs_map with csv_path/season, not a DF.
+        # xgs_map loads the DF internally.
+        # So I can't easily pass a pre-predicted DF unless I change xgs_map signature to accept df.
+        # xgs_map DOES accept season_or_df!
+        # So I can load it, predict, and pass the DF!
+        
+        print("season_analysis: Pre-loading and predicting xG for full season...")
+        df_season, _, _ = _predict_xgs(df_season)
+        
+    except Exception as e:
+        print(f"season_analysis: failed to pre-predict xG: {e}")
+        df_season = season # Fallback to passing season string
+
 
     # Step 2: Load team list
     if teams is None:
@@ -540,8 +627,10 @@ def season_analysis(season: Optional[str] = '20252026',
         
         try:
             # Call xgs_map to get team-specific heatmap
+            # Pass pre-loaded df_season as data_df to use predicted xGs
             out_path, ret_heat, ret_df, summary_stats = xgs_map(
                 season=season,
+                data_df=df_season,
                 csv_path=csv_path,
                 model_path='static/xg_model.joblib',
                 behavior='load',
@@ -576,11 +665,12 @@ def season_analysis(season: Optional[str] = '20252026',
                     team_results[team] = {'error': 'no_heatmap'}
                     continue
 
-            # Calculate Shot Attempts (SA)
-            sa_stats = calculate_shot_attempts(ret_df, team)
+            # Calculate shot attempts
+            attempts_stats = calculate_shot_attempts(ret_df, team)
             if summary_stats is None:
                 summary_stats = {}
-            summary_stats.update(sa_stats)
+            summary_stats['team_attempts'] = attempts_stats.get('home_attempts', 0)
+            summary_stats['opp_attempts'] = attempts_stats.get('away_attempts', 0)
 
             # Step 4: Compute Relative Maps
             # Get seconds for normalization
@@ -931,48 +1021,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
             return empty, team_val_local
         return df.loc[final_mask].copy(), team_val_local
 
-    def _predict_xgs(df_filtered: pd.DataFrame):
-        """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
-        Meta is (final_feature_names, categorical_levels_map) to be reused by callers.
-        """
-        df = df_filtered
-        if df.shape[0] == 0:
-            return df, None, None
-
-        need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all())
-        if not need_predict:
-            return df, None, None
-
-        # get classifier (respect behavior, fallback to train on failure)
-        try:
-            # prefer explicit csv_path if provided; otherwise pass None when using data_df
-            # Use chosen_csv which we resolved earlier (or passed in)
-            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=chosen_csv or None)
-        except Exception as e:
-            print('xgs_map: get_clf failed with', e, '— trying to train a new model')
-            clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=chosen_csv or None)
-
-        # Prepare the model DataFrame using canonical feature list
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
-
-        # prefer classifier's expected features when available
-        final_features = feature_names if feature_names is not None else final_feature_cols_game
-
-        # ensure xgs column exists
-        df['xgs'] = np.nan
-
-        # predict probabilities when possible
-        if clf is not None and df_model.shape[0] > 0 and final_features:
-            try:
-                X = df_model[final_features].values
-                probs = clf.predict_proba(X)[:, 1]
-                df.loc[df_model.index, 'xgs'] = probs
-            except Exception:
-                pass
-
-        return df, clf, (final_features, cat_levels)
 
     def _orient_coordinates(df_in: pd.DataFrame, team_val_local):
         """Produce x_a/y_a columns for plotting according to orientation rules.
@@ -1489,7 +1538,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
         print(f"Filtered season dataframe to {len(df_filtered)} events by condition {condition!r} team={team_val!r}")
 
     # Predict xgs only when needed and possible
-    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered)
+    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered, model_path=model_path, behavior=behavior, csv_path=chosen_csv)
 
     # Orientation deprecation: plotting routines now decide orientation and
     # splitting (team vs not-team or home vs away). Do not perform an
@@ -2466,13 +2515,48 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             print('failed to create combined summary plot for', team, e)
             out_png_summary = None
 
+        # Calculate Goals
+        team_xg = float(summary_stats.get('team_xgs', 0.0))
+        opp_xg = float(summary_stats.get('other_xgs', 0.0))
+        team_goals = 0
+        opp_goals = 0
+        try:
+            goals_df = ret_df[ret_df['event'].astype(str).str.strip().str.lower() == 'goal']
+            if not goals_df.empty:
+                # Reuse calculate_shot_attempts logic or simple mask
+                # We need to identify team vs opp
+                # calculate_shot_attempts logic:
+                tupper = str(team).strip().upper()
+                def _is_team_goal(r):
+                    try:
+                        home_abb = r.get('home_abb')
+                        away_abb = r.get('away_abb')
+                        if home_abb is not None and str(home_abb).upper() == tupper:
+                            return str(r.get('team_id')) == str(r.get('home_id'))
+                        if away_abb is not None and str(away_abb).upper() == tupper:
+                            return str(r.get('team_id')) == str(r.get('away_id'))
+                        return False
+                    except: return False
+                
+                is_team = goals_df.apply(_is_team_goal, axis=1)
+                team_goals = int(is_team.sum())
+                opp_goals = int((~is_team).sum())
+        except Exception as e:
+            print(f"season_analysis: error calculating goals for {team}: {e}")
+
         # save JSON summary
         summary = {
             'team': team,
             'n_events': n_events,
             'team_xg': team_xg,
+            'opp_xg': opp_xg,
             'team_seconds': team_seconds,
             'team_xg_per60': (team_xg / team_seconds * 3600.0) if team_seconds > 0 else None,
+            'opp_xg_per60': (opp_xg / team_seconds * 3600.0) if team_seconds > 0 else None,
+            'team_goals': team_goals,
+            'opp_goals': opp_goals,
+            'team_attempts': sa_stats.get('home_attempts', 0),
+            'opp_attempts': sa_stats.get('away_attempts', 0),
             'out_png_summary': str(out_png_summary) if out_png_summary is not None else None,
         }
         # write JSON
