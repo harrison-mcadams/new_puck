@@ -184,6 +184,32 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
         game_id: NHL game ID
         min_rows_threshold: Minimum number of shifts required to consider API response valid (default 5)
     """
+    # --- Caching Logic Start ---
+    cache_file = None
+    try:
+        gid_str = str(game_id)
+        # Derive season: first 4 digits are start year. 
+        # Heuristic: valid game IDs start with year.
+        if len(gid_str) >= 4 and gid_str.isdigit():
+            start_year = int(gid_str[:4])
+            # Basic validation to avoid creating weird directories for bad IDs
+            if 2000 < start_year < 2100:
+                season = f"{start_year}{start_year + 1}"
+                cache_dir = Path(f'data/{season}/shifts')
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                cache_file = cache_dir / f'shifts_{game_id}.pkl'
+                
+                if cache_file.exists():
+                    try:
+                        df = pd.read_pickle(cache_file)
+                        logging.info(f"Loaded cached shifts for game {game_id} from {cache_file}")
+                        return df
+                    except Exception as e:
+                        logging.warning(f"Failed to load cached shifts for {game_id}: {e}")
+    except Exception as e:
+        logging.warning(f"Error in cache retrieval for {game_id}: {e}")
+    # --- Caching Logic End ---
+
     try:
         shifts_res = nhl_api.get_shifts(game_id)
     except Exception as e:
@@ -337,6 +363,15 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
     # Final check
     if df_shifts is None or (hasattr(df_shifts, 'empty') and df_shifts.empty):
         return pd.DataFrame()
+
+    # --- Caching Save Start ---
+    try:
+        if cache_file is not None and not df_shifts.empty:
+             df_shifts.to_pickle(cache_file)
+             logging.info(f"Saved shifts cache for game {game_id} to {cache_file}")
+    except Exception as e:
+        logging.warning(f"Failed to save shifts cache for {game_id}: {e}")
+    # --- Caching Save End ---
 
     return df_shifts
 
@@ -672,10 +707,10 @@ def load_season_df(season: str = '20252026', data_dir: str = 'data') -> pd.DataF
     any) and returns an empty DataFrame when none is found.
     """
     candidates = [
-        Path(data_dir) / season / f"{season}_df.csv",
         Path(data_dir) / season / f"{season}.csv",
-        Path(data_dir) / f"{season}_df.csv",
+        Path(data_dir) / season / f"{season}_df.csv",
         Path(data_dir) / f"{season}.csv",
+        Path(data_dir) / f"{season}_df.csv",
     ]
     for p in candidates:
         if p.exists():

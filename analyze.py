@@ -21,6 +21,47 @@ except ImportError:
     except ImportError:
         timing = None
 
+def _resolve_baseline_path(season: str, condition: Optional[dict]) -> str:
+    """
+    Resolve the path to the league baseline directory based on the condition.
+    
+    Args:
+        season: Season string.
+        condition: Filtering condition.
+        
+    Returns:
+        str: Path to the directory containing the baseline.
+    """
+    import os
+    
+    # Default to 5v5 if no condition
+    if condition is None:
+        return os.path.join('static', 'league', season, '5v5')
+        
+    # Check for standard game states
+    game_state = condition.get('game_state')
+    is_net_empty = condition.get('is_net_empty')
+    
+    cond_name = '5v5' # Default
+    
+    if game_state:
+        # Handle list or single value
+        gs = game_state[0] if isinstance(game_state, list) and game_state else game_state
+        if isinstance(gs, str):
+            cond_name = gs
+            
+    # Check for empty net
+    if is_net_empty == [1] or is_net_empty == 1:
+        # If empty net is explicitly requested, we might have a different folder structure
+        # But currently run_league_stats.py uses '5v5', '5v4', etc. which imply no empty net usually
+        # unless specified.
+        # For now, let's stick to the game_state name if it's 5v5, 5v4, 4v5
+        pass
+        
+    # Construct path: static/league/{season}/{cond_name}
+    # This matches run_league_stats.py structure
+    return os.path.join('static', 'league', season, cond_name)
+
 def players(season: str = '20252026',
             team: Optional[str] = None,
             player_ids: Optional[list] = None,
@@ -112,8 +153,14 @@ def players(season: str = '20252026',
 
     # 4. Load League Baseline (for relative maps)
     print("players: Loading league baseline...")
-    baseline_res = league(season=season, mode='load', condition=condition)
+    
+    # Resolve baseline path based on condition
+    baseline_path = _resolve_baseline_path(season, condition)
+    print(f"players: Using baseline path: {baseline_path}")
+    
+    baseline_res = league(season=season, mode='load', condition=condition, baseline_path=baseline_path)
     league_map = baseline_res.get('combined_norm')
+    league_map_right = baseline_res.get('combined_norm_right')
     league_xg_per60 = baseline_res.get('stats', {}).get('xg_per60', 0.0)
 
     # 5. Analyze Each Player
@@ -156,12 +203,18 @@ def players(season: str = '20252026',
         if not pname or not pnum:
             # Find a game this player played in
             p_games = df_data[df_data['player_id'] == pid]['game_id'].unique()
-            if len(p_games) > 0:
-                # Try the last game
-                details = get_player_details(p_games[-1])
-                if pid in details:
-                    if not pname: pname = details[pid].get('name')
-                    if not pnum: pnum = details[pid].get('number')
+            # Try games in reverse order until we find details
+            for gid in reversed(p_games):
+                try:
+                    details = get_player_details(gid)
+                    if pid in details:
+                        if not pname: pname = details[pid].get('name')
+                        if not pnum: pnum = details[pid].get('number')
+                        # If we found both, break
+                        if pname and pnum:
+                            break
+                except Exception:
+                    continue
         
         if not pname: pname = f"Player {pid}"
         if pnum:
@@ -210,7 +263,7 @@ def players(season: str = '20252026',
                 season=season,
                 data_df=p_df,
                 condition=p_cond,
-                out_path=p_out_path,
+                out_path=None, # Don't save yet, we'll save manually with correct summary text
                 return_heatmaps=True,
                 show=False,
                 use_intervals=True, # Force interval filtering to get On-Ice data
@@ -251,8 +304,9 @@ def players(season: str = '20252026',
                 # print(f"  Other Map Sum: {om_sum:.4f}, Max: {np.nanmax(other_map) if other_map is not None else 0:.4f}")
                 # print(f"  League Map Sum: {lm_sum:.4f}, Max: {np.nanmax(league_map) if league_map is not None else 0:.4f}")
 
-                combined_rel, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
-                    team_map, league_map, seconds, other_map, seconds
+                combined_rel_map, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
+                    team_map, league_map, seconds, other_map, seconds,
+                    league_baseline_right=league_map_right
                 )
                 
                 # Plot Relative Map
@@ -261,8 +315,8 @@ def players(season: str = '20252026',
                 fig, ax = plt.subplots(figsize=(10, 5))
                 draw_rink(ax=ax)
                 
-                vmax = np.nanmax(np.abs(combined_rel))
-                if vmax > 3.0: vmax = 3.0
+                vmax = 1.2 # +/- 120%
+                cbar_ticks = [-1.0, -0.5, 0.5, 1.0]
                 
                 gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
                 gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
@@ -272,13 +326,50 @@ def players(season: str = '20252026',
                 try: cmap.set_bad(color=(1,1,1,0)) 
                 except: pass
                 
-                m = np.ma.masked_invalid(combined_rel)
+                m = np.ma.masked_invalid(combined_rel_map)
                 im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax)
                 
                 txt_stats = p_stats.copy()
                 txt_stats['home_xg'] = xg_for
                 txt_stats['away_xg'] = xg_ag
                 txt_stats['have_xg'] = True
+                
+                # Add goals and attempts for summary text
+                txt_stats['home_goals'] = p_stats.get('team_goals', 0)
+                txt_stats['away_goals'] = p_stats.get('other_goals', 0)
+                txt_stats['home_attempts'] = p_stats.get('team_attempts', 0)
+                txt_stats['away_attempts'] = p_stats.get('other_attempts', 0)
+                
+                # Calculate shot percentages if not present
+                h_att = txt_stats['home_attempts']
+                a_att = txt_stats['away_attempts']
+                tot_att = h_att + a_att
+                if tot_att > 0:
+                    txt_stats['home_shot_pct'] = 100.0 * h_att / tot_att
+                    txt_stats['away_shot_pct'] = 100.0 * a_att / tot_att
+                else:
+                    txt_stats['home_shot_pct'] = 0.0
+                    txt_stats['away_shot_pct'] = 0.0
+                
+                # Calculate Percentiles for Player (vs League Team Distribution? Or Player Distribution?)
+                # User asked for "relative to the league". For a player, comparing to team distribution might be odd.
+                # But usually "distribution metric" implies where this performance sits.
+                # For players, maybe we just show the relative % change for now as implemented?
+                # "make sure the (distribution) metric is included for xG/60 relative to the league"
+                # This likely refers to the team plots where we show the percentile.
+                # For player plots, we can try to calculate percentile if we have player distribution...
+                # But we don't have a pre-computed player baseline distribution.
+                # Let's stick to adding it for Team plots (season function) primarily.
+                # If we want it for players, we'd need to load all players stats.
+                # However, we can reuse the team distribution logic if this is a "Team" plot (team=PHI).
+                # If it's a single player, maybe skip or show N/A.
+                
+                # If this is a whole team analysis (team is set), we might be able to show team percentile?
+                # But 'players' function iterates players.
+                # Let's assume the request was primarily for the Team Summary maps generated by season().
+                # But we can try to pass it if available.
+                
+                # For now, just ensure 'off_percentile' is in txt_stats if available (it won't be for single player run)
                 
                 # Format condition string nicely
                 cond_str = "All"
@@ -295,17 +386,123 @@ def players(season: str = '20252026',
                 add_summary_text(
                     ax=ax,
                     stats=txt_stats,
-                    main_title=f"{pname} ({pid})",
+                    main_title=pname,
                     is_season_summary=True,
                     team_name=team or "UNK",
                     full_team_name=pname,
                     filter_str=cond_str
                 )
                 ax.axis('off')
-                plt.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+                
+                # Colorbar
+                cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+                cbar.set_label('Relative % Change vs League', rotation=270, labelpad=20)
+                if cbar_ticks:
+                    cbar.set_ticks(cbar_ticks)
+                import matplotlib.ticker as mticker
+                cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+                
                 fig.savefig(rel_path, dpi=150, bbox_inches='tight')
                 plt.close(fig)
                 print(f"players: Generated relative map for {pid} at {rel_path}")
+
+                # Save the raw map with consistent summary text
+                try:
+                    from plot import plot_events
+                    # We need to reconstruct the plot_events call but with our specific summary stats
+                    # p_df is the data used.
+                    # We want to save to p_out_path.
+                    
+                    # Ensure p_stats has what we need for summary text
+                    # p_stats comes from xgs_map and has 'team_xgs', 'team_seconds' etc.
+                    # We need to ensure 'home_xg' etc are set correctly for add_summary_text if we use plot_events directly?
+                    # plot_events calls add_summary_text.
+                    # plot_events logic:
+                    # if is_season_summary:
+                    #    text_stats['home_xg'] = home_xg (calculated from df or passed in summary_stats?)
+                    #    Wait, plot_events calculates home_xg from df if not in summary_stats.
+                    #    But we have summary_stats=p_stats.
+                    #    And p_stats has 'team_xgs'.
+                    #    In plot_events:
+                    #      if summary_stats and 'team_xgs' in summary_stats:
+                    #          home_xg = float(summary_stats['team_xgs'])
+                    #          away_xg = float(summary_stats['other_xgs'])
+                    #          have_xg = True
+                    #    So passing p_stats as summary_stats is correct.
+                    
+                    # We need to pass is_season_summary=True to plot_events via plot_kwargs
+                    # And title=pname
+                    
+                    plot_events(
+                        p_df,
+                        out_path=p_out_path,
+                        title=pname,
+                        summary_stats=p_stats,
+                        plot_kwargs={
+                            'is_season_summary': True,
+                            'filter_str': cond_str,
+                            'team_for_heatmap': p_team, # Needed for logic inside plot_events?
+                            # If we pass is_season_summary=True, plot_events uses it.
+                            # But we also need to ensure the heatmap is drawn.
+                            # xgs_map draws the heatmap.
+                            # We are calling plot_events directly here.
+                            # plot_events can draw heatmap if we pass 'xgs' in events_to_plot and return_heatmaps=False?
+                            # Or we can just use the heatmaps we already have?
+                            # plot_events doesn't accept pre-computed heatmaps to overlay easily.
+                            # It recomputes them if 'xgs' is in events_to_plot.
+                            # So we should call xgs_map again? No, that's wasteful.
+                            # Or we can just modify xgs_map to accept the summary text overrides?
+                            # xgs_map calls plot_events.
+                            # We already called xgs_map with out_path=None.
+                            # So we just need to save the figure that xgs_map created?
+                            # xgs_map returns (out_path, heatmaps, df, stats). It does NOT return the figure.
+                            # Ah. xgs_map creates the figure and saves it if out_path is set.
+                            # If out_path is None, it closes the figure?
+                            # Let's check xgs_map.
+                            # It calls plot_events.
+                            # plot_events returns (fig, ax).
+                            # xgs_map: result = plot_events(...)
+                            # if return_heatmaps: ... return result + ...
+                            # So xgs_map returns the result of plot_events!
+                            # If return_heatmaps=True, xgs_map returns (fig, ax, heatmaps, df, stats) ?
+                            # Let's check xgs_map return signature.
+                            # It returns: out_path, ret_heat, ret_df, summary_stats
+                            # Wait, line 1226 in analyze.py: out_path, ret_heat, ret_df, summary_stats = xgs_map(...)
+                            # Let's look at xgs_map implementation (line 1527).
+                            # It calls plot_events.
+                            # plot_events returns (fig, ax, [heatmaps]).
+                            # xgs_map returns:
+                            # if return_heatmaps:
+                            #   return out_path, heatmaps, df_filtered, summary_stats
+                            # It does NOT return the figure.
+                            # And if out_path is None, plot_events doesn't save.
+                            # So the figure is lost/closed?
+                            # plot_events creates fig, ax.
+                            # It returns them.
+                            # xgs_map captures them: result = plot_events(...)
+                            # But xgs_map does NOT return the figure in its return statement if return_heatmaps is True?
+                            # Let's check xgs_map return logic again.
+                            # It seems xgs_map swallows the figure if return_heatmaps is True.
+                            # That's annoying.
+                            
+                            # We can modify xgs_map to return the figure?
+                            # Or we can just call plot_events directly here since we have the data.
+                            # Yes, calling plot_events directly is cleaner than modifying xgs_map signature again.
+                            # We have p_df (the data).
+                            # We have p_stats (summary stats).
+                            # We have p_cond.
+                            
+                            # We need to ensure we pass the right args to plot_events to get the heatmap.
+                            'events': ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot', 'xgs'], # 'xgs' triggers heatmap
+                            'heatmap_split_mode': 'home_away', # or 'team_not_team'?
+                            # xgs_map uses 'home_away' by default unless specified.
+                            # In players(), we didn't specify split mode to xgs_map, so it used default.
+                            # But we want the heatmap.
+                        }
+                    )
+                    print(f"players: Generated map for {pid} at {p_out_path}")
+                except Exception as e:
+                    print(f"players: Failed to save map for {pid}: {e}")
 
             player_stats.append({
                 'player_id': pid,
@@ -338,7 +535,30 @@ def players(season: str = '20252026',
     print(f"players: Saved stats to {csv_path}")
 
     try:
-        fig, ax = plt.subplots(figsize=(10, 8))
+        # Match style of team scatter plot (generate_scatter_plot)
+        fig, ax = plt.subplots(figsize=(10, 10))
+        
+        # Calculate limits to ensure square aspect ratio and unity line visibility
+        # We want symmetric limits if possible, or at least equal range
+        # Team plot uses: max_val = max(xGF, xGA), min_val = min(xGF, xGA)
+        vals = pd.concat([df_stats['xg_for_60'], df_stats['xg_against_60']])
+        max_val = vals.max()
+        min_val = vals.min()
+        
+        padding = (max_val - min_val) * 0.1 if (max_val - min_val) > 0 else 0.5
+        limit_max = max_val + padding
+        limit_min = max(0, min_val - padding)
+        
+        # Set limits explicitly to be equal
+        ax.set_xlim(limit_min, limit_max)
+        ax.set_ylim(limit_min, limit_max)
+        
+        # Invert Y axis (lower xGA is better)
+        ax.invert_yaxis()
+        
+        # Unity line (x=y)
+        ax.plot([limit_min, limit_max], [limit_min, limit_max], color='gray', linestyle='--', alpha=0.5, label='xGF = xGA')
+        
         ax.scatter(df_stats['xg_for_60'], df_stats['xg_against_60'], alpha=0.7)
         
         for _, row in df_stats.iterrows():
@@ -347,16 +567,19 @@ def players(season: str = '20252026',
         
         if league_xg_per60 > 0:
             avg = league_xg_per60
-            ax.axvline(avg, color='k', linestyle=':', label='League Avg')
-            ax.axhline(avg, color='k', linestyle=':')
+            # Only plot if within limits
+            if limit_min <= avg <= limit_max:
+                ax.axvline(avg, color='k', linestyle=':', label='League Avg')
+                ax.axhline(avg, color='k', linestyle=':')
         
+        ax.set_aspect('equal')
         ax.set_xlabel('xG For / 60')
         ax.set_ylabel('xG Against / 60')
         ax.set_title(f'Player xG Rates: {team or "Selected Players"} ({season})')
         ax.grid(True, alpha=0.3)
         
         scatter_path = os.path.join(out_dir, 'player_scatter.png')
-        fig.savefig(scatter_path, dpi=150)
+        fig.savefig(scatter_path, dpi=150, bbox_inches='tight')
         plt.close(fig)
         print(f"players: Saved scatter plot to {scatter_path}")
     except Exception as e:
@@ -370,7 +593,8 @@ def league(season: Optional[str] = '20252026',
            teams: Optional[list] = None,
            mode: str = 'compute',
            baseline_path: Optional[str] = None,
-           condition: Optional[dict] = None):
+           condition: Optional[dict] = None,
+           save_maps: bool = False):
     """
     Compute or load league-wide xG baseline heatmaps.
 
@@ -385,6 +609,7 @@ def league(season: Optional[str] = '20252026',
         mode: 'compute' to calculate baseline, 'load' to read from disk
         baseline_path: Optional custom path for baseline files (defaults to static/)
         condition: Optional filtering condition (defaults to 5v5 if None)
+        save_maps: If True, save individual team maps to static/{team}_xg_map.png. Defaults to False.
 
     Behavior (compute mode):
       - Loads the team list from static/teams.json
@@ -398,7 +623,8 @@ def league(season: Optional[str] = '20252026',
 
     Returns:
       dict with keys:
-        - combined_norm: 2D numpy array (normalized to xG per 60)
+        - combined_norm: 2D numpy array (normalized to xG per 60) - Left/Offense
+        - combined_norm_right: 2D numpy array (normalized to xG per 60) - Right/Defense
         - total_left_seconds: float
         - total_left_xg: float (integral of raw summed left heat)
         - stats: summary dict (season, n_teams, xg_per60, etc.)
@@ -415,6 +641,7 @@ def league(season: Optional[str] = '20252026',
     os.makedirs(baseline_path, exist_ok=True)
     
     baseline_npy = os.path.join(baseline_path, f'{season}_league_baseline.npy')
+    baseline_right_npy = os.path.join(baseline_path, f'{season}_league_baseline_right.npy')
     baseline_json = os.path.join(baseline_path, f'{season}_league_baseline.json')
 
     # Load mode: read precomputed baseline from disk
@@ -424,9 +651,18 @@ def league(season: Optional[str] = '20252026',
             with open(baseline_json, 'r') as f:
                 saved_data = json.load(f)
             
+            # Load right baseline if available, else None (or flip left?)
+            combined_norm_right = None
+            if os.path.exists(baseline_right_npy):
+                try:
+                    combined_norm_right = np.load(baseline_right_npy)
+                except Exception:
+                    pass
+            
             print(f"league: loaded baseline from {baseline_npy} and {baseline_json}")
             return {
                 'combined_norm': combined_norm,
+                'combined_norm_right': combined_norm_right,
                 'total_left_seconds': saved_data.get('total_left_seconds', 0.0),
                 'total_left_xg': saved_data.get('total_left_xg', 0.0),
                 'stats': saved_data.get('stats', {}),
@@ -456,6 +692,8 @@ def league(season: Optional[str] = '20252026',
 
     left_maps = []
     left_seconds = []
+    right_maps = []
+    right_seconds = []
     pooled_output = {}
 
     for team in team_list:
@@ -464,12 +702,15 @@ def league(season: Optional[str] = '20252026',
         team_cond['team'] = team
         # call xgs_map robustly and unpack returned elements
         try:
+            # Determine output path based on save_maps flag
+            team_out_path = f'static/{team}_xg_map.png' if save_maps else None
+            
             out_path, ret_heat, ret_df, summary_stats = xgs_map(
                 season=season,
                 csv_path=csv_path,
                 model_path='static/xg_model.joblib',
                 behavior='load',
-                out_path=f'static/{team}_xg_map.png',
+                out_path=team_out_path,
                 orient_all_left=False,
                 events_to_plot=None,
                 show=False,
@@ -485,15 +726,31 @@ def league(season: Optional[str] = '20252026',
         # unpack safely
         heatmaps = ret_heat
         df_filtered = ret_df
+        
+        if isinstance(heatmaps, dict):
+             print(f"DEBUG: heatmaps keys for {team}: {list(heatmaps.keys())}")
+             if 'not_team' in heatmaps:
+                 print(f"DEBUG: not_team map shape: {heatmaps['not_team'].shape if heatmaps['not_team'] is not None else 'None'}")
 
         # extract left heatmap (team-facing). Accept keys 'team' or 'home' as fallback
         left_h = None
+        right_h = None
+        
         if isinstance(heatmaps, dict):
             # avoid using `or` on arrays (truth-value ambiguous)
             if heatmaps.get('team') is not None:
                 left_h = heatmaps.get('team')
             elif heatmaps.get('home') is not None:
                 left_h = heatmaps.get('home')
+                
+            # extract right heatmap (other-facing)
+            if heatmaps.get('other') is not None:
+                right_h = heatmaps.get('other')
+            elif heatmaps.get('not_team') is not None:
+                right_h = heatmaps.get('not_team')
+            elif heatmaps.get('away') is not None:
+                right_h = heatmaps.get('away')
+                
         elif heatmaps is not None:
             # if it's an array directly
             left_h = heatmaps
@@ -517,8 +774,10 @@ def league(season: Optional[str] = '20252026',
                 sec = 0.0
 
         # record
+        # record
         pooled_output[team] = {
             'left_map': left_h,
+            'right_map': right_h,
             'seconds': sec,
             'out_path': out_path,
             'df_filtered_shape': df_filtered.shape if df_filtered is not None else None,
@@ -528,50 +787,70 @@ def league(season: Optional[str] = '20252026',
         if left_h is not None:
             left_maps.append(left_h)
             left_seconds.append(float(sec or 0.0))
+            
+        if right_h is not None:
+            right_maps.append(right_h)
+            right_seconds.append(float(sec or 0.0))
 
     # sum left heatmaps
-    if left_maps:
-        # ensure consistent shapes: find first non-None shape
-        base_shape = None
-        for h in left_maps:
-            if h is not None:
-                base_shape = np.array(h).shape
-                break
-        # re-stack with nan for missing cells
-        aligned = []
-        for h in left_maps:
-            if h is None:
-                aligned.append(np.full(base_shape, np.nan))
-            else:
-                arr = np.asarray(h, dtype=float)
-                if arr.shape != base_shape:
-                    # try to broadcast or resize: raise for now
-                    raise ValueError(f'Incompatible heatmap shape for team: expected {base_shape}, got {arr.shape}')
-                aligned.append(arr)
-        left_sum = np.nansum(np.stack(aligned, axis=0), axis=0)
-    else:
-        left_sum = None
+    def _sum_maps(maps):
+        if maps:
+            # ensure consistent shapes: find first non-None shape
+            base_shape = None
+            for h in maps:
+                if h is not None:
+                    base_shape = np.array(h).shape
+                    break
+            # re-stack with nan for missing cells
+            aligned = []
+            for h in maps:
+                if h is None:
+                    aligned.append(np.full(base_shape, np.nan))
+                else:
+                    arr = np.asarray(h, dtype=float)
+                    if arr.shape != base_shape:
+                        # try to broadcast or resize: raise for now
+                        raise ValueError(f'Incompatible heatmap shape for team: expected {base_shape}, got {arr.shape}')
+                    aligned.append(arr)
+            return np.nansum(np.stack(aligned, axis=0), axis=0)
+        return None
+
+    left_sum = _sum_maps(left_maps)
+    right_sum = _sum_maps(right_maps)
+    
+    if left_sum is None:
         print("league: WARNING: No teams were successfully processed. Baseline will be empty.")
 
     total_left_seconds = float(sum(left_seconds)) if left_seconds else 0.0
+    total_right_seconds = float(sum(right_seconds)) if right_seconds else 0.0
 
     # Avoid divide-by-zero by using at least 1.0 second if zero (but warn)
-    if total_left_seconds <= 0.0:
-        total_left_seconds = 1.0
+    if total_left_seconds <= 0.0: total_left_seconds = 1.0
+    if total_right_seconds <= 0.0: total_right_seconds = 1.0
 
     # Normalize to xG per 60min
     combined_norm = None
+    combined_norm_right = None
     total_left_xg = 0.0
+    
     if left_sum is not None:
         combined_norm = left_sum / total_left_seconds * 3600.0
         # total raw xG (integral of left_sum)
         total_left_xg = float(np.nansum(left_sum))
+        
+    if right_sum is not None:
+        combined_norm_right = right_sum / total_right_seconds * 3600.0
+        total_right_xg = float(np.nansum(right_sum))
+        print(f"DEBUG: League Right Baseline: Total xG={total_right_xg}, Total Secs={total_right_seconds}, Avg xG/60={np.nansum(combined_norm_right)}")
 
     # Save out combined heatmap to static
     try:
-        out_dir = os.path.join('static')
+        # Use the provided baseline_path (which defaults to static/ but is overridden by callers)
+        out_dir = baseline_path
         os.makedirs(out_dir, exist_ok=True)
         np.save(os.path.join(out_dir, f'{season}_league_left_combined.npy'), combined_norm)
+        if combined_norm_right is not None:
+            np.save(os.path.join(out_dir, f'{season}_league_right_combined.npy'), combined_norm_right)
         # also save a PNG visual using masked array
         if combined_norm is not None:
             try:
@@ -602,6 +881,7 @@ def league(season: Optional[str] = '20252026',
         'total_left_seconds': total_left_seconds,
         'total_left_xg': total_left_xg,
         'xg_per60': float(np.nansum(combined_norm)) if combined_norm is not None else 0.0,
+        'xg_per60_right': float(np.nansum(combined_norm_right)) if combined_norm_right is not None else 0.0,
         'n_teams': len(team_list),
     }
 
@@ -612,13 +892,15 @@ def league(season: Optional[str] = '20252026',
         else:
             print(f"DEBUG: Saving baseline to {baseline_json}")
             np.save(baseline_npy, combined_norm)
+            if combined_norm_right is not None:
+                np.save(baseline_right_npy, combined_norm_right)
             
             # Sanitize pooled_output for JSON saving (remove numpy arrays)
             pooled_output_json = {}
             for t, data in pooled_output.items():
                 if isinstance(data, dict):
-                    # Create a copy excluding 'left_map' which is a numpy array
-                    safe_data = {k: v for k, v in data.items() if k != 'left_map'}
+                    # Create a copy excluding 'left_map' and 'right_map' which are numpy arrays
+                    safe_data = {k: v for k, v in data.items() if k not in ('left_map', 'right_map')}
                     pooled_output_json[t] = safe_data
                 else:
                     pooled_output_json[t] = data
@@ -643,7 +925,14 @@ def league(season: Optional[str] = '20252026',
         import traceback
         traceback.print_exc()
 
-    return {'combined_norm': combined_norm, 'total_left_seconds': total_left_seconds, 'total_left_xg': total_left_xg, 'stats': stats, 'per_team': pooled_output}
+    return {
+        'combined_norm': combined_norm, 
+        'combined_norm_right': combined_norm_right,
+        'total_left_seconds': total_left_seconds, 
+        'total_left_xg': total_left_xg, 
+        'stats': stats, 
+        'per_team': pooled_output
+    }
 
 
 
@@ -709,7 +998,7 @@ def calculate_shot_attempts(df: pd.DataFrame, team_val: str) -> dict:
     return stats
 
 
-def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map, other_seconds, baseline_threshold=1e-6):
+def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map, other_seconds, baseline_threshold=1e-6, league_baseline_right=None):
     """
     Compute the relative xG map (Team vs League and Defense vs League).
     
@@ -742,9 +1031,14 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     # 2. League Baselines
     # league_baseline_left is already Left-oriented (Offense)
     
-    # Create Right-oriented baseline (Defense) by flipping Left baseline
-    # Assuming standard rink symmetry
-    league_baseline_right = np.fliplr(league_baseline_left)
+    # Create Right-oriented baseline (Defense)
+    # If explicit right baseline provided, use it. Else flip left baseline (assuming symmetry).
+    if league_baseline_right is not None:
+        # Ensure it's right-oriented (it should be if coming from league())
+        league_baseline_right_use = league_baseline_right
+    else:
+        # Fallback: Flip Left baseline
+        league_baseline_right_use = np.fliplr(league_baseline_left)
 
     # 3. Compute % Change Relative to Baseline
     # Formula: (Team - League) / League
@@ -775,10 +1069,10 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
         combined_rel_map[valid_l] = rel_l[valid_l]
         
         # Right Side: Defense vs League Right
-        denom_r = np.maximum(league_baseline_right, baseline_threshold)
-        rel_r = (other_map_norm - league_baseline_right) / denom_r
+        denom_r = np.maximum(league_baseline_right_use, baseline_threshold)
+        rel_r = (other_map_norm - league_baseline_right_use) / denom_r
         
-        has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right > baseline_threshold)
+        has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right_use > baseline_threshold)
         valid_r = mask_right & has_signal_r
         
         combined_rel_map[valid_r] = rel_r[valid_r]
@@ -787,15 +1081,18 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     team_xg_per60 = np.nansum(team_map_norm)
     other_xg_per60 = np.nansum(other_map_norm)
     league_avg_xg_per60 = np.nansum(league_baseline_left)
+    league_avg_xg_per60_right = np.nansum(league_baseline_right_use)
     
     relative_off_per60 = team_xg_per60 - league_avg_xg_per60
-    relative_def_per60 = other_xg_per60 - league_avg_xg_per60
+    relative_def_per60 = other_xg_per60 - league_avg_xg_per60_right
     
     rel_off_pct = 0.0
     rel_def_pct = 0.0
     if league_avg_xg_per60 > 1e-6:
         rel_off_pct = (relative_off_per60 / league_avg_xg_per60) * 100.0
-        rel_def_pct = (relative_def_per60 / league_avg_xg_per60) * 100.0
+        
+    if league_avg_xg_per60_right > 1e-6:
+        rel_def_pct = (relative_def_per60 / league_avg_xg_per60_right) * 100.0
         
     return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
 
@@ -1062,6 +1359,7 @@ def season(season: Optional[str] = '20252026',
         # Pass cond_out_dir as baseline_path so each condition has its own baseline file
         baseline_result = league(season=season, csv_path=csv_path, teams=team_list, mode=baseline_mode, condition=condition, baseline_path=cond_out_dir)
         league_baseline_map = baseline_result.get('combined_norm')
+        league_baseline_right = baseline_result.get('combined_norm_right')
         
         if league_baseline_map is None:
             print(f"season: failed to obtain league baseline for {cond_name}; skipping")
@@ -1108,7 +1406,7 @@ def season(season: Optional[str] = '20252026',
                 if isinstance(ret_heat, dict):
                     # xgs_map returns dict with 'team', 'other', 'team_norm', 'other_norm'
                     team_map = ret_heat.get('team')
-                    other_map = ret_heat.get('other')
+                    other_map = ret_heat.get('other') or ret_heat.get('not_team')
                 elif ret_heat is not None:
                      team_map = ret_heat
                 
@@ -1122,7 +1420,8 @@ def season(season: Optional[str] = '20252026',
                 # Compute Relative Map
                 # Note: league_baseline_map is already normalized per 60
                 combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60 = compute_relative_map(
-                    team_map, league_baseline_map, team_seconds, other_map, team_seconds
+                    team_map, league_baseline_map, team_seconds, other_map, team_seconds,
+                    league_baseline_right=league_baseline_right
                 )
 
                 # Retrieve per-60 stats for summary table
@@ -1133,6 +1432,70 @@ def season(season: Optional[str] = '20252026',
                 # Grid setup for plotting
                 gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
                 gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
+
+                # Step 6 (Moved): Compile summary statistics BEFORE plotting
+                # (Keep existing summary stats logic, maybe add defensive stats)
+                # Note: relative stats already calculated above
+                
+                # Calculate % change for display
+                # Note: These are already calculated correctly in compute_relative_map
+                # rel_off_pct and rel_def_pct are returned from there.
+                # We do NOT need to recalculate them here, especially since we might use the wrong baseline.
+                    
+                # Update summary_stats with relative metrics so plot.py can use them
+                if summary_stats is None:
+                    summary_stats = {}
+                summary_stats['rel_off_pct'] = rel_off_pct
+                summary_stats['rel_def_pct'] = rel_def_pct
+                
+                # Calculate Percentiles (Distribution Metric)
+                # We need the distribution of all teams for this condition.
+                # Since we are inside the loop, we might not have all teams yet.
+                # However, 'baseline_result' contains 'per_team' stats if we loaded or computed them!
+                # Let's extract the distribution from baseline_result['per_team']
+                
+                off_percentile = None
+                def_percentile = None
+                
+                try:
+                    per_team_data = baseline_result.get('per_team', {})
+                    if per_team_data:
+                        # Collect xG/60 for all teams to build distribution
+                        # Note: we need to re-calculate per-60 for each team in baseline to be sure,
+                        # or trust stored stats? 'per_team' stores 'summary_stats' which has 'team_xg_per60' etc.
+                        
+                        off_vals = []
+                        def_vals = []
+                        
+                        for t, t_data in per_team_data.items():
+                            s_stats = t_data.get('summary_stats', {})
+                            if s_stats:
+                                # Offense
+                                val_off = s_stats.get('team_xg_per60')
+                                if val_off is not None: off_vals.append(float(val_off))
+                                # Defense
+                                val_def = s_stats.get('other_xg_per60')
+                                if val_def is not None: def_vals.append(float(val_def))
+                        
+                        if off_vals and team_xg_per60 is not None:
+                            # Percentile of current team
+                            # Higher offense is better (higher percentile)
+                            from scipy.stats import percentileofscore
+                            off_percentile = percentileofscore(off_vals, team_xg_per60, kind='weak')
+                            
+                        if def_vals and other_xg_per60 is not None:
+                            # Lower defense (xGA) is better (higher percentile)
+                            # So we invert the ranking: 100 - percentile(val)
+                            from scipy.stats import percentileofscore
+                            raw_pct = percentileofscore(def_vals, other_xg_per60, kind='weak')
+                            def_percentile = 100.0 - raw_pct
+                            
+                    summary_stats['off_percentile'] = off_percentile
+                    summary_stats['def_percentile'] = def_percentile
+                    
+                except Exception as e:
+                    print(f"season: warning: failed to calc percentiles: {e}")
+                    # pass
 
                 # Step 5: Plot combined relative map
                 try:
@@ -1147,6 +1510,12 @@ def season(season: Optional[str] = '20252026',
                     vmax = np.nanmax(np.abs(combined_rel_map))
                     if vmax > 3.0: vmax = 3.0 # Cap at 300%
                     
+                    # Custom locking for 5v5
+                    cbar_ticks = None
+                    if cond_name == '5v5':
+                        vmax = 1.2 # +/- 120% (100% + 20% wiggle room)
+                        cbar_ticks = [-1.0, -0.5, 0.5, 1.0]
+
                     extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
                     cmap = plt.get_cmap('RdBu_r')
                     try:
@@ -1230,7 +1599,17 @@ def season(season: Optional[str] = '20252026',
                     
                     # Colorbar
                     cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+                    
+                    # Save the relative map data for Special Teams plot
+                    try:
+                        rel_map_npy = os.path.join(cond_out_dir, f'{team}_relative_combined.npy')
+                        np.save(rel_map_npy, combined_rel_map)
+                        # print(f"season: saved relative map to {rel_map_npy}")
+                    except Exception as e:
+                        print(f"season: failed to save relative map npy: {e}")
                     cbar.set_label('Relative % Change vs League', rotation=270, labelpad=20)
+                    if cbar_ticks:
+                        cbar.set_ticks(cbar_ticks)
                     import matplotlib.ticker as mticker
                     cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
                     
@@ -1244,28 +1623,8 @@ def season(season: Optional[str] = '20252026',
                     import traceback
                     traceback.print_exc()
 
-                # Save relative maps as .npy
-                try:
-                    np.save(os.path.join(cond_out_dir, f'{team}_relative_combined.npy'), combined_rel_map)
-                except Exception:
-                    pass
 
-                # Step 6: Compile summary statistics
-                # (Keep existing summary stats logic, maybe add defensive stats)
-                # Note: relative stats already calculated above
-                
-                # Calculate % change for display
-                rel_off_pct = 0.0
-                rel_def_pct = 0.0
-                if league_avg_xg_per60 > 1e-6:
-                    rel_off_pct = (relative_off_per60 / league_avg_xg_per60) * 100.0
-                    rel_def_pct = (relative_def_per60 / league_avg_xg_per60) * 100.0
-                    
-                # Update summary_stats with relative metrics so plot.py can use them
-                if summary_stats is None:
-                    summary_stats = {}
-                summary_stats['rel_off_pct'] = rel_off_pct
-                summary_stats['rel_def_pct'] = rel_def_pct
+
 
                 summary_row = {
                     'team': team,
@@ -1277,7 +1636,16 @@ def season(season: Optional[str] = '20252026',
                     'rel_off_pct': rel_off_pct,
                     'rel_def_pct': rel_def_pct,
                     'team_xgs': summary_stats.get('team_xgs', 0.0) if summary_stats else 0.0,
+                    'team_xg': summary_stats.get('team_xgs', 0.0) if summary_stats else 0.0,
                     'team_seconds': summary_stats.get('team_seconds', 0.0) if summary_stats else 0.0,
+                    'team_goals': summary_stats.get('team_goals', 0) if summary_stats else 0,
+                    'other_goals': summary_stats.get('other_goals', 0) if summary_stats else 0,
+                    'opp_goals': summary_stats.get('other_goals', 0) if summary_stats else 0,
+                    'team_attempts': summary_stats.get('team_attempts', 0) if summary_stats else 0,
+                    'other_attempts': summary_stats.get('other_attempts', 0) if summary_stats else 0,
+                    'opp_attempts': summary_stats.get('other_attempts', 0) if summary_stats else 0,
+                    'other_xgs': summary_stats.get('other_xgs', 0.0) if summary_stats else 0.0,
+                    'opp_xg': summary_stats.get('other_xgs', 0.0) if summary_stats else 0.0,
                 }
                 summary_rows.append(summary_row)
 
@@ -1291,41 +1659,61 @@ def season(season: Optional[str] = '20252026',
                 print(f"season_analysis: error processing team {team}: {e}")
                 team_results[team] = {'error': str(e)}
 
-    # Step 7: Create cross-team summary table
-    summary_table = pd.DataFrame(summary_rows)
-    if not summary_table.empty:
-        # Sort by relative_off_per60 descending
-        summary_table = summary_table.sort_values('relative_off_per60', ascending=False)
-        
-        # Save summary table
-        summary_csv = os.path.join(cond_out_dir, f'{season}_team_summary.csv')
-        summary_json = os.path.join(cond_out_dir, f'{season}_team_summary.json')
-        
-        try:
-            summary_table.to_csv(summary_csv, index=False)
-            print(f"\nseason_analysis: saved summary table to {summary_csv}")
-        except Exception as e:
-            print(f"season_analysis: failed to save summary CSV: {e}")
-        
-        try:
-            summary_table.to_json(summary_json, orient='records', indent=2)
-            print(f"season_analysis: saved summary table to {summary_json}")
-        except Exception as e:
-            print(f"season_analysis: failed to save summary JSON: {e}")
+                team_results[team] = {'error': str(e)}
 
-        # Generate scatter plot for this condition
-        try:
-            generate_scatter_plot(summary_rows, cond_out_dir, condition_name=cond_name)
-        except Exception as e:
-            print(f"season_analysis: failed to generate scatter plot: {e}")
+        # Step 7: Create cross-team summary table
+        summary_table = pd.DataFrame(summary_rows)
+        if not summary_table.empty:
+            # Calculate percentiles
+            try:
+                def _calc_pct(val, all_vals):
+                    if not all_vals or pd.isnull(val): return None
+                    k = sum(1 for v in all_vals if v < val)
+                    eq = sum(1 for v in all_vals if v == val)
+                    return (k + 0.5 * eq) / len(all_vals) * 100.0
+
+                xg_for_vals = summary_table['team_xg_per60'].dropna().tolist()
+                xg_ag_vals = summary_table['other_xg_per60'].dropna().tolist()
+
+                summary_table['off_percentile'] = summary_table['team_xg_per60'].apply(lambda x: _calc_pct(x, xg_for_vals))
+                summary_table['def_percentile'] = summary_table['other_xg_per60'].apply(lambda x: _calc_pct(x, xg_ag_vals))
+            except Exception as e:
+                print(f"season: failed to calc percentiles: {e}")
+
+            # Sort by relative_off_per60 descending
+            summary_table = summary_table.sort_values('relative_off_per60', ascending=False)
+            
+            # Save summary table
+            summary_csv = os.path.join(cond_out_dir, f'{season}_team_summary.csv')
+            summary_json = os.path.join(cond_out_dir, f'{season}_team_summary.json')
+            
+            try:
+                summary_table.to_csv(summary_csv, index=False)
+                print(f"\nseason_analysis: saved summary table to {summary_csv}")
+            except Exception as e:
+                print(f"season_analysis: failed to save summary CSV: {e}")
+            
+            try:
+                summary_table.to_json(summary_json, orient='records', indent=2)
+                print(f"season_analysis: saved summary table to {summary_json}")
+            except Exception as e:
+                print(f"season_analysis: failed to save summary JSON: {e}")
+
+            # Generate scatter plot for this condition
+            try:
+                generate_scatter_plot(summary_rows, cond_out_dir, condition_name=cond_name)
+            except Exception as e:
+                print(f"season_analysis: failed to generate scatter plot: {e}")
+
+        all_results[cond_name] = {
+            'baseline': baseline_result,
+            'teams': team_results,
+            'summary_table': summary_table,
+        }
 
     print(f"\nseason_analysis: complete. Processed {len(team_results)} teams.")
     
-    return {
-        'baseline': baseline_result,
-        'teams': team_results,
-        'summary_table': summary_table,
-    }
+    return all_results
 
 
 def xgs_map(season: Optional[str] = '20252026', *,
@@ -1391,10 +1779,11 @@ def xgs_map(season: Optional[str] = '20252026', *,
             p = Path(csv_path)
             if p.exists():
                 return p
-        candidates = [Path('data') / season / f'{season}_df.csv',
-                      Path('data') / f'{season}_df.csv',
-                      Path('static') / f'{season}_df.csv',
-                      Path('static') / f'{season}.csv']
+        # Prioritize data/ directory and support both naming conventions
+        candidates = [Path('data') / season / f'{season}.csv',
+                      Path('data') / season / f'{season}_df.csv',
+                      Path('data') / f'{season}.csv',
+                      Path('data') / f'{season}_df.csv']
         for c in candidates:
             try:
                 if c.exists():
@@ -2048,6 +2437,11 @@ def xgs_map(season: Optional[str] = '20252026', *,
     other_xgs = 0.0
     try:
         xgs_series = pd.to_numeric(df_with_xgs.get('xgs', pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
+        
+        if df_filtered is not None and not df_filtered.empty and 'team_id' in df_filtered.columns:
+             u_teams = df_filtered['team_id'].unique()
+             print(f"DEBUG: xgs_map df_filtered unique teams: {u_teams} (condition={condition})")
+
         if team_val is not None:
             # determine membership using home/away or ids
             def _is_team_row(r):
@@ -2121,6 +2515,51 @@ def xgs_map(season: Optional[str] = '20252026', *,
     except Exception:
         team_goals = other_goals = 0
 
+    # Compute attempts totals (shot-on-goal, missed-shot, blocked-shot)
+    team_attempts = 0
+    other_attempts = 0
+    try:
+        attempt_types = {'shot-on-goal', 'missed-shot', 'blocked-shot'}
+        is_attempt = df_filtered['event'].astype(str).str.strip().str.lower().isin(attempt_types)
+        
+        if team_val is not None:
+             # determine membership using home/away or ids (reuse _is_team_row logic if possible, or re-define)
+             # Since _is_team_row is defined inside the try block above, we need to redefine or move it.
+             # To avoid code duplication, let's just re-implement the lambda logic inline or copy.
+             # Actually, let's just use the same logic.
+            def _is_team_row_att(r):
+                try:
+                    t = team_val
+                    tid = int(t) if str(t).strip().isdigit() else None
+                except Exception:
+                    tid = None
+                try:
+                    if tid is not None:
+                        return str(r.get('team_id')) == str(tid)
+                    tupper = str(team_val).upper()
+                    if r.get('home_abb') is not None and str(r.get('home_abb')).upper() == tupper:
+                        return str(r.get('team_id')) == str(r.get('home_id'))
+                    if r.get('away_abb') is not None and str(r.get('away_abb')).upper() == tupper:
+                        return str(r.get('team_id')) == str(r.get('away_id'))
+                except Exception:
+                    return False
+                return False
+            
+            mask = df_filtered.apply(_is_team_row_att, axis=1)
+            team_attempts = int(is_attempt[mask].sum())
+            other_attempts = int(is_attempt[~mask].sum())
+        else:
+            # legacy home/away split
+            if 'home_id' in df_filtered.columns and 'team_id' in df_filtered.columns:
+                mask = df_filtered['team_id'].astype(str) == df_filtered['home_id'].astype(str)
+                team_attempts = int(is_attempt[mask].sum())
+                other_attempts = int(is_attempt[~mask].sum())
+            else:
+                team_attempts = int(is_attempt.sum())
+                other_attempts = 0
+    except Exception:
+        team_attempts = other_attempts = 0
+
     # extract seconds from timing_result aggregate
     try:
         agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
@@ -2144,6 +2583,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
         'other_xgs': other_xgs,
         'team_goals': team_goals,
         'other_goals': other_goals,
+        'team_attempts': team_attempts,
+        'other_attempts': other_attempts,
         'team_seconds': team_seconds,
         'other_seconds': other_seconds,
         'team_xg_per60': team_xg_per60,
@@ -2667,9 +3108,17 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         import timing
         timing_res = timing.compute_game_timing(df_cond, condition)
         agg = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
-        inter = agg.get('intersection_pooled_seconds', {}) if isinstance(agg, dict) else {}
-        team_secs = float(inter.get('team') or 0.0)
-        other_secs = float(inter.get('other') or 0.0)
+        # Try to get pooled seconds (team vs other), fallback to total intersection
+        inter = agg.get('intersection_pooled_seconds')
+        if inter and isinstance(inter, dict):
+            team_secs = float(inter.get('team') or 0.0)
+            other_secs = float(inter.get('other') or 0.0)
+        else:
+            # fallback: assume symmetric time for team/other if pooled missing
+            total_inter = float(agg.get('intersection_seconds_total') or 0.0)
+            team_secs = total_inter
+            other_secs = total_inter
+            
         total_seconds_cond = float(team_secs + other_secs) if (team_secs or other_secs) else None
     except Exception:
         total_seconds_cond = None
@@ -2691,6 +3140,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
     # save baseline - use out_dir directly to match load path
     baseline_json = Path(out_dir) / f'{season}_league_baseline.json'
     baseline_npy = Path(out_dir) / f'{season}_league_baseline.npy'
+    baseline_right_npy = Path(out_dir) / f'{season}_league_baseline_right.npy'
 
     # save league map figure
     try:
@@ -2728,6 +3178,19 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
     if not teams and 'home_id' in df_cond.columns:
         teams.update([str(a) for a in df_cond['home_id'].dropna().unique().tolist()])
 
+    # save baseline npy
+    try:
+        np.save(baseline_npy, league_heat)
+        print(f"league: saved baseline to {baseline_npy}")
+        
+        # Save right baseline if computed (it is computed as league_right above)
+        if league_right is not None:
+             np.save(baseline_right_npy, league_right)
+             print(f"league: saved right baseline to {baseline_right_npy}")
+             
+    except Exception as e:
+        print(f"league: failed to save baseline npy: {e}")
+
     results = {'season': season, 'league': {'gx': list(gx), 'gy': list(gy), 'xg_total': float(league_xg), 'seconds': float(league_seconds)}}
     results['teams'] = {}
 
@@ -2764,9 +3227,16 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             
             timing_res = timing.compute_game_timing(df_games, cond_for_timing, verbose=False)
             agg_t = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
-            inter_t = agg_t.get('intersection_pooled_seconds', {}) if isinstance(agg_t, dict) else {}
-            team_secs_t = float(inter_t.get('team') or 0.0)
-            other_secs_t = float(inter_t.get('other') or 0.0)
+            
+            # Try to get pooled seconds, fallback to total intersection
+            inter_t = agg_t.get('intersection_pooled_seconds')
+            if inter_t and isinstance(inter_t, dict):
+                team_secs_t = float(inter_t.get('team') or 0.0)
+                other_secs_t = float(inter_t.get('other') or 0.0)
+            else:
+                total_inter_t = float(agg_t.get('intersection_seconds_total') or 0.0)
+                team_secs_t = total_inter_t
+                other_secs_t = total_inter_t
         except Exception:
             # fall back to season-level total_seconds_cond
             team_secs_t = None
@@ -3108,6 +3578,46 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
         except Exception as e:
             print(f"Failed to generate season comparison plot: {e}")
 
+    # Calculate percentiles and save combined team summary
+    try:
+        # Helper for percentile calculation
+        def _calc_pct(val, all_vals):
+            if not all_vals or val is None:
+                return None
+            k = sum(1 for v in all_vals if v < val)
+            eq = sum(1 for v in all_vals if v == val)
+            return (k + 0.5 * eq) / len(all_vals) * 100.0
+
+        # Extract lists for percentile calculation
+        xg_for_vals = [s['team_xg_per60'] for s in results['teams'].values() if s.get('team_xg_per60') is not None]
+        xg_ag_vals = [s['opp_xg_per60'] for s in results['teams'].values() if s.get('opp_xg_per60') is not None]
+        
+        combined_summaries = []
+        for team, summary in results['teams'].items():
+            # Calculate percentiles
+            summary['off_percentile'] = _calc_pct(summary.get('team_xg_per60'), xg_for_vals)
+            # For xGA, higher percentile means MORE xGA (bad defense). 
+            # We stick to raw percentile of the metric.
+            summary['def_percentile'] = _calc_pct(summary.get('opp_xg_per60'), xg_ag_vals)
+            
+            combined_summaries.append(summary)
+            
+            # Update individual JSON with percentiles
+            try:
+                out_json = base_out / f'{season}_{team}_summary.json'
+                with open(out_json, 'w') as fh:
+                    json.dump(summary, fh, indent=2)
+            except Exception:
+                pass
+
+        # Save combined summary
+        out_combined_json = base_out / f'{season}_team_summary.json'
+        with open(out_combined_json, 'w') as fh:
+            json.dump(combined_summaries, fh, indent=2)
+            
+    except Exception as e:
+        print(f"Failed to calculate percentiles or save combined summary: {e}")
+
     # save a small league summary JSON
     try:
         out_league_json = base_out / f'{season}_league_summary.json'
@@ -3320,4 +3830,221 @@ if __name__ == '__main__':
                 pass
         except Exception as e:
             print('xgs_map for single game failed:', e)
+
+
+def generate_special_teams_plot(season, teams, out_dir):
+    """
+    Generates a combined Special Teams plot for each team.
+    Left half: 5v4 Offense (from 5v4 relative map)
+    Right half: 4v5 Defense (from 4v5 relative map)
+    """
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from rink import draw_rink
+    from plot import add_summary_text
+    import json
+
+    print(f"Generating Special Teams plots for {len(teams)} teams...")
+    
+    # Ensure output directory exists
+    st_out_dir = os.path.join(out_dir, 'SpecialTeams')
+    os.makedirs(st_out_dir, exist_ok=True)
+    
+    # Paths to source data
+    # out_dir is typically static/league/20252026
+    
+    base_dir = out_dir
+    dir_5v4 = os.path.join(base_dir, '5v4')
+    dir_4v5 = os.path.join(base_dir, '4v5')
+    
+    # Load summary stats for 5v4 and 4v5 to get rankings/stats
+    stats_5v4 = []
+    stats_4v5 = []
+    
+    try:
+        with open(os.path.join(dir_5v4, f'{season}_team_summary.json'), 'r') as f:
+            stats_5v4 = json.load(f)
+    except Exception:
+        print("Warning: Could not load 5v4 summary stats")
+
+    try:
+        with open(os.path.join(dir_4v5, f'{season}_team_summary.json'), 'r') as f:
+            stats_4v5 = json.load(f)
+    except Exception:
+        print("Warning: Could not load 4v5 summary stats")
+
+    # Helper to find team stats in list
+    def get_team_stats(stats_list, team_abbr):
+        if isinstance(stats_list, list):
+            for s in stats_list:
+                if s.get('team') == team_abbr:
+                    return s
+        return {}
+
+    for team in teams:
+        # Load maps
+        map_5v4_path = os.path.join(dir_5v4, f'{team}_relative_combined.npy')
+        map_4v5_path = os.path.join(dir_4v5, f'{team}_relative_combined.npy')
+        
+        if not os.path.exists(map_5v4_path) or not os.path.exists(map_4v5_path):
+            # print(f"Skipping {team}: missing 5v4 or 4v5 map")
+            continue
+            
+        try:
+            map_5v4 = np.load(map_5v4_path)
+            map_4v5 = np.load(map_4v5_path)
+            
+            # Stitch maps
+            # Grid assumptions: 200 x 85 (from histogram2d)
+            # x indices: 0 to 199.
+            # Midpoint is 100.
+            
+            combined_st = np.full_like(map_5v4, np.nan)
+            
+            mid = map_5v4.shape[1] // 2 # 100
+            
+            # Left half from 5v4 (Offense)
+            combined_st[:, :mid] = map_5v4[:, :mid]
+            
+            # Right half from 4v5 (Defense)
+            combined_st[:, mid:] = map_4v5[:, mid:]
+            
+            # Plot
+            fig, ax = plt.subplots(figsize=(10, 5))
+            draw_rink(ax=ax)
+            
+            # Extent
+            gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
+            gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
+            extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
+            
+            vmax = 1.2 # +/- 120%
+            cmap = plt.get_cmap('RdBu_r')
+            try:
+                cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
+            except:
+                pass
+                
+            m = np.ma.masked_invalid(combined_st)
+            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax)
+            
+            # Summary Text
+            t_stats_5v4 = get_team_stats(stats_5v4, team)
+            t_stats_4v5 = get_team_stats(stats_4v5, team)
+            
+            # Construct stats dict mapping PP->Home(Left) and PK->Away(Right)
+            st_stats = {
+                'team_xg_per60': t_stats_5v4.get('team_xg_per60'),
+                'other_xg_per60': t_stats_4v5.get('opp_xg_per60'),
+                'rel_off_pct': t_stats_5v4.get('rel_off_pct'),
+                'rel_def_pct': t_stats_4v5.get('rel_def_pct'),
+                'off_percentile': t_stats_5v4.get('off_percentile'),
+                'def_percentile': t_stats_4v5.get('def_percentile'),
+                'have_xg': True,
+                
+                # Left Column (PP / 5v4)
+                'home_goals': t_stats_5v4.get('team_goals', 0),
+                'home_xg': t_stats_5v4.get('team_xg', 0.0),
+                'home_attempts': t_stats_5v4.get('team_attempts', 0),
+                
+                # Right Column (PK / 4v5)
+                # Note: For PK, we want the stats AGAINST the team (Goals Against, xGA)
+                # In 4v5 analysis, 'opp_goals' represents goals by the opponent (PP team)
+                'away_goals': t_stats_4v5.get('opp_goals', 0),
+                'away_xg': t_stats_4v5.get('opp_xg', 0.0),
+                'away_attempts': t_stats_4v5.get('opp_attempts', 0),
+            }
+            
+            # Recalculate percentages for display if needed
+            # add_summary_text calculates them if attempts are present
+            # But we need to ensure 'home_shot_pct' and 'away_shot_pct' are set if we want them displayed
+            # Actually add_summary_text calculates them from attempts if passed.
+            # But let's be safe and pass them if available or let it calc.
+            # We'll let add_summary_text calculate them based on the attempts we passed.
+            # Wait, add_summary_text calculates them as:
+            # home_shot_pct = 100 * home_attempts / (home_attempts + away_attempts)
+            # This implies a single game context where home+away = total.
+            # Here, PP attempts + PK attempts != Total Game Attempts.
+            # So the percentage calculated by add_summary_text might be misleading if interpreted as CF%.
+            # However, for Special Teams, maybe we just want the raw counts?
+            # Or maybe we want PP% and PK%?
+            # The current plot shows "Shot %" which is usually CF%.
+            # If we pass attempts, it will calculate a "Special Teams CF%" (PP / (PP+PK allowed)).
+            # That's a weird metric.
+            # Maybe we should suppress the percentage or pass 0?
+            # Or maybe we want the CF% *within* that condition (e.g. PP CF% = PP For / (PP For + PP Against)).
+            # But we only have 'team_attempts' (For). We don't have 'other_attempts' for 5v4 (SH Against) readily available in this dict unless we look at t_stats_5v4['other_attempts'].
+            # Let's check if we want to show standard CF% for PP and PK.
+            # If so, we should calculate them here and pass them as 'home_shot_pct' and 'away_shot_pct'.
+            
+            # PP CF% (5v4)
+            pp_for = t_stats_5v4.get('team_attempts', 0)
+            pp_ag = t_stats_5v4.get('other_attempts', 0)
+            if (pp_for + pp_ag) > 0:
+                st_stats['home_shot_pct'] = 100.0 * pp_for / (pp_for + pp_ag)
+            else:
+                st_stats['home_shot_pct'] = 0.0
+                
+            # PK CF% (4v5) - usually low
+            # We want PK CF% = PK For / (PK For + PK Against)
+            # t_stats_4v5['team_attempts'] is PK For (Shorthanded attempts)
+            # t_stats_4v5['other_attempts'] is PK Against (Power Play attempts against)
+            pk_for = t_stats_4v5.get('team_attempts', 0)
+            pk_ag = t_stats_4v5.get('other_attempts', 0)
+            if (pk_for + pk_ag) > 0:
+                st_stats['away_shot_pct'] = 100.0 * pk_for / (pk_for + pk_ag)
+            else:
+                st_stats['away_shot_pct'] = 0.0
+            
+            # Wait, the Right Column is supposed to be "PK Defense".
+            # Showing "PK CF%" (which is usually ~10-15%) might be confusing if labeled "Shot %".
+            # But consistent with the "Defense" label, maybe we want "CA" (Attempts Against)?
+            # The text block shows:
+            # Goals: X
+            # xG: Y
+            # Attempts: Z
+            # Shot %: W
+            #
+            # If we pass 'away_attempts' as 'other_attempts' (PK Against), then 'Attempts' will show PK Against.
+            # That is correct for "Defense".
+            # But 'Shot %' usually implies "Team Share".
+            # If we want to show "Fenwick Against" or similar, we might need custom text.
+            # But sticking to the standard `add_summary_text` layout:
+            # It displays 'home_shot_pct' and 'away_shot_pct'.
+            # If we pass the CF% calculated above, it will show the Team's CF% in that situation.
+            # For PP, it's high (e.g. 90%).
+            # For PK, it's low (e.g. 10%).
+            # This seems correct and informative.
+            
+            
+            # Get full team name
+            full_team_name = None
+            
+            add_summary_text(
+                ax=ax,
+                stats=st_stats,
+                main_title=f"Special Teams: {team}",
+                is_season_summary=True,
+                team_name=team,
+                filter_str="PP Offense (Left) | PK Defense (Right)"
+            )
+            
+            ax.axis('off')
+            
+            # Colorbar
+            cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+            cbar.set_label('Relative % Change vs League', rotation=270, labelpad=20)
+            cbar.set_ticks([-1.0, -0.5, 0.5, 1.0])
+            import matplotlib.ticker as mticker
+            cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+            
+            out_path = os.path.join(st_out_dir, f'{team}_special_teams_map.png')
+            fig.savefig(out_path, dpi=150, bbox_inches='tight')
+            plt.close(fig)
+            
+        except Exception as e:
+            print(f"Failed to generate Special Teams plot for {team}: {e}")
+
+    print(f"Special Teams plots saved to {st_out_dir}")
 

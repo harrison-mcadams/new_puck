@@ -7,10 +7,12 @@ def test_flyers_players():
     print("Testing analyze.players for Philadelphia Flyers...")
     
     season = '20252026'
-    team = None # 'PHI'
-    player_ids = [8480015] # Travis Konecny (example ID from previous run)
+    #team = None # 'PHI'
+    #player_ids = [8480015]
+    team = 'PHI'
+    player_ids = None # Travis Konecny (example ID from previous run)
     condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
-    out_dir = 'static/test_flyers_players'
+    out_dir = 'static/players/PHI'
     
     # Clean output dir
     if os.path.exists(out_dir):

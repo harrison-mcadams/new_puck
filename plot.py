@@ -582,7 +582,7 @@ def plot_events(
 
     # Determine if this is a season summary for a specific team
     n_games = int(summary_stats.get('n_games', 0)) if summary_stats else 0
-    is_season_summary = (heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None and n_games > 1)
+    is_season_summary = plot_kwargs.get('is_season_summary', (heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None and n_games > 1))
     
     # Prepare arguments for add_summary_text
     text_stats = summary_stats.copy() if summary_stats else {}
@@ -602,12 +602,16 @@ def plot_events(
         text_stats['have_xg'] = False
         
     if is_season_summary:
-        main_title = f"Season Summary for {team_for_heatmap}"
+        # Use main_title if provided (e.g. for player plots), otherwise team name
+        if title:
+            main_title = title
+        else:
+            main_title = f"Season Summary for {team_for_heatmap}"
     else:
         # Ensure we have valid names
         h_name = home_name if home_name else "Home"
         a_name = away_name if away_name else "Away"
-        main_title = f"{h_name} vs {a_name}"
+        main_title = title if title else f"{h_name} vs {a_name}"
         
 
         
@@ -1185,9 +1189,13 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
     
     # Title Logic
     if is_season_summary:
-        # Use full team name if available, otherwise team_name (abbr)
-        display_name = full_team_name if full_team_name else (team_name if team_name else "Team")
-        final_title = display_name
+        # Use main_title if provided (e.g. for player plots), otherwise team name
+        if main_title:
+            final_title = main_title
+        else:
+            # Use full team name if available, otherwise team_name (abbr)
+            display_name = full_team_name if full_team_name else (team_name if team_name else "Team")
+            final_title = display_name
     else:
         # If main_title is provided, use it. Otherwise default to "Home vs Away"
         final_title = main_title if main_title and main_title.strip() != "vs" else "Home vs Away"
@@ -1226,10 +1234,37 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
         rel_def = stats.get('rel_def_pct')
         
         xg60_row = [f"{t60:.3f}", "", "xG/60", "", f"{o60:.3f}"]
+        
+        # Add percentiles if available (e.g. "Top 5%" or "85th %ile")
+        off_pct = stats.get('off_percentile')
+        def_pct = stats.get('def_percentile')
+        
+        # Format helper
+        def fmt_pct(p):
+            if p is None: return ""
+            if p >= 90: return f"Top {100-p:.0f}%"
+            if p <= 10: return f"Bot {p:.0f}%"
+            return f"{p:.0f}%"
+
+        # Combine relative % change and percentile
+        # e.g. "(+10.5%, Top 5%)"
+        
         if rel_off is not None:
-            xg60_row[1] = f"({float(rel_off):+.1f}%)"
+            rel_str = f"{float(rel_off):+.1f}%"
+            if off_pct is not None:
+                s = f"({rel_str}, {fmt_pct(off_pct)})"
+            else:
+                s = f"({rel_str})"
+            xg60_row[1] = s
+            
         if rel_def is not None:
-            xg60_row[3] = f"({float(rel_def):+.1f}%)"
+            rel_str = f"{float(rel_def):+.1f}%"
+            if def_pct is not None:
+                s = f"({rel_str}, {fmt_pct(def_pct)})"
+            else:
+                s = f"({rel_str})"
+            xg60_row[3] = s
+            
         rows.append(xg60_row)
     
     # 3. xG

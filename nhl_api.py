@@ -1199,7 +1199,23 @@ def get_player_details(game_id: Any) -> Dict[int, Dict[str, Any]]:
                                 break
                             except Exception:
                                 pass
-                    if 'fullName' in obj:
+                    
+                    # Extract name from this level if present
+                    fname = obj.get('firstName') or obj.get('first_name')
+                    lname = obj.get('lastName') or obj.get('last_name')
+                    
+                    # Helper to handle localized strings (dict with 'default')
+                    def get_str(val):
+                        if isinstance(val, dict):
+                            return val.get('default')
+                        return val
+
+                    if fname and lname:
+                        fname_str = get_str(fname)
+                        lname_str = get_str(lname)
+                        if fname_str and lname_str:
+                            name = f"{fname_str} {lname_str}"
+                    elif 'fullName' in obj:
                         name = obj.get('fullName')
                 
                 # Extract Number
