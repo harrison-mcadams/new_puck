@@ -67,107 +67,85 @@ def adjust_xy_for_homeaway(df, split_mode: str = 'home_away', team_for_heatmap: 
 
     left_goal_x, right_goal_x = rink_goal_xs()
 
-    # Ensure columns exist to avoid KeyError
+    # Ensure columns exist
     cols = df.columns
-    team_col = 'team_id' if 'team_id' in cols else None
-    home_col = 'home_id' if 'home_id' in cols else None
-    away_col = 'away_id' if 'away_id' in cols else None
-    defend_col = 'home_team_defending_side' if 'home_team_defending_side' in cols else None
+    if 'team_id' not in cols or 'home_id' not in cols or 'away_id' not in cols:
+        # Cannot determine orientation without team info, return as is or handle gracefully
+        return df
 
-    x_vals = df['x'].astype(float) if 'x' in cols else pd.Series([float('nan')] * len(df), index=df.index)
-    y_vals = df['y'].astype(float) if 'y' in cols else pd.Series([float('nan')] * len(df), index=df.index)
-
-    attacked_goal = []
-    desired_goal = []
-
-    for idx, row in df.iterrows():
-        t_id = row.get('team_id') if team_col else None
-        h_id = row.get('home_id') if home_col else None
-        a_id = row.get('away_id') if away_col else None
-        home_def_side = row.get('home_team_defending_side') if defend_col else None
-
-        # determine attacked goal using same logic as parse
-        if t_id is not None and h_id is not None and a_id is not None:
-            if t_id == h_id:
-                # shooter is home -> attacking goal is opposite what home defends
-                if home_def_side == 'left':
-                    ag = right_goal_x
-                elif home_def_side == 'right':
-                    ag = left_goal_x
-                else:
-                    ag = right_goal_x
-            elif t_id == a_id:
-                # shooter is away -> attacking goal is side not defended by home
-                if home_def_side == 'left':
-                    ag = left_goal_x
-                elif home_def_side == 'right':
-                    ag = right_goal_x
-                else:
-                    ag = left_goal_x
-            else:
-                # unknown team -> fallback to right
-                ag = right_goal_x
+    # Vectorized logic
+    # 1. Determine Attacked Goal
+    # Default to right goal
+    attacked_goal = np.full(len(df), right_goal_x)
+    
+    if 'home_team_defending_side' in cols:
+        home_def_left = (df['home_team_defending_side'] == 'left')
+        home_def_right = (df['home_team_defending_side'] == 'right')
+        
+        shooter_is_home = (df['team_id'].astype(str) == df['home_id'].astype(str))
+        shooter_is_away = (df['team_id'].astype(str) == df['away_id'].astype(str))
+        
+        # Logic:
+        # If shooter is home: attacking goal is opposite of home_def_side
+        # If home defends left -> home attacks right
+        # If home defends right -> home attacks left
+        
+        # If shooter is away: attacking goal is same as home_def_side
+        # If home defends left -> away attacks left
+        # If home defends right -> away attacks right
+        
+        # Conditions for attacking LEFT goal:
+        # (Home AND Defends Right) OR (Away AND Defends Left)
+        attacks_left = (shooter_is_home & home_def_right) | (shooter_is_away & home_def_left)
+        
+        attacked_goal = np.where(attacks_left, left_goal_x, right_goal_x)
+    
+    # 2. Determine Desired Goal
+    desired_goal = np.full(len(df), right_goal_x)
+    
+    if split_mode == 'team_not_team' and team_for_heatmap is not None:
+        # Check if shooter is target team
+        # Normalize team_for_heatmap
+        target = str(team_for_heatmap).strip().upper()
+        is_target_team = pd.Series(False, index=df.index)
+        
+        if target.isdigit():
+             is_target_team = (df['team_id'].astype(str) == str(int(target)))
         else:
-            # insufficient info -> assume attacking right (fallback)
-            ag = right_goal_x
+             # Match abbreviation
+             # Check home_abb
+             if 'home_abb' in df.columns:
+                 is_home_target = (df['home_abb'].astype(str).str.upper() == target)
+                 is_target_team |= (is_home_target & (df['team_id'].astype(str) == df['home_id'].astype(str)))
+             
+             # Check away_abb
+             if 'away_abb' in df.columns:
+                 is_away_target = (df['away_abb'].astype(str).str.upper() == target)
+                 is_target_team |= (is_away_target & (df['team_id'].astype(str) == df['away_id'].astype(str)))
+        
+        desired_goal = np.where(is_target_team, left_goal_x, right_goal_x)
+        
+    else:
+        # Legacy home/away
+        # Home -> Left, Away -> Right
+        shooter_is_home = (df['team_id'].astype(str) == df['home_id'].astype(str))
+        desired_goal = np.where(shooter_is_home, left_goal_x, right_goal_x)
 
-        # desired goal depending on split_mode
-        if split_mode == 'team_not_team' and team_for_heatmap is not None:
-            # determine whether this shooter belongs to the target team
-            is_team = False
-            try:
-                # numeric id match
-                if str(team_for_heatmap).strip().isdigit():
-                    is_team = (str(t_id) == str(int(team_for_heatmap)))
-                else:
-                    # try matching abbreviations
-                    if 'home_abb' in df.columns and str(row.get('home_abb')).upper() == str(team_for_heatmap).upper():
-                        is_team = (t_id is not None and str(t_id) == str(row.get('home_id')))
-                    if not is_team and 'away_abb' in df.columns and str(row.get('away_abb')).upper() == str(team_for_heatmap).upper():
-                        is_team = (t_id is not None and str(t_id) == str(row.get('away_id')))
-            except Exception:
-                is_team = False
-            if is_team:
-                dg = left_goal_x
-            else:
-                dg = right_goal_x
-        else:
-            # legacy home/away: desired goal depending on whether shooter is home or away
-            if t_id is not None and h_id is not None:
-                if str(t_id) == str(h_id):
-                    dg = left_goal_x
-                elif str(t_id) == str(a_id):
-                    dg = right_goal_x
-                else:
-                    dg = right_goal_x
-            else:
-                dg = right_goal_x
-
-        attacked_goal.append(ag)
-        desired_goal.append(dg)
-
-    attacked_goal = pd.Series(attacked_goal, index=df.index)
-    desired_goal = pd.Series(desired_goal, index=df.index)
-
-    # compute adjusted coordinates
-    x_a = []
-    y_a = []
-    for xi, yi, ag, dg in zip(x_vals, y_vals, attacked_goal, desired_goal):
-        try:
-            if pd.isna(xi) or pd.isna(yi):
-                x_a.append(float('nan'))
-                y_a.append(float('nan'))
-            else:
-                if ag == dg:
-                    x_a.append(xi)
-                    y_a.append(yi)
-                else:
-                    # rotate 180 degrees: (x,y) -> (-x, -y)
-                    x_a.append(-float(xi))
-                    y_a.append(-float(yi))
-        except Exception:
-            x_a.append(float('nan'))
-            y_a.append(float('nan'))
+    # 3. Adjust Coordinates
+    # If attacked != desired, flip
+    flip_mask = (attacked_goal != desired_goal)
+    
+    # Use numpy for speed
+    x_vals = df['x'].astype(float).values
+    y_vals = df['y'].astype(float).values
+    
+    x_a = np.where(flip_mask, -x_vals, x_vals)
+    y_a = np.where(flip_mask, -y_vals, y_vals)
+    
+    df['x_a'] = x_a
+    df['y_a'] = y_a
+    
+    return df
 
     df = df.copy()
     df['x_a'] = pd.Series(x_a, index=df.index)

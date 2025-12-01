@@ -1,0 +1,15 @@
+# The season analysis routine has gotten ridiculously unweildy. let's rewrite it, acknowledging that our outputs are generally what we want
+
+# First up, analyze.league(). this routine takes in a 'season' and a conditin variable. within that season, it loops over all teams and all games played by that teams
+# the goal of looping over all teams is to generate this baseline.npy (and associated map). however, we're also looping over all teams and so we can let that do a bit of extra work for us. given we're looping oevr all teams, let's save out a variable that corresponds to the heatmap for that condition for that team. let's also extract all of the relevant summary stats for that team.
+# once we have looped over all teams, we'll of course save out the baseline.npy (and associated map) and the summary stats for that condition. but we'll also save out the big team_summary outputs (like the team_summary.csv and .json).
+
+# with the league analysis all accomplished, we can do the team-wise analysis within analyze.season(), which takes in season, team, and condition. i want the routine here to have flexibility. either it will load up the saved out variables previously saved out with league(). or it will re-generate them itself if asked. the routine will then save out per team the xg_map.png, the relative_map.png (with percentiles calculated from the previous league() output, not regenerated on the fly)
+# it's important we nail down the summary text. they should be the same between the xg_map.png and the relative.png, except the relative.png should include the percentiles.
+# we've also had to do a lot of thinking about 'state', left-right map flipping, and so on. let's build off all of the effort already working in that direction.
+# this team-based analysis should also be able to save out the SpecialTeams map as previously discussed.
+
+# overarching principles: the code should be clean and efficient. it should be readable and organized. this routine can get a little wonky running over a lot of data, so make sure we're handling that sensible.
+# the routine should also produce all output (at least for a small subset of teams), and visually inspect the output to make sure that everything (all stats, all lines of text) are working as desired.
+
+# we are starting a new from scratch, so let's make this routine much more effective.
