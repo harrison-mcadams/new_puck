@@ -696,6 +696,10 @@ def league(season: str = '20252026',
         team_cond['team'] = team
         
         try:
+            # Calculate robust timing first
+            timing_res = timing.compute_game_timing(df_season, team_cond)
+            t_seconds = timing_res.get('total_seconds', 0.0)
+            
             # Call xgs_map with heatmap_only=True for efficiency
             # We need raw heatmaps (counts), not normalized yet
             # xgs_map returns: out_path, heatmaps, df, stats
@@ -705,6 +709,7 @@ def league(season: str = '20252026',
                 condition=team_cond,
                 return_heatmaps=True,
                 heatmap_only=True, # Skip plotting
+                total_seconds=t_seconds, # Pass robust timing
                 show=False
             )
             
@@ -1394,12 +1399,17 @@ def season(season: str = '20252026',
         team_cond = condition.copy() if condition else {}
         team_cond['team'] = team
         
+        # Calculate robust timing
+        timing_res = timing.compute_game_timing(df_season, team_cond)
+        t_seconds = timing_res.get('total_seconds', 0.0)
+        
         _, heatmaps, _, stats = xgs_map(
             season=season,
             data_df=df_season,
             condition=team_cond,
             return_heatmaps=True,
             heatmap_only=True,
+            total_seconds=t_seconds,
             show=False
         )
         if heatmaps:
