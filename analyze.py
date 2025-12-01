@@ -698,7 +698,7 @@ def league(season: str = '20252026',
         try:
             # Calculate robust timing first
             timing_res = timing.compute_game_timing(df_season, team_cond)
-            t_seconds = timing_res.get('total_seconds', 0.0)
+            t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
             
             # Call xgs_map with heatmap_only=True for efficiency
             # We need raw heatmaps (counts), not normalized yet
@@ -1401,7 +1401,7 @@ def season(season: str = '20252026',
         
         # Calculate robust timing
         timing_res = timing.compute_game_timing(df_season, team_cond)
-        t_seconds = timing_res.get('total_seconds', 0.0)
+        t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
         
         _, heatmaps, _, stats = xgs_map(
             season=season,
@@ -1622,6 +1622,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
               sigma: float = 6.0,
               normalize_per60: bool = False,
               selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None,
+              total_seconds: Optional[float] = None,
               # new interval filtering behavior
               use_intervals: bool = True,
               intervals_input: Optional[dict] = None,
