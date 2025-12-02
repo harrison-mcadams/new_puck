@@ -293,6 +293,10 @@
     <div class="card">
       <div class="card-header">
         <h2>League Summary ({{ game_state }})</h2>
+        <div style="float:right;">
+          <a href="{{ url_for('team_maps', season=season, game_state=game_state) }}"
+            style="font-size:0.9rem; color:var(--primary-color); text-decoration:none;">View Team Maps &rarr;</a>
+        </div>
       </div>
       <div class="card-body">
         {% if stats %}
