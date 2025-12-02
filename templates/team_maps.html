@@ -214,6 +214,8 @@
                 class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
             <a href="{{ url_for('team_maps', season=season, game_state='4v5') }}"
                 class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
+            <a href="{{ url_for('team_maps', season=season, game_state='SpecialTeams') }}"
+                class="tab {% if game_state == 'SpecialTeams' %}active{% endif %}">Special Teams</a>
         </div>
 
         <h2 style="margin-bottom: 1.5rem;">Relative Maps ({{ game_state }})</h2>

@@ -258,6 +258,25 @@
         white-space: nowrap;
       }
     }
+
+    .btn {
+      padding: 0.5rem 1.2rem;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      font-size: 0.9rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+    }
   </style>
 </head>
 
@@ -280,23 +299,28 @@
   <main class="app-container">
 
     <!-- Tabs -->
-    <div class="tabs">
-      <a href="{{ url_for('league_stats', season=season, game_state='5v5') }}"
-        class="tab {% if game_state == '5v5' %}active{% endif %}">5v5</a>
-      <a href="{{ url_for('league_stats', season=season, game_state='5v4') }}"
-        class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
-      <a href="{{ url_for('league_stats', season=season, game_state='4v5') }}"
-        class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
+    <div
+      style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color);">
+      <div class="tabs" style="margin-bottom:0; border-bottom:none;">
+        <a href="{{ url_for('league_stats', season=season, game_state='5v5') }}"
+          class="tab {% if game_state == '5v5' %}active{% endif %}">5v5</a>
+        <a href="{{ url_for('league_stats', season=season, game_state='5v4') }}"
+          class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
+        <a href="{{ url_for('league_stats', season=season, game_state='4v5') }}"
+          class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
+        <a href="{{ url_for('league_stats', season=season, game_state='SpecialTeams') }}"
+          class="tab {% if game_state == 'SpecialTeams' %}active{% endif %}">Special Teams</a>
+      </div>
+      <div>
+        <a href="{{ url_for('team_maps', season=season, game_state=game_state) }}" class="btn btn-primary"
+          style="text-decoration:none; display:inline-block; line-height:1.5;">View Team Maps</a>
+      </div>
     </div>
 
     <!-- Summary Table -->
     <div class="card">
       <div class="card-header">
         <h2>League Summary ({{ game_state }})</h2>
-        <div style="float:right;">
-          <a href="{{ url_for('team_maps', season=season, game_state=game_state) }}"
-            style="font-size:0.9rem; color:var(--primary-color); text-decoration:none;">View Team Maps &rarr;</a>
-        </div>
       </div>
       <div class="card-body">
         {% if stats %}

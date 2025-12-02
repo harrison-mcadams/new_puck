@@ -164,7 +164,7 @@
             </div>
             <nav>
                 <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
-                <a href="{{ url_for('league_stats') }}" class="nav-link active">League Stats</a>
+                <a href="{{ url_for('league_stats') }}" class="nav-link active">League</a>
             </nav>
         </div>
     </header>
@@ -172,7 +172,7 @@
     <main class="app-container">
 
         <div class="breadcrumbs">
-            <a href="{{ url_for('league_stats', season=season, game_state=game_state) }}">League Stats ({{ game_state
+            <a href="{{ url_for('league_stats', season=season, game_state=game_state) }}">League ({{ game_state
                 }})</a> &gt; {{ team }}
         </div>
 
