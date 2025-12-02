@@ -1220,9 +1220,7 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
         # Format helper
         def fmt_pct(p):
             if p is None: return ""
-            if p >= 90: return f"Top {100-p:.0f}%"
-            if p <= 10: return f"Bot {p:.0f}%"
-            return f"{p:.0f}%"
+            return f"{p:.0f}%tile"
 
         # Combine relative % change and percentile
         # e.g. "(+10.5%, Top 5%)"

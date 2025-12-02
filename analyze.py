@@ -259,6 +259,10 @@ def players(season: str = '20252026',
             # Use p_team for filename if available
             p_out_path = os.path.join(out_dir, f"{p_team or 'UNK'}_{pid}_map.png")
             
+            # Calculate robust timing for player
+            timing_res = timing.compute_game_timing(p_df, p_cond)
+            t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
+
             _, ret_heat, _, p_stats = xgs_map(
                 season=season,
                 data_df=p_df,
@@ -266,6 +270,7 @@ def players(season: str = '20252026',
                 out_path=None, # Don't save yet, we'll save manually with correct summary text
                 return_heatmaps=True,
                 show=False,
+                total_seconds=t_seconds,
                 use_intervals=True, # Force interval filtering to get On-Ice data
                 title=pname
             )
@@ -481,8 +486,6 @@ def players(season: str = '20252026',
                             # It returns them.
                             # xgs_map captures them: result = plot_events(...)
                             # But xgs_map does NOT return the figure in its return statement if return_heatmaps is True?
-                            # Let's check xgs_map return logic again.
-                            # It seems xgs_map swallows the figure if return_heatmaps is True.
                             # That's annoying.
                             
                             # We can modify xgs_map to return the figure?
@@ -905,7 +908,7 @@ def calculate_shot_attempts(df: pd.DataFrame, team_val: str) -> dict:
     return stats
 
 
-def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map, other_seconds, baseline_threshold=1e-6, league_baseline_right=None):
+def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map, other_seconds, baseline_threshold=1e-6, league_baseline_right=None, metric='diff'):
     """
     Compute the relative xG map (Team vs League and Defense vs League).
     
@@ -915,7 +918,9 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
         team_seconds: Total seconds for team normalization.
         other_map: Raw other heatmap (defense).
         other_seconds: Total seconds for other normalization.
-        baseline_threshold: Threshold to avoid division by zero.
+        baseline_threshold: Threshold to avoid division by zero (used for pct metric).
+        league_baseline_right: Optional right-oriented baseline.
+        metric: 'diff' for (Team - League), 'pct' for (Team - League) / League.
         
     Returns:
         tuple: (combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60)
@@ -947,8 +952,7 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
         # Fallback: Flip Left baseline
         league_baseline_right_use = np.fliplr(league_baseline_left)
 
-    # 3. Compute % Change Relative to Baseline
-    # Formula: (Team - League) / League
+    # 3. Compute Relative Map
     
     # Grid setup
     gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
@@ -967,24 +971,38 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     
     with np.errstate(divide='ignore', invalid='ignore'):
         # Left Side: Offense vs League Left
-        denom_l = np.maximum(league_baseline_left, baseline_threshold)
-        rel_l = (team_map_norm - league_baseline_left) / denom_l
+        diff_l = team_map_norm - league_baseline_left
         
-        has_signal_l = (team_map_norm > baseline_threshold) | (league_baseline_left > baseline_threshold)
+        if metric == 'pct':
+            denom_l = np.maximum(league_baseline_left, baseline_threshold)
+            rel_l = diff_l / denom_l
+            has_signal_l = (team_map_norm > baseline_threshold) | (league_baseline_left > baseline_threshold)
+        else:
+            # metric == 'diff'
+            rel_l = diff_l
+            # For diff, we don't necessarily need a signal threshold, but keeping it clean for zero areas might be good.
+            # However, diff is valid everywhere. Let's just use mask_left.
+            has_signal_l = np.ones_like(diff_l, dtype=bool) 
+        
         valid_l = mask_left & has_signal_l
-        
         combined_rel_map[valid_l] = rel_l[valid_l]
         
         # Right Side: Defense vs League Right
-        denom_r = np.maximum(league_baseline_right_use, baseline_threshold)
-        rel_r = (other_map_norm - league_baseline_right_use) / denom_r
+        diff_r = other_map_norm - league_baseline_right_use
         
-        has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right_use > baseline_threshold)
+        if metric == 'pct':
+            denom_r = np.maximum(league_baseline_right_use, baseline_threshold)
+            rel_r = diff_r / denom_r
+            has_signal_r = (other_map_norm > baseline_threshold) | (league_baseline_right_use > baseline_threshold)
+        else:
+            # metric == 'diff'
+            rel_r = diff_r
+            has_signal_r = np.ones_like(diff_r, dtype=bool)
+            
         valid_r = mask_right & has_signal_r
-        
         combined_rel_map[valid_r] = rel_r[valid_r]
 
-    # Calculate aggregate relative stats
+    # Calculate aggregate relative stats (always xG/60 diff and %)
     team_xg_per60 = np.nansum(team_map_norm)
     other_xg_per60 = np.nansum(other_map_norm)
     league_avg_xg_per60 = np.nansum(league_baseline_left)
@@ -1115,14 +1133,20 @@ def generate_relative_maps(season, condition_name, out_dir, summary_data):
             draw_rink(ax=ax)
             
             # Determine vmin/vmax
-            vmax = np.nanmax(np.abs(combined_rel_map))
-            if vmax > 3.0: vmax = 3.0 # Cap at 300%
+            # For diff metric, use SymLogNorm to show low-density structure.
+            # 50th %ile is ~1e-6, 80th is ~1.7e-5. Max is ~1e-3.
+            # linthresh=1e-5 seems appropriate.
+            
+            from matplotlib.colors import SymLogNorm
+            norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-0.0006, vmax=0.0006, base=10)
             
             # Custom locking for 5v5
             cbar_ticks = None
             if condition_name == '5v5':
-                vmax = 1.2 # +/- 120% (100% + 20% wiggle room)
-                cbar_ticks = [-1.0, -0.5, 0.5, 1.0]
+               # Ticks for log scale: +/- 1e-5, 1e-4, 6e-4
+               # We want human readable labels
+               cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
+               cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
 
             # Grid extent (hardcoded or passed? season() had gx, gy)
             # We need gx, gy to define extent.
@@ -1163,7 +1187,7 @@ def generate_relative_maps(season, condition_name, out_dir, summary_data):
                 pass
             
             m = np.ma.masked_invalid(combined_rel_map)
-            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax)
+            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
             
             # Text Stats
             text_stats = row.copy()
@@ -1188,10 +1212,12 @@ def generate_relative_maps(season, condition_name, out_dir, summary_data):
             
             # Colorbar
             cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-            cbar.set_label('Relative % Change vs League', rotation=270, labelpad=20)
+            cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
             if cbar_ticks:
                 cbar.set_ticks(cbar_ticks)
-            cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+            if cbar_ticklabels:
+                cbar.ax.set_yticklabels(cbar_ticklabels)
+            # cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0)) # No longer percent
             
             relative_map_path = os.path.join(out_dir, f'{team}_relative_map.png')
             fig.savefig(relative_map_path, dpi=150, bbox_inches='tight')
@@ -1402,6 +1428,7 @@ def season(season: str = '20252026',
         # Calculate robust timing
         timing_res = timing.compute_game_timing(df_season, team_cond)
         t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
+        print(f"DEBUG: analyze.season t_seconds={t_seconds}")
         
         _, heatmaps, _, stats = xgs_map(
             season=season,
@@ -1505,7 +1532,7 @@ def season(season: str = '20252026',
     # We can just plot the binned map.
     
     # Helper to plot map
-    def _plot_map(heatmap, title, filename, is_relative=False, relative_baseline=None):
+    def _plot_map(heatmap, title, filename, is_relative=False, relative_baseline=None, cbar_ticklabels=None):
         fig, ax = plt.subplots(figsize=(10, 5))
         draw_rink(ax=ax)
         
@@ -1519,8 +1546,19 @@ def season(season: str = '20252026',
         
         if is_relative:
             cmap = plt.get_cmap('RdBu_r')
-            vmax = 1.2
-            vmin = -1.2
+            
+            # Use SymLogNorm for diff metric to enhance contrast
+            from matplotlib.colors import SymLogNorm
+            # Default vmax
+            vmax = 0.0006
+            # Fixed scale for ALL conditions to ensure consistency
+            cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
+            cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
+            
+            norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-vmax, vmax=vmax, base=10)
+            vmin = None # Handled by norm
+            vmax = None # Handled by norm
+            
             # Compute relative map
             # We need compute_relative_map logic here if not passed
             m = heatmap # Assumed passed as relative
@@ -1542,7 +1580,10 @@ def season(season: str = '20252026',
              try: cmap.set_bad(color=(1,1,1,0)) 
              except: pass
         
-        im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax)
+        if is_relative:
+            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
+        else:
+            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax)
         
         # Text
         cond_str = str(condition) if condition else ""
@@ -1560,9 +1601,9 @@ def season(season: str = '20252026',
         # Colorbar
         cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
         if is_relative:
-            cbar.set_label('Relative % Change', rotation=270, labelpad=20)
+            cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
             import matplotlib.ticker as mticker
-            cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+            # cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
         else:
             cbar.set_label('xG per 60', rotation=270, labelpad=20)
             
@@ -1579,14 +1620,17 @@ def season(season: str = '20252026',
     if league_map is not None:
         combined_rel_map, rel_off_pct, rel_def_pct, _, _ = compute_relative_map(
             team_map, league_map, seconds, other_map, seconds,
-            league_baseline_right=league_map_right
+            league_baseline_right=league_map_right,
+            metric='diff'
         )
         
         # Update stats with relative pcts
         stats['rel_off_pct'] = rel_off_pct
         stats['rel_def_pct'] = rel_def_pct
         
-        _plot_map(combined_rel_map, f"{team} Relative xG", f"{team}_relative.png", is_relative=True)
+        cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
+        
+        _plot_map(combined_rel_map, f"{team} Relative xG", f"{team}_relative.png", is_relative=True, cbar_ticklabels=cbar_ticklabels)
         
         # Save combined relative map for Special Teams stitching
         # We need to save it as .npy
@@ -1628,6 +1672,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
               intervals_input: Optional[dict] = None,
               title: Optional[str] = None,
               interval_time_col: str = 'total_time_elapsed_seconds'):
+    
     """Create an xG density map for a season and save a plot.
 
     This function is intentionally written as a clear sequence of steps with
@@ -2541,14 +2586,16 @@ def xgs_map(season: Optional[str] = '20252026', *,
             # Compute 'team' heatmap
             _, _, heat_team, _, _ = compute_xg_heatmap_from_df(
                 df_adj, grid_res=grid_res, sigma=sigma,
-                selected_team=team_val, selected_role='team'
+                selected_team=team_val, selected_role='team',
+                total_seconds=total_seconds
             )
             heatmaps['team'] = heat_team
             
             # Compute 'other' heatmap
             _, _, heat_other, _, _ = compute_xg_heatmap_from_df(
                 df_adj, grid_res=grid_res, sigma=sigma,
-                selected_team=team_val, selected_role='other'
+                selected_team=team_val, selected_role='other',
+                total_seconds=total_seconds
             )
             heatmaps['other'] = heat_other
             
@@ -2584,7 +2631,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
                  
         else: # orient_all_left
              _, _, heat, _, _ = compute_xg_heatmap_from_df(
-                df_adj, grid_res=grid_res, sigma=sigma
+                df_adj, grid_res=grid_res, sigma=sigma,
+                total_seconds=total_seconds
             )
              heatmaps = heat
              
@@ -2807,6 +2855,7 @@ def compute_xg_heatmap_from_df(
             total_seconds_used = None
 
     if total_seconds_used is None:
+        print(f"DEBUG: xgs_map total_seconds_used is None, inferring...")
         # try to infer from a timing column present in the dataframe
         try:
             times = pd.to_numeric(df_work.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
@@ -3880,7 +3929,11 @@ def generate_special_teams_plot(season, teams, out_dir):
             gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
             extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
             
-            vmax = 1.2 # +/- 120%
+            # Use SymLogNorm for diff metric to enhance contrast (same as 5v5)
+            from matplotlib.colors import SymLogNorm
+            vmax = 0.0006
+            norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-vmax, vmax=vmax, base=10)
+            
             cmap = plt.get_cmap('RdBu_r')
             try:
                 cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
@@ -3888,7 +3941,7 @@ def generate_special_teams_plot(season, teams, out_dir):
                 pass
                 
             m = np.ma.masked_invalid(combined_st)
-            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, vmin=-vmax, vmax=vmax)
+            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
             
             # Summary Text
             # Try to load individual summary for percentiles
@@ -3964,11 +4017,14 @@ def generate_special_teams_plot(season, teams, out_dir):
             ax.axis('off')
             
             # Colorbar
+            # Colorbar
+            cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
+            cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
+            
             cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-            cbar.set_label('Relative % Change vs League', rotation=270, labelpad=20)
-            cbar.set_ticks([-1.0, -0.5, 0.5, 1.0])
-            import matplotlib.ticker as mticker
-            cbar.ax.yaxis.set_major_formatter(mticker.PercentFormatter(xmax=1.0))
+            cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
+            cbar.set_ticks(cbar_ticks)
+            cbar.ax.set_yticklabels(cbar_ticklabels)
             
             out_path = os.path.join(st_out_dir, f'{team}_special_teams_map.png')
             fig.savefig(out_path, dpi=150, bbox_inches='tight')

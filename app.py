@@ -245,9 +245,10 @@ def league_stats():
     season = request.args.get('season', '20252026')
     game_state = request.args.get('game_state', '5v5')
     
-    # Load summary from static/league_stats/{season}/{game_state}/summary.json
-    summary_path = os.path.join(app.static_folder or "static", "league_stats", season, game_state, "summary.json")
-    scatter_path = f"league_stats/{season}/{game_state}/scatter.png"
+    # Load summary from static/league/{season}/{game_state}/{season}_team_summary.json
+    # Note: run_league_stats.py saves to static/league/{season}/{game_state}
+    summary_path = os.path.join(app.static_folder or "static", "league", season, game_state, f"{season}_team_summary.json")
+    scatter_path = f"league/{season}/{game_state}/scatter.png"
     
     stats = []
     if os.path.exists(summary_path):
@@ -260,13 +261,56 @@ def league_stats():
     return render_template("league_stats.html", stats=stats, season=season, game_state=game_state, scatter_img=scatter_path)
 
 
+@app.route("/team_maps")
+def team_maps():
+    """Render the gallery of team relative maps."""
+    import glob
+    
+    # Get query parameters
+    season = request.args.get('season', '20252026')
+    game_state = request.args.get('game_state', '5v5')
+    
+    # Directory where maps are stored
+    maps_dir = os.path.join(app.static_folder or "static", "league", season, game_state)
+    
+    teams_data = []
+    
+    # We can use the summary json to get the list of teams, or just glob the files.
+    # Summary json is safer to get the list of valid teams.
+    summary_path = os.path.join(maps_dir, f"{season}_team_summary.json")
+    
+    if os.path.exists(summary_path):
+        try:
+            with open(summary_path, 'r') as f:
+                summary = json.load(f)
+                # Filter out 'League' entry if present
+                teams = sorted([row['team'] for row in summary if row.get('team') != 'League'])
+                
+                for team in teams:
+                    # Check if map exists
+                    # Map filename: {team}_relative_map.png
+                    map_filename = f"{team}_relative_map.png"
+                    map_path = os.path.join(maps_dir, map_filename)
+                    
+                    if os.path.exists(map_path):
+                        teams_data.append({
+                            'name': team,
+                            'map_url': f"league/{season}/{game_state}/{map_filename}"
+                        })
+        except Exception as e:
+            logger.error(f"Failed to load teams for maps: {e}")
+    
+    return render_template("team_maps.html", teams=teams_data, season=season, game_state=game_state)
+
+
 @app.route("/team_stats/<season>/<game_state>/<team>")
 def team_stats(season, game_state, team):
     """Render the team statistics page with relative map."""
     
     # Construct paths
-    # Map is at static/league_stats/{season}/{game_state}/{team}_relative_map.png
-    relative_map = f"league_stats/{season}/{game_state}/{team}_relative_map.png"
+    # Construct paths
+    # Map is at static/league/{season}/{game_state}/{team}_relative_map.png
+    relative_map = f"league/{season}/{game_state}/{team}_relative_map.png"
     
     # We might want to pass some stats too, but for now just the map
     # We could load the summary.json to get stats for this team if needed

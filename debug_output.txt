@@ -1,0 +1,18 @@
+Running season analysis for 20252026 with conditions: ['5v5', '5v4', '4v5']
+
+=== Processing Condition: 5v5 ===
+league: loading baseline from static/league/20252026/5v5/20252026_league_baseline.npy
+--- Team Analysis (5v5) for 1 teams ---
+
+=== Processing Condition: 5v4 ===
+league: loading baseline from static/league/20252026/5v4/20252026_league_baseline.npy
+--- Team Analysis (5v4) for 1 teams ---
+
+=== Processing Condition: 4v5 ===
+league: loading baseline from static/league/20252026/4v5/20252026_league_baseline.npy
+--- Team Analysis (4v5) for 1 teams ---
+
+=== Generating Special Teams Plots ===
+Generating Special Teams plots for 1 teams...
+Special Teams plots saved to static/league/20252026/SpecialTeams
+Season analysis complete.

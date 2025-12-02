@@ -18,8 +18,64 @@ if __name__ == '__main__':
     
     print(f"Running season analysis for {season} with conditions: {list(conditions.keys())}")
     
+    # ==========================================
+    # CONFIGURATION
+    # ==========================================
+    
+    # REGENERATE_PLOTS_ONLY:
+    #   False (Default): Full Re-computation.
+    #       - Loads raw season dataframe (e.g. data/20252026/20252026.csv).
+    #       - Re-calculates game timing, xG values, and spatial maps for every team.
+    #       - Saves new intermediate files (.npz) and summary stats.
+    #       - Generates all plots.
+    #       - USE WHEN: You have new game data or have changed calculation logic (e.g. xG model, timing).
+    #
+    #   True: Plotting Only (Fast).
+    #       - Skips all heavy calculation.
+    #       - Loads existing intermediate data from static/league/{season}/{condition}/intermediates/.
+    #       - Re-runs only the plotting functions (heatmaps, scatter plots).
+    #       - USE WHEN: You are tweaking plot aesthetics (colors, labels, text, titles) and the data is already correct.
     REGENERATE_PLOTS_ONLY = False 
+    
+    # target_teams:
+    #   None (Default): Process all teams found in the season data.
+    #   ['ANA', 'BOS']: Process only specific teams. Useful for quick testing.
+    #   NOTE: For relative maps, you generally need a full league run to get a valid league baseline.
+    #         If running a subset, the baseline will be calculated from ONLY that subset.
     target_teams = None
+    
+    # UPDATE_DATA:
+    #   False (Default): Use existing data on disk.
+    #   True: Force a fresh fetch of season data from the NHL API before running analysis.
+    #         - Calls parse._scrape with use_cache=False.
+    #         - Updates data/{season}/{season}.csv.
+    #         - Useful for getting the latest games.
+    UPDATE_DATA = False
+
+    def update_data(season: str):
+        """
+        Helper to force a fresh fetch of season data from the NHL API.
+        Updates the season CSV and other necessary files.
+        """
+        print(f"update_data: Fetching fresh data for season {season}...")
+        import parse
+        
+        # parse._scrape handles fetching raw feeds, processing them, and saving the elaborated CSV.
+        # We set use_cache=False to force fresh API calls.
+        # We set process_elaborated=True and save_elaborated=True to generate the season.csv.
+        parse._scrape(
+            season=season,
+            out_dir='data',
+            use_cache=False,
+            process_elaborated=True,
+            save_elaborated=True,
+            return_elaborated_df=False,
+            verbose=True
+        )
+        print(f"update_data: Completed update for {season}.")
+
+    if UPDATE_DATA:
+        update_data(season)
     
     # Get team list
     import json
@@ -78,6 +134,20 @@ if __name__ == '__main__':
                     condition=cond,
                     league_data=league_res
                 )
+            
+            # 3. Scatter Plot
+            print(f"Generating scatter plot for {cond_name}...")
+            # We need the summary list again. It might have been updated by season() if we were tracking it,
+            # but season() writes to disk.
+            # analyze.generate_scatter_plot reads from disk if we pass summary_list?
+            # No, generate_scatter_plot takes summary_list as arg.
+            # league_res['summary'] has the initial summary.
+            # But season() updates stats (like percentiles).
+            # However, scatter plot only needs xGF/60 and xGA/60 which are in league_res['summary'] usually?
+            # Wait, league_res['summary'] comes from analyze.league().
+            # analyze.league() computes them.
+            # So we can use league_res['summary'].
+            analyze.generate_scatter_plot(league_res.get('summary', []), f'static/league/{season}/{cond_name}', cond_name)
                 
         print("\n=== Generating Special Teams Plots ===")
         # We need the base output directory where 5v4/4v5 folders are
