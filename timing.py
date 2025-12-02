@@ -1054,7 +1054,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
         pooled_seconds_per_condition[str(key)] = sum((e - s) for s, e in merged) if merged else 0.0
 
     # intersect across condition keys to find times where ALL conditions hold
-    intersection_list_of_lists = [intervals_per_condition[k] for k in intervals_per_condition.keys() if intervals_per_condition.get(k)]
+    intersection_list_of_lists = [intervals_per_condition[k] for k in intervals_per_condition.keys()]
     if intersection_list_of_lists:
         inter = _intersect_multiple(intersection_list_of_lists)
     else:
