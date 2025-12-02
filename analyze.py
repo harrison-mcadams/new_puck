@@ -1140,13 +1140,11 @@ def generate_relative_maps(season, condition_name, out_dir, summary_data):
             from matplotlib.colors import SymLogNorm
             norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-0.0006, vmax=0.0006, base=10)
             
-            # Custom locking for 5v5
-            cbar_ticks = None
-            if condition_name == '5v5':
-               # Ticks for log scale: +/- 1e-5, 1e-4, 6e-4
-               # We want human readable labels
-               cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
-               cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
+            # Custom locking for ALL conditions
+            # Ticks for log scale: +/- 1e-5, 1e-4, 6e-4
+            # We want human readable labels
+            cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
+            cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
 
             # Grid extent (hardcoded or passed? season() had gx, gy)
             # We need gx, gy to define extent.
@@ -3942,6 +3940,15 @@ def generate_special_teams_plot(season, teams, out_dir):
                 
             m = np.ma.masked_invalid(combined_st)
             im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
+            
+            # Colorbar with human readable labels
+            cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
+            cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
+            
+            cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+            cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
+            cbar.set_ticks(cbar_ticks)
+            cbar.ax.set_yticklabels(cbar_ticklabels)
             
             # Summary Text
             # Try to load individual summary for percentiles
