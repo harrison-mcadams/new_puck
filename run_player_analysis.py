@@ -35,12 +35,8 @@ def run_analysis():
     # --- PASS 1: Calculate Stats (Game-Centric Optimization) ---
     master_csv_path = os.path.join(league_out_dir, 'league_player_stats.csv')
     
-    if os.path.exists(master_csv_path):
-        print(f"\n--- PASS 1: Skipped (Found existing stats at {master_csv_path}) ---")
-        df_master = pd.read_csv(master_csv_path)
-        print(f"Loaded {len(df_master)} players from CSV.")
-        all_player_stats = df_master.to_dict('records')
-    else:
+    # Incremental Caching Enabled: Always run Pass 1 loop, which checks per-game cache.
+    if True:
         print("\n--- PASS 1: Calculating Player Stats (Game-Centric) ---")
         all_player_stats = []
         
@@ -73,93 +69,84 @@ def run_analysis():
                     j += 1
             return res
 
+        # Cache Directory for Player Game Stats
+        cache_dir = os.path.join('data', season, 'game_stats_player')
+        os.makedirs(cache_dir, exist_ok=True)
+
         for i, game_id in enumerate(game_ids):
             if (i+1) % 10 == 0:
                 print(f"Processing game {i+1}/{len(game_ids)}: {game_id}...")
-                
+            
+            cache_file = os.path.join(cache_dir, f"{game_id}.json")
+            
+            # Check Cache
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, 'r') as f:
+                        cached_stats = json.load(f)
+                        all_player_stats.extend(cached_stats)
+                        # print(f"Loaded {len(cached_stats)} stats from cache for game {game_id}")
+                        continue
+                except Exception as e:
+                    print(f"Failed to load cache for {game_id}, recalculating: {e}")
+
+            # --- Calculation (if not cached) ---
+            
             # 1. Load Shifts for Game (Once)
             # Use timing._get_shifts_df which now has in-memory caching
             df_shifts = timing._get_shifts_df(int(game_id))
             if df_shifts.empty:
+                # Cache empty result to avoid re-processing empty games?
+                # Yes, save empty list.
+                with open(cache_file, 'w') as f:
+                    json.dump([], f)
                 continue
                 
             # 2. Compute Common 5v5 Intervals (Once)
-            # This uses the exact same logic as analyze.players -> timing.compute_game_timing
-            # We pass the condition to get the 5v5 intervals for this game.
-            # Note: compute_intervals_for_game handles "Away" logic if 'team' is in condition.
-            # Here we want global 5v5, so we don't pass 'team'.
-            game_intervals_res = timing.compute_intervals_for_game(game_id, condition)
-            
-            # Extract the 5v5 intervals
-            # The structure is {'intervals_per_condition': {'game_state': [...]}}
-            # If we had multiple conditions they would be intersected.
-            # Here we just have game_state='5v5' and is_net_empty=0
-            # compute_intervals_for_game intersects them automatically if they are in the condition dict.
-            # However, compute_intervals_for_game returns 'intersection_intervals' which is the intersection of ALL conditions passed.
-            common_intervals = game_intervals_res.get('intersection_intervals', [])
+            # Use shared interval cache
+            common_intervals = timing.get_game_intervals_cached(game_id, season, condition)
             
             if not common_intervals:
+                with open(cache_file, 'w') as f:
+                    json.dump([], f)
                 continue
                 
             # 3. Identify Players in Game
-            # We can get players from the shift chart
             players_in_game = df_shifts['player_id'].unique()
-            
-            # We also need to know which team each player is on for this game to calculate xG For/Against correctly
-            # We can get this from the shift chart too
-            # Create a map: pid -> team_id
-            # We can use the first row for each player
             p_team_map = df_shifts.groupby('player_id')['team_id'].first().to_dict()
+            
+            game_player_stats = []
             
             # 4. Process Each Player
             for pid in players_in_game:
                 try:
                     # Intersect player's shifts with common 5v5 intervals
-                    # Get player's shifts
                     p_shifts_df = df_shifts[df_shifts['player_id'] == pid]
                     if p_shifts_df.empty:
                         continue
                     
-                    # Convert player shifts to list of (start, end)
                     p_intervals = list(zip(p_shifts_df['start_total_seconds'], p_shifts_df['end_total_seconds']))
-                    
-                    # Intersect
                     final_intervals = _intersect_intervals(common_intervals, p_intervals)
                     
                     if not final_intervals:
                         continue
                     
-                    # Calculate TOI
                     toi = sum(e - s for s, e in final_intervals)
                     if toi <= 0:
                         continue
                     
-                    # Construct intervals_input for xgs_map
-                    # xgs_map expects: {'per_game': {game_id: {'intersection_intervals': [...]}}}
-                    # (via _apply_intervals logic)
                     intervals_input = {
                         'per_game': {
                             game_id: {
                                 'intersection_intervals': final_intervals,
-                                # We must ensure _apply_intervals uses these.
-                                # It looks for 'sides' -> 'team' -> ... or 'intersection_intervals'
-                                # So this structure is correct.
                             }
                         }
                     }
                     
-                    # Determine player's team for xG splitting
                     p_team_id = p_team_map.get(pid)
-                    
-                    # Call xgs_map
-                    # IMPORTANT: We pass 'team': p_team_id in condition so xgs_map knows which is "For" and "Against".
-                    # BUT we do NOT pass 'player_id' in condition, because we want ON-ICE stats (all events),
-                    # and we rely on intervals_input to filter by time (when player was on ice).
                     p_cond = condition.copy()
                     p_cond['team'] = p_team_id
                     
-                    # We need to pass a dataframe containing this game's events
-                    # We can filter the main df_data to this game
                     df_game = df_data[df_data['game_id'] == game_id]
                     
                     _, _, _, p_stats = analyze.xgs_map(
@@ -172,18 +159,13 @@ def run_analysis():
                         total_seconds=toi,
                         use_intervals=True,
                         intervals_input=intervals_input,
-                        stats_only=True # Optimization
+                        stats_only=True
                     )
                     
                     if p_stats:
-                        # Add metadata
-                        p_stats['player_id'] = pid
-                        p_stats['game_id'] = game_id
+                        p_stats['player_id'] = int(pid) # Ensure int for JSON
+                        p_stats['game_id'] = int(game_id)
                         
-                        # Resolve Team Abbreviation
-                        # We can look it up from df_game
-                        # If p_team_id matches home_id, use home_abb, else away_abb
-                        # Just pick first row
                         if not df_game.empty:
                             r = df_game.iloc[0]
                             if str(r.get('home_id')) == str(p_team_id):
@@ -195,16 +177,24 @@ def run_analysis():
                         else:
                              p_stats['team'] = 'UNK'
                              
-                        # Calculate per-60s for this game (optional, but good for debugging)
                         p_stats['xg_for'] = p_stats.get('team_xgs', 0.0)
                         p_stats['xg_against'] = p_stats.get('other_xgs', 0.0)
                         p_stats['toi_sec'] = toi
                         
-                        all_player_stats.append(p_stats)
+                        game_player_stats.append(p_stats)
                         
                 except Exception as e:
                     # print(f"Error processing player {pid} in game {game_id}: {e}")
                     continue
+            
+            # Save to Cache
+            try:
+                with open(cache_file, 'w') as f:
+                    json.dump(game_player_stats, f)
+            except Exception as e:
+                print(f"Failed to save cache for {game_id}: {e}")
+                
+            all_player_stats.extend(game_player_stats)
 
         if not all_player_stats:
             print("No player stats calculated.")
@@ -237,6 +227,8 @@ def run_analysis():
             else:
                 xg_for_60 = 0
                 xg_against_60 = 0
+            
+            last_game = grp['game_id'].max()
                 
             agg_stats.append({
                 'player_id': pid,
@@ -247,7 +239,8 @@ def run_analysis():
                 'toi_sec': tot_toi,
                 'xg_for_60': xg_for_60,
                 'xg_against_60': xg_against_60,
-                'games_played': games
+                'games_played': games,
+                'last_game_id': last_game
             })
         
         all_player_stats = agg_stats # Replace with aggregated list for CSV generation
@@ -302,6 +295,18 @@ def run_analysis():
     qual_pids = df_master[df_master['games_played'] >= min_games_for_percentile]['player_id'].unique().tolist()
     print(f"Generating maps for {len(qual_pids)} qualified players (>= {min_games_for_percentile} games).")
     
+    # Load Manifest
+    manifest_path = os.path.join(league_out_dir, 'map_manifest.json')
+    manifest = {}
+    if os.path.exists(manifest_path):
+        try:
+            with open(manifest_path, 'r') as f:
+                manifest = json.load(f)
+        except: pass
+        
+    # Create lookup for current stats
+    current_stats = df_master.set_index('player_id')[['games_played', 'last_game_id']].to_dict('index')
+
     for team in teams:
         print(f"Processing {team} (Plotting)...")
         
@@ -312,20 +317,75 @@ def run_analysis():
         ]['player_id'].unique().tolist()
         
         if not team_pids:
-            print(f"No qualified players found for {team}.")
+            # print(f"No qualified players found for {team}.")
             continue
+            
+        # Check Manifest
+        pids_to_process = []
+        out_dir_team = os.path.join(out_dir_base, f'{season}/{team}')
+        
+        for pid in team_pids:
+            pid_str = str(pid)
+            curr = current_stats.get(pid)
+            if not curr: 
+                pids_to_process.append(pid)
+                continue
+            
+            cached = manifest.get(pid_str)
+            
+            # Check files existence
+            f1 = os.path.join(out_dir_team, f"{pid}_map.png")
+            f2 = os.path.join(out_dir_team, f"{pid}_relative.png")
+            files_exist = os.path.exists(f1) and os.path.exists(f2)
+            
+            if cached and files_exist:
+                # Check if up to date
+                # Handle NaN/None for last_game_id
+                c_games = cached.get('games_played')
+                c_last = cached.get('last_game_id')
+                
+                curr_games = curr['games_played']
+                curr_last = curr['last_game_id']
+                if pd.isna(curr_last): curr_last = None
+                else: curr_last = int(curr_last)
+                
+                if c_games == curr_games and c_last == curr_last:
+                    # Up to date
+                    continue
+            
+            pids_to_process.append(pid)
+            
+            # Update manifest in memory
+            manifest[pid_str] = {
+                'games_played': int(curr['games_played']),
+                'last_game_id': int(curr['last_game_id']) if pd.notna(curr['last_game_id']) else None
+            }
+            
+        if not pids_to_process:
+            print(f"  All players up to date for {team}.")
+            continue
+            
+        print(f"  Generating maps for {len(pids_to_process)} players (skipped {len(team_pids) - len(pids_to_process)} up-to-date).")
             
         analyze.players(
             season=season,
             team=team,
-            player_ids=team_pids, # Only process qualified players for THIS team
+            player_ids=pids_to_process, # Only process needed players
             condition=condition,
-            out_dir=os.path.join(out_dir_base, f'{season}/{team}'),
+            out_dir=out_dir_team,
             data_df=df_data,
             plot=True,
             percentiles=percentiles,
             min_games=min_games_for_percentile
         )
+        
+    # Save Manifest
+    try:
+        with open(manifest_path, 'w') as f:
+            json.dump(manifest, f)
+        print(f"Saved map manifest to {manifest_path}")
+    except Exception as e:
+        print(f"Failed to save manifest: {e}")
 
     # --- League-Wide Scatter Plot ---
     print("\n--- Generating League-Wide Scatter Plot ---")

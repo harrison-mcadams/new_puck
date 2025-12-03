@@ -382,6 +382,15 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
         try:
             _SHIFTS_CACHE[int(game_id)] = pd.DataFrame()
         except: pass
+        
+        # PERSIST EMPTY RESULT TO DISK
+        try:
+            if cache_file is not None:
+                 pd.DataFrame().to_pickle(cache_file)
+                 logging.info(f"Saved EMPTY shifts cache for game {game_id} to {cache_file}")
+        except Exception as e:
+            logging.warning(f"Failed to save empty shifts cache for {game_id}: {e}")
+            
         return pd.DataFrame()
 
     # --- Caching Save Start ---
@@ -1044,25 +1053,56 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
             except Exception:
                 key_intervals_all = []
         elif key in ('player_id', 'player_ids'):
-            # For player(s) use parse._shifts with combine='intersection' to compute
-            # intervals when all provided players are simultaneously on ice.
+            # For player(s) compute intervals from the already-loaded df_shifts.
+            # This avoids redundant API calls.
             pids = []
             if key == 'player_id':
-                pids = [vals[0]]
+                pids = [str(vals[0])]
             else:
-                pids = vals
-            try:
-                # Use robust fetch with fallback
-                shifts_payload = get_shifts_with_html_fallback(game_id)
-                shift_df = parse._shifts(shifts_payload, player_ids=pids, combine='intersection')
-                for _, r in shift_df.iterrows():
-                    s = r.get('start_total_seconds'); e = r.get('end_total_seconds')
-                    if s is not None and e is not None and e > s:
-                        key_intervals_all.append((float(s), float(e)))
-            except Exception:
+                pids = [str(v) for v in vals]
+            
+            if df_shifts is None or df_shifts.empty:
                 key_intervals_all = []
-            except Exception:
-                key_intervals_all = []
+            else:
+                # We need to find intervals where ALL pids are on ice.
+                # 1. Get intervals for each pid
+                # 2. Intersect them
+                
+                # Ensure player_id column is string for comparison
+                # (It might be int or float in DF)
+                try:
+                    df_shifts['player_id_str'] = df_shifts['player_id'].astype(str)
+                except Exception:
+                    pass
+                
+                pid_intervals_list = []
+                for pid in pids:
+                    # Filter for this player
+                    # Robust filtering
+                    # Check both string and numeric equality to be safe
+                    try:
+                        pid_float = float(pid)
+                        mask = (df_shifts['player_id'] == pid_float) | (df_shifts['player_id'].astype(str) == str(pid))
+                    except Exception:
+                        mask = df_shifts['player_id'].astype(str) == str(pid)
+                        
+                    p_df = df_shifts[mask]
+                    
+                    p_intervals = []
+                    for _, r in p_df.iterrows():
+                        s = r.get('start_total_seconds')
+                        e = r.get('end_total_seconds')
+                        if s is not None and e is not None and e > s:
+                            p_intervals.append((float(s), float(e)))
+                    
+                    # Merge intervals for this single player (handle overlapping shifts if any)
+                    pid_intervals_list.append(_merge_intervals(p_intervals))
+                
+                # Intersect across all players
+                if pid_intervals_list:
+                    key_intervals_all = _intersect_multiple(pid_intervals_list)
+                else:
+                    key_intervals_all = []
         elif key == 'team':
             # Team filtering is handled at game selection level.
             # If we are processing this game, it matches the team.
@@ -1455,3 +1495,69 @@ if __name__ == '__main__':
             print(f'Wrote JSON debug output to {args.out}')
         except Exception as e:
             print('Failed to write JSON output:', e)
+def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> list:
+    """
+    Get intersection intervals for a game, using a shared cache for standard conditions.
+    
+    Supported cached conditions (must have is_net_empty=0):
+    - '5v5'
+    - '5v4'
+    - '4v5'
+    
+    If the condition matches one of these standard forms, it checks/updates:
+    data/{season}/game_intervals/{game_id}.json
+    
+    Args:
+        game_id: Game ID.
+        season: Season string.
+        condition: Condition dictionary.
+        
+    Returns:
+        List of (start, end) tuples representing the intersection of all conditions.
+    """
+    import os
+    import json
+    
+    # 1. Determine if this is a standard cacheable condition
+    cache_key = None
+    if condition.get('is_net_empty') == [0] and len(condition) == 2:
+        gs = condition.get('game_state')
+        if gs and len(gs) == 1:
+            state = gs[0]
+            if state in ['5v5', '5v4', '4v5']:
+                cache_key = state
+                
+    # 2. If not cacheable, just compute
+    if not cache_key:
+        res = compute_intervals_for_game(game_id, condition)
+        return res.get('intersection_intervals', [])
+        
+    # 3. Check Cache
+    cache_dir = os.path.join('data', season, 'game_intervals')
+    os.makedirs(cache_dir, exist_ok=True)
+    cache_file = os.path.join(cache_dir, f"{game_id}.json")
+    
+    cached_data = {}
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r') as f:
+                cached_data = json.load(f)
+        except Exception: pass
+        
+    if cache_key in cached_data:
+        # Return cached
+        return cached_data[cache_key]
+        
+    # 4. Compute and Cache
+    # We need to compute specifically for this condition
+    res = compute_intervals_for_game(game_id, condition)
+    intervals = res.get('intersection_intervals', [])
+    
+    # Update cache
+    cached_data[cache_key] = intervals
+    try:
+        with open(cache_file, 'w') as f:
+            json.dump(cached_data, f)
+    except Exception: pass
+    
+    return intervals

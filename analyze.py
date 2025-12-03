@@ -3,6 +3,7 @@
 
 from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
+import pickle
 
 # Import our custom viewer
 try:
@@ -1592,32 +1593,97 @@ def season(season: str = '20252026',
                 print(f"season: failed to load intermediate for {team}: {e}")
     
     if not loaded_intermediate:
-        # Recompute
-        print(f"season: Recomputing data for {team}...")
+        print(f"season: Processing {team} (Game-Centric)...")
+        
+        # Load season data once
         df_season = timing.load_season_df(season)
         df_season, _, _ = _predict_xgs(df_season)
         
+        # Identify games for this team
+        team_games_df = df_season[
+            (df_season['home_abb'] == team) | 
+            (df_season['away_abb'] == team)
+        ]
+        game_ids = sorted(team_games_df['game_id'].unique())
+        print(f"season: Found {len(game_ids)} games for {team}")
         
-        team_cond = condition.copy() if condition else {}
-        team_cond['team'] = team
+        cache_dir = os.path.join('data', season, 'game_stats_team')
+        os.makedirs(cache_dir, exist_ok=True)
         
-        # Calculate robust timing
-        timing_res = timing.compute_game_timing(df_season, team_cond)
-        t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
-        print(f"DEBUG: analyze.season t_seconds={t_seconds}")
+        total_team_map = None
+        total_other_map = None
+        total_stats = {}
         
-        _, heatmaps, _, stats = xgs_map(
-            season=season,
-            data_df=df_season,
-            condition=team_cond,
-            return_heatmaps=True,
-            heatmap_only=True,
-            total_seconds=t_seconds,
-            show=False
-        )
-        if heatmaps:
-            team_map = heatmaps.get('team')
-            other_map = heatmaps.get('other')
+        for i, game_id in enumerate(game_ids):
+            cache_file = os.path.join(cache_dir, f"{game_id}_{team}.pkl")
+            
+            game_res = None
+            if os.path.exists(cache_file):
+                try:
+                    with open(cache_file, 'rb') as f:
+                        game_res = pickle.load(f)
+                except Exception: pass
+                
+            if game_res is None:
+                # Calculate
+                g_cond = condition.copy() if condition else {}
+                g_cond['team'] = team
+                
+                df_game = df_season[df_season['game_id'] == game_id]
+                
+                # Calculate total seconds using shared cache
+                g_intervals = timing.get_game_intervals_cached(game_id, season, g_cond)
+                g_seconds = sum(e - s for s, e in g_intervals)
+                
+                _, heatmaps, _, g_stats = xgs_map(
+                    season=season,
+                    data_df=df_game,
+                    condition=g_cond,
+                    return_heatmaps=True,
+                    heatmap_only=True,
+                    show=False,
+                    total_seconds=g_seconds,
+                    use_intervals=True,
+                    intervals_input={'per_game': {game_id: {'intersection_intervals': g_intervals}}}
+                )
+                
+                tm = heatmaps.get('team') if heatmaps else None
+                om = heatmaps.get('other') if heatmaps else None
+                
+                game_res = {
+                    'team_map': tm,
+                    'other_map': om,
+                    'stats': g_stats
+                }
+                
+                # Save to cache
+                try:
+                    with open(cache_file, 'wb') as f:
+                        pickle.dump(game_res, f)
+                except Exception: pass
+            
+            # Aggregate
+            tm = game_res.get('team_map')
+            om = game_res.get('other_map')
+            g_stats = game_res.get('stats', {})
+            
+            if tm is not None:
+                if total_team_map is None:
+                    total_team_map = np.zeros_like(tm)
+                    total_other_map = np.zeros_like(om) if om is not None else None
+                
+                total_team_map += np.nan_to_num(tm)
+                if total_other_map is not None and om is not None:
+                    total_other_map += np.nan_to_num(om)
+            
+            # Sum stats
+            for k, v in g_stats.items():
+                if isinstance(v, (int, float)):
+                    total_stats[k] = total_stats.get(k, 0) + v
+                    
+        team_map = total_team_map
+        other_map = total_other_map
+        stats = total_stats
 
     if team_map is None:
         print(f"season: No data for {team}")
