@@ -49,6 +49,9 @@ except Exception:
 
 Interval = Tuple[float, float]
 
+# Global in-memory cache for shifts to avoid redundant disk reads
+_SHIFTS_CACHE: Dict[int, pd.DataFrame] = {}
+
 
 def get_shifts_with_html_fallback(game_id: int, min_rows_threshold: int = 5) -> Dict[str, Any]:
     """Wrapper to get shifts with automatic HTML fallback when API returns empty/minimal data.
@@ -184,6 +187,14 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
         game_id: NHL game ID
         min_rows_threshold: Minimum number of shifts required to consider API response valid (default 5)
     """
+    # --- In-Memory Cache Check ---
+    try:
+        gid_int = int(game_id)
+        if gid_int in _SHIFTS_CACHE:
+            return _SHIFTS_CACHE[gid_int].copy()
+    except Exception:
+        pass
+
     # --- Caching Logic Start ---
     cache_file = None
     try:
@@ -203,6 +214,7 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
                     try:
                         df = pd.read_pickle(cache_file)
                         logging.info(f"Loaded cached shifts for game {game_id} from {cache_file}")
+                        _SHIFTS_CACHE[int(game_id)] = df.copy()
                         return df
                     except Exception as e:
                         logging.warning(f"Failed to load cached shifts for {game_id}: {e}")
@@ -215,6 +227,10 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
     except Exception as e:
         # log and return empty DataFrame
         logging.exception('timing_new._get_shifts_df: get_shifts failed for %s: %s', game_id, e)
+        # Cache failure to avoid retry loops
+        try:
+            _SHIFTS_CACHE[int(game_id)] = pd.DataFrame()
+        except: pass
         return pd.DataFrame()
 
     # If get_shifts returns a non-dict, coerce to dict wrapper
@@ -362,6 +378,10 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
 
     # Final check
     if df_shifts is None or (hasattr(df_shifts, 'empty') and df_shifts.empty):
+        # Cache empty result to avoid re-fetching bad games
+        try:
+            _SHIFTS_CACHE[int(game_id)] = pd.DataFrame()
+        except: pass
         return pd.DataFrame()
 
     # --- Caching Save Start ---
@@ -372,6 +392,13 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
     except Exception as e:
         logging.warning(f"Failed to save shifts cache for {game_id}: {e}")
     # --- Caching Save End ---
+
+    # --- In-Memory Cache Save ---
+    try:
+        if df_shifts is not None and not df_shifts.empty:
+            _SHIFTS_CACHE[int(game_id)] = df_shifts.copy()
+    except Exception:
+        pass
 
     return df_shifts
 
@@ -1164,25 +1191,15 @@ def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bo
         except Exception:
             continue
 
-    # Execute in parallel
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-    import os
-    max_workers = min(8, os.cpu_count() or 1)
-    
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        future_to_gid = {
-            executor.submit(compute_intervals_for_game, gid, cond, verbose, net_empty_mode): gid
-            for gid, cond in tasks
-        }
-        
-        for future in as_completed(future_to_gid):
-            gid = future_to_gid[future]
-            try:
-                res = future.result()
-                per_game[gid] = res
-            except Exception as e:
-                if verbose:
-                    logging.exception('demo_for_export: failed for game %s: %s', gid, e)
+    # Execute sequentially to avoid Semaphore exhaustion (OSError: [Errno 28] No space left on device)
+    # when called repeatedly in a loop (e.g. for every player).
+    for gid, cond in tasks:
+        try:
+            res = compute_intervals_for_game(gid, cond, verbose, net_empty_mode)
+            per_game[gid] = res
+        except Exception as e:
+            if verbose:
+                logging.exception('compute_game_timing: failed for game %s: %s', gid, e)
 
     # basic aggregate (sum intersection_seconds across games)
     agg = {'intersection_seconds_total': 0.0}
