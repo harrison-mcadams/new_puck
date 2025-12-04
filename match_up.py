@@ -127,40 +127,74 @@ class GamePredictor:
                 print(f"Processed {count} games for league averages...")
                 
         # Calculate Rates (per 60 per team)
-        # Wait. League Average xG/60.
-        # Is this "per game" or "per 60 minutes of play"?
-        # Usually "League Average 5v5 xG/60" means:
-        # (Total League 5v5 xG) / (Total League 5v5 Time / 60)
-        # But wait, in a game there are 2 teams.
-        # Does 2.5 xG/60 mean "Both teams combined generate 2.5"?
-        # Or "One team generates 2.5"?
-        # Usually it's per team.
-        # Total xG is for BOTH teams. Total Time is shared.
-        # So (Total xG) / (Total Time / 60) = Combined Rate.
-        # Per Team Rate = Combined Rate / 2.
-        
         if total_5v5_time > 0:
             self.league_xg_5v5_rate = (xg_5v5_total / (total_5v5_time / 3600)) / 2.0
         else:
             self.league_xg_5v5_rate = 2.5 # Fallback
             
         if total_pp_time > 0:
-            # PP Rate.
-            # Total PP xG / Total PP Time * 60.
-            # This is the rate of xG generated during PP time.
-            # Since in PP time, only one team is on PP (usually), the "Combined Rate" is basically the PP Team's rate + PK Team's rate (which is low).
-            # But we want "League Average PP xGF/60".
-            # Total PP xG includes SHG? Yes.
-            # Usually we want xGF/60 for the PP team.
-            # Let's assume Total PP xG is mostly PP xGF.
-            # And Total PP Time is the duration of uneven strength.
-            # So (Total xG) / (Total Time / 60) is roughly the PP xGF/60 (plus a bit of SH xG).
-            # We don't divide by 2 because only one team is "on offense" (PP).
             self.league_xg_pp_rate = (xg_pp_total / (total_pp_time / 3600))
         else:
             self.league_xg_pp_rate = 6.5 # Fallback
             
         print(f"League Averages: 5v5={self.league_xg_5v5_rate:.2f}, PP={self.league_xg_pp_rate:.2f}")
+        
+        # --- Calculate Skill Factors ---
+        self._calculate_skill_factors()
+
+    def _calculate_skill_factors(self):
+        """
+        Calculate Offense and Defense Skill Factors (GAx) for all teams.
+        Factors are regressed to the mean (1.0).
+        """
+        print("Calculating team skill factors...")
+        df = self.df_season
+        teams = sorted(df['home_abb'].dropna().unique())
+        
+        self.skill_factors = {}
+        skill_weight = 0.5 # Regression weight
+        
+        for team in teams:
+            # Get team ID
+            try:
+                sample = df[df['home_abb'] == team]
+                if not sample.empty:
+                    tid = sample.iloc[0]['home_id']
+                else:
+                    sample = df[df['away_abb'] == team]
+                    tid = sample.iloc[0]['away_id']
+            except:
+                continue
+                
+            # Filter games involving team
+            mask = (df['home_abb'] == team) | (df['away_abb'] == team)
+            df_team = df[mask]
+            
+            # Offense
+            off_mask = (df_team['team_id'] == tid)
+            gf = df_team[off_mask & (df_team['event'] == 'goal')].shape[0]
+            xgf = df_team[off_mask]['xgs'].sum()
+            
+            # Defense
+            def_mask = (df_team['team_id'] != tid)
+            ga = df_team[def_mask & (df_team['event'] == 'goal')].shape[0]
+            xga = df_team[def_mask]['xgs'].sum()
+            
+            # Calculate Factors
+            off_factor = 1.0
+            def_factor = 1.0
+            
+            if xgf > 0:
+                raw_off = gf / xgf
+                off_factor = 1.0 + (raw_off - 1.0) * skill_weight
+                
+            if xga > 0:
+                raw_def = ga / xga
+                def_factor = 1.0 + (raw_def - 1.0) * skill_weight
+                
+            self.skill_factors[team] = {'off': off_factor, 'def': def_factor}
+            
+        print("Skill factors calculated.")
 
     def _get_games_for_team(self, team, date=None):
         """
@@ -260,15 +294,11 @@ class GamePredictor:
             xg_for_5v5 = g_5v5[g_5v5['team_id'] == team_id]['xgs'].sum()
             xg_ag_5v5 = g_5v5[g_5v5['team_id'] != team_id]['xgs'].sum()
             
-            # --- Special Teams ---
-            # If Team is Home:
-            #   PP = 5v4 (Home 5, Away 4)
-            #   PK = 4v5 (Home 4, Away 5)
-            # If Team is Away:
-            #   PP = 4v5 (Home 4, Away 5) -> Wait. '4v5' usually means Home 4, Away 5.
-            #   So if Away team is on PP, they have 5 skaters, Home has 4. That is '4v5'.
-            #   PK = 5v4 (Home 5, Away 4). Away team is PK (4 skaters).
+            # Actual Goals 5v5
+            gf_5v5 = g_5v5[(g_5v5['team_id'] == team_id) & (g_5v5['event'] == 'goal')].shape[0]
+            ga_5v5 = g_5v5[(g_5v5['team_id'] != team_id) & (g_5v5['event'] == 'goal')].shape[0]
             
+            # --- Special Teams ---
             if is_home:
                 cond_pp = {'game_state': ['5v4'], 'is_net_empty': [0]}
                 cond_pk = {'game_state': ['4v5'], 'is_net_empty': [0]}
@@ -278,24 +308,28 @@ class GamePredictor:
                 
             # PP
             t_pp = get_toi(gid, self.season, cond_pp)
-            # Filter events for PP xG For
             g_pp = filter_cond(g_df, {'game_state': cond_pp['game_state']})
             xg_for_pp = g_pp[g_pp['team_id'] == team_id]['xgs'].sum()
+            gf_pp = g_pp[(g_pp['team_id'] == team_id) & (g_pp['event'] == 'goal')].shape[0]
             
             # PK
             t_pk = get_toi(gid, self.season, cond_pk)
-            # Filter events for PK xG Against
             g_pk = filter_cond(g_df, {'game_state': cond_pk['game_state']})
             xg_ag_pk = g_pk[g_pk['team_id'] != team_id]['xgs'].sum()
+            ga_pk = g_pk[(g_pk['team_id'] != team_id) & (g_pk['event'] == 'goal')].shape[0]
             
             game_stats_list.append({
                 'weight': weights[idx],
                 '5v5_xg_for': xg_for_5v5,
                 '5v5_xg_ag': xg_ag_5v5,
+                '5v5_gf': gf_5v5,
+                '5v5_ga': ga_5v5,
                 '5v5_time': t_5v5,
                 'pp_xg_for': xg_for_pp,
+                'pp_gf': gf_pp,
                 'pp_time': t_pp,
                 'pk_xg_ag': xg_ag_pk,
+                'pk_ga': ga_pk,
                 'pk_time': t_pk
             })
             
@@ -316,14 +350,18 @@ class GamePredictor:
             '5v5': {
                 'xg_for_60': weighted_rate('5v5_xg_for', '5v5_time'),
                 'xg_ag_60': weighted_rate('5v5_xg_ag', '5v5_time'),
+                'gf_60': weighted_rate('5v5_gf', '5v5_time'),
+                'ga_60': weighted_rate('5v5_ga', '5v5_time'),
                 'avg_time': weighted_avg_time('5v5_time')
             },
             'pp': {
                 'xg_for_60': weighted_rate('pp_xg_for', 'pp_time'),
+                'gf_60': weighted_rate('pp_gf', 'pp_time'),
                 'avg_time': weighted_avg_time('pp_time')
             },
             'pk': {
                 'xg_ag_60': weighted_rate('pk_xg_ag', 'pk_time'),
+                'ga_60': weighted_rate('pk_ga', 'pk_time'),
                 'avg_time': weighted_avg_time('pk_time')
             },
             'games_played': n_games
@@ -353,32 +391,68 @@ class GamePredictor:
         league_xg_5v5 = getattr(self, 'league_xg_5v5_rate', 2.5)
         league_xg_pp = getattr(self, 'league_xg_pp_rate', 6.5)
         
+        # --- Skill Factors ---
+        h_skill = self.skill_factors.get(home_team, {'off': 1.0, 'def': 1.0})
+        a_skill = self.skill_factors.get(away_team, {'off': 1.0, 'def': 1.0})
+        
         # --- 5v5 Prediction ---
-        # Home xGF = (Home Off * Away Def) / League Avg
-        h_5v5_rate = (home_stats['5v5']['xg_for_60'] * away_stats['5v5']['xg_ag_60']) / league_xg_5v5
-        a_5v5_rate = (away_stats['5v5']['xg_for_60'] * home_stats['5v5']['xg_ag_60']) / league_xg_5v5
+        # Raw Rates
+        h_5v5_rate_raw = (home_stats['5v5']['xg_for_60'] * away_stats['5v5']['xg_ag_60']) / league_xg_5v5
+        a_5v5_rate_raw = (away_stats['5v5']['xg_for_60'] * home_stats['5v5']['xg_ag_60']) / league_xg_5v5
+        
+        # Skill Adjusted Rates
+        # Home Offense * Home Off Skill
+        # Away Defense * Away Def Skill
+        h_5v5_rate_adj = (
+            (home_stats['5v5']['xg_for_60'] * h_skill['off']) * 
+            (away_stats['5v5']['xg_ag_60'] * a_skill['def'])
+        ) / league_xg_5v5
+        
+        a_5v5_rate_adj = (
+            (away_stats['5v5']['xg_for_60'] * a_skill['off']) * 
+            (home_stats['5v5']['xg_ag_60'] * h_skill['def'])
+        ) / league_xg_5v5
         
         # Projected 5v5 Time (Average of both teams' usual 5v5 time)
         proj_5v5_time = (home_stats['5v5']['avg_time'] + away_stats['5v5']['avg_time']) / 2.0
         
-        h_5v5_xg = h_5v5_rate * (proj_5v5_time / 3600)
-        a_5v5_xg = a_5v5_rate * (proj_5v5_time / 3600)
+        h_5v5_xg = h_5v5_rate_adj * (proj_5v5_time / 3600)
+        a_5v5_xg = a_5v5_rate_adj * (proj_5v5_time / 3600)
+        
+        h_5v5_xg_raw = h_5v5_rate_raw * (proj_5v5_time / 3600)
+        a_5v5_xg_raw = a_5v5_rate_raw * (proj_5v5_time / 3600)
         
         # --- Special Teams Prediction ---
         # Home PP vs Away PK
         # Home PP xGF = (Home PP Off * Away PK Def) / League PP Avg
-        h_pp_rate = (home_stats['pp']['xg_for_60'] * away_stats['pk']['xg_ag_60']) / league_xg_pp
+        h_pp_rate_raw = (home_stats['pp']['xg_for_60'] * away_stats['pk']['xg_ag_60']) / league_xg_pp
+        
+        # Apply Skill?
+        # Yes. Home PP Offense Skill vs Away PK Defense Skill.
+        # We use the same general "Offense" and "Defense" factors for now.
+        h_pp_rate_adj = (
+            (home_stats['pp']['xg_for_60'] * h_skill['off']) * 
+            (away_stats['pk']['xg_ag_60'] * a_skill['def'])
+        ) / league_xg_pp
         
         # Away PP vs Home PK
-        a_pp_rate = (away_stats['pp']['xg_for_60'] * home_stats['pk']['xg_ag_60']) / league_xg_pp
+        a_pp_rate_raw = (away_stats['pp']['xg_for_60'] * home_stats['pk']['xg_ag_60']) / league_xg_pp
+        
+        a_pp_rate_adj = (
+            (away_stats['pp']['xg_for_60'] * a_skill['off']) * 
+            (home_stats['pk']['xg_ag_60'] * h_skill['def'])
+        ) / league_xg_pp
         
         # Projected PP Times
         # Home PP Time = Avg of (Home PP Time + Away PK Time) / 2
         h_pp_time = (home_stats['pp']['avg_time'] + away_stats['pk']['avg_time']) / 2.0
         a_pp_time = (away_stats['pp']['avg_time'] + home_stats['pk']['avg_time']) / 2.0
         
-        h_pp_xg = h_pp_rate * (h_pp_time / 3600)
-        a_pp_xg = a_pp_rate * (a_pp_time / 3600)
+        h_pp_xg = h_pp_rate_adj * (h_pp_time / 3600)
+        a_pp_xg = a_pp_rate_adj * (a_pp_time / 3600)
+        
+        h_pp_xg_raw = h_pp_rate_raw * (h_pp_time / 3600)
+        a_pp_xg_raw = a_pp_rate_raw * (a_pp_time / 3600)
         
         # --- Totals ---
         # Add Home Ice Advantage (e.g., +5% to Home xG or flat +0.1)
@@ -388,13 +462,21 @@ class GamePredictor:
         total_home_xg = h_5v5_xg + h_pp_xg + home_ice_bonus
         total_away_xg = a_5v5_xg + a_pp_xg
         
+        total_home_xg_raw = h_5v5_xg_raw + h_pp_xg_raw + home_ice_bonus
+        total_away_xg_raw = a_5v5_xg_raw + a_pp_xg_raw
+        
         return PredictionResult(
             home_team, away_team,
             total_home_xg, total_away_xg,
             details={
                 '5v5': (h_5v5_xg, a_5v5_xg),
                 'pp': (h_pp_xg, a_pp_xg),
-                'rates': (home_stats, away_stats)
+                'rates': (home_stats, away_stats),
+                'raw_xg': (total_home_xg_raw, total_away_xg_raw),
+                'skill_factors': (h_skill, a_skill),
+                '5v5_raw': (h_5v5_xg_raw, a_5v5_xg_raw),
+                'pp_raw': (h_pp_xg_raw, a_pp_xg_raw),
+                'home_ice': home_ice_bonus
             }
         )
 
@@ -456,7 +538,7 @@ class PredictionResult:
         ax_header.text(0.5, 0.9, f"{self.home} vs {self.away}", 
                       ha='center', va='center', fontsize=20, fontweight='bold', color='black')
         
-        # Scores
+        # Scores (Adjusted)
         ax_header.text(0.35, 0.6, f"{self.home}", ha='center', va='center', fontsize=16, fontweight='bold', color=c_home)
         ax_header.text(0.65, 0.6, f"{self.away}", ha='center', va='center', fontsize=16, fontweight='bold', color=c_away)
         
@@ -465,7 +547,7 @@ class PredictionResult:
         ax_header.text(0.65, 0.4, f"{self.away_xg:.2f}", 
                       ha='center', va='center', fontsize=36, fontweight='bold', color=c_away)
         
-        ax_header.text(0.5, 0.4, "xG", ha='center', va='center', fontsize=12, color='gray')
+        ax_header.text(0.5, 0.4, "xG (Skill Adj)", ha='center', va='center', fontsize=12, color='gray')
         
         # Win Probabilities
         ax_header.text(0.35, 0.2, f"{h_win*100:.1f}%", ha='center', va='center', fontsize=14, fontweight='bold', color=c_home)
@@ -476,24 +558,55 @@ class PredictionResult:
         ax_table = fig.add_subplot(gs[1])
         ax_table.axis('off')
         
-        # Simple text table for details
-        # Columns: Component | Home xG | Away xG
+        # Detailed Table
+        # Columns: Component | Home Raw | Home Adj | Away Raw | Away Adj
         y_pos = 0.8
-        ax_table.text(0.2, y_pos, "Component", ha='left', fontsize=10, fontweight='bold')
-        ax_table.text(0.5, y_pos, f"{self.home}", ha='center', fontsize=10, fontweight='bold', color=c_home)
-        ax_table.text(0.8, y_pos, f"{self.away}", ha='center', fontsize=10, fontweight='bold', color=c_away)
+        ax_table.text(0.1, y_pos, "Component", ha='left', fontsize=10, fontweight='bold')
+        ax_table.text(0.35, y_pos, f"{self.home} Raw", ha='center', fontsize=9, fontweight='bold', color=c_home, alpha=0.7)
+        ax_table.text(0.45, y_pos, f"Adj", ha='center', fontsize=9, fontweight='bold', color=c_home)
+        ax_table.text(0.65, y_pos, f"{self.away} Raw", ha='center', fontsize=9, fontweight='bold', color=c_away, alpha=0.7)
+        ax_table.text(0.75, y_pos, f"Adj", ha='center', fontsize=9, fontweight='bold', color=c_away)
         
         details = self.details
-        comps = [('5v5', '5v5'), ('Power Play', 'pp')]
+        comps = [('5v5', '5v5', '5v5_raw'), ('Power Play', 'pp', 'pp_raw')]
+        skill = details.get('skill_factors', ({'off':1.0}, {'off':1.0}))
+        raw_xg = details.get('raw_xg', (0.0, 0.0))
         
         y_pos -= 0.25
-        for label, key in comps:
-            h_val = details[key][0]
-            a_val = details[key][1]
-            ax_table.text(0.2, y_pos, label, ha='left', fontsize=10)
-            ax_table.text(0.5, y_pos, f"{h_val:.2f}", ha='center', fontsize=10)
-            ax_table.text(0.8, y_pos, f"{a_val:.2f}", ha='center', fontsize=10)
+        for label, key_adj, key_raw in comps:
+            h_adj = details[key_adj][0]
+            a_adj = details[key_adj][1]
+            h_raw = details[key_raw][0]
+            a_raw = details[key_raw][1]
+            
+            ax_table.text(0.1, y_pos, label, ha='left', fontsize=10)
+            ax_table.text(0.35, y_pos, f"{h_raw:.2f}", ha='center', fontsize=10, alpha=0.7)
+            ax_table.text(0.45, y_pos, f"{h_adj:.2f}", ha='center', fontsize=10, fontweight='bold')
+            ax_table.text(0.65, y_pos, f"{a_raw:.2f}", ha='center', fontsize=10, alpha=0.7)
+            ax_table.text(0.75, y_pos, f"{a_adj:.2f}", ha='center', fontsize=10, fontweight='bold')
             y_pos -= 0.25
+            
+        # Home Ice Row
+        home_ice = details.get('home_ice', 0.1)
+        ax_table.text(0.1, y_pos, "Home Ice", ha='left', fontsize=10)
+        ax_table.text(0.35, y_pos, f"{home_ice:.2f}", ha='center', fontsize=10, alpha=0.7)
+        ax_table.text(0.45, y_pos, f"{home_ice:.2f}", ha='center', fontsize=10, fontweight='bold')
+        # Away gets 0
+        ax_table.text(0.65, y_pos, "0.00", ha='center', fontsize=10, alpha=0.7)
+        ax_table.text(0.75, y_pos, "0.00", ha='center', fontsize=10, fontweight='bold')
+        y_pos -= 0.25
+            
+        # Add Skill Factor Row
+        y_pos -= 0.1
+        ax_table.text(0.1, y_pos, "Skill Factors (Off/Def)", ha='left', fontsize=9, style='italic')
+        ax_table.text(0.45, y_pos, f"{skill[0]['off']:.2f} / {skill[0]['def']:.2f}", ha='center', fontsize=9, style='italic')
+        ax_table.text(0.75, y_pos, f"{skill[1]['off']:.2f} / {skill[1]['def']:.2f}", ha='center', fontsize=9, style='italic')
+        
+        # Add Raw Total Row
+        y_pos -= 0.25
+        ax_table.text(0.1, y_pos, "Total Raw xG", ha='left', fontsize=10, fontweight='bold', alpha=0.7)
+        ax_table.text(0.45, y_pos, f"{raw_xg[0]:.2f}", ha='center', fontsize=10, fontweight='bold', alpha=0.7)
+        ax_table.text(0.75, y_pos, f"{raw_xg[1]:.2f}", ha='center', fontsize=10, fontweight='bold', alpha=0.7)
 
         # 3. Tale of the Tape (Bar Chart)
         ax_tape = fig.add_subplot(gs[2])
@@ -503,12 +616,15 @@ class PredictionResult:
         
         # Metrics to compare
         metrics = ['5v5 xGF/60', '5v5 xGA/60', 'PP xGF/60', 'PK xGA/60']
+        
+        # Values
         h_vals = [
             h_stats['5v5']['xg_for_60'],
             h_stats['5v5']['xg_ag_60'],
             h_stats['pp']['xg_for_60'],
             h_stats['pk']['xg_ag_60']
         ]
+        
         a_vals = [
             a_stats['5v5']['xg_for_60'],
             a_stats['5v5']['xg_ag_60'],
@@ -516,15 +632,46 @@ class PredictionResult:
             a_stats['pk']['xg_ag_60']
         ]
         
+        # Actual Goals (for red lines)
+        h_actuals = [
+            h_stats['5v5'].get('gf_60', 0),
+            h_stats['5v5'].get('ga_60', 0),
+            h_stats['pp'].get('gf_60', 0),
+            h_stats['pk'].get('ga_60', 0)
+        ]
+        
+        a_actuals = [
+            a_stats['5v5'].get('gf_60', 0),
+            a_stats['5v5'].get('ga_60', 0),
+            a_stats['pp'].get('gf_60', 0),
+            a_stats['pk'].get('ga_60', 0)
+        ]
+        
         x = np.arange(len(metrics))
         width = 0.35
         
-        ax_tape.bar(x - width/2, h_vals, width, label=self.home, color=c_home, alpha=0.8)
-        ax_tape.bar(x + width/2, a_vals, width, label=self.away, color=c_away, alpha=0.8)
+        # Plot Bars
+        rects1 = ax_tape.bar(x - width/2, h_vals, width, label=self.home, color=c_home, alpha=0.8)
+        rects2 = ax_tape.bar(x + width/2, a_vals, width, label=self.away, color=c_away, alpha=0.8)
         
+        # Plot Actual Lines (Red)
+        # For each bar, draw a line at the actual value
+        for i in range(len(metrics)):
+            # Home Bar Center: x[i] - width/2
+            # Away Bar Center: x[i] + width/2
+            
+            # Home Actual
+            ax_tape.plot([x[i] - width/2 - width/2.5, x[i] - width/2 + width/2.5], 
+                         [h_actuals[i], h_actuals[i]], color='red', linewidth=2, zorder=10)
+            
+            # Away Actual
+            ax_tape.plot([x[i] + width/2 - width/2.5, x[i] + width/2 + width/2.5], 
+                         [a_actuals[i], a_actuals[i]], color='red', linewidth=2, zorder=10)
+        
+        ax_tape.set_ylabel('Rate per 60')
+        ax_tape.set_title('Tale of the Tape (Weighted Rates)\nRed Line = Actual Goals/60', fontsize=12)
         ax_tape.set_xticks(x)
         ax_tape.set_xticklabels(metrics)
-        ax_tape.set_title("Tale of the Tape (Weighted Rates)", fontsize=12, fontweight='bold')
         ax_tape.legend()
         ax_tape.grid(axis='y', alpha=0.3)
         
