@@ -1,6 +1,9 @@
+import os
+os.environ['JOBLIB_MULTIPROCESSING'] = '0'
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import os
 import timing
 import analyze
@@ -488,234 +491,405 @@ class PredictionResult:
         self.away_xg = away_xg
         self.details = details or {}
         
-    def calculate_probabilities(self, max_goals=10):
+    def run_simulation(self, n_sims=10000):
         """
-        Calculate win probabilities using Poisson distribution.
+        Run a Monte Carlo simulation of the matchup.
         """
-        # Probability matrices
-        h_probs = [poisson.pmf(i, self.home_xg) for i in range(max_goals+1)]
-        a_probs = [poisson.pmf(i, self.away_xg) for i in range(max_goals+1)]
+        # Simulate scores
+        h_scores = np.random.poisson(self.home_xg, n_sims)
+        a_scores = np.random.poisson(self.away_xg, n_sims)
         
-        home_win = 0.0
-        away_win = 0.0
-        tie = 0.0
+        # Calculate differentials (Home - Away)
+        self.sim_differentials = h_scores - a_scores
+        self.n_sims = n_sims
         
-        for h in range(max_goals+1):
-            for a in range(max_goals+1):
-                prob = h_probs[h] * a_probs[a]
-                if h > a:
-                    home_win += prob
-                elif a > h:
-                    away_win += prob
-                else:
-                    tie += prob
-                    
-        # Distribute tie probability (OT/SO)
-        # Simple assumption: 50/50 split for OT
-        home_win_final = home_win + (tie * 0.5)
-        away_win_final = away_win + (tie * 0.5)
+        # Calculate Win Probabilities from simulation
+        h_wins = np.sum(self.sim_differentials > 0)
+        a_wins = np.sum(self.sim_differentials < 0)
+        ties = np.sum(self.sim_differentials == 0)
         
-        return home_win_final, away_win_final, tie
+        self.sim_win_probs = {
+            'home': h_wins / n_sims,
+            'away': a_wins / n_sims,
+            'tie': ties / n_sims
+        }
 
-    def plot(self, out_path='prediction.png'):
+    def plot(self, filename=None):
         """
-        Generate a visual summary of the prediction.
+        Generate a comprehensive prediction plot.
         """
-        h_win, a_win, tie = self.calculate_probabilities()
+        # Run simulation if not already done
+        if not hasattr(self, 'sim_differentials'):
+            self.run_simulation()
+            
+        # Use a slightly taller figure and better GridSpec spacing
+        fig = plt.figure(figsize=(12, 16), facecolor='white')
+        gs = gridspec.GridSpec(4, 1, height_ratios=[0.8, 1.2, 1.5, 1.5], hspace=0.4)
         
-        # Colors matching plot.py (Home=Black, Away=Orange)
+        # Colors
         c_home = 'black'
-        c_away = 'orange'
+        c_away = '#ff7f0e' # Orange
+        c_tie = 'gray'
         
-        fig = plt.figure(figsize=(10, 12)) # Taller for better spacing
-        gs = fig.add_gridspec(4, 1, height_ratios=[0.8, 0.2, 1, 1])
+        # Win Probs
+        h_win = self.sim_win_probs['home']
+        a_win = self.sim_win_probs['away']
+        h_win_total = h_win + 0.5 * self.sim_win_probs['tie']
+        a_win_total = a_win + 0.5 * self.sim_win_probs['tie']
         
-        # 1. Header / Scoreboard
+        # --- 1. Header / Scoreboard ---
         ax_header = fig.add_subplot(gs[0])
         ax_header.axis('off')
         
         # Title
-        ax_header.text(0.5, 0.9, f"{self.home} vs {self.away}", 
-                      ha='center', va='center', fontsize=20, fontweight='bold', color='black')
+        ax_header.text(0.5, 0.95, f"{self.home} vs {self.away}", 
+                      ha='center', va='center', fontsize=24, fontweight='bold', color='black')
         
         # Scores (Adjusted)
-        ax_header.text(0.35, 0.6, f"{self.home}", ha='center', va='center', fontsize=16, fontweight='bold', color=c_home)
-        ax_header.text(0.65, 0.6, f"{self.away}", ha='center', va='center', fontsize=16, fontweight='bold', color=c_away)
+        # Use a larger font for the main numbers
+        ax_header.text(0.35, 0.7, f"{self.home}", ha='center', va='center', fontsize=18, fontweight='bold', color=c_home)
+        ax_header.text(0.65, 0.7, f"{self.away}", ha='center', va='center', fontsize=18, fontweight='bold', color=c_away)
         
-        ax_header.text(0.35, 0.4, f"{self.home_xg:.2f}", 
-                      ha='center', va='center', fontsize=36, fontweight='bold', color=c_home)
-        ax_header.text(0.65, 0.4, f"{self.away_xg:.2f}", 
-                      ha='center', va='center', fontsize=36, fontweight='bold', color=c_away)
+        ax_header.text(0.35, 0.5, f"{self.home_xg:.2f}", 
+                      ha='center', va='center', fontsize=48, fontweight='bold', color=c_home)
+        ax_header.text(0.65, 0.5, f"{self.away_xg:.2f}", 
+                      ha='center', va='center', fontsize=48, fontweight='bold', color=c_away)
         
-        ax_header.text(0.5, 0.4, "xG (Skill Adj)", ha='center', va='center', fontsize=12, color='gray')
+        ax_header.text(0.5, 0.5, "xG (Skill Adj)", ha='center', va='center', fontsize=12, color='gray', style='italic')
         
         # Win Probabilities
-        ax_header.text(0.35, 0.2, f"{h_win*100:.1f}%", ha='center', va='center', fontsize=14, fontweight='bold', color=c_home)
-        ax_header.text(0.65, 0.2, f"{a_win*100:.1f}%", ha='center', va='center', fontsize=14, fontweight='bold', color=c_away)
-        ax_header.text(0.5, 0.2, "Win %", ha='center', va='center', fontsize=10, color='gray')
+        ax_header.text(0.35, 0.25, f"{h_win_total*100:.1f}%", ha='center', va='center', fontsize=16, fontweight='bold', color=c_home)
+        ax_header.text(0.65, 0.25, f"{a_win_total*100:.1f}%", ha='center', va='center', fontsize=16, fontweight='bold', color=c_away)
+        ax_header.text(0.5, 0.25, "Win Probability", ha='center', va='center', fontsize=10, color='gray')
 
-        # 2. Breakdown Table (Text)
+        # --- 2. Breakdown Table ---
         ax_table = fig.add_subplot(gs[1])
         ax_table.axis('off')
         
-        # Detailed Table
-        # Columns: Component | Home Raw | Home Adj | Away Raw | Away Adj
-        y_pos = 0.8
-        ax_table.text(0.1, y_pos, "Component", ha='left', fontsize=10, fontweight='bold')
-        ax_table.text(0.35, y_pos, f"{self.home} Raw", ha='center', fontsize=9, fontweight='bold', color=c_home, alpha=0.7)
-        ax_table.text(0.45, y_pos, f"Adj", ha='center', fontsize=9, fontweight='bold', color=c_home)
-        ax_table.text(0.65, y_pos, f"{self.away} Raw", ha='center', fontsize=9, fontweight='bold', color=c_away, alpha=0.7)
-        ax_table.text(0.75, y_pos, f"Adj", ha='center', fontsize=9, fontweight='bold', color=c_away)
+        # Define column x-positions for better alignment
+        col_labels = 0.15
+        col_h_raw = 0.35
+        col_h_adj = 0.45
+        col_a_raw = 0.65
+        col_a_adj = 0.75
+        
+        # Header Row
+        y_pos = 0.9
+        ax_table.text(col_labels, y_pos, "Component", ha='left', fontsize=11, fontweight='bold')
+        ax_table.text(col_h_raw, y_pos, f"{self.home} Raw", ha='center', fontsize=10, fontweight='bold', color=c_home, alpha=0.6)
+        ax_table.text(col_h_adj, y_pos, f"Adj", ha='center', fontsize=10, fontweight='bold', color=c_home)
+        ax_table.text(col_a_raw, y_pos, f"{self.away} Raw", ha='center', fontsize=10, fontweight='bold', color=c_away, alpha=0.6)
+        ax_table.text(col_a_adj, y_pos, f"Adj", ha='center', fontsize=10, fontweight='bold', color=c_away)
+        
+        # Draw a line under header
+        ax_table.plot([0.1, 0.9], [y_pos-0.05, y_pos-0.05], color='black', linewidth=1)
         
         details = self.details
         comps = [('5v5', '5v5', '5v5_raw'), ('Power Play', 'pp', 'pp_raw')]
         skill = details.get('skill_factors', ({'off':1.0}, {'off':1.0}))
         raw_xg = details.get('raw_xg', (0.0, 0.0))
         
-        y_pos -= 0.25
+        y_pos -= 0.15
         for label, key_adj, key_raw in comps:
             h_adj = details[key_adj][0]
             a_adj = details[key_adj][1]
             h_raw = details[key_raw][0]
             a_raw = details[key_raw][1]
             
-            ax_table.text(0.1, y_pos, label, ha='left', fontsize=10)
-            ax_table.text(0.35, y_pos, f"{h_raw:.2f}", ha='center', fontsize=10, alpha=0.7)
-            ax_table.text(0.45, y_pos, f"{h_adj:.2f}", ha='center', fontsize=10, fontweight='bold')
-            ax_table.text(0.65, y_pos, f"{a_raw:.2f}", ha='center', fontsize=10, alpha=0.7)
-            ax_table.text(0.75, y_pos, f"{a_adj:.2f}", ha='center', fontsize=10, fontweight='bold')
-            y_pos -= 0.25
+            ax_table.text(col_labels, y_pos, label, ha='left', fontsize=11)
+            ax_table.text(col_h_raw, y_pos, f"{h_raw:.2f}", ha='center', fontsize=11, alpha=0.6)
+            ax_table.text(col_h_adj, y_pos, f"{h_adj:.2f}", ha='center', fontsize=11, fontweight='bold')
+            ax_table.text(col_a_raw, y_pos, f"{a_raw:.2f}", ha='center', fontsize=11, alpha=0.6)
+            ax_table.text(col_a_adj, y_pos, f"{a_adj:.2f}", ha='center', fontsize=11, fontweight='bold')
+            y_pos -= 0.15
             
         # Home Ice Row
         home_ice = details.get('home_ice', 0.1)
-        ax_table.text(0.1, y_pos, "Home Ice", ha='left', fontsize=10)
-        ax_table.text(0.35, y_pos, f"{home_ice:.2f}", ha='center', fontsize=10, alpha=0.7)
-        ax_table.text(0.45, y_pos, f"{home_ice:.2f}", ha='center', fontsize=10, fontweight='bold')
-        # Away gets 0
-        ax_table.text(0.65, y_pos, "0.00", ha='center', fontsize=10, alpha=0.7)
-        ax_table.text(0.75, y_pos, "0.00", ha='center', fontsize=10, fontweight='bold')
-        y_pos -= 0.25
-            
-        # Add Skill Factor Row
-        y_pos -= 0.1
-        ax_table.text(0.1, y_pos, "Skill Factors (Off/Def)", ha='left', fontsize=9, style='italic')
-        ax_table.text(0.45, y_pos, f"{skill[0]['off']:.2f} / {skill[0]['def']:.2f}", ha='center', fontsize=9, style='italic')
-        ax_table.text(0.75, y_pos, f"{skill[1]['off']:.2f} / {skill[1]['def']:.2f}", ha='center', fontsize=9, style='italic')
+        ax_table.text(col_labels, y_pos, "Home Ice", ha='left', fontsize=11)
+        ax_table.text(col_h_raw, y_pos, f"{home_ice:.2f}", ha='center', fontsize=11, alpha=0.6)
+        ax_table.text(col_h_adj, y_pos, f"{home_ice:.2f}", ha='center', fontsize=11, fontweight='bold')
+        ax_table.text(col_a_raw, y_pos, "0.00", ha='center', fontsize=11, alpha=0.6)
+        ax_table.text(col_a_adj, y_pos, "0.00", ha='center', fontsize=11, fontweight='bold')
+        y_pos -= 0.15
         
-        # Add Raw Total Row
-        y_pos -= 0.25
-        ax_table.text(0.1, y_pos, "Total Raw xG", ha='left', fontsize=10, fontweight='bold', alpha=0.7)
-        ax_table.text(0.45, y_pos, f"{raw_xg[0]:.2f}", ha='center', fontsize=10, fontweight='bold', alpha=0.7)
-        ax_table.text(0.75, y_pos, f"{raw_xg[1]:.2f}", ha='center', fontsize=10, fontweight='bold', alpha=0.7)
+        # Skill Factor Row (Subtle)
+        y_pos -= 0.05
+        ax_table.text(col_labels, y_pos, "Skill Factors (Off/Def)", ha='left', fontsize=9, style='italic', color='gray')
+        ax_table.text(col_h_adj, y_pos, f"{skill[0]['off']:.2f} / {skill[0]['def']:.2f}", ha='center', fontsize=9, style='italic', color='gray')
+        ax_table.text(col_a_adj, y_pos, f"{skill[1]['off']:.2f} / {skill[1]['def']:.2f}", ha='center', fontsize=9, style='italic', color='gray')
+        
+        # Total Row
+        y_pos -= 0.15
+        ax_table.plot([0.1, 0.9], [y_pos+0.1, y_pos+0.1], color='black', linewidth=1)
+        ax_table.text(col_labels, y_pos, "Total xG", ha='left', fontsize=12, fontweight='bold')
+        ax_table.text(col_h_raw, y_pos, f"{raw_xg[0]:.2f}", ha='center', fontsize=12, fontweight='bold', alpha=0.6)
+        ax_table.text(col_h_adj, y_pos, f"{self.home_xg:.2f}", ha='center', fontsize=12, fontweight='bold')
+        ax_table.text(col_a_raw, y_pos, f"{raw_xg[1]:.2f}", ha='center', fontsize=12, fontweight='bold', alpha=0.6)
+        ax_table.text(col_a_adj, y_pos, f"{self.away_xg:.2f}", ha='center', fontsize=12, fontweight='bold')
 
-        # 3. Tale of the Tape (Bar Chart)
+        # --- 3. Tale of the Tape ---
         ax_tape = fig.add_subplot(gs[2])
         
         rates = self.details.get('rates', ({}, {}))
         h_stats, a_stats = rates
         
-        # Metrics to compare
         metrics = ['5v5 xGF/60', '5v5 xGA/60', 'PP xGF/60', 'PK xGA/60']
         
-        # Values
-        h_vals = [
-            h_stats['5v5']['xg_for_60'],
-            h_stats['5v5']['xg_ag_60'],
-            h_stats['pp']['xg_for_60'],
-            h_stats['pk']['xg_ag_60']
-        ]
+        h_vals = [h_stats['5v5']['xg_for_60'], h_stats['5v5']['xg_ag_60'], h_stats['pp']['xg_for_60'], h_stats['pk']['xg_ag_60']]
+        a_vals = [a_stats['5v5']['xg_for_60'], a_stats['5v5']['xg_ag_60'], a_stats['pp']['xg_for_60'], a_stats['pk']['xg_ag_60']]
         
-        a_vals = [
-            a_stats['5v5']['xg_for_60'],
-            a_stats['5v5']['xg_ag_60'],
-            a_stats['pp']['xg_for_60'],
-            a_stats['pk']['xg_ag_60']
-        ]
-        
-        # Actual Goals (for red lines)
-        h_actuals = [
-            h_stats['5v5'].get('gf_60', 0),
-            h_stats['5v5'].get('ga_60', 0),
-            h_stats['pp'].get('gf_60', 0),
-            h_stats['pk'].get('ga_60', 0)
-        ]
-        
-        a_actuals = [
-            a_stats['5v5'].get('gf_60', 0),
-            a_stats['5v5'].get('ga_60', 0),
-            a_stats['pp'].get('gf_60', 0),
-            a_stats['pk'].get('ga_60', 0)
-        ]
+        h_actuals = [h_stats['5v5'].get('gf_60', 0), h_stats['5v5'].get('ga_60', 0), h_stats['pp'].get('gf_60', 0), h_stats['pk'].get('ga_60', 0)]
+        a_actuals = [a_stats['5v5'].get('gf_60', 0), a_stats['5v5'].get('ga_60', 0), a_stats['pp'].get('gf_60', 0), a_stats['pk'].get('ga_60', 0)]
         
         x = np.arange(len(metrics))
         width = 0.35
         
-        # Plot Bars
-        rects1 = ax_tape.bar(x - width/2, h_vals, width, label=self.home, color=c_home, alpha=0.8)
-        rects2 = ax_tape.bar(x + width/2, a_vals, width, label=self.away, color=c_away, alpha=0.8)
+        ax_tape.bar(x - width/2, h_vals, width, label=self.home, color=c_home, alpha=0.8)
+        ax_tape.bar(x + width/2, a_vals, width, label=self.away, color=c_away, alpha=0.8)
         
-        # Plot Actual Lines (Red)
-        # For each bar, draw a line at the actual value
         for i in range(len(metrics)):
-            # Home Bar Center: x[i] - width/2
-            # Away Bar Center: x[i] + width/2
-            
-            # Home Actual
-            ax_tape.plot([x[i] - width/2 - width/2.5, x[i] - width/2 + width/2.5], 
-                         [h_actuals[i], h_actuals[i]], color='red', linewidth=2, zorder=10)
-            
-            # Away Actual
-            ax_tape.plot([x[i] + width/2 - width/2.5, x[i] + width/2 + width/2.5], 
-                         [a_actuals[i], a_actuals[i]], color='red', linewidth=2, zorder=10)
+            ax_tape.plot([x[i] - width/2 - width/2.5, x[i] - width/2 + width/2.5], [h_actuals[i], h_actuals[i]], color='red', linewidth=2, zorder=10)
+            ax_tape.plot([x[i] + width/2 - width/2.5, x[i] + width/2 + width/2.5], [a_actuals[i], a_actuals[i]], color='red', linewidth=2, zorder=10)
         
-        ax_tape.set_ylabel('Rate per 60')
-        ax_tape.set_title('Tale of the Tape (Weighted Rates)\nRed Line = Actual Goals/60', fontsize=12)
+        ax_tape.set_ylabel('Rate per 60', fontsize=10)
+        ax_tape.set_title('Tale of the Tape (Weighted Rates)\nRed Line = Actual Goals/60', fontsize=14, fontweight='bold', pad=15)
         ax_tape.set_xticks(x)
-        ax_tape.set_xticklabels(metrics)
-        ax_tape.legend()
-        ax_tape.grid(axis='y', alpha=0.3)
+        ax_tape.set_xticklabels(metrics, fontsize=10)
+        ax_tape.legend(frameon=False)
+        ax_tape.grid(axis='y', alpha=0.2, linestyle='--')
+        ax_tape.spines['top'].set_visible(False)
+        ax_tape.spines['right'].set_visible(False)
         
         # Remove top/right spines for cleaner look
         ax_tape.spines['top'].set_visible(False)
         ax_tape.spines['right'].set_visible(False)
         
-        # 4. Uncertainty / Score Distribution
-        ax_dist = fig.add_subplot(gs[3])
+        # --- 4. Goal Differential Histogram ---
+        ax_hist = fig.add_subplot(gs[3])
         
-        max_g = 8
-        goals = np.arange(max_g + 1)
-        h_pmf = poisson.pmf(goals, self.home_xg)
-        a_pmf = poisson.pmf(goals, self.away_xg)
+        diffs = self.sim_differentials
+        unique, counts = np.unique(diffs, return_counts=True)
+        freqs = counts / self.n_sims
+        freq_map = dict(zip(unique, freqs))
         
-        ax_dist.plot(goals, h_pmf, 'o-', color=c_home, label=f"{self.home} Dist")
-        ax_dist.plot(goals, a_pmf, 'o-', color=c_away, label=f"{self.away} Dist")
+        # Determine range dynamically but keep it centered and reasonable
+        max_diff = max(abs(diffs.min()), abs(diffs.max()), 4)
+        x_range = np.arange(-max_diff, max_diff + 1)
+        y_vals = [freq_map.get(i, 0) for i in x_range]
         
-        ax_dist.fill_between(goals, h_pmf, alpha=0.1, color=c_home)
-        ax_dist.fill_between(goals, a_pmf, alpha=0.1, color=c_away)
+        colors = []
+        for i in x_range:
+            if i < 0: colors.append(c_away)
+            elif i > 0: colors.append(c_home)
+            else: colors.append(c_tie)
+            
+        bars = ax_hist.bar(x_range, y_vals, color=colors, alpha=0.7)
         
-        ax_dist.set_title("Score Probability Distribution", fontsize=12, fontweight='bold')
-        ax_dist.set_xlabel("Goals Scored")
-        ax_dist.set_ylabel("Probability")
-        ax_dist.legend()
-        ax_dist.grid(True, alpha=0.3)
+        ax_hist.set_xlabel(f"Goal Differential ({self.away} ... Tie ... {self.home})", fontsize=10)
+        ax_hist.set_ylabel("Probability", fontsize=10)
+        ax_hist.set_title("Projected Goal Differential (Monte Carlo)", fontsize=14, fontweight='bold', pad=15)
         
-        # Remove top/right spines
-        ax_dist.spines['top'].set_visible(False)
-        ax_dist.spines['right'].set_visible(False)
+        # Only label x-ticks for reasonable range
+        tick_locs = [i for i in x_range if abs(i) <= 5]
+        ax_hist.set_xticks(tick_locs)
+        ax_hist.set_xticklabels([str(i) if i != 0 else "Tie" for i in tick_locs], fontsize=10)
+        ax_hist.set_xlim(-5.5, 5.5) # Zoom in on the interesting part
         
-        plt.tight_layout()
-        fig.savefig(out_path, dpi=150, bbox_inches='tight')
-        plt.close(fig)
-        print(f"Prediction plot saved to {out_path}")
+        for bar in bars:
+            height = bar.get_height()
+            if height > 0.02: # Only label significant bars
+                ax_hist.text(bar.get_x() + bar.get_width()/2., height + 0.005,
+                            f'{height*100:.0f}%',
+                            ha='center', va='bottom', fontsize=9, fontweight='bold')
+                            
+        ax_hist.grid(axis='y', alpha=0.2, linestyle='--')
+        ax_hist.spines['top'].set_visible(False)
+        ax_hist.spines['right'].set_visible(False)
+        
+        # Final Layout Adjustment
+        # plt.tight_layout() # tight_layout can sometimes mess up custom gridspec spacing
+        
+        if filename:
+            plt.savefig(filename, dpi=150, bbox_inches='tight')
+            print(f"Prediction plot saved to {filename}")
+        else:
+            plt.show()
+        plt.close()
+
+def calculate_home_ice_advantage(predictor):
+    """
+    Calculate empirical Home Ice Advantage (Mean Home xG - Mean Away xG).
+    """
+    print("\n--- Estimating Home Ice Advantage ---")
+    df = predictor.df_season
+    
+    # Group by game
+    games = df.groupby('game_id')
+    
+    diffs = []
+    
+    for gid, g_df in games:
+        # Identify Home Team
+        try:
+            home_id = g_df.iloc[0]['home_id']
+        except:
+            continue
+            
+        # Calculate Total xG for Home and Away
+        home_xg = g_df[g_df['team_id'] == home_id]['xgs'].sum()
+        away_xg = g_df[g_df['team_id'] != home_id]['xgs'].sum()
+        
+        diffs.append(home_xg - away_xg)
+        
+    diffs = np.array(diffs)
+    mean_diff = np.mean(diffs)
+    median_diff = np.median(diffs)
+    
+    print(f"Games Analyzed: {len(diffs)}")
+    print(f"Mean Home Advantage (xG): {mean_diff:.4f}")
+    print(f"Median Home Advantage (xG): {median_diff:.4f}")
+    
+    # Plot Histogram
+    plt.figure(figsize=(10, 6))
+    plt.hist(diffs, bins=50, color='skyblue', edgecolor='black', alpha=0.7)
+    plt.axvline(mean_diff, color='red', linestyle='dashed', linewidth=2, label=f'Mean: {mean_diff:.2f}')
+    plt.axvline(0, color='black', linewidth=1)
+    plt.title(f"Distribution of Home Ice Advantage (Home xG - Away xG)\nMean: {mean_diff:.3f}", fontsize=14)
+    plt.xlabel("xG Difference (Home - Away)")
+    plt.ylabel("Frequency")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    
+    out_path = 'static/home_ice_advantage.png'
+    plt.savefig(out_path, dpi=100)
+    print(f"Saved plot to {out_path}")
+    plt.close()
+    
+    return mean_diff
+
+def optimize_recency_weight(predictor):
+    """
+    Find optimal recency weight by minimizing Log Loss on season predictions.
+    Skipping first 10 games of the season.
+    """
+    print("\n--- Optimizing Recency Weight ---")
+    
+    # Define weights to test
+    weights = [0.00, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03]
+    
+    # Get all games sorted by date
+    df = predictor.df_season
+    
+    # We need to ensure we have dates. The predictor adds them in load_data.
+    if 'game_date' not in df.columns:
+        print("Error: game_date not in DataFrame. Cannot optimize.")
+        return
+        
+    # Group by game
+    games_list = []
+    for gid, g_df in df.groupby('game_id'):
+        try:
+            date = g_df.iloc[0]['game_date']
+            home_abb = g_df.iloc[0]['home_abb']
+            away_abb = g_df.iloc[0]['away_abb']
+            home_id = g_df.iloc[0]['home_id']
+            
+            # Outcome
+            # We need actual goals to determine winner.
+            home_goals = g_df[(g_df['team_id'] == home_id) & (g_df['event'] == 'goal')].shape[0]
+            away_goals = g_df[(g_df['team_id'] != home_id) & (g_df['event'] == 'goal')].shape[0]
+            
+            home_won = 1 if home_goals > away_goals else 0 # Tie/OT? Simple win/loss for now.
+            
+            games_list.append({
+                'date': date,
+                'home': home_abb,
+                'away': away_abb,
+                'home_won': home_won
+            })
+        except:
+            continue
+            
+    # Sort by date
+    games_list.sort(key=lambda x: x['date'])
+    
+    # Skip first 50 games of the season to let stats stabilize.
+    skip_n = 50
+    eval_games = games_list[skip_n:]
+    
+    print(f"Total Games: {len(games_list)}")
+    print(f"Eval Games: {len(eval_games)} (Skipped first {skip_n})")
+    
+    results = {}
+    
+    from sklearn.metrics import log_loss
+    
+    for w in weights:
+        print(f"Testing weight: {w}...", end='', flush=True)
+        
+        # Create a new predictor with this weight
+        predictor.weight_decay = w
+        # Clear cache
+        predictor.team_stats = {} 
+        
+        preds = []
+        actuals = []
+        
+        for g in eval_games:
+            try:
+                res = predictor.predict_matchup(g['home'], g['away'], date=g['date'])
+                
+                res.run_simulation(n_sims=500) # Lower sims for speed
+                p_home_win = res.sim_win_probs['home'] + 0.5 * res.sim_win_probs['tie']
+                
+                preds.append(p_home_win)
+                actuals.append(g['home_won'])
+            except Exception as e:
+                continue
+                
+        if len(preds) > 0:
+            ll = log_loss(actuals, preds)
+            results[w] = ll
+            print(f" Log Loss: {ll:.4f}")
+        else:
+            print(" No predictions.")
+            
+    # Plot
+    if results:
+        ws = list(results.keys())
+        losses = list(results.values())
+        
+        best_w = ws[np.argmin(losses)]
+        print(f"Optimal Weight: {best_w}")
+        
+        plt.figure(figsize=(8, 5))
+        plt.plot(ws, losses, marker='o', linestyle='-', color='purple')
+        plt.axvline(best_w, color='green', linestyle='--', label=f'Optimal: {best_w}')
+        plt.title("Recency Weight Optimization (Log Loss)", fontsize=14)
+        plt.xlabel("Weight Decay Factor")
+        plt.ylabel("Log Loss (Lower is Better)")
+        plt.legend()
+        plt.grid(alpha=0.3)
+        
+        out_path = 'static/recency_optimization.png'
+        plt.savefig(out_path, dpi=100)
+        print(f"Saved plot to {out_path}")
+        plt.close()
 
 if __name__ == "__main__":
-    # Test Routine
-    print("Running Test Prediction...")
-    predictor = GamePredictor(weight_decay=0.05)
+    # Initialize Predictor
+    pred = GamePredictor(season='20252026')
     
-    # Predict a hypothetical game
-    res = predictor.predict_matchup('PHI', 'PIT')
+    # 1. Estimate Home Ice Advantage
+    #calculate_home_ice_advantage(pred)
     
-    if res:
-        print(f"Prediction: {res.home} {res.home_xg:.2f} - {res.away} {res.away_xg:.2f}")
-        res.plot('test_prediction.png')
+    # 2. Optimize Recency Weight
+    #optimize_recency_weight(pred)
+    
+    # 3. Run Test Prediction (using default or optimal?)
+    # Let's just run the standard test for now
+    print("\n--- Running Test Prediction (Default Weight) ---")
+    pred.weight_decay = 0.02 # Reset to default
+    res = pred.predict_matchup('PHI', 'CAR', date=pd.to_datetime('2025-12-04'))
+    print(f"Prediction: {res.home} {res.home_xg:.2f} - {res.away} {res.away_xg:.2f}")
+    res.plot('test_prediction.png')

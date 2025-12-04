@@ -312,7 +312,7 @@ def fit_model(
         sys.stdout.flush()
 
     if not progress:
-        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state, n_jobs=1)
         clf.fit(X_train, y_train)
         return clf, X_test, y_test
 
@@ -323,7 +323,7 @@ def fit_model(
     # Determine chunk size (at most progress_steps updates)
     steps = max(1, int(progress_steps))
     chunk = max(1, n_estimators // steps)
-    clf = RandomForestClassifier(n_estimators=0, warm_start=True, random_state=random_state)
+    clf = RandomForestClassifier(n_estimators=0, warm_start=True, random_state=random_state, n_jobs=1)
     trained = 0
     total = n_estimators
     try:
@@ -342,7 +342,7 @@ def fit_model(
     except Exception:
         # fallback to single-shot fit if incremental fails
         sys.stdout.write('\n')
-        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state)
+        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state, n_jobs=1)
         clf.fit(X_train, y_train)
 
     return clf, X_test, y_test
