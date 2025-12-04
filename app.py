@@ -436,6 +436,17 @@ def players():
                 df['xg_against_60'] = df['xg_against_60'].round(2)
             if 'toi_sec' in df.columns:
                 df['toi_min'] = (df['toi_sec'] / 60).astype(int)
+                
+            # Handle new columns (GF, GA, CF, CA, etc.)
+            # If they don't exist (yet), fill with None or 0
+            new_cols = ['goals_for', 'goals_against', 'attempts_for', 'attempts_against', 'xgf_pct', 'gf_pct', 'cf_pct']
+            for col in new_cols:
+                if col not in df.columns:
+                    df[col] = None # Or 0 if preferred, but None indicates missing data
+                else:
+                    # Round percentages
+                    if 'pct' in col:
+                         df[col] = df[col].round(1)
             
             players_data = df.to_dict('records')
             
@@ -443,6 +454,26 @@ def players():
             logger.error(f"Failed to load player stats: {e}")
             
     return render_template("players.html", players=players_data, season=season, scatter_img=scatter_path)
+
+
+@app.route("/player/<season>/<team>/<player_id>")
+def player_view(season, team, player_id):
+    """Render individual player view with relative map."""
+    
+    # Map path: static/players/{season}/{team}/{player_id}_relative.png
+    # We pass the URL path to the template
+    
+    map_filename = f"{player_id}_relative.png"
+    map_url = f"players/{season}/{team}/{map_filename}"
+    
+    # We could also load stats for this player if we want to display them
+    # For now, just the map as requested
+    
+    return render_template("player_view.html", 
+                         season=season, 
+                         team=team, 
+                         player_id=player_id, 
+                         map_url=map_url)
 
 
 @app.route('/admin/flush_cache', methods=['POST'])
@@ -464,4 +495,5 @@ if __name__ == '__main__':
     logger.info('Starting Flask development server on http://192.168.1.224:5001')
     import sys
     sys.stdout.flush()
-    app.run(host='192.168.1.224', port=5001, debug=True)
+    # Disable reloader and debug mode to avoid "No space left on device" (ENOSPC/SemLock)
+    app.run(host='192.168.1.224', port=5001, debug=False, use_reloader=False)

@@ -313,8 +313,10 @@
         <h1 class="app-title">New Puck Analysis</h1>
       </div>
       <nav>
-        <a href="#" class="nav-link active">Game Plot</a>
+        <a href="{{ url_for('index') }}" class="nav-link active">Game Plot</a>
         <a href="{{ url_for('league_stats') }}" class="nav-link">League</a>
+        <a href="{{ url_for('team_maps') }}" class="nav-link">Team Maps</a>
+        <a href="{{ url_for('players') }}" class="nav-link">Players</a>
       </nav>
     </div>
   </header>

@@ -179,6 +179,10 @@ def run_analysis():
                              
                         p_stats['xg_for'] = p_stats.get('team_xgs', 0.0)
                         p_stats['xg_against'] = p_stats.get('other_xgs', 0.0)
+                        p_stats['goals_for'] = p_stats.get('team_goals', 0)
+                        p_stats['goals_against'] = p_stats.get('other_goals', 0)
+                        p_stats['attempts_for'] = p_stats.get('team_attempts', 0)
+                        p_stats['attempts_against'] = p_stats.get('other_attempts', 0)
                         p_stats['toi_sec'] = toi
                         
                         game_player_stats.append(p_stats)
@@ -216,6 +220,11 @@ def run_analysis():
         for pid, grp in df_raw.groupby('player_id'):
             tot_xg_for = grp['xg_for'].sum()
             tot_xg_against = grp['xg_against'].sum()
+            tot_goals_for = grp['goals_for'].sum()
+            tot_goals_against = grp['goals_against'].sum()
+            tot_attempts_for = grp['attempts_for'].sum()
+            tot_attempts_against = grp['attempts_against'].sum()
+            
             tot_toi = grp['toi_sec'].sum()
             games = grp['game_id'].nunique()
             team = grp['team'].mode().iloc[0] if not grp['team'].empty else 'UNK'
@@ -227,6 +236,16 @@ def run_analysis():
             else:
                 xg_for_60 = 0
                 xg_against_60 = 0
+                
+            # Percentages
+            xg_total = tot_xg_for + tot_xg_against
+            xgf_pct = (tot_xg_for / xg_total * 100) if xg_total > 0 else 0.0
+            
+            g_total = tot_goals_for + tot_goals_against
+            gf_pct = (tot_goals_for / g_total * 100) if g_total > 0 else 0.0
+            
+            c_total = tot_attempts_for + tot_attempts_against
+            cf_pct = (tot_attempts_for / c_total * 100) if c_total > 0 else 0.0
             
             last_game = grp['game_id'].max()
                 
@@ -236,9 +255,16 @@ def run_analysis():
                 'team': team,
                 'xg_for': tot_xg_for,
                 'xg_against': tot_xg_against,
+                'goals_for': tot_goals_for,
+                'goals_against': tot_goals_against,
+                'attempts_for': tot_attempts_for,
+                'attempts_against': tot_attempts_against,
                 'toi_sec': tot_toi,
                 'xg_for_60': xg_for_60,
                 'xg_against_60': xg_against_60,
+                'xgf_pct': xgf_pct,
+                'gf_pct': gf_pct,
+                'cf_pct': cf_pct,
                 'games_played': games,
                 'last_game_id': last_game
             })

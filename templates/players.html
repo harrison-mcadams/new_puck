@@ -162,6 +162,33 @@
       border: 1px solid var(--border-color);
     }
 
+    /* Pagination */
+    .pagination {
+      display: flex;
+      justify-content: center;
+      gap: 0.5rem;
+      margin-top: 1rem;
+    }
+
+    .pagination button {
+      padding: 0.5rem 1rem;
+      border: 1px solid var(--border-color);
+      background: white;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    .pagination button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .pagination button.active {
+      background: var(--primary-color);
+      color: white;
+      border-color: var(--primary-color);
+    }
+
     /* Mobile Responsiveness */
     @media (max-width: 768px) {
       .app-header {
@@ -233,22 +260,48 @@
       </div>
       <div class="card-body">
         {% if players %}
+        <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+          <div>
+            <label>Show
+              <select id="pageSize" onchange="changePageSize()">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="all">All</option>
+              </select>
+              entries</label>
+          </div>
+          <div>
+            <input type="text" id="searchInput" onkeyup="filterTable()" placeholder="Search players..."
+              style="padding: 0.5rem; border: 1px solid var(--border-color); border-radius: 4px;">
+          </div>
+        </div>
+
         <table id="statsTable">
           <thead>
             <tr>
               <th onclick="sortTable(0)">Player</th>
               <th onclick="sortTable(1)">Team</th>
               <th class="num" onclick="sortTable(2, true)">GP</th>
-              <th class="num" onclick="sortTable(3, true)">TOI (min)</th>
-              <th class="num" onclick="sortTable(4, true)">xGF/60</th>
-              <th class="num" onclick="sortTable(5, true)">xGA/60</th>
+              <th class="num" onclick="sortTable(3, true)">TOI</th>
+              <th class="num" onclick="sortTable(4, true)">GF</th>
+              <th class="num" onclick="sortTable(5, true)">GA</th>
+              <th class="num" onclick="sortTable(6, true)">GF%</th>
+              <th class="num" onclick="sortTable(7, true)">xGF</th>
+              <th class="num" onclick="sortTable(8, true)">xGA</th>
+              <th class="num" onclick="sortTable(9, true)">xGF%</th>
+              <th class="num" onclick="sortTable(10, true)">CF</th>
+              <th class="num" onclick="sortTable(11, true)">CA</th>
+              <th class="num" onclick="sortTable(12, true)">CF%</th>
+              <th class="num" onclick="sortTable(13, true)">xGF/60</th>
+              <th class="num" onclick="sortTable(14, true)">xGA/60</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody id="tableBody">
             {% for row in players %}
             <tr>
               <td>
-                <a href="{{ url_for('team_stats', season=season, game_state='5v5', team=row.team) }}"
+                <a href="{{ url_for('player_view', season=season, team=row.team, player_id=row.player_id) }}"
                   style="color:var(--primary-color); text-decoration:none; font-weight:bold;">
                   {{ row.name }}
                 </a>
@@ -256,12 +309,26 @@
               <td>{{ row.team }}</td>
               <td class="num">{{ row.games_played }}</td>
               <td class="num">{{ row.toi_min }}</td>
+              <td class="num">{{ row.goals_for if row.goals_for is not none else '-' }}</td>
+              <td class="num">{{ row.goals_against if row.goals_against is not none else '-' }}</td>
+              <td class="num">{{ row.gf_pct if row.gf_pct is not none else '-' }}</td>
+              <td class="num">{{ row.xg_for|round(1) if row.xg_for is not none else '-' }}</td>
+              <td class="num">{{ row.xg_against|round(1) if row.xg_against is not none else '-' }}</td>
+              <td class="num">{{ row.xgf_pct if row.xgf_pct is not none else '-' }}</td>
+              <td class="num">{{ row.attempts_for if row.attempts_for is not none else '-' }}</td>
+              <td class="num">{{ row.attempts_against if row.attempts_against is not none else '-' }}</td>
+              <td class="num">{{ row.cf_pct if row.cf_pct is not none else '-' }}</td>
               <td class="num">{{ row.xg_for_60 }}</td>
               <td class="num">{{ row.xg_against_60 }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
+
+        <div class="pagination" id="paginationControls">
+          <!-- Pagination buttons will be inserted here -->
+        </div>
+
         {% else %}
         <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
           No player statistics available.
@@ -273,6 +340,80 @@
   </main>
 
   <script>
+    let currentPage = 1;
+    let pageSize = 50;
+    let allRows = [];
+    let filteredRows = [];
+
+    document.addEventListener('DOMContentLoaded', function () {
+      const tbody = document.getElementById('tableBody');
+      allRows = Array.from(tbody.rows);
+      filteredRows = [...allRows];
+      renderTable();
+    });
+
+    function filterTable() {
+      const input = document.getElementById('searchInput');
+      const filter = input.value.toLowerCase();
+
+      filteredRows = allRows.filter(row => {
+        const name = row.cells[0].innerText.toLowerCase();
+        const team = row.cells[1].innerText.toLowerCase();
+        return name.includes(filter) || team.includes(filter);
+      });
+
+      currentPage = 1;
+      renderTable();
+    }
+
+    function changePageSize() {
+      const select = document.getElementById('pageSize');
+      pageSize = select.value === 'all' ? filteredRows.length : parseInt(select.value);
+      currentPage = 1;
+      renderTable();
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = '';
+
+      const start = (currentPage - 1) * pageSize;
+      const end = start + pageSize;
+      const pageRows = filteredRows.slice(start, end);
+
+      pageRows.forEach(row => tbody.appendChild(row));
+
+      renderPagination();
+    }
+
+    function renderPagination() {
+      const controls = document.getElementById('paginationControls');
+      controls.innerHTML = '';
+
+      const totalPages = Math.ceil(filteredRows.length / pageSize);
+      if (totalPages <= 1) return;
+
+      // Prev
+      const prevBtn = document.createElement('button');
+      prevBtn.innerText = 'Prev';
+      prevBtn.disabled = currentPage === 1;
+      prevBtn.onclick = () => { currentPage--; renderTable(); };
+      controls.appendChild(prevBtn);
+
+      // Page Info
+      const info = document.createElement('span');
+      info.innerText = ` Page ${currentPage} of ${totalPages} `;
+      info.style.alignSelf = 'center';
+      controls.appendChild(info);
+
+      // Next
+      const nextBtn = document.createElement('button');
+      nextBtn.innerText = 'Next';
+      nextBtn.disabled = currentPage === totalPages;
+      nextBtn.onclick = () => { currentPage++; renderTable(); };
+      controls.appendChild(nextBtn);
+    }
+
     function sortTable(n, isNumeric = false) {
       var table, rows, switching, i, x, y, shouldSwitch, dir, switchcount = 0;
       table = document.getElementById("statsTable");
@@ -285,46 +426,33 @@
         headers[i].classList.remove("sorted-asc", "sorted-desc");
       }
 
-      while (switching) {
-        switching = false;
-        rows = table.rows;
-        for (i = 1; i < (rows.length - 1); i++) {
-          shouldSwitch = false;
-          x = rows[i].getElementsByTagName("TD")[n];
-          y = rows[i + 1].getElementsByTagName("TD")[n];
+      // Sort the filteredRows array directly
+      filteredRows.sort((a, b) => {
+        let xContent = a.cells[n].innerText.toLowerCase();
+        let yContent = b.cells[n].innerText.toLowerCase();
 
-          // For columns with links, get text content
-          var xContent = x.innerText.toLowerCase();
-          var yContent = y.innerText.toLowerCase();
+        if (xContent === '-') xContent = isNumeric ? -999999 : '';
+        if (yContent === '-') yContent = isNumeric ? -999999 : '';
 
-          if (isNumeric) {
-            xContent = parseFloat(xContent) || 0;
-            yContent = parseFloat(yContent) || 0;
-          }
-
-          if (dir == "asc") {
-            if (xContent > yContent) {
-              shouldSwitch = true;
-              break;
-            }
-          } else if (dir == "desc") {
-            if (xContent < yContent) {
-              shouldSwitch = true;
-              break;
-            }
-          }
+        if (isNumeric) {
+          xContent = parseFloat(xContent) || 0;
+          yContent = parseFloat(yContent) || 0;
         }
-        if (shouldSwitch) {
-          rows[i].parentNode.insertBefore(rows[i + 1], rows[i]);
-          switching = true;
-          switchcount++;
-        } else {
-          if (switchcount == 0 && dir == "asc") {
-            dir = "desc";
-            switching = true;
-          }
-        }
+
+        if (xContent < yContent) return -1;
+        if (xContent > yContent) return 1;
+        return 0;
+      });
+
+      if (table.getAttribute('data-sort-col') == n && table.getAttribute('data-sort-dir') == 'asc') {
+        filteredRows.reverse();
+        dir = 'desc';
+      } else {
+        dir = 'asc';
       }
+
+      table.setAttribute('data-sort-col', n);
+      table.setAttribute('data-sort-dir', dir);
 
       // Set header class
       if (dir == "asc") {
@@ -332,6 +460,9 @@
       } else {
         headers[n].classList.add("sorted-desc");
       }
+
+      currentPage = 1;
+      renderTable();
     }
   </script>
 
