@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>League - New Puck Analysis</title>
+  <title>Players - New Puck Analysis</title>
   <style>
     :root {
       --primary-color: #F74902;
@@ -73,32 +73,6 @@
       padding: 0 1rem;
     }
 
-    /* Tabs */
-    .tabs {
-      display: flex;
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-      border-bottom: 1px solid var(--border-color);
-    }
-
-    .tab {
-      padding: 0.8rem 1.5rem;
-      text-decoration: none;
-      color: var(--text-secondary);
-      font-weight: 600;
-      border-bottom: 3px solid transparent;
-      transition: all 0.2s;
-    }
-
-    .tab:hover {
-      color: var(--primary-color);
-    }
-
-    .tab.active {
-      color: var(--primary-color);
-      border-bottom-color: var(--primary-color);
-    }
-
     /* Cards */
     .card {
       background: var(--surface-color);
@@ -126,7 +100,6 @@
     .card-body {
       padding: 1rem;
       overflow-x: auto;
-      /* For table scrolling */
     }
 
     /* Table */
@@ -189,40 +162,6 @@
       border: 1px solid var(--border-color);
     }
 
-    /* Grid for Maps */
-    .maps-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-      gap: 1.5rem;
-    }
-
-    .map-item {
-      border: 1px solid var(--border-color);
-      border-radius: var(--radius);
-      overflow: hidden;
-      background: white;
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-
-    .map-item:hover {
-      transform: translateY(-2px);
-      box-shadow: var(--shadow-md);
-    }
-
-    .map-header {
-      padding: 0.5rem;
-      background: #f8f9fa;
-      border-bottom: 1px solid var(--border-color);
-      font-weight: 600;
-      text-align: center;
-    }
-
-    .map-item img {
-      width: 100%;
-      height: auto;
-      display: block;
-    }
-
     /* Mobile Responsiveness */
     @media (max-width: 768px) {
       .app-header {
@@ -248,34 +187,6 @@
       .nav-link {
         margin-left: 0;
       }
-
-      .maps-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .tabs {
-        overflow-x: auto;
-        white-space: nowrap;
-      }
-    }
-
-    .btn {
-      padding: 0.5rem 1.2rem;
-      border: none;
-      border-radius: 4px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: background-color 0.2s;
-      font-size: 0.9rem;
-    }
-
-    .btn-primary {
-      background-color: var(--primary-color);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background-color: var(--primary-hover);
     }
   </style>
 </head>
@@ -290,105 +201,70 @@
       </div>
       <nav>
         <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
-        <a href="{{ url_for('league_stats') }}" class="nav-link active">League</a>
+        <a href="{{ url_for('league_stats') }}" class="nav-link">League</a>
         <a href="{{ url_for('team_maps') }}" class="nav-link">Team Maps</a>
-        <a href="{{ url_for('players') }}" class="nav-link">Players</a>
+        <a href="{{ url_for('players') }}" class="nav-link active">Players</a>
       </nav>
     </div>
   </header>
 
   <main class="app-container">
 
-    <!-- Tabs -->
-    <div
-      style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color);">
-      <div class="tabs" style="margin-bottom:0; border-bottom:none;">
-        <a href="{{ url_for('league_stats', season=season, game_state='5v5') }}"
-          class="tab {% if game_state == '5v5' %}active{% endif %}">5v5</a>
-        <a href="{{ url_for('league_stats', season=season, game_state='5v4') }}"
-          class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
-        <a href="{{ url_for('league_stats', season=season, game_state='4v5') }}"
-          class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
-        <a href="{{ url_for('league_stats', season=season, game_state='SpecialTeams') }}"
-          class="tab {% if game_state == 'SpecialTeams' %}active{% endif %}">Special Teams</a>
+    <!-- Scatter Plot -->
+    <div class="card">
+      <div class="card-header">
+        <h2>League Player Scatter (5v5)</h2>
       </div>
-      <div>
-        <a href="{{ url_for('team_maps', season=season, game_state=game_state) }}" class="btn btn-primary"
-          style="text-decoration:none; display:inline-block; line-height:1.5;">View Team Maps</a>
+      <div class="card-body scatter-container">
+        {% if scatter_img %}
+        <img src="{{ url_for('static', filename=scatter_img) }}" alt="Player Scatter Plot" loading="lazy">
+        {% else %}
+        <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
+          No scatter plot available.
+        </p>
+        {% endif %}
       </div>
     </div>
 
     <!-- Summary Table -->
     <div class="card">
       <div class="card-header">
-        <h2>League Summary ({{ game_state }})</h2>
+        <h2>Player Statistics</h2>
       </div>
       <div class="card-body">
-        {% if stats %}
+        {% if players %}
         <table id="statsTable">
           <thead>
             <tr>
-              <th onclick="sortTable(0)">Team</th>
-              <th class="num" onclick="sortTable(1, true)">GP</th>
-              <th class="num" onclick="sortTable(2, true)">TOI</th>
-              <th class="num" onclick="sortTable(3, true)">GF</th>
-              <th class="num" onclick="sortTable(4, true)">GA</th>
-              <th class="num" onclick="sortTable(5, true)">GF%</th>
-              <th class="num" onclick="sortTable(6, true)">xGF</th>
-              <th class="num" onclick="sortTable(7, true)">xGA</th>
-              <th class="num" onclick="sortTable(8, true)">xGF%</th>
-              <th class="num" onclick="sortTable(9, true)">CF</th>
-              <th class="num" onclick="sortTable(10, true)">CA</th>
-              <th class="num" onclick="sortTable(11, true)">CF%</th>
-              <th class="num" onclick="sortTable(12, true)">xGF/60</th>
-              <th class="num" onclick="sortTable(13, true)">xGA/60</th>
+              <th onclick="sortTable(0)">Player</th>
+              <th onclick="sortTable(1)">Team</th>
+              <th class="num" onclick="sortTable(2, true)">GP</th>
+              <th class="num" onclick="sortTable(3, true)">TOI (min)</th>
+              <th class="num" onclick="sortTable(4, true)">xGF/60</th>
+              <th class="num" onclick="sortTable(5, true)">xGA/60</th>
             </tr>
           </thead>
           <tbody>
-            {% for row in stats %}
+            {% for row in players %}
             <tr>
               <td>
-                <a href="{{ url_for('team_stats', season=season, game_state=game_state, team=row.Team) }}"
+                <a href="{{ url_for('team_stats', season=season, game_state='5v5', team=row.team) }}"
                   style="color:var(--primary-color); text-decoration:none; font-weight:bold;">
-                  {{ row.Team }}
+                  {{ row.name }}
                 </a>
               </td>
-              <td class="num">{{ row.GP }}</td>
-              <td class="num">{{ row.TOI }}</td>
-              <td class="num">{{ row.GF }}</td>
-              <td class="num">{{ row.GA }}</td>
-              <td class="num">{{ row['GF%'] }}</td>
-              <td class="num">{{ row.xGF }}</td>
-              <td class="num">{{ row.xGA }}</td>
-              <td class="num">{{ row['xGF%'] }}</td>
-              <td class="num">{{ row.CF }}</td>
-              <td class="num">{{ row.CA }}</td>
-              <td class="num">{{ row['CF%'] }}</td>
-              <td class="num">{{ row['xGF/60'] }}</td>
-              <td class="num">{{ row['xGA/60'] }}</td>
+              <td>{{ row.team }}</td>
+              <td class="num">{{ row.games_played }}</td>
+              <td class="num">{{ row.toi_min }}</td>
+              <td class="num">{{ row.xg_for_60 }}</td>
+              <td class="num">{{ row.xg_against_60 }}</td>
             </tr>
             {% endfor %}
           </tbody>
         </table>
         {% else %}
         <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
-          No league statistics available for {{ game_state }}. Please run the analysis script.
-        </p>
-        {% endif %}
-      </div>
-    </div>
-
-    <!-- Scatter Plot -->
-    <div class="card">
-      <div class="card-header">
-        <h2>xG Rates Scatter ({{ game_state }})</h2>
-      </div>
-      <div class="card-body scatter-container">
-        {% if stats %}
-        <img src="{{ url_for('static', filename=scatter_img) }}" alt="xG Scatter Plot" loading="lazy">
-        {% else %}
-        <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
-          No scatter plot available.
+          No player statistics available.
         </p>
         {% endif %}
       </div>
@@ -417,9 +293,9 @@
           x = rows[i].getElementsByTagName("TD")[n];
           y = rows[i + 1].getElementsByTagName("TD")[n];
 
-          // For the Team column (index 0), we need to get the text content of the link
-          var xContent = (n === 0) ? x.innerText.toLowerCase() : x.innerHTML.toLowerCase();
-          var yContent = (n === 0) ? y.innerText.toLowerCase() : y.innerHTML.toLowerCase();
+          // For columns with links, get text content
+          var xContent = x.innerText.toLowerCase();
+          var yContent = y.innerText.toLowerCase();
 
           if (isNumeric) {
             xContent = parseFloat(xContent) || 0;

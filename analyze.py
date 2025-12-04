@@ -4089,6 +4089,8 @@ def generate_special_teams_plot(season, teams, out_dir):
     Generates a combined Special Teams plot for each team.
     Left half: 5v4 Offense (from 5v4 relative map)
     Right half: 4v5 Defense (from 4v5 relative map)
+    
+    Also generates a combined summary JSON and scatter plot.
     """
     import os
     import numpy as np
@@ -4096,6 +4098,7 @@ def generate_special_teams_plot(season, teams, out_dir):
     from rink import draw_rink
     from plot import add_summary_text
     import json
+    from analyze import generate_scatter_plot # Import explicitly if needed, or rely on module scope
 
     if teams is None:
         try:
@@ -4143,11 +4146,64 @@ def generate_special_teams_plot(season, teams, out_dir):
                     return s
         return {}
 
+    combined_summary = []
+
     for team in teams:
         # Load maps
         map_5v4_path = os.path.join(dir_5v4, f'{team}_relative_combined.npy')
         map_4v5_path = os.path.join(dir_4v5, f'{team}_relative_combined.npy')
         
+        # Get stats even if map doesn't exist (for table)
+        t_stats_5v4 = get_team_stats(stats_5v4, team)
+        t_stats_4v5 = get_team_stats(stats_4v5, team)
+        
+        # Create combined stats entry
+        # We want PP Offense (team_xg_per60 from 5v4) vs PK Defense (other_xg_per60 from 4v5)
+        # Note: 4v5 'other_xg_per60' is xGA/60 (shots against team while team is PK)
+        
+        pp_xg_per60 = t_stats_5v4.get('team_xg_per60', 0.0)
+        pk_xga_per60 = t_stats_4v5.get('other_xg_per60', 0.0)
+        
+        # Also sum raw counts for table
+        pp_goals = t_stats_5v4.get('team_goals', 0)
+        pk_goals_against = t_stats_4v5.get('other_goals', 0)
+        
+        pp_xgs = t_stats_5v4.get('team_xgs', 0.0)
+        pk_xgs_against = t_stats_4v5.get('other_xgs', 0.0)
+        
+        pp_attempts = t_stats_5v4.get('team_attempts', 0)
+        pk_attempts_against = t_stats_4v5.get('other_attempts', 0)
+        
+        pp_toi = t_stats_5v4.get('team_seconds', 0.0)
+        pk_toi = t_stats_4v5.get('team_seconds', 0.0) # PK TOI
+        
+        # Net Special Teams xG? (PP xGF - PK xGA) - crude metric but maybe useful
+        net_st_xg = pp_xgs - pk_xgs_against
+        
+        combined_entry = {
+            'team': team,
+            'Team': team, # For consistency with other summaries
+            'n_games': t_stats_5v4.get('n_games', 0), # Assume same games
+            
+            # PP Stats (Offense)
+            'team_goals': pp_goals,
+            'team_xgs': pp_xgs,
+            'team_attempts': pp_attempts,
+            'team_seconds': pp_toi,
+            'team_xg_per60': pp_xg_per60, # This will be xGF/60 in scatter
+            
+            # PK Stats (Defense) - mapped to 'other' fields for scatter compatibility
+            'other_goals': pk_goals_against,
+            'other_xgs': pk_xgs_against,
+            'other_attempts': pk_attempts_against,
+            'other_seconds': pk_toi,
+            'other_xg_per60': pk_xga_per60, # This will be xGA/60 in scatter
+            
+            # Extra
+            'net_st_xg': net_st_xg
+        }
+        combined_summary.append(combined_entry)
+
         if not os.path.exists(map_5v4_path) or not os.path.exists(map_4v5_path):
             # print(f"Skipping {team}: missing 5v4 or 4v5 map")
             continue
@@ -4204,94 +4260,50 @@ def generate_special_teams_plot(season, teams, out_dir):
             cbar.ax.set_yticklabels(cbar_ticklabels)
             
             # Summary Text
-            # Try to load individual summary for percentiles
-            t_stats_5v4 = {}
-            path_5v4 = os.path.join(dir_5v4, f'{season}_{team}_summary.json')
-            if os.path.exists(path_5v4):
-                with open(path_5v4, 'r') as f:
-                    t_stats_5v4 = json.load(f)
-            else:
-                 t_stats_5v4 = get_team_stats(stats_5v4, team)
-
-            t_stats_4v5 = {}
-            path_4v5 = os.path.join(dir_4v5, f'{season}_{team}_summary.json')
-            if os.path.exists(path_4v5):
-                with open(path_4v5, 'r') as f:
-                    t_stats_4v5 = json.load(f)
-            else:
-                 t_stats_4v5 = get_team_stats(stats_4v5, team)
+            # Use the combined stats we just built
+            text_stats = combined_entry.copy()
+            text_stats['home_xg'] = text_stats['team_xgs']
+            text_stats['away_xg'] = text_stats['other_xgs']
+            text_stats['have_xg'] = True
+            text_stats['home_goals'] = text_stats['team_goals']
+            text_stats['away_goals'] = text_stats['other_goals']
+            text_stats['home_attempts'] = text_stats['team_attempts']
+            text_stats['away_attempts'] = text_stats['other_attempts']
             
-            # Construct stats dict mapping PP->Home(Left) and PK->Away(Right)
-            st_stats = {
-                'team_xg_per60': t_stats_5v4.get('team_xg_per60'),
-                'other_xg_per60': t_stats_4v5.get('other_xg_per60'),
-                'rel_off_pct': t_stats_5v4.get('rel_off_pct'),
-                'rel_def_pct': t_stats_4v5.get('rel_def_pct'),
-                'off_percentile': t_stats_5v4.get('off_percentile'),
-                'def_percentile': t_stats_4v5.get('def_percentile'),
-                'have_xg': True,
-                
-                # Left Column (PP / 5v4)
-                'home_goals': t_stats_5v4.get('team_goals', 0),
-                'home_xg': t_stats_5v4.get('team_xgs', 0.0),
-                'home_attempts': t_stats_5v4.get('team_attempts', 0),
-                
-                # Right Column (PK / 4v5)
-                # Note: For PK, we want the stats AGAINST the team (Goals Against, xGA)
-                # In 4v5 analysis, 'other_goals' represents goals by the opponent (PP team)
-                'away_goals': t_stats_4v5.get('other_goals', 0),
-                'away_xg': t_stats_4v5.get('other_xgs', 0.0),
-                'away_attempts': t_stats_4v5.get('other_attempts', 0),
-            }
-            
-            # Calculate Shot Percentages (CF%)
-            # PP CF% (5v4)
-            pp_for = t_stats_5v4.get('team_attempts', 0)
-            pp_ag = t_stats_5v4.get('other_attempts', 0)
-            if (pp_for + pp_ag) > 0:
-                st_stats['home_shot_pct'] = 100.0 * pp_for / (pp_for + pp_ag)
-            else:
-                st_stats['home_shot_pct'] = 0.0
-                
-            # PK CA% (4v5) - Opponent's CF% on their PP
-            pk_for = t_stats_4v5.get('team_attempts', 0)
-            pk_ag = t_stats_4v5.get('other_attempts', 0)
-            if (pk_for + pk_ag) > 0:
-                st_stats['away_shot_pct'] = 100.0 * pk_ag / (pk_for + pk_ag)
-            else:
-                st_stats['away_shot_pct'] = 0.0
-            
-            
-            # Get full team name
-            full_team_name = None
-            
+            # Add summary text
             add_summary_text(
                 ax=ax,
-                stats=st_stats,
-                main_title=f"Special Teams: {team}",
+                stats=text_stats,
+                main_title=f"{team} Special Teams (PP Off / PK Def)",
                 is_season_summary=True,
                 team_name=team,
-                filter_str="PP Offense (Left) | PK Defense (Right)"
+                filter_str="Special Teams"
             )
-            
-            ax.axis('off')
-            
-            # Colorbar
-            # Colorbar
-            cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
-            cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
-            
-            cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-            cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
-            cbar.set_ticks(cbar_ticks)
-            cbar.ax.set_yticklabels(cbar_ticklabels)
             
             out_path = os.path.join(st_out_dir, f'{team}_special_teams_map.png')
             fig.savefig(out_path, dpi=150, bbox_inches='tight')
             plt.close(fig)
             
         except Exception as e:
-            print(f"Failed to generate Special Teams plot for {team}: {e}")
+            print(f"generate_special_teams_plot: error for {team}: {e}")
+            import traceback
+            traceback.print_exc()
 
-    print(f"Special Teams plots saved to {st_out_dir}")
+    # Save Combined Summary
+    summary_path = os.path.join(st_out_dir, f'{season}_team_summary.json')
+    try:
+        with open(summary_path, 'w') as f:
+            json.dump(combined_summary, f, indent=2)
+        print(f"Saved Special Teams summary to {summary_path}")
+    except Exception as e:
+        print(f"Failed to save Special Teams summary: {e}")
+
+    # Generate Scatter Plot
+    # generate_scatter_plot expects list of dicts with 'team_xg_per60' and 'other_xg_per60'
+    # We have mapped PP Off -> team_xg_per60 and PK Def -> other_xg_per60
+    print("Generating Special Teams scatter plot...")
+    try:
+        generate_scatter_plot(combined_summary, st_out_dir, condition_name="SpecialTeams")
+    except Exception as e:
+        print(f"Failed to generate Special Teams scatter plot: {e}")
 

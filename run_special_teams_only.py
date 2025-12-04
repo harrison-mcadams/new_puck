@@ -2,7 +2,7 @@
 import analyze
 
 season = '20252026'
-teams = ['ANA', 'BOS', 'BUF', 'CAR', 'CBJ'] # Just a few teams for testing
+teams = None # Process all teams
 out_dir = f'static/league/{season}'
 
 print(f"Generating Special Teams plots for {season}...")
