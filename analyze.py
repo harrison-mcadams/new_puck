@@ -107,7 +107,8 @@ def players(season: str = '20252026',
             out_dir = os.path.join('static', f'{season}_players_analysis')
     os.makedirs(out_dir, exist_ok=True)
 
-    print(f"players: Starting analysis. Scope={time_scope}, Team={team}, Condition={condition}")
+    print(f"players: Starting analysis. Scope={time_scope}, Team={team}, Condition={condition}", flush=True)
+    print(f"DEBUG: analyze.players called", flush=True)
 
     # 2. Load Data
     # We load the full dataset once to avoid reloading per player
@@ -248,7 +249,7 @@ def players(season: str = '20252026',
             # Calculate robust timing
             timing_res = timing.compute_game_timing(p_df, p_cond)
             t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
-
+            
             _, ret_heat, _, p_stats = xgs_map(
                 season=season,
                 data_df=p_df,
@@ -513,6 +514,16 @@ def players(season: str = '20252026',
             # Calculate robust timing for player
             timing_res = timing.compute_game_timing(p_df, p_cond)
             t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
+            
+            if t_seconds is None:
+                print(f"DEBUG: t_seconds is None for pid={pid}", flush=True)
+                print(f"DEBUG: timing_res keys: {list(timing_res.keys())}", flush=True)
+                print(f"DEBUG: aggregate: {timing_res.get('aggregate')}", flush=True)
+                t_seconds = 0.0
+            try:
+                t_seconds = float(t_seconds)
+            except Exception:
+                t_seconds = 0.0
 
             _, ret_heat, _, p_stats = xgs_map(
                 season=season,
@@ -1915,8 +1926,14 @@ def xgs_map(season: Optional[str] = '20252026', *,
               use_intervals: bool = True,
               intervals_input: Optional[dict] = None,
               title: Optional[str] = None,
-              interval_time_col: str = 'total_time_elapsed_seconds'):
+              interval_time_col: str = 'total_time_elapsed_seconds',
+              force_refresh: bool = False):
     
+    if total_seconds is None:
+        # Default to 0.0 if not provided, to avoid None propagation
+        # (Caller should provide it if they want per60 normalization)
+        total_seconds = 0.0
+
     """Create an xG density map for a season and save a plot.
 
     This function is intentionally written as a clear sequence of steps with
@@ -2494,7 +2511,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
     if timing is not None:
         try:
-            timing_full = timing.compute_game_timing(df_all, condition)
+            timing_full = timing.compute_game_timing(df_all, condition, force_refresh=force_refresh)
         except Exception as e:
             print(f'Warning: timing.compute_game_timing failed: {e}; using empty timing structure')
 
@@ -2812,6 +2829,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
         heatmap_mode = 'home_away'
     else:
         heatmap_mode = 'orient_all_left'
+    
+    print(f"DEBUG: xgs_map heatmap_mode={heatmap_mode} team_val={team_val} condition={condition}", flush=True)
 
 
     # Call plot_events and handle both return shapes and the optional heatmap return
@@ -2824,12 +2843,11 @@ def xgs_map(season: Optional[str] = '20252026', *,
         df_adj = plot_mod.adjust_xy_for_homeaway(df_to_plot, split_mode=heatmap_mode, team_for_heatmap=team_val)
         
         # 1. Adjust coordinates
-        df_adj = plot_mod.adjust_xy_for_homeaway(df_to_plot, split_mode=heatmap_mode, team_for_heatmap=team_val)
-        
         # 2. Compute heatmaps based on mode
         heatmaps = {}
         
         if heatmap_mode == 'team_not_team':
+            print(f"DEBUG: xgs_map calling compute_xg_heatmap_from_df (team). total_seconds={total_seconds!r}", flush=True)
             # Compute 'team' heatmap
             _, _, heat_team, _, _ = compute_xg_heatmap_from_df(
                 df_adj, grid_res=grid_res, sigma=sigma,
@@ -2869,6 +2887,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 summary_stats=summary_stats,
                 title=title,
                 events_to_plot=['shot-on-goal', 'goal', 'xGs'],
+                total_seconds=total_seconds,
             )
             if len(ret) >= 3:
                 fig, ax, heatmaps = ret[0], ret[1], ret[2]
@@ -3102,29 +3121,14 @@ def compute_xg_heatmap_from_df(
             total_seconds_used = None
 
     if total_seconds_used is None:
-        print(f"DEBUG: xgs_map total_seconds_used is None, inferring...")
-        # try to infer from a timing column present in the dataframe
-        try:
-            times = pd.to_numeric(df_work.get('total_time_elapsed_seconds', pd.Series(dtype=float)), errors='coerce').dropna()
-            if len(times) >= 2:
-                # Check for multiple games to avoid catastrophic under-estimation of time
-                n_games = 1
-                if 'game_id' in df_work.columns:
-                    n_games = df_work['game_id'].nunique()
-                
-                # Estimate time per game (usually ~3600s for full game)
-                # If we have multiple games, we assume the events cover the full duration of those games
-                # or at least that we should scale the single-game clock range by N games.
-                time_range = float(times.max() - times.min())
-                if time_range <= 0:
-                    time_range = 3600.0 # fallback default
-                
-                total_seconds_used = time_range * n_games
-                print(f"DEBUG: Inferred total_seconds_used={total_seconds_used} from {n_games} games (range={time_range})")
-            else:
-                total_seconds_used = 0.0
-        except Exception:
-            total_seconds_used = 0.0
+        if normalize_per60:
+             # If we need to normalize but have no time, we cannot proceed safely.
+             # User requested NO inference.
+             print(f"DEBUG: compute_xg_heatmap_from_df: total_seconds is None and normalize_per60=True. Returning zeros.")
+             total_seconds_used = 0.0 # Will result in zero rate
+        else:
+             # Not normalizing, so time doesn't matter for the heatmap values themselves
+             total_seconds_used = 0.0
 
     # If requested, normalize heat and total_xg to per-60 units using total_seconds_used
     if normalize_per60 and total_seconds_used and total_seconds_used > 0.0:

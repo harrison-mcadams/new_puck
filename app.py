@@ -180,7 +180,8 @@ def replot():
             return_heatmaps=False,
             # Default behavior: show only shots on goal and goals, plus the xG heatmap
             events_to_plot=['shot-on-goal', 'goal', 'xgs'],
-            return_filtered_df=True
+            return_filtered_df=True,
+            force_refresh=True
         )
         
         # Explicitly close the figure to prevent memory leaks and plot stacking
@@ -422,7 +423,7 @@ def admin_flush_cache():
 
 
 if __name__ == '__main__':
-    logger.info('Starting Flask development server on http://192.168.1.224:5000')
+    logger.info('Starting Flask development server on http://192.168.1.224:5001')
     import sys
     sys.stdout.flush()
-    app.run(host='192.168.1.224', port=5000, debug=True)
+    app.run(host='192.168.1.224', port=5001, debug=True)

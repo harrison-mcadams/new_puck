@@ -172,6 +172,7 @@ def plot_events(
     summary_stats: Optional[Dict[str, float]] = None,
     conditions: Optional[Dict] = None,
     plot_kwargs: Optional[Dict] = None,
+    total_seconds: Optional[float] = None,
 ) -> Tuple[plt.Figure, plt.Axes]:
     """Plot event locations onto a rink schematic.
 
@@ -677,15 +678,15 @@ def plot_events(
                 if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
                     # team_not_team mode: compute two separate maps (team and not_team)
                     gx, gy, heat_team, team_xg, team_seconds = analyze.compute_xg_heatmap_from_df(
-                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=team_for_heatmap, selected_role='team')
+                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=team_for_heatmap, selected_role='team', total_seconds=total_seconds)
                     _, _, heat_not_team, not_team_xg, not_team_seconds = analyze.compute_xg_heatmap_from_df(
-                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=team_for_heatmap, selected_role='other')
+                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=team_for_heatmap, selected_role='other', total_seconds=total_seconds)
                     heat_team_arr = heat_team
                     heat_not_team_arr = heat_not_team
                 elif heatmap_split_mode == 'orient_all_left':
                     # All shots oriented left, single heatmap
                     gx, gy, heat_all, all_xg, all_seconds = analyze.compute_xg_heatmap_from_df(
-                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False)
+                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, total_seconds=total_seconds)
                     # Overlay as a single color (e.g., black)
                     all_color = 'black'
 
@@ -706,9 +707,9 @@ def plot_events(
                         if len(vals) > 0:
                             home_id_val = vals[0]
                     gx, gy, heat_home_arr, home_xg, home_seconds = analyze.compute_xg_heatmap_from_df(
-                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=home_id_val, selected_role='team')
+                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=home_id_val, selected_role='team', total_seconds=total_seconds)
                     _, _, heat_away_arr, away_xg, away_seconds = analyze.compute_xg_heatmap_from_df(
-                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=home_id_val, selected_role='other')
+                        events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, selected_team=home_id_val, selected_role='other', total_seconds=total_seconds)
 
                     # alias names to match previous expectations
                     heat_team_arr = heat_home_arr

@@ -172,7 +172,7 @@ def _intersect_multiple(list_of_lists: List[List[Interval]]) -> List[Interval]:
     return res
 
 
-def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
+def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: bool = False) -> pd.DataFrame:
     """Fetch and parse shift chart for a game into a DataFrame (using parse._shifts).
 
     Returns DataFrame with columns including 'start_total_seconds' and 'end_total_seconds'.
@@ -186,12 +186,14 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
     Parameters:
         game_id: NHL game ID
         min_rows_threshold: Minimum number of shifts required to consider API response valid (default 5)
+        force_refresh: If True, bypass in-memory cache and force API refresh (default False)
     """
     # --- In-Memory Cache Check ---
     try:
-        gid_int = int(game_id)
-        if gid_int in _SHIFTS_CACHE:
-            return _SHIFTS_CACHE[gid_int].copy()
+        if not force_refresh:
+            gid_int = int(game_id)
+            if gid_int in _SHIFTS_CACHE:
+                return _SHIFTS_CACHE[gid_int].copy()
     except Exception:
         pass
 
@@ -210,7 +212,7 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5) -> pd.DataFrame:
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 cache_file = cache_dir / f'shifts_{game_id}.pkl'
                 
-                if cache_file.exists():
+                if cache_file.exists() and not force_refresh:
                     try:
                         df = pd.read_pickle(cache_file)
                         logging.info(f"Loaded cached shifts for game {game_id} from {cache_file}")
@@ -853,7 +855,7 @@ def select_team_game(df: pd.DataFrame, team: str) -> Optional[Any]:
 
 
 def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
- verbose: bool = False, net_empty_mode: str = 'either') -> Dict[str, Any]:
+ verbose: bool = False, net_empty_mode: str = 'either', force_refresh: bool = False) -> Dict[str, Any]:
     """Compute per-condition intervals for a single game using shifts as source.
 
     condition: dict of keys -> values where values are scalars or lists.
@@ -879,7 +881,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
             cond_norm[k] = [v]
 
     # get shifts df
-    df_shifts = _get_shifts_df(int(game_id))
+    df_shifts = _get_shifts_df(int(game_id), force_refresh=force_refresh)
 
     # obtain game metadata from play-by-play to map home/away ids
     feed = nhl_api.get_game_feed(int(game_id)) or {}
@@ -960,6 +962,27 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
                 flip_states = True
         except Exception:
             pass
+
+    # If no conditions provided, default to full observed duration (All Events)
+    if not cond_norm:
+        if total_observed > 0:
+            return {
+                'game_id': int(game_id),
+                'intervals_per_condition': {},
+                'pooled_seconds_per_condition': {},
+                'intersection_intervals': [(0.0, total_observed)],
+                'intersection_seconds': float(total_observed),
+                'total_observed_seconds': float(total_observed),
+            }
+        else:
+             return {
+                'game_id': int(game_id),
+                'intervals_per_condition': {},
+                'pooled_seconds_per_condition': {},
+                'intersection_intervals': [],
+                'intersection_seconds': 0.0,
+                'total_observed_seconds': 0.0,
+            }
 
     # For each condition key compute intervals
     for key, vals in cond_norm.items():
@@ -1151,7 +1174,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
     return result
 
 
-def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool = False, net_empty_mode: str = 'either') -> Dict[str, Any]:
+def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool = False, net_empty_mode: str = 'either', force_refresh: bool = False) -> Dict[str, Any]:
     """Compute per-game timing information for all games referenced in `df`.
 
     df: a DataFrame that contains a 'game_id' column (events-level or season-level).
@@ -1235,9 +1258,10 @@ def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bo
     # when called repeatedly in a loop (e.g. for every player).
     for gid, cond in tasks:
         try:
-            res = compute_intervals_for_game(gid, cond, verbose, net_empty_mode)
+            res = compute_intervals_for_game(gid, cond, verbose, net_empty_mode, force_refresh=force_refresh)
             per_game[gid] = res
         except Exception as e:
+            print(f"compute_game_timing: failed for game {gid}: {e}")
             if verbose:
                 logging.exception('compute_game_timing: failed for game %s: %s', gid, e)
 
