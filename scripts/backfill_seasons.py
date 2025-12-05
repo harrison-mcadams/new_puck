@@ -33,8 +33,23 @@ def backfill():
         
         print(f"Downloading/Parsing data for {season}...")
         try:
-            # parse._season returns a DataFrame
-            df = parse._season(season=season, out_path=out_dir, use_cache=True, verbose=True)
+            # use _scrape directly to control memory usage better
+            # max_workers=2 to be gentle on Pi resources
+            # return_feeds=False to avoid holding raw JSONs in RAM
+            res = parse._scrape(
+                season=season, 
+                out_dir='data', 
+                use_cache=True, 
+                verbose=True,
+                max_workers=2,         # <-- Reduced from default 8
+                return_feeds=False,    # <-- Critical: Don't keep raw data in RAM
+                return_elaborated_df=True,
+                process_elaborated=True,
+                save_raw=True,         # Save to disk is fine, but don't keep in RAM
+                save_json=False,       # Skip the giant JSON file to save IO/Time
+                save_csv=True          # We want the CSV backup
+            )
+            df = res.get('elaborated_df')
         except Exception as e:
             print(f"Error parsing season {season}: {e}")
             continue
