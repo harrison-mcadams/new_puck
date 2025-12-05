@@ -3,11 +3,11 @@ Description=New Puck Flask Application
 After=network.target
 
 [Service]
-User=pi
-Group=pi
-WorkingDirectory=/home/pi/new_puck
-Environment="PATH=/home/pi/new_puck/.venv/bin"
-ExecStart=/home/pi/new_puck/.venv/bin/gunicorn --workers 3 --bind 0.0.0.0:8000 app:app
+User=spoon
+Group=spoon
+WorkingDirectory=/home/spoon/new_puck
+Environment="PATH=/home/spoon/new_puck/.venv/bin"
+ExecStart=/home/spoon/new_puck/.venv/bin/gunicorn --workers 3 --bind [::]:8000 app:app
 
 [Install]
 WantedBy=multi-user.target

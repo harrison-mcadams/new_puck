@@ -13,7 +13,7 @@ sudo apt update && sudo apt upgrade -y
 Install necessary system dependencies. While `pip` handles Python packages, some might need system-level libraries (like `numpy` or `pandas` dependencies).
 
 ```bash
-sudo apt install -y git python3-pip python3-venv libatlas-base-dev gfortran
+sudo apt install -y git python3-pip python3-venv libopenblas-dev gfortran
 ```
 
 ## 2. Clone the Repository
@@ -24,6 +24,7 @@ Navigate to your home directory and clone the project.
 cd ~
 git clone https://github.com/harrison-mcadams/new_puck new_puck
 cd new_puck
+git checkout public-release-clean
 ```
 *(Replace `<YOUR_REPO_URL>` with your actual Git repository URL. If you haven't pushed it yet, you'll need to do that first!)*
 
@@ -55,7 +56,7 @@ Before creating a service, run the app manually to make sure it works.
 export FLASK_APP=app.py
 flask run --host=0.0.0.0 --port=5000
 ```
-Open a browser on your computer and go to `http://<RASPBERRY_PI_IP>:5000`. If it loads, you're good to go! Press `Ctrl+C` to stop the server.
+Open a browser on your computer and go to `http://192.168.1.125:5000`. If it loads, you're good to go! Press `Ctrl+C` to stop the server.
 
 ## 6. Set Up Systemd Service
 
@@ -86,9 +87,14 @@ We want the app to start automatically when the Pi boots. We'll use the service 
 
 Your app is now running with Gunicorn on port **8000**.
 
-Access it at: `http://<RASPBERRY_PI_IP>:8000`
+Access it at: `http://192.168.1.125:8000`
 
 ## Troubleshooting
+
+- **Browser Won't Load (Chrome vs Safari)**:
+  - If Chrome fails but Safari works, Chrome is likely forcing **HTTPS**.
+  - **Fix**: Ensure you type `http://` explicitly (e.g., `http://puck-server.local:5000`).
+  - **Deep Fix**: If it keeps redirecting to HTTPS, go to `chrome://net-internals/#hsts` in Chrome, type `puck-server.local` in "Delete domain security policies", and click Delete.
 
 - **Logs**: Check service logs with `journalctl -u new_puck -f`
 - **Permissions**: Ensure the `User` in `new_puck.service` matches your Pi user (default is `pi`).

@@ -1870,7 +1870,7 @@ if __name__ == '__main__':
     # Optionally run a quick season debug (kept for backwards compatibility)
     debug_season = False
     if debug_season:
-        df = _season(out_path='/Users/harrisonmcadams/PycharmProjects/new_puck/static')
+        df = _season(out_path='static')
         print('\nSeason dataframe shape:', getattr(df, 'shape', None))
         if isinstance(df, pd.DataFrame) and not df.empty:
             print(df.head())
