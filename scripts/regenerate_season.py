@@ -5,7 +5,7 @@ import logging
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import parse
+from puck import parse
 
 def regenerate(season='20252026'):
     print(f"Regenerating data for season {season}...")
