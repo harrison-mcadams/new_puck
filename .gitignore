@@ -43,6 +43,7 @@ repro_*.txt
 static/**/*.png
 static/**/*.csv
 static/**/*.npy
+static/**/*.npz
 static/**/*.json
 !static/teams.json
 
