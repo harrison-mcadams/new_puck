@@ -14,7 +14,7 @@ Notes:
   client instead.
 """
 
-from flask import Flask, render_template, redirect, url_for, request
+from flask import Flask, render_template, redirect, url_for, request, send_from_directory
 import os
 import pandas as pd
 import logging
@@ -27,7 +27,12 @@ if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
+app = Flask(__name__, static_folder="web/static", template_folder="web/templates")
+ANALYSIS_DIR = os.path.abspath("analysis")
+
+@app.route('/analysis/<path:filename>')
+def analysis_file(filename):
+    return send_from_directory(ANALYSIS_DIR, filename)
 
 # Small default team list fallback (abbr,name). This is used when the NHL
 # schedule API is unavailable or returns 'access denied' so the UI remains
@@ -74,7 +79,7 @@ def _cache_set(key, payload):
 def index():
     """Render the main page showing the current shot plot if it exists."""
     img_filename = "shot_plot.png"
-    img_path = os.path.join(app.static_folder or "static", img_filename)
+    img_path = os.path.join(ANALYSIS_DIR, img_filename)
     exists = os.path.exists(img_path)
     
     # Pass metadata to template
@@ -93,9 +98,9 @@ def replot():
     - condition: JSON string (fallback/legacy)
     """
     try:
-        import plot
-        import fit_xgs
-        import analyze
+        from puck import plot
+        from puck import fit_xgs
+        from puck import analyze
         import json
         import numpy as np
     except Exception as e:
@@ -165,7 +170,7 @@ def replot():
         except Exception as e:
             logger.warning(f"Failed to parse condition JSON: {e}")
 
-    out_path = os.path.join(app.static_folder or 'static', 'shot_plot.png')
+    out_path = os.path.join(ANALYSIS_DIR, 'shot_plot.png')
 
     try:
         # Use analyze.xgs_map which handles filtering and plotting
@@ -253,7 +258,7 @@ def league_stats():
     # Currently run_league_stats.py generates special teams plots but maybe not a summary table?
     # It calls analyze.generate_special_teams_plot.
     
-    summary_path = os.path.join(app.static_folder or "static", "league", season, game_state, f"{season}_team_summary.json")
+    summary_path = os.path.join(ANALYSIS_DIR, "league", season, game_state, f"{season}_team_summary.json")
     scatter_path = f"league/{season}/{game_state}/scatter.png"
     
     # Special Teams override for scatter path (it might not exist, or be different)
@@ -328,7 +333,7 @@ def team_maps():
     game_state = request.args.get('game_state', '5v5')
     
     # Directory where maps are stored
-    maps_dir = os.path.join(app.static_folder or "static", "league", season, game_state)
+    maps_dir = os.path.join(ANALYSIS_DIR, "league", season, game_state)
     
     teams_data = []
     
@@ -417,7 +422,7 @@ def players():
     # CSV: static/players/{season}/league/league_player_stats.csv
     # Scatter: static/players/{season}/league/league_scatter.png
     
-    base_dir = os.path.join(app.static_folder or "static", "players", season, "league")
+    base_dir = os.path.join(ANALYSIS_DIR, "players", season, "league")
     csv_path = os.path.join(base_dir, "league_player_stats.csv")
     scatter_path = f"players/{season}/league/league_scatter.png"
     
@@ -492,8 +497,8 @@ def admin_flush_cache():
 
 
 if __name__ == '__main__':
-    logger.info('Starting Flask development server on http://192.168.1.224:5001')
+    logger.info('Starting Flask development server on http://0.0.0.0:5001')
     import sys
     sys.stdout.flush()
     # Disable reloader and debug mode to avoid "No space left on device" (ENOSPC/SemLock)
-    app.run(host='192.168.1.224', port=5001, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)

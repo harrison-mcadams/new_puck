@@ -63,7 +63,7 @@ if sdf is None or sdf.empty:
             except Exception as e:
                 print('Failed to read', p, '->', e)
         else:
-            print('No CSV found for season', season, 'in candidates or recursive search under data/static/project root.')
+            print('No CSV found for season', season, 'in candidates or recursive search under data/ or web/static/.')
             print('Searched candidates:', [str(x) for x in candidates])
             raise SystemExit(1)
 
@@ -131,7 +131,7 @@ print('Selected game id for PHI:', chosen_gid)
 
 conditions = {'team': 'PHI', 'game_state': '5v5'}
 plot_kwargs = {
-    'out_path': f'static/{chosen_gid}_PHI_5v5.png',
+    'out_path': f'analysis/{chosen_gid}_PHI_5v5.png',
     'events_to_plot': ['shot-on-goal', 'goal', 'xgs'],
     'heatmap_split_mode': 'team_not_team',
     'team_for_heatmap': 'PHI',

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Generate static/games_by_team.json by querying the NHL club-schedule-season endpoint per team.
+"""Generate analysis/games_by_team.json by querying the NHL club-schedule-season endpoint per team.
 
-Usage:
-  python3 scripts/generate_games_by_team.py [--force] [--season 20252026] [--no-api]
-
-Behavior:
-- Reads `static/teams.json` for team abbreviations.
+It:
+- Reads `analysis/teams.json` for team abbreviations.
+- Fetches the schedule for the given season (default 20252026).
+- Writes `analysis/games_by_team.json` (overwrites only with --force).
 - For each team, calls `nhl_api.get_season(team=TEAM_ABB, season=season)` to retrieve games,
   unless `--no-api` is provided which forces generation without network calls.
 - Builds a mapping {team_abbr: [ {id, label, start}, ... ] }
-- Writes `static/games_by_team.json` (overwrites only with --force).
 
 Notes:
 - This script uses the local `nhl_api.get_season` helper which already handles
@@ -28,9 +26,10 @@ import os
 from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
-STATIC = ROOT / 'static'
-TEAMS_PATH = STATIC / 'teams.json'
-OUT_PATH = STATIC / 'games_by_team.json'
+ROOT = Path(__file__).resolve().parents[1]
+ANALYSIS = ROOT / 'analysis'
+TEAMS_PATH = ANALYSIS / 'teams.json'
+OUT_PATH = ANALYSIS / 'games_by_team.json'
 
 
 def normalize_game_entry(g: Dict[str, Any], team_abbr: str):
@@ -406,7 +405,7 @@ def main(argv: List[str]):
         print(f'\nTeams with zero games: {", ".join(zero_game_teams)}')
 
     try:
-        STATIC.mkdir(parents=True, exist_ok=True)
+        ANALYSIS.mkdir(parents=True, exist_ok=True)
         with OUT_PATH.open('w', encoding='utf-8') as fh:
             json.dump(results, fh, indent=2, sort_keys=True)
         print(f'Wrote {OUT_PATH} with {len(results)} teams')

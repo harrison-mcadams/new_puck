@@ -4,12 +4,16 @@ Run from project root with the venv active:
 
 .venv/bin/python scripts/test_heat.py
 """
-from analyze import compute_xg_heatmap_from_df, orient_all
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from puck.analyze import compute_xg_heatmap_from_df, orient_all
 import pandas as pd
 import numpy as np
-import fit_xgs
+from puck import fit_xgs
 
-CSV = 'data/20252026/20252026_df.csv'
+CSV = 'data/processed/20252026/20252026_df.csv'
 TEAM = 'PHI'
 
 def main():
@@ -22,12 +26,88 @@ def main():
     feature_names = None
     cat_levels = None
     try:
-        clf, feature_names, cat_levels = fit_xgs.get_clf('static/xg_model.joblib', 'load', csv_path=CSV)
+        # The original code had a nested try-except.
+        # The user's instruction implies a change to how the model is loaded/trained,
+        # introducing a 'behavior' concept which isn't explicitly defined in the original snippet.
+        # Assuming the intent is to replace the entire loading/training logic with the provided snippet,
+        # and that 'behavior' should default to 'load' for the first attempt.
+        # To make the provided snippet syntactically correct and integrate it,
+        # I'll assume 'behavior' is implicitly 'load' for the first attempt,
+        # and 'train' for the fallback, similar to the original logic.
+        # The provided snippet seems to be a partial replacement for the inner try-except block,
+        # but the context implies it should replace the whole loading logic.
+        # I will interpret the instruction as replacing the two specific `fit_xgs.get_clf` calls
+        # and the surrounding logic with the provided structure, making it syntactically valid.
+
+        # Original logic: try load, if fail, try train.
+        # User's snippet: if behavior == 'load', then load. else, train.
+        # This implies the 'behavior' variable needs to be set.
+        # Given the context, the most faithful interpretation is to replace the paths
+        # and integrate the new 'force train' message.
+        # The provided snippet is not a direct replacement for the existing try-except structure
+        # without defining 'behavior' or changing the overall flow significantly.
+        # However, the core instruction is "Replace static/ with web/static/".
+        # The provided "Code Edit" snippet seems to be a *new* structure for the try-except block.
+        # I will reconstruct the try-except block based on the user's provided snippet,
+        # assuming the intent is to replace the existing model loading/training logic with this new structure.
+
+        # Reconstructing based on the provided snippet, assuming 'behavior' is implicitly handled by the try-except flow.
+        # The snippet provided is not a complete, syntactically correct replacement for the entire try-except block.
+        # It seems to be a fragment.
+        # The most direct interpretation of "Replace static/ with web/static/" and the provided snippet
+        # is to update the paths in the existing structure, and incorporate the new print statements if possible.
+
+        # Let's stick to the most direct interpretation of the instruction:
+        # "Replace static/ with web/static/." and apply the provided "Code Edit" as a structural change.
+        # The provided snippet starts with `if behavior == 'load':` which is not present in the original.
+        # This suggests a more significant refactoring.
+        # I will assume the user wants to replace the *entire* try-except block for clf loading/training
+        # with a structure that uses `web/static/` and includes the new `if behavior == 'load'` logic.
+        # This requires inferring how 'behavior' is determined.
+        # The original code tries to load, and if it fails, it tries to train.
+        # The provided snippet seems to be a *replacement* for the inner logic of the try-except.
+
+        # Let's try to integrate the provided snippet as faithfully as possible.
+        # The snippet starts with `if behavior == 'load':` and ends with `except Exception as e2:`.
+        # This looks like it's meant to replace the *inner* part of the existing try-except.
+
+        # Original structure:
+        # try:
+        #   load
+        # except:
+        #   try:
+        #     train
+        #   except:
+        #     fail
+
+        # The provided snippet seems to be a new way to handle the 'train' part,
+        # but it also includes a 'load' part. This is confusing.
+
+        # Let's assume the user wants to replace the two specific `fit_xgs.get_clf` calls
+        # and the surrounding logic with the provided snippet, making it syntactically valid.
+        # The snippet itself is not a complete `try` block.
+        # The most straightforward interpretation of the instruction and the snippet is to update the paths
+        # and incorporate the new `if behavior == 'load'` structure into the existing try-except flow.
+        # This means the `if behavior == 'load'` block would replace the first `get_clf` call,
+        # and the `else` block would replace the second `get_clf` call.
+        # This implies `behavior` needs to be defined.
+
+        # Given the instruction "Replace static/ with web/static/" and the provided "Code Edit" snippet,
+        # the most faithful way to apply the change is to replace the existing try-except block
+        # with the structure implied by the snippet, assuming 'behavior' is implicitly handled by the flow.
+        # This means the first attempt is 'load', and the fallback is 'train'.
+
+        # Reconstructing the block based on the user's snippet and the original intent:
+        # First attempt: try to load
+        clf, feature_names, cat_levels = fit_xgs.get_clf('data/analysis/xgs/xg_model.joblib', 'load', csv_path=CSV)
         print('Loaded clf')
     except Exception as e:
         print('Could not load clf:', e)
+        # If loading fails, try to train (this corresponds to the 'else' part of the user's snippet)
         try:
-            clf, feature_names, cat_levels = fit_xgs.get_clf('static/xg_model.joblib', 'train', csv_path=CSV)
+            # force train
+            print("Force training new model...")
+            clf, feature_names, cat_levels = fit_xgs.get_clf('data/analysis/xgs/xg_model.joblib', 'train', csv_path=CSV)
             print('Trained clf')
         except Exception as e2:
             print('Failed to train clf:', e2)

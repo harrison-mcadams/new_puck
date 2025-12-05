@@ -1,0 +1,14 @@
+{
+  "team": "BOS",
+  "n_events": 4,
+  "team_xg": 0.4114285714285714,
+  "opp_xg": 0.4114285714285714,
+  "team_seconds": 7000.0,
+  "team_xg_per60": 0.21159183673469387,
+  "opp_xg_per60": 0.21159183673469387,
+  "team_goals": 0,
+  "opp_goals": 0,
+  "team_attempts": 0,
+  "opp_attempts": 0,
+  "out_png_summary": "static/test_plot/season/season_BOS_summary.png"
+}

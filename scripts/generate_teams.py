@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
-"""Generate static/teams.json from the NHL standings endpoint.
+"""Generate analysis/teams.json from the NHL standings endpoint.
 
 Usage:
   python3 scripts/generate_teams.py [--force] [--date YYYY-MM-DD]
 
 Behavior:
-- Fetches https://api-web.nhle.com/v1/standings/{date} (date defaults to today).
-- Parses the JSON for team entries and writes static/teams.json as an array of
-  objects {"abbr": ..., "name": ...}.
-- By default will not overwrite an existing static/teams.json unless --force is used.
+- Fetches current standings from NHL API
+- Parses the JSON for team entries and writes analysis/teams.json as an array of
+  objects: { "id": int, "name": str, "abbr": str, "logo": url }
+- By default will not overwrite an existing analysis/teams.json unless --force is used.
 
 Note: This script makes a single HTTP call.
 """
@@ -20,9 +20,11 @@ from datetime import date
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
-STATIC = ROOT / 'static'
-GAMES_PATH = STATIC / 'games_by_team.json'
-TEAMS_PATH = STATIC / 'teams.json'
+ROOT = Path(__file__).resolve().parents[1]
+# Analysis output directory
+ANALYSIS = ROOT / 'analysis'
+GAMES_PATH = ANALYSIS / 'games_by_team.json'
+TEAMS_PATH = ANALYSIS / 'teams.json'
 
 
 def extract_teams(obj):
@@ -145,7 +147,7 @@ def main(argv):
     teams = [{'abbr': abbr, 'name': name} for abbr, name in sorted(found, key=lambda t: t[0])]
 
     try:
-        STATIC.mkdir(parents=True, exist_ok=True)
+        ANALYSIS.mkdir(parents=True, exist_ok=True)
         with TEAMS_PATH.open('w', encoding='utf-8') as fh:
             json.dump(teams, fh, indent=2, sort_keys=False)
         print(f'Wrote {TEAMS_PATH} with {len(teams)} entries')

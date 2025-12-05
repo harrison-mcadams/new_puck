@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Map: {{ player_id }} - New Puck Analysis</title>
+    <style>
+        :root {
+            --primary-color: #F74902;
+            --bg-color: #f8f9fa;
+            --surface-color: #ffffff;
+            --text-color: #000000;
+            --text-secondary: #444444;
+            --border-color: #e0e0e0;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+
+        .app-header {
+            background-color: #000000;
+            color: white;
+            padding: 0.8rem 2rem;
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+        }
+
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            margin-left: 1.5rem;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            color: white;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 1.5rem auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: var(--surface-color);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+            padding: 1rem;
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-bottom: 1rem;
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .map-container {
+            text-align: center;
+        }
+
+        .map-container img {
+            max-width: 100%;
+            height: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-content">
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 40px; width: auto;">
+                <h1 class="app-title">New Puck Analysis</h1>
+            </div>
+            <nav>
+                <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
+                <a href="{{ url_for('league_stats') }}" class="nav-link">League</a>
+                <a href="{{ url_for('team_maps') }}" class="nav-link">Team Maps</a>
+                <a href="{{ url_for('players') }}" class="nav-link">Players</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="app-container">
+        <a href="{{ url_for('players') }}" class="back-link">← Back to Players</a>
+
+        <div class="card">
+            <h2 style="margin-top:0;">Player Relative Map</h2>
+            <p>Player ID: {{ player_id }} | Team: {{ team }} | Season: {{ season }}</p>
+
+            <div class="map-container">
+                <img src="{{ url_for('analysis_file', filename=map_url) }}" alt="Player Relative Map" loading="lazy">
+            </div>
+        </div>
+    </main>
+
+</body>
+
+</html>

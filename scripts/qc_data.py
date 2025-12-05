@@ -35,8 +35,13 @@ import math
 from typing import List, Dict, Any, Optional
 
 # try to import rink helper for canonical goal x coordinates
+# Add project root to sys.path to allow importing puck package
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 try:
-    from rink import rink_goal_xs
+    from puck.rink import rink_goal_xs
 except Exception:
     # fallback constants if rink helper not available
     def rink_goal_xs():
@@ -91,7 +96,7 @@ parts of the URL are a combination of the game_id
 def load_csv_candidates(data_dir: Path) -> List[Path]:
     """Return a list of CSV files to load from a data directory.
 
-    - Preferred pattern: data/{year}/{year}_df.csv
+    - Preferred pattern: data/processed/{year}/{year}_df.csv
     - Also accept any .csv files found anywhere under the directory.
     """
     files: List[Path] = []
