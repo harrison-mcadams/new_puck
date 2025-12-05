@@ -1,0 +1,34 @@
+{
+  "total_left_seconds": 73230.0,
+  "total_left_xg": 45.2530194725349,
+  "stats": {
+    "season": "20252026",
+    "total_left_seconds": 73230.0,
+    "total_left_xg": 45.2530194725349,
+    "xg_per60": 2.2246465943073286,
+    "n_teams": 1
+  },
+  "per_team": {
+    "PHI": {
+      "seconds": 73230.0,
+      "out_path": null,
+      "df_filtered_shape": [
+        5099,
+        26
+      ],
+      "summary_stats": {
+        "team_xgs": 45.9884356322463,
+        "other_xgs": 49.14762547541149,
+        "team_goals": 47,
+        "other_goals": 49,
+        "team_seconds": 73230.0,
+        "other_seconds": 73230.0,
+        "team_xg_per60": 2.260799785280441,
+        "other_xg_per60": 2.4161061274270295,
+        "n_games": 25,
+        "game_ongoing": false,
+        "time_remaining": null
+      }
+    }
+  }
+}

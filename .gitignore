@@ -32,6 +32,7 @@ tmp/
 # Project specific
 .venv/
 data/
+analysis/
 *.joblib
 *.joblibx
 repro_*.txt
@@ -39,16 +40,5 @@ repro_*.txt
 # Generated images (root)
 *.png
 
-# Static generated files
-static/**/*.png
-static/**/*.csv
-static/**/*.npy
-static/**/*.npz
-static/**/*.json
-!static/teams.json
-
-# Generated baseline files (can be regenerated)
-*_league_baseline.npy
-*_league_baseline.json
-*_league_left_combined.npy
-*_league_left_combined.png
+# Keep web/static mostly clean, but allow assets
+# (Generated content is now in analysis/)

@@ -1,0 +1,118 @@
+{
+  "total_left_seconds": 45662.0,
+  "total_left_xg": 8.444145181029548,
+  "stats": {
+    "season": "20252026",
+    "total_left_seconds": 45662.0,
+    "total_left_xg": 8.444145181029548,
+    "xg_per60": 0.6657378706956851,
+    "n_teams": 5
+  },
+  "per_team": {
+    "PHI": {
+      "seconds": 7414.0,
+      "out_path": null,
+      "df_filtered_shape": [
+        371,
+        26
+      ],
+      "summary_stats": {
+        "team_xgs": 1.8850125298991722,
+        "other_xgs": 16.302275352858985,
+        "team_goals": 1,
+        "other_goals": 12,
+        "team_seconds": 7414.0,
+        "other_seconds": 7414.0,
+        "team_xg_per60": 0.9153014712216104,
+        "other_xg_per60": 7.915860705461607,
+        "n_games": 25,
+        "game_ongoing": false,
+        "time_remaining": null
+      }
+    },
+    "EDM": {
+      "seconds": 10281.0,
+      "out_path": null,
+      "df_filtered_shape": [
+        331,
+        26
+      ],
+      "summary_stats": {
+        "team_xgs": 1.4521757220599114,
+        "other_xgs": 17.78418943212024,
+        "team_goals": 1,
+        "other_goals": 15,
+        "team_seconds": 10281.0,
+        "other_seconds": 10281.0,
+        "team_xg_per60": 0.5084945627288865,
+        "other_xg_per60": 6.227320489799909,
+        "n_games": 26,
+        "game_ongoing": false,
+        "time_remaining": null
+      }
+    },
+    "TOR": {
+      "seconds": 7451.0,
+      "out_path": null,
+      "df_filtered_shape": [
+        389,
+        26
+      ],
+      "summary_stats": {
+        "team_xgs": 0.5358166954005048,
+        "other_xgs": 20.53153826391509,
+        "team_goals": 1,
+        "other_goals": 10,
+        "team_seconds": 7451.0,
+        "other_seconds": 7451.0,
+        "team_xg_per60": 0.25888338524249327,
+        "other_xg_per60": 9.919948698173979,
+        "n_games": 25,
+        "game_ongoing": false,
+        "time_remaining": null
+      }
+    },
+    "VAN": {
+      "seconds": 9384.0,
+      "out_path": null,
+      "df_filtered_shape": [
+        469,
+        26
+      ],
+      "summary_stats": {
+        "team_xgs": 3.4560975323528997,
+        "other_xgs": 21.689222132779605,
+        "team_goals": 5,
+        "other_goals": 24,
+        "team_seconds": 9384.0,
+        "other_seconds": 9384.0,
+        "team_xg_per60": 1.3258686185497057,
+        "other_xg_per60": 8.320673452472994,
+        "n_games": 27,
+        "game_ongoing": false,
+        "time_remaining": null
+      }
+    },
+    "NYR": {
+      "seconds": 11132.0,
+      "out_path": null,
+      "df_filtered_shape": [
+        421,
+        26
+      ],
+      "summary_stats": {
+        "team_xgs": 1.1521640823920882,
+        "other_xgs": 20.726978547422114,
+        "team_goals": 2,
+        "other_goals": 16,
+        "team_seconds": 11132.0,
+        "other_seconds": 11132.0,
+        "team_xg_per60": 0.3726006734289901,
+        "other_xg_per60": 6.70293952306141,
+        "n_games": 27,
+        "game_ongoing": false,
+        "time_remaining": null
+      }
+    }
+  }
+}
