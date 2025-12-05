@@ -49,7 +49,12 @@ def backfill():
                 save_json=False,       # Skip the giant JSON file to save IO/Time
                 save_csv=True          # We want the CSV backup
             )
-            df = res.get('elaborated_df')
+            # When return_elaborated_df=True and return_feeds=False, 
+            # and legacy is not triggered, _scrape returns the DataFrame directly.
+            if isinstance(res, dict):
+                 df = res.get('elaborated_df')
+            else:
+                 df = res
         except Exception as e:
             print(f"Error parsing season {season}: {e}")
             continue
