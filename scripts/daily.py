@@ -83,7 +83,12 @@ def main():
         # We should probably refactor it slightly or just use subprocess to be safe and clean.
         # Subprocess is safer to avoid global state pollution between scripts.
         import subprocess
-        subprocess.run([sys.executable, 'run_player_analysis.py'], check=True)
+        
+        # Determine paths to sibling scripts
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        player_analysis_script = os.path.join(script_dir, 'run_player_analysis.py')
+        
+        subprocess.run([sys.executable, player_analysis_script], check=True)
     except Exception as e:
         print(f"Player Analysis failed: {e}")
 
@@ -91,7 +96,10 @@ def main():
     print("\n[4/4] Running Team Analysis (Incremental)...")
     try:
         # Similarly for run_league_stats.py
-        subprocess.run([sys.executable, 'run_league_stats.py'], check=True)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
+        
+        subprocess.run([sys.executable, league_stats_script], check=True)
     except Exception as e:
         print(f"Team Analysis failed: {e}")
 
