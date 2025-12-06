@@ -50,6 +50,12 @@ To keep the data current, run the daily update script. This script fetches the l
 python3 scripts/daily.py > logs/daily.log 2>&1 &
 ```
 
+**Running for a specific past season:**
+If you want to re-run the daily analysis logic for a specific season (e.g., 2023-2024), you can use the `--season` argument:
+```bash
+python3 scripts/daily.py --season 20232024 > logs/season_20232024.log 2>&1 &
+```
+
 **Note:** The script automatically handles `sys.path` to find the `puck` package.
 
 ## 4. Web-Based Monitoring
