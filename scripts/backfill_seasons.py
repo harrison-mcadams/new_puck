@@ -98,10 +98,22 @@ def backfill():
         del combined_df
         gc.collect()
         
-        clf, _, _ = fit_xgs.fit_model(model_df, feature_cols=final_feats, n_estimators=200)
+        clf, X_test, y_test = fit_xgs.fit_model(model_df, feature_cols=final_feats, n_estimators=200)
         
         print(f"Saving model to {model_path}...")
         joblib.dump(clf, model_path)
+
+        # Evaluate and save metrics
+        print("Calculating model metrics...")
+        try:
+            _, _, metrics = fit_xgs.evaluate_model(clf, X_test, y_test)
+            metrics_path = 'analysis/xgs/xg_model_metrics.json'
+            with open(metrics_path, 'w', encoding='utf-8') as fh:
+                json.dump(metrics, fh, indent=2)
+            print(f"Saved metrics to {metrics_path}")
+            print("Metrics:", json.dumps(metrics, indent=2))
+        except Exception as e:
+            print(f"Error calculating/saving metrics: {e}")
         
         meta_path = model_path + '.meta.json'
         meta = {'final_features': final_feats, 'categorical_levels_map': cat_map}
