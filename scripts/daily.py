@@ -31,7 +31,15 @@ def main():
     print("\n[1/4] Updating Game Data...")
     # use_cache=True allows efficient fetching of only new games if parse supports it properly
     # parse._season with use_cache=True will check static/cache/game_ID.json
-    df_season = parse._season(season=season, out_path=f"data/processed/{season}", use_cache=True)
+    # out_path='data' because parse._season will append /{season}/
+    df_season = parse._season(
+        season=season, 
+        out_path='data', 
+        use_cache=True, 
+        save_elaborated=True, 
+        process_elaborated=True,
+        save_csv=False
+    )
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
     if df_season.empty:
