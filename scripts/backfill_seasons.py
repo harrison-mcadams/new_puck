@@ -25,7 +25,7 @@ def backfill():
 
     for season in SEASONS:
         out_dir = os.path.join('data', season)
-        csv_path = os.path.join(out_dir, f"{season}.csv")
+        csv_path = os.path.join(out_dir, f"{season}_df.csv")
         
         # Check if already done to save time
         if os.path.exists(csv_path) and os.path.getsize(csv_path) > 1000:
@@ -34,8 +34,7 @@ def backfill():
 
         print(f"Downloading/Parsing data for {season}...")
         try:
-            # We use save_csv=True, so it writes to disk.
-            # We ignore the return value to free memory immediately.
+            # We use save_elaborated=True, so it writes the DF to disk.
             parse._scrape(
                 season=season, 
                 out_dir='data', 
@@ -45,9 +44,10 @@ def backfill():
                 return_feeds=False,
                 return_elaborated_df=False, # Don't return it, just save it!
                 process_elaborated=True,
+                save_elaborated=True,   # CRITICAL FIX: Save the DF!
                 save_raw=True, 
                 save_json=False,
-                save_csv=True
+                save_csv=False          # We only need the DF for training
             )
             # Force cleanup
             gc.collect()
@@ -64,7 +64,7 @@ def backfill():
     all_dfs = []
 
     for season in SEASONS:
-        csv_path = os.path.join('data', season, f"{season}.csv")
+        csv_path = os.path.join('data', season, f"{season}_df.csv")
         if os.path.exists(csv_path):
              print(f"Loading {season} from disk...")
              try:
