@@ -21,14 +21,16 @@ def get_stats():
     print(f"Loading model from {model_path}...")
     clf = joblib.load(model_path)
     
+    # Always use the raw input features that generate the final model features
+    features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+    
     if os.path.exists(meta_path):
         with open(meta_path, 'r') as f:
             meta = json.load(f)
-            features = meta.get('final_features', ['distance', 'angle_deg', 'game_state', 'is_net_empty'])
+            # We don't use final_features here because clean_df_for_model expects input cols
             cat_map = meta.get('categorical_levels_map', {})
     else:
         print("Meta file not found, assuming default features.")
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
         cat_map = None
 
     # Re-load all data to evaluate on the full set (or you could just evaluate on recent seasons)
