@@ -1,0 +1,271 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Monitor - New Puck Analysis</title>
+    <style>
+        :root {
+            --primary-color: #F74902;
+            --primary-hover: #D63E02;
+            --bg-color: #f8f9fa;
+            --surface-color: #ffffff;
+            --text-color: #000000;
+            --text-secondary: #444444;
+            --border-color: #e0e0e0;
+            --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+            --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            line-height: 1.5;
+        }
+
+        .app-header {
+            background-color: #000000;
+            color: white;
+            padding: 0.8rem 2rem;
+            box-shadow: var(--shadow-md);
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-title {
+            margin: 0;
+            font-size: 1.4rem;
+            font-weight: 600;
+            color: white;
+            text-decoration: none;
+        }
+
+        .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            margin-left: 1.5rem;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+
+        .nav-link:hover,
+        .nav-link.active {
+            color: white;
+        }
+
+        .app-container {
+            max-width: 1200px;
+            margin: 1.5rem auto;
+            padding: 0 1rem;
+        }
+
+        .card {
+            background: var(--surface-color);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-sm);
+            margin-bottom: 1.5rem;
+            border: 1px solid var(--border-color);
+        }
+
+        .card-header {
+            padding: 0.8rem 1.2rem;
+            border-bottom: 1px solid var(--border-color);
+            background-color: #fafbfc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header h2 {
+            margin: 0;
+            font-size: 1rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-secondary);
+        }
+
+        .card-body {
+            padding: 1rem;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th {
+            text-align: left;
+            padding: 0.8rem;
+            background: #f1f3f5;
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            border-bottom: 2px solid var(--border-color);
+        }
+
+        td {
+            padding: 0.8rem;
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.95rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #f8f9fa;
+        }
+
+        .text-success {
+            color: #28a745;
+            font-weight: 600;
+        }
+
+        .text-warning {
+            color: #ffc107;
+            font-weight: 600;
+        }
+
+        .text-muted {
+            color: #6c757d;
+        }
+
+        .code-snippet {
+            background: #2d3436;
+            color: #dfe6e9;
+            padding: 1rem;
+            border-radius: 4px;
+            font-family: monospace;
+            margin-bottom: 1rem;
+            white-space: pre-wrap;
+        }
+
+        .btn-sm {
+            padding: 0.2rem 0.5rem;
+            font-size: 0.85rem;
+            background: #e9ecef;
+            color: #333;
+            border-radius: 4px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-sm:hover {
+            background: #dde2e6;
+        }
+
+        /* Mobile */
+        @media (max-width: 768px) {
+            .app-header {
+                padding: 0.8rem 1rem;
+            }
+
+            .header-content {
+                flex-direction: column;
+                gap: 1rem;
+                align-items: stretch;
+            }
+
+            nav {
+                display: flex;
+                justify-content: center;
+                gap: 1rem;
+                flex-wrap: wrap;
+            }
+
+            .nav-link {
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <header class="app-header">
+        <div class="header-content">
+            <div style="display:flex; align-items:center; gap:1rem;">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" style="height: 40px; width: auto;">
+                <a href="{{ url_for('index') }}" class="app-title">New Puck Analysis</a>
+            </div>
+            <nav>
+                <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
+                <a href="{{ url_for('league_stats') }}" class="nav-link">League</a>
+                <a href="{{ url_for('team_maps') }}" class="nav-link">Team Maps</a>
+                <a href="{{ url_for('players') }}" class="nav-link">Players</a>
+                <a href="{{ url_for('monitor') }}" class="nav-link active">Monitor</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="app-container">
+
+        <div class="card">
+            <div class="card-header">
+                <h2>How to Monitor</h2>
+            </div>
+            <div class="card-body">
+                <p>To monitor a script, run it with output redirection to the <code>logs/</code> directory:</p>
+                <div class="code-snippet">python scripts/your_script.py > logs/job_name.log 2>&1 &</div>
+                <p class="text-muted" style="margin-bottom:0;">The <code>2>&1</code> ensures errors are also captured.
+                    The <code>&</code> runs it in the background.</p>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2>Active Logs</h2>
+                <button onclick="window.location.reload()" class="btn-sm">Refresh List</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Status</th>
+                            <th>Filename</th>
+                            <th>Last Modified</th>
+                            <th>Size</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if logs %}
+                        {% for log in logs %}
+                        <tr>
+                            <td class="{{ log.status_class }}">{{ log.status }}</td>
+                            <td><strong>{{ log.name }}</strong></td>
+                            <td>{{ log.mtime }}</td>
+                            <td>{{ log.size }}</td>
+                            <td><a href="{{ url_for('monitor_view', filename=log.name) }}" class="btn-sm">View Log</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr>
+                            <td colspan="5" style="text-align:center; padding: 2rem; color: #999;">No log files found in
+                                <code>logs/</code></td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+</body>
+
+</html>

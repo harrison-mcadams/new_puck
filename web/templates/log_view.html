@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ filename }} - Log Viewer</title>
+    <!-- Auto-refresh every 5 seconds if requested via query param, but doing it via JS is better for control -->
+    <style>
+        :root {
+            --primary-color: #F74902;
+            --bg-color: #f8f9fa;
+            --surface-color: #ffffff;
+            --text-color: #000000;
+            --border-color: #e0e0e0;
+            --radius: 8px;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-bar {
+            background: #000;
+            color: #fff;
+            padding: 0.8rem 1rem;
+            flex-shrink: 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 3px solid var(--primary-color);
+        }
+
+        .log-title {
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .controls {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            padding: 0.3rem 0.8rem;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #444;
+        }
+
+        .btn-primary {
+            background: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+
+        .btn-primary:hover {
+            background: #d63e02;
+        }
+
+        .log-container {
+            flex-grow: 1;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 1rem;
+            overflow: auto;
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
+            font-size: 0.9rem;
+            white-space: pre-wrap;
+            /* Wrap lines */
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header-bar">
+        <div class="log-title">
+            <a href="{{ url_for('monitor') }}" style="color: #bbb; text-decoration: none;">&larr; Back</a>
+            &nbsp;&nbsp;|&nbsp;&nbsp;
+            {{ filename }}
+        </div>
+        <div class="controls">
+            <a href="{{ url_for('monitor_view', filename=filename, tail=1000) }}" class="btn">Tail 1000</a>
+            <a href="{{ url_for('monitor_view', filename=filename, full=1) }}" class="btn">Full File</a>
+            <button id="refreshBtn" class="btn btn-primary">Auto-Refresh: OFF</button>
+        </div>
+    </div>
+
+    <div class="log-container" id="logContent">{{ content }}</div>
+
+    <script>
+        // Simple auto-refresh implementation
+        let autoRefresh = localStorage.getItem('logAutoRefresh') === 'true';
+        const refreshBtn = document.getElementById('refreshBtn');
+
+        function updateBtn() {
+            if (autoRefresh) {
+                refreshBtn.textContent = "Auto-Refresh: ON";
+                refreshBtn.style.backgroundColor = "#28a745"; // Green
+            } else {
+                refreshBtn.textContent = "Auto-Refresh: OFF";
+                refreshBtn.style.backgroundColor = "var(--primary-color)";
+            }
+        }
+
+        refreshBtn.addEventListener('click', () => {
+            autoRefresh = !autoRefresh;
+            localStorage.setItem('logAutoRefresh', autoRefresh);
+            updateBtn();
+            if (autoRefresh) location.reload();
+        });
+
+        updateBtn();
+
+        if (autoRefresh) {
+            setTimeout(() => {
+                location.reload();
+            }, 3000); // 3 seconds
+        }
+
+        // Scroll to bottom on load
+        const container = document.getElementById('logContent');
+        container.scrollTop = container.scrollHeight;
+    </script>
+
+</body>
+
+</html>

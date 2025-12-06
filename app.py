@@ -29,6 +29,7 @@ if not logger.handlers:
 
 app = Flask(__name__, static_folder="web/static", template_folder="web/templates")
 ANALYSIS_DIR = os.path.abspath("analysis")
+LOG_DIR = os.path.abspath("logs")
 
 @app.route('/analysis/<path:filename>')
 def analysis_file(filename):
@@ -479,6 +480,100 @@ def player_view(season, team, player_id):
                          team=team, 
                          player_id=player_id, 
                          map_url=map_url)
+
+
+@app.route("/monitor")
+def monitor():
+    """Render the log monitoring dashboard."""
+    import time
+    from datetime import datetime
+    
+    logs = []
+    if os.path.exists(LOG_DIR):
+        try:
+            # List all files
+            files = [f for f in os.listdir(LOG_DIR) if os.path.isfile(os.path.join(LOG_DIR, f))]
+            # Sort by modification time (descending)
+            files.sort(key=lambda x: os.path.getmtime(os.path.join(LOG_DIR, x)), reverse=True)
+            
+            for f in files:
+                path = os.path.join(LOG_DIR, f)
+                stat = os.stat(path)
+                mtime = datetime.fromtimestamp(stat.st_mtime)
+                size_bytes = stat.st_size
+                
+                # Format size
+                if size_bytes < 1024:
+                    size_str = f"{size_bytes} B"
+                elif size_bytes < 1024 * 1024:
+                    size_str = f"{size_bytes / 1024:.1f} KB"
+                else:
+                    size_str = f"{size_bytes / (1024 * 1024):.1f} MB"
+                
+                # Determine status (crudely, by age)
+                age = time.time() - stat.st_mtime
+                if age < 60:
+                    status = "Active"
+                    status_class = "text-success" # Green
+                elif age < 3600:
+                    status = "Recent"
+                    status_class = "text-warning" # Orange
+                else:
+                    status = "Old"
+                    status_class = "text-muted" # Grey
+
+                logs.append({
+                    'name': f,
+                    'mtime': mtime.strftime("%Y-%m-%d %H:%M:%S"),
+                    'size': size_str,
+                    'age_seconds': age,
+                    'status': status,
+                    'status_class': status_class
+                })
+        except Exception as e:
+            logger.error(f"Failed to list logs: {e}")
+            
+    return render_template("monitor.html", logs=logs)
+
+
+@app.route("/monitor/view/<filename>")
+def monitor_view(filename):
+    """Render the log view page."""
+    
+    path = os.path.join(LOG_DIR, filename)
+    if not os.path.exists(path):
+        return ("Log file not found", 404)
+        
+    try:
+        # Check args
+        tail_lines = request.args.get('tail')
+        
+        content = ""
+        with open(path, 'r', errors='replace') as f:
+            if tail_lines:
+                try:
+                    n = int(tail_lines)
+                    # Simple tail implementation
+                    # specific check for n=0 or small file omitted for brevity, 
+                    # generic readlines is ok for reasonable sized logs.
+                    # For huge logs, seek would be better.
+                    lines = f.readlines()
+                    content = "".join(lines[-n:])
+                except ValueError:
+                    content = f.read()
+            else:
+                 # Default to tail 500 if not specified to avoid crashing browser with massive logs
+                 # unless 'full' is set
+                 if request.args.get('full'):
+                     content = f.read()
+                 else:
+                     lines = f.readlines()
+                     content = "".join(lines[-1000:])
+                     
+    except Exception as e:
+        return (f"Error reading log: {e}", 500)
+        
+    return render_template("log_view.html", filename=filename, content=content)
 
 
 @app.route('/admin/flush_cache', methods=['POST'])

@@ -42,3 +42,4 @@ repro_*.txt
 
 # Keep web/static mostly clean, but allow assets
 # (Generated content is now in analysis/)
+logs/
