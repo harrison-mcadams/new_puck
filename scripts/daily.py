@@ -41,10 +41,7 @@ def main():
     df_season = parse._season(
         season=season, 
         out_path='data', 
-        use_cache=True, 
-        save_elaborated=True, 
-        process_elaborated=True,
-        save_csv=False
+        use_cache=True
     )
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
