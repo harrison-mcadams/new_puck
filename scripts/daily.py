@@ -12,11 +12,17 @@ import os
 import sys
 import argparse
 import pandas as pd
-import parse
-import timing
+
+# Add project root to sys.path to allow importing puck package
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from puck import parse
+from puck import timing
+from puck import analyze
+
+# Scripts in the same directory
 import run_player_analysis
 import run_league_stats
-import analyze
 
 def main():
     parser = argparse.ArgumentParser(description="Daily NHL Analysis Update")
