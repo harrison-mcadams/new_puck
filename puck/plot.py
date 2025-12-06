@@ -818,7 +818,7 @@ def _game(gameID, conditions=None, plot_kwargs=None):
     `fit_xgs.analyze_game`, applies minimal sanity checks, and calls
     `plot_events` with straightforward mappings from `conditions`.
     """
-    import fit_xgs  # local import so this module can be imported without heavy deps
+    from . import fit_xgs  # local import so this module can be imported without heavy deps
     import parse as _parse
 
     if conditions is None:
