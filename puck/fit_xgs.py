@@ -24,6 +24,7 @@ import joblib
 import json
 import sys
 import time
+from pathlib import Path
 
 # Optional imports that may not be in the minimal requirements; we don't hard-fail
 # at import time so the script can be inspected even if sklearn isn't available.
@@ -390,7 +391,7 @@ def evaluate_model(clf, X_test, y_test):
 
     brier = _safe_call(brier_score_loss, y_test, y_prob) if brier_score_loss is not None else float('nan')
 
-    plot_calibration(y_test, y_prob, path='data/analysis/xgs/xg_likelihood.png',
+    plot_calibration(y_test, y_prob, path='analysis/xgs/xg_likelihood.png',
                      n_bins= 10)
 
     metrics = {
@@ -434,7 +435,7 @@ def plot_calibration(y_test, y_prob, path: str = 'analysis/xgs/xg_likelihood.png
 
 def debug_model(clf, feature_cols=None, goal_side: str = 'left',
                     x_res: float = 2.0, y_res: float = 2.0,
-                    out_path: str = 'web/static/xg_heatmap.png', cmap='viridis',
+                    out_path: str = 'analysis/xgs/xg_heatmap.png', cmap='viridis',
                     alpha: float = 0.8, verbose: bool = True,
                     game_state_values=None, is_net_empty_values=None,
                     categorical_levels_map: dict = None,
@@ -853,10 +854,13 @@ def debug_model(clf, feature_cols=None, goal_side: str = 'left',
     return results
 
 def analyze_game(game_id, clf=None):
-    import nhl_api
-    import parse
+    try:
+        from . import nhl_api
+    except ImportError:
+        nhl_api = None
+    from . import parse
     # Default CSV and feature set for analysis; ensure final_features available
-    csv_path = 'web/static/20252026.csv'
+    csv_path = 'data/processed/20252026/20252026.csv'
     features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
 
     if clf is None:

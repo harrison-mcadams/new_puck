@@ -1,1 +1,1 @@
-{"final_features": ["distance", "angle_deg", "game_state_code", "is_net_empty"], "categorical_levels_map": {"game_state": ["", "0v1", "1v0", "3v3", "3v4", "3v5", "3v6", "4v3", "4v4", "4v5", "4v6", "5v3", "5v4", "5v5", "5v6", "6v3", "6v4", "6v5", "6v6"]}}
+{"final_features": ["distance", "angle_deg", "game_state_code", "is_net_empty"], "categorical_levels_map": {"game_state": ["1v0", "3v3", "3v4", "3v5", "4v3", "4v4", "4v5", "4v6", "5v3", "5v4", "5v5", "5v6", "6v3", "6v4", "6v5"]}}

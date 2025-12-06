@@ -819,7 +819,7 @@ def _game(gameID, conditions=None, plot_kwargs=None):
     `plot_events` with straightforward mappings from `conditions`.
     """
     from . import fit_xgs  # local import so this module can be imported without heavy deps
-    import parse as _parse
+    from . import parse as _parse
 
     if conditions is None:
         conditions = {}
