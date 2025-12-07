@@ -12,6 +12,7 @@ import os
 import sys
 import argparse
 import pandas as pd
+import gc
 
 # Add project root to sys.path to allow importing puck package
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -72,6 +73,13 @@ def main():
             print(f"Processed intervals for {count}/{len(game_ids)} games...")
             
     print("Interval cache updated.")
+
+    # FREE MEMORY: We don't need the season dataframe anymore.
+    # This is critical on low-memory devices (Raspberry Pi) as the subprocesses
+    # will load their own copy of the data.
+    del df_season
+    del game_ids
+    gc.collect()
 
     # 3. Run Player Analysis
     print("\n[3/4] Running Player Analysis (Incremental)...")

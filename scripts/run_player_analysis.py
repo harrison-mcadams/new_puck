@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import json
+import gc
 
 def run_analysis():
     season = '20252026'
@@ -205,6 +206,9 @@ def run_analysis():
                 
             all_player_stats.extend(game_player_stats)
 
+            if (i+1) % 10 == 0:
+                gc.collect() # Helper for low-memory environments
+                
         if not all_player_stats:
             print("No player stats calculated.")
             return
