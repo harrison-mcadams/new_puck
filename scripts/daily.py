@@ -35,16 +35,43 @@ def main():
     print(f"--- Starting Daily Update for Season {season} ---")
     
     # 1. Update Data
-    print("\n[1/4] Updating Game Data...")
-    # use_cache=True allows efficient fetching of only new games if parse supports it properly
+    # If force is true, clear the nhl_api cache to ensure fresh schedule
+    if args.force:
+        print("Force flag set: Clearing caches...")
+        import shutil
+        cache_root = '.cache/nhl_api'
+        if os.path.exists(cache_root):
+            try:
+                shutil.rmtree(cache_root)
+                print(f"Cleared {cache_root}")
+            except Exception as e:
+                print(f"Warning: Failed to clear cache: {e}")
+        
+        # Also remove potential shadowing CSVs that timing.load_season_df might prefer
+        shadow_csv = os.path.join('data', season, f'{season}.csv')
+        if os.path.exists(shadow_csv):
+            try:
+                os.remove(shadow_csv)
+                print(f"Removed shadowing CSV: {shadow_csv}")
+            except Exception as e:
+                print(f"Warning: Failed to remove shadow CSV: {e}")
+                
+        # And the target CSV to be safe
+        target_csv = os.path.join('data', f'{season}.csv')
+        if os.path.exists(target_csv):
+            try:
+                os.remove(target_csv)
+            except: pass
+                
     # parse._season with use_cache=True will check static/cache/game_ID.json
-    # out_path='data' because parse._season will append /{season}/
+    # We disable cache if force is True
     df_season = parse._season(
         season=season, 
         out_path='data', 
-        use_cache=True
+        use_cache=not args.force
     )
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
+
     
     if df_season.empty:
         print("No data found. Exiting.")

@@ -888,9 +888,9 @@ def analyze_game(game_id, clf=None):
 
     if clf is None:
         # Try to load a persisted classifier; if that fails, train
-        model_path = 'web/static/xg_model.joblib'
+        model_path = 'analysis/xgs/xg_model.joblib'
         if not model_path:
-            model_path = 'web/static/xg_model.joblib'
+            model_path = 'analysis/xgs/xg_model.joblib'
         try:
             clf, final_features, categorical_levels_map = get_clf(model_path, 'load')
         except Exception:
@@ -975,21 +975,31 @@ if __name__ == '__main__':
     baseline_path = 'analysis/xgs/xg_model.joblib'
     print(f"\n--- Loading 'Baseline' from {baseline_path} ---")
     try:
-        clf_baseline, final_feats_baseline, cat_map_baseline = get_clf(baseline_path, behavior='load')
+        clf_baseline, final_feats_baseline, _ = get_clf(baseline_path, behavior='load')
         models['Baseline'] = clf_baseline
         
-        # Evaluate Baseline on current test set
-        print("Evaluating Baseline...")
-        # We need to clean the test set specifically for this model's features
-        # Note: We don't have the config object for Baseline easily available unless we reconstruct it,
-        # but we have final_features from metadata.
-        # We need the ORIGINAL feature list to pass to clean_df_for_model so it can encode correctly.
-        # If metadata is missing, we fallback to standard.
-        baseline_feats_input = ['distance', 'angle_deg', 'game_state', 'is_net_empty'] # standard
+        # Performance Fix: Reconstruct the categorical mapping from the TRAINING data.
+        # The loaded model was trained on `train_df`. We must use the same mapping (OneHot codes)
+        # that was generated during that training. We cannot rely on the test set to generate it
+        # (codes might shift) or metadata if it's missing.
+        baseline_feats_input = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+        print(f"Re-learning categorical mapping from training data for feature consistency...")
+        _, _, cat_map_relearned = clean_df_for_model(train_df.copy(), baseline_feats_input)
         
-        test_df_bl, _, _ = clean_df_for_model(test_df.copy(), baseline_feats_input, fixed_categorical_levels=cat_map_baseline)
+        # Now clean test_df using the RELEARNED mapping
+        test_df_bl, _, _ = clean_df_for_model(test_df.copy(), baseline_feats_input, fixed_categorical_levels=cat_map_relearned)
         
-        # Double check: ensure columns match what the model expects (final_feats_baseline)
+        # Use final_feats_baseline from loaded model if available (best source), or derive it
+        if not final_feats_baseline:
+             # If metadata missing, we assume standard derivation
+             _, final_feats_baseline, _ = clean_df_for_model(train_df.head(1).copy(), baseline_feats_input)
+
+        # Check for column mismatches (e.g. if code vs non-code naming changed)
+        missing_feats = [f for f in final_feats_baseline if f not in test_df_bl.columns]
+        if missing_feats:
+            print(f"WARNING: Feature mismatch for Baseline. Missing: {missing_feats}")
+            print("Trying to proceed with available columns (might fail or give garbage)...")
+            
         X_test_bl = test_df_bl[final_feats_baseline].values
         y_test_bl = test_df_bl['is_goal'].values
         
@@ -1000,8 +1010,13 @@ if __name__ == '__main__':
         results.append(metrics_bl)
         print(f"  -> Log Loss: {metrics_bl['log_loss']:.4f}, AUC: {metrics_bl['roc_auc']:.4f}")
         
+        # Use this map for the heatmap debugger too
+        cat_map_baseline = cat_map_relearned
+        
     except Exception as e:
-        print(f"Failed to load Baseline: {e}")
+        print(f"Failed to load or evaluate Baseline: {e}")
+        # import traceback
+        # traceback.print_exc()
         print("Skipping Baseline comparison.")
 
 
