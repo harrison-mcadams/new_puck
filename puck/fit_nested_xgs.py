@@ -1,0 +1,361 @@
+"""fit_nested_xgs.py
+
+LAYERED (NESTED) EXPECTED GOALS MODEL
+=====================================
+This script implements a "Layered" or "Conditional" approach to xG modeling.
+Instead of asking "Is this shot attempt a goal?" (Binary Classification), 
+we break the event down into a chain of sequential hurdles:
+
+    1. BLOCK LAYER:   Will the shot attempt get past the defense?
+                      P(Unblocked) = 1.0 - P(Blocked)
+
+    2. ACCURACY LAYER: Given it wasn't blocked, will it hit the net?
+                      P(On Net | Unblocked)
+
+    3. FINISH LAYER:  Given it's on net, will it beat the goalie?
+                      P(Goal | On Net)
+
+Total Expected Goals (xG) is the product of these probabilities:
+    xG = P(Unblocked) * P(On Net) * P(Goal)
+
+WHY DO THIS?
+------------
+1. **Data Integrity**: Blocked shots often lack detailed features (like shot type) because
+   they never reach the net. Modeling them separately allows us to use "imputed" or
+   simplified features for the Block Layer without polluting the Finish Layer (which
+   detects goal probability based on clean shot-on-goal data).
+2. **Granularity**: We can tell if a player has "poor xG" because they get blocked often
+   (low P_unblocked) or because they miss the net often (low P_on_net).
+
+"""
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import joblib
+import json
+import sys
+import math
+import logging
+from pathlib import Path
+from dataclasses import dataclass
+from typing import List, Dict, Optional, Tuple, Any
+
+# --- DEPENDENCIES ---
+# We use scikit-learn for the Random Forest classifiers.
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import log_loss, roc_auc_score
+from sklearn.calibration import calibration_curve
+from sklearn.preprocessing import LabelEncoder
+
+
+# --- LOGGING SETUP ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    datefmt='%H:%M:%S'
+)
+logger = logging.getLogger("NestedxG")
+
+
+# --- CONFIGURATION ---
+@dataclass
+class LayerConfig:
+    name: str
+    target_col: str
+    positive_label: int  # The value in target_col we are predicting probability OF
+    feature_cols: List[str]
+    n_estimators: int = 200
+    max_depth: Optional[int] = 10
+    
+    
+# --- DATA LOADING ---
+def load_data(path_pattern: str = 'data/**/*.csv') -> pd.DataFrame:
+    """Load and concatenate all available season data. Expects data/{year}/*.csv"""
+    import glob
+    files = glob.glob(path_pattern, recursive=True)
+    # filter for actual season files (e.g. 20252026_df.csv or 20252026.csv) within numeric dirs
+    # We want to avoid recursing deeply into other folders if possible, or picking up raw game feeds
+    
+    data_files = []
+    for f in files:
+        p = Path(f)
+        # Check if parent is a year-like dir
+        if p.parent.name.isdigit():
+             if p.name.endswith('_df.csv') or p.name == f"{p.parent.name}.csv":
+                 data_files.append(f)
+    
+    if not data_files:
+        logger.warning(f"No season files found matching pattern. Trying specific fallback.")
+        fallback = 'data/20252026/20252026_df.csv'
+        if Path(fallback).exists():
+            data_files = [fallback]
+        else:
+            raise FileNotFoundError("Could not find any season CSV files.")
+            
+    logger.info(f"Loading data from: {data_files}")
+    dfs = []
+    for f in data_files:
+        try:
+            df = pd.read_csv(f)
+            dfs.append(df)
+        except Exception as e:
+            logger.error(f"Failed to read {f}: {e}")
+            
+    full_df = pd.concat(dfs, ignore_index=True)
+    logger.info(f"Loaded {len(full_df)} total rows.")
+    return full_df
+
+
+# --- PREPROCESSING ----
+def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
+    """Clean and enrich the dataframe for modeling.
+    
+    1. Filter to Shot Attempts only.
+    2. Impute missing 'shot_type' for Blocked Shots as 'Unknown'.
+    3. Encode categorical features.
+    """
+    # 1. Scope: Shot Attempts Only
+    # We define the universe of 'Attempts' as: Goal, Shot (Saved), Miss, Block
+    # Note: 'shot-on-goal' usually means saved shots in API data, but sometimes includes goals.
+    # We'll normalize.
+    
+    # Standardize event names if needed (though our parser is usually consistent)
+    valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+    df = df[df['event'].isin(valid_events)].copy()
+    
+    # 2. Handle Blocked Shots Missing Data
+    # If the column is completely missing (e.g. older data), create it.
+    if 'shot_type' not in df.columns:
+        logger.warning("'shot_type' column missing from data. Filling with 'Unknown'.")
+        df['shot_type'] = 'Unknown'
+    
+    # Blocked shots usually have shot_type = NaN.
+    # For the Block Model, this 'Missingness' is actually a signal (or at least, we need a value).
+    # We will fill NaN with 'Unknown'.
+    df['shot_type'] = df['shot_type'].fillna('Unknown')
+    
+    # 3. Create Target Columns for Each Layer
+    
+    # LAYER 1 TARGET: is_blocked?
+    # 1 = Blocked, 0 = Not Blocked (Missed, Saved, Goal)
+    df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
+    
+    # LAYER 2 TARGET: is_on_net? (Condition: Only Unblocked)
+    # 1 = On Net (Goal, Saved), 0 = Missed
+    # Note: 'shot-on-goal' in our data usually implies a save. 'goal' is a goal. 
+    # Both are "On Net".
+    df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
+    
+    # LAYER 3 TARGET: is_goal? (Condition: Only On Net)
+    # 1 = Goal, 0 = Saved
+    df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
+
+    # 4. Feature Engineering: Basic Encodings
+    # Encode categorical features
+    le_shot = LabelEncoder()
+    df['shot_type_encoded'] = le_shot.fit_transform(df['shot_type'].astype(str))
+    
+    # Fill missing game_state with '5v5' (heuristic) before encoding
+    df['game_state'] = df['game_state'].fillna('5v5')
+    le_state = LabelEncoder()
+    df['game_state_encoded'] = le_state.fit_transform(df['game_state'].astype(str))
+    
+    # Log mappings for user education
+    logger.info(f"Shot Type Encoding: {dict(zip(le_shot.classes_, range(len(le_shot.classes_))))}")
+    logger.info(f"Game State Encoding: {dict(zip(le_state.classes_, range(len(le_state.classes_))))}")
+    
+    return df
+
+
+# --- TRAINING LOGIC ---
+
+def train_layer(name: str, df_layer: pd.DataFrame, config: LayerConfig):
+    """Train a single model layer."""
+    
+    X = df_layer[config.feature_cols]
+    y = df_layer[config.target_col]
+        
+    logger.info(f"Training {name}... (N={len(df_layer)})")
+    logger.info(f"  Target: {config.target_col} (Positive Rate: {y.mean():.1%})")
+    
+    # Split
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+    
+    # Train
+    clf = RandomForestClassifier(
+        n_estimators=config.n_estimators,
+        max_depth=config.max_depth,
+        random_state=42,
+        n_jobs=-1
+    )
+    clf.fit(X_train, y_train)
+    
+    # Evaluate
+    y_prob = clf.predict_proba(X_test)[:, 1]
+    
+    auc = roc_auc_score(y_test, y_prob)
+    ll = log_loss(y_test, y_prob)
+    
+    logger.info(f"  Result -> AUC: {auc:.4f} | LogLoss: {ll:.4f}")
+    
+    return clf, X_test, y_test, y_prob
+
+
+# --- PLOTTING LOGIC ---
+
+def plot_calibration_curve_layer(y_true, y_prob, name: str, ax=None):
+    """Plot calibration for a specific layer."""
+    prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10, strategy='uniform')
+    
+    if ax is None:
+        fig, ax = plt.subplots()
+    
+    ax.plot(prob_pred, prob_true, marker='o', label=name)
+    ax.plot([0, 1], [0, 1], linestyle='--', color='gray', alpha=0.5)
+    ax.set_xlabel('Predicted Probability')
+    ax.set_ylabel('Observed Frequency')
+    ax.set_title(f'Calibration: {name}')
+    ax.legend()
+    ax.grid(True, alpha=0.2)
+    return ax
+
+def plot_feature_importance(clf, feature_names, name: str, ax=None):
+    """Bar chart of feature importances."""
+    importances = clf.feature_importances_
+    indices = np.argsort(importances)
+    
+    if ax is None:
+        fig, ax = plt.subplots()
+        
+    ax.barh(range(len(indices)), importances[indices], align='center')
+    ax.set_yticks(range(len(indices)))
+    ax.set_yticklabels([feature_names[i] for i in indices])
+    ax.set_xlabel('Importance')
+    ax.set_title(f'{name} Features')
+    return ax
+
+
+# --- MAIN PIPELINE ---
+
+def main():
+    logger.info("Starting Nested xG Training...")
+    
+    # 1. Load & Preprocess
+    df = load_data()
+    df_clean = preprocess_features(df)
+    
+    # 2. Define Layers
+    # Note on Features:
+    # - 'shot_type_encoded' includes 'Unknown' mostly for blocked shots.
+    # - 'is_net_empty' is crucial for Goal probability but less so for blocking.
+    
+    # LAYER 1: BLOCK MODEL
+    # Target: 1 if Blocked, 0 if Not.
+    # Note: We want P(Unblocked), so eventually we take (1 - P(Blocked)).
+    config_block = LayerConfig(
+        name="Layer 1 - Block Model",
+        target_col='is_blocked',
+        positive_label=1,
+        feature_cols=['distance', 'angle_deg', 'is_net_empty', 'game_state_encoded']
+    )
+    
+    # LAYER 2: ACCURACY MODEL
+    # Filter: Only Unblocked Shots (df[is_blocked == 0])
+    # Target: 1 if On Net (Goal/Save), 0 if Miss.
+    config_accuracy = LayerConfig(
+        name="Layer 2 - Accuracy Model",
+        target_col='is_on_net',
+        positive_label=1,
+        feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+    )
+    
+    # LAYER 3: FINISH MODEL
+    # Filter: Only Shots On Net (df[is_on_net == 1])
+    # Target: 1 if Goal, 0 if Save.
+    config_finish = LayerConfig(
+        name="Layer 3 - Finish Model",
+        target_col='is_goal_layer',
+        positive_label=1,
+        feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+    )
+
+    # 3. Train Sequentially with Filtering
+    
+    # L1: Train on ALL attempts
+    model_block, _, y_test_block, y_prob_block = train_layer(
+        "Block Model", df_clean, config_block
+    )
+    
+    # L2: Train on UNBLOCKED attempts only
+    df_unblocked = df_clean[df_clean['is_blocked'] == 0].copy()
+    model_accuracy, _, y_test_acc, y_prob_acc = train_layer(
+        "Accuracy Model", df_unblocked, config_accuracy
+    )
+    
+    # L3: Train on ON-NET attempts only
+    df_on_net = df_clean[df_clean['is_on_net'] == 1].copy()
+    model_finish, _, y_test_finish, y_prob_finish = train_layer(
+        "Finish Model", df_on_net, config_finish
+    )
+    
+    # 4. Generate Output Directory
+    out_dir = Path('analysis/nested_xgs')
+    out_dir.mkdir(parents=True, exist_ok=True)
+    
+    # 5. Visualization Dashboard
+    logger.info("Generating plots...")
+    
+    # Plot 1: Combined Calibration
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    plot_calibration_curve_layer(y_test_block, y_prob_block, "P(Blocked)", ax=axes[0])
+    plot_calibration_curve_layer(y_test_acc, y_prob_acc, "P(OnNet | Unblocked)", ax=axes[1])
+    plot_calibration_curve_layer(y_test_finish, y_prob_finish, "P(Goal | OnNet)", ax=axes[2])
+    plt.tight_layout()
+    plt.savefig(out_dir / 'layer_calibrations.png')
+    logger.info(f"Saved {out_dir / 'layer_calibrations.png'}")
+    
+    # Plot 2: Feature Importance
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
+    plot_feature_importance(model_block, config_block.feature_cols, "Block Model", ax=axes[0])
+    plot_feature_importance(model_accuracy, config_accuracy.feature_cols, "Accuracy Model", ax=axes[1])
+    plot_feature_importance(model_finish, config_finish.feature_cols, "Finish Model", ax=axes[2])
+    plt.tight_layout()
+    plt.savefig(out_dir / 'layer_features.png')
+    logger.info(f"Saved {out_dir / 'layer_features.png'}")
+    
+    # 6. Example Inference (Sanity Check)
+    logger.info("Running example inference on sample data...")
+    # Take a sample from the original data
+    sample = df_clean.sample(10, random_state=42).copy()
+    
+    # Get probabilities for each layer
+    X_sample = sample[config_block.feature_cols] # Assumption: all layers use same features for now
+    
+    p_blocked = model_block.predict_proba(X_sample)[:, 1]
+    p_unblocked = 1.0 - p_blocked
+    
+    p_on_net = model_accuracy.predict_proba(X_sample)[:, 1]
+    
+    p_finish = model_finish.predict_proba(X_sample)[:, 1]
+    
+    # Calculate Final xG
+    # xG = P(Unblocked) * P(OnNet) * P(Goal)
+    sample['nested_xg'] = p_unblocked * p_on_net * p_finish
+    
+    # Simple console output
+    print("\n--- SAMPLE PREDICTIONS ---")
+    cols = ['event', 'shot_type', 'distance', 'nested_xg']
+    print(sample[cols].to_string(index=False))
+    
+    # 7. Save Models (Optional)
+    joblib.dump(model_block, out_dir / 'model_block.joblib')
+    joblib.dump(model_accuracy, out_dir / 'model_accuracy.joblib')
+    joblib.dump(model_finish, out_dir / 'model_finish.joblib')
+    logger.info("Models saved.")
+
+if __name__ == "__main__":
+    main()

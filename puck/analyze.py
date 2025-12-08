@@ -70,11 +70,12 @@ def locate_season_csv(season: str, csv_path: str = None) -> str:
             return str(p)
     # Prioritize data/ directory and support both naming conventions
     candidates = [
+        # Primary flat structure
+        Path('data') / season / f'{season}_df.csv',
+        Path('data') / season / f'{season}.csv',
+        # Legacy processed path (deprecated but kept for fallback just in case)
         Path('data') / 'processed' / season / f'{season}.csv',
         Path('data') / 'processed' / season / f'{season}_df.csv',
-        # Legacy fallback
-        Path('data') / season / f'{season}.csv',
-        Path('data') / season / f'{season}_df.csv'
     ]
     for c in candidates:
         try:

@@ -64,41 +64,41 @@ class ModelConfig:
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if k != 'name'}
 
-def load_all_seasons_data(base_dir: str = 'data/processed') -> pd.DataFrame:
-    """Load and concatenate all season CSVs found in data/processed."""
+def load_all_seasons_data(base_dir: str = 'data') -> pd.DataFrame:
+    """Load and concatenate all season CSVs found in data/{season}."""
     base_path = Path(base_dir)
     if not base_path.exists():
         # Fallback to current season location if root not found
-        fallback = Path('data/processed/20252026/20252026.csv')
+        fallback = Path('data/20252026/20252026_df.csv')
         if fallback.exists():
             return pd.read_csv(fallback)
-        raise FileNotFoundError(f"Processed data directory not found: {base_dir}")
+        raise FileNotFoundError(f"Data directory not found: {base_dir}")
         
     frames = []
-    # Look for {year}/{year}.csv structure
+    # Look for {year}/{year}_df.csv structure
     for year_dir in sorted(base_path.iterdir()):
         if year_dir.is_dir() and year_dir.name.isdigit():
-            csv_path = year_dir / f"{year_dir.name}.csv"
+            # Standard naming: {year}_df.csv
+            csv_path = year_dir / f"{year_dir.name}_df.csv"
+            # Fallback naming: {year}.csv
+            alt_path = year_dir / f"{year_dir.name}.csv"
+            
+            target_path = None
             if csv_path.exists():
-                print(f"Loading {year_dir.name} from {csv_path}...")
+                target_path = csv_path
+            elif alt_path.exists():
+                target_path = alt_path
+                
+            if target_path:
+                print(f"Loading {year_dir.name} from {target_path}...")
                 try:
-                    df = pd.read_csv(csv_path)
+                    df = pd.read_csv(target_path)
                     frames.append(df)
                 except Exception as e:
-                    print(f"Failed to load {csv_path}: {e}")
-            else:
-                 # Check for old {year}_df.csv style just in case of failed migration or mix
-                 legacy_csv = year_dir / f"{year_dir.name}_df.csv"
-                 if legacy_csv.exists():
-                     print(f"Loading (legacy name) {year_dir.name} from {legacy_csv}...")
-                     try:
-                        df = pd.read_csv(legacy_csv)
-                        frames.append(df)
-                     except Exception as e:
-                        print(f"Failed to load {legacy_csv}: {e}")
+                    print(f"Failed to load {target_path}: {e}")
     
     if not frames:
-        print("No season data found in data/processed.")
+        print("No season data found in data/.")
         raise FileNotFoundError("No season data found.")
 
     full_df = pd.concat(frames, ignore_index=True)
@@ -178,7 +178,7 @@ def compare_models(configs: List[ModelConfig],
 
 
 def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'load', *,
-            csv_path: str = 'data/processed/20252026/20252026.csv',
+            csv_path: str = 'data/20252026/20252026_df.csv',
             n_estimators: int = 200,
             features: list = None,
             random_state: int = 42):
@@ -258,7 +258,7 @@ def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'loa
 # --- end of module-level caching helpers ---
 
 def get_or_train_clf(force_retrain: bool = False,
-                     csv_path: str = 'data/processed/20252026/20252026.csv',
+                     csv_path: str = 'data/20252026/20252026_df.csv',
                      features=None,
                      random_state: int = 42,
                      n_estimators: int = 200):
@@ -336,6 +336,10 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
     df['is_goal'] = pd.to_numeric(df['is_goal'], errors='coerce').astype('Int64')
 
     # Drop rows with missing required values
+    missing_cols = [c for c in final_feature_cols if c not in df.columns]
+    if missing_cols:
+         raise KeyError(f"Missing required columns in input DataFrame: {missing_cols}. Loading form {df.columns}")
+
     df = df[final_feature_cols + ['is_goal']].dropna().copy()
     df['is_goal'] = df['is_goal'].astype(int)
 
@@ -383,11 +387,11 @@ def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fi
     return df, categorical_dummies_map, categorical_levels_map
 
 
-def load_data(path: str = 'data/processed/20252026/20252026.csv'):
+def load_data(path: str = 'data/20252026/20252026_df.csv'):
     """Load the season CSV and return a cleaned DataFrame.
 
     Parameters
-    - path: CSV path (default 'data/processed/20252026/20252026.csv')
+    - path: CSV path (default 'data/20252026/20252026_df.csv')
     - feature_cols: a column name or list of column names to use as features
       (default ['dist_center', 'angle_deg', 'game_state', 'is_net_empty']). The function will try common
       alternate names if the requested columns are missing.
@@ -879,7 +883,7 @@ def analyze_game(game_id, clf=None):
         nhl_api = None
     from . import parse
     # Default CSV and feature set for analysis; ensure final_features available
-    csv_path = 'data/processed/20252026/20252026.csv'
+    csv_path = 'data/20252026/20252026_df.csv'
     features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
 
     if clf is None:
@@ -963,8 +967,8 @@ if __name__ == '__main__':
     # 2. Define Models
     # Current Baseline: 500 trees, standard features
     baseline_conf = ModelConfig(
-        name='Baseline',
-        features=['distance', 'angle_deg', 'game_state', 'is_net_empty'],
+        name='shot_type',
+        features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'],
         n_estimators=500,
         description="Standard Random Forest on distance/angle/context/shot_type"
     )
