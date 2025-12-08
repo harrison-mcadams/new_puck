@@ -39,6 +39,18 @@ def run_analysis():
     # For testing, limit to a few teams
     # teams = ['PHI']
     print(f"Found {len(teams)} teams: {teams}")
+    
+    # MEMORY OPTIMIZATION: Extract player names now, then drop string columns
+    global _PLAYER_NAME_MAP
+    _PLAYER_NAME_MAP = df_data[['player_id', 'player_name']].dropna().drop_duplicates('player_id').set_index('player_id')['player_name'].to_dict()
+    
+    cols_to_drop = ['player_name', 'team_name', 'event_type', 'event_description', 'game_date']
+    existing_cols = [c for c in cols_to_drop if c in df_data.columns]
+    if existing_cols:
+        print(f"Dropping columns to save RAM: {existing_cols}")
+        df_data.drop(columns=existing_cols, inplace=True)
+        gc.collect()
+
 
     # Condition for analysis (5v5)
     condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
@@ -117,7 +129,14 @@ def run_analysis():
                         
                 except Exception as e:
                     print(f"Failed to load cache for {game_id}: {e}")
-                    # If failed, fall through to recompute
+                    # If corrupted, delete it so we don't trip again
+                    try:
+                        os.remove(cache_file)
+                        print(f"Deleted corrupted cache file: {cache_file}")
+                    except OSError:
+                        pass
+                    # Fall through to recompute
+
 
             # --- Calculation (if not cached) ---
             
@@ -253,10 +272,10 @@ def run_analysis():
         # Group by player_id
         # Sum: xg_for, xg_against, toi_sec, games_played (count)
         # First, ensure we have a name. We can get name from df_data or just use what we have?
-        # xgs_map doesn't return player name.
-        # We need to fetch player names.
-        # We can build a map from df_data
-        p_name_map = df_data[['player_id', 'player_name']].dropna().drop_duplicates('player_id').set_index('player_id')['player_name'].to_dict()
+        # Group by player_id
+        # Sum: xg_for, xg_against, toi_sec, games_played (count)
+        # Use global name map extracted earlier
+        p_name_map = _PLAYER_NAME_MAP
         
         agg_stats = []
         for pid, grp in df_raw.groupby('player_id'):
