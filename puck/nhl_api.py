@@ -298,15 +298,18 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
 
         # season typically starts in October of the start year
         week_start_dt = datetime(start_year, 10, 1)
-        # stop once we've passed the following calendar year (safe upper bound)
+        # Stop before September of the following year to avoid overlapping with next season
+        # (Playoffs end in June, next preseason starts late Sept)
         stop_year = start_year + 1
+        cutoff_dt = datetime(stop_year, 9, 15)
 
         games: List[Dict[str, Any]] = []
 
-        # Page week-by-week until we've covered the season year
-        while week_start_dt.year <= stop_year:
+        # Page week-by-week until we reach the cutoff
+        while week_start_dt < cutoff_dt:
             date_str = week_start_dt.strftime('%Y-%m-%d')
             url = f'https://api-web.nhle.com/v1/schedule/{date_str}'
+
 
             try:
                 _throttle()

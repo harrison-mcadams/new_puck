@@ -70,21 +70,43 @@ class LayerConfig:
     max_depth: Optional[int] = 10
     
     
-# --- DATA LOADING ---
 def load_data(path_pattern: str = 'data/**/*.csv') -> pd.DataFrame:
     """Load and concatenate all available season data. Expects data/{year}/*.csv"""
     import glob
     files = glob.glob(path_pattern, recursive=True)
-    # filter for actual season files (e.g. 20252026_df.csv or 20252026.csv) within numeric dirs
-    # We want to avoid recursing deeply into other folders if possible, or picking up raw game feeds
     
-    data_files = []
+    # Deduplication logic: Map season -> file path
+    # We prefer 'data/{year}/{year}_df.csv' over 'data/{year}/{year}.csv'
+    # And we want to avoid loading the same season from multiple locations (e.g. data/processed vs data/)
+    season_files = {}
+
     for f in files:
         p = Path(f)
-        # Check if parent is a year-like dir
-        if p.parent.name.isdigit():
-             if p.name.endswith('_df.csv') or p.name == f"{p.parent.name}.csv":
-                 data_files.append(f)
+        parent_name = p.parent.name
+        
+        # Check if parent is a year-like dir (e.g. "20252026")
+        if parent_name.isdigit():
+             # Check for valid filenames
+             if p.name.endswith('_df.csv') or p.name == f"{parent_name}.csv":
+                 
+                 # Logic: If we haven't seen this season, take it.
+                 # If we HAVE seen it, prefer the one that ends in '_df.csv' (new format)
+                 # or prefer the one in 'data/' over 'data/processed/' if needed (implicit by shorter path? random?)
+                 # Let's simple prefer '_df.csv' as the tiebreaker.
+                 
+                 if parent_name not in season_files:
+                     season_files[parent_name] = f
+                 else:
+                     # If existing is NOT preferred format and NEW IS, swap.
+                     current_path = season_files[parent_name]
+                     if not current_path.endswith('_df.csv') and f.endswith('_df.csv'):
+                         season_files[parent_name] = f
+                     # If both are same format, duplicates in different folders?
+                     # e.g. data/2025/file.csv vs data/processed/2025/file.csv
+                     # Just keep the first one found or maybe the one with shorter path (closer to root)
+                     pass
+    
+    data_files = list(season_files.values())
     
     if not data_files:
         logger.warning(f"No season files found matching pattern. Trying specific fallback.")
@@ -94,7 +116,7 @@ def load_data(path_pattern: str = 'data/**/*.csv') -> pd.DataFrame:
         else:
             raise FileNotFoundError("Could not find any season CSV files.")
             
-    logger.info(f"Loading data from: {data_files}")
+    logger.info(f"Loading data from {len(data_files)} files: {data_files}")
     dfs = []
     for f in data_files:
         try:
@@ -327,20 +349,27 @@ def main():
     plt.savefig(out_dir / 'layer_features.png')
     logger.info(f"Saved {out_dir / 'layer_features.png'}")
     
-    # 6. Example Inference (Sanity Check)
+    # 6. Save Models (Moved before inference for safety)
+    try:
+        joblib.dump(model_block, out_dir / 'model_block.joblib')
+        joblib.dump(model_accuracy, out_dir / 'model_accuracy.joblib')
+        joblib.dump(model_finish, out_dir / 'model_finish.joblib')
+        logger.info("Models saved.")
+    except Exception as e:
+        logger.error(f"Failed to save models: {e}")
+
+    # 7. Example Inference (Sanity Check)
     logger.info("Running example inference on sample data...")
     # Take a sample from the original data
     sample = df_clean.sample(10, random_state=42).copy()
     
-    # Get probabilities for each layer
-    X_sample = sample[config_block.feature_cols] # Assumption: all layers use same features for now
-    
-    p_blocked = model_block.predict_proba(X_sample)[:, 1]
+    # Get probabilities for each layer using SPECIFIC feature sets for each model
+    p_blocked = model_block.predict_proba(sample[config_block.feature_cols])[:, 1]
     p_unblocked = 1.0 - p_blocked
     
-    p_on_net = model_accuracy.predict_proba(X_sample)[:, 1]
+    p_on_net = model_accuracy.predict_proba(sample[config_accuracy.feature_cols])[:, 1]
     
-    p_finish = model_finish.predict_proba(X_sample)[:, 1]
+    p_finish = model_finish.predict_proba(sample[config_finish.feature_cols])[:, 1]
     
     # Calculate Final xG
     # xG = P(Unblocked) * P(OnNet) * P(Goal)
@@ -350,12 +379,6 @@ def main():
     print("\n--- SAMPLE PREDICTIONS ---")
     cols = ['event', 'shot_type', 'distance', 'nested_xg']
     print(sample[cols].to_string(index=False))
-    
-    # 7. Save Models (Optional)
-    joblib.dump(model_block, out_dir / 'model_block.joblib')
-    joblib.dump(model_accuracy, out_dir / 'model_accuracy.joblib')
-    joblib.dump(model_finish, out_dir / 'model_finish.joblib')
-    logger.info("Models saved.")
 
 if __name__ == "__main__":
     main()

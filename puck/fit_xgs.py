@@ -964,68 +964,137 @@ if __name__ == '__main__':
     if 'is_goal' not in df_all.columns and 'event' in df_all.columns:
         df_all['is_goal'] = (df_all['event'] == 'goal').astype(int)
 
-    # 2. Define Models
-    # Current Baseline: 500 trees, standard features
-    baseline_conf = ModelConfig(
-        name='shot_type',
+    # 2. Prepare Data Split (Must match Baseline's training split implicitly via random_state)
+    print("\nPreparing Train/Test split (random_state=42)...")
+    train_df, test_df = train_test_split(df_all, test_size=0.2, random_state=42, stratify=df_all['is_goal'])
+
+    models = {}
+    results = []
+
+    # 3. Load Baseline Model
+    baseline_path = 'analysis/xgs/xg_model.joblib'
+    print(f"\n--- Loading 'Baseline' from {baseline_path} ---")
+    try:
+        clf_baseline, final_feats_baseline, cat_map_baseline = get_clf(baseline_path, behavior='load')
+        models['Baseline'] = clf_baseline
+        
+        # Evaluate Baseline on current test set
+        print("Evaluating Baseline...")
+        # We need to clean the test set specifically for this model's features
+        # Note: We don't have the config object for Baseline easily available unless we reconstruct it,
+        # but we have final_features from metadata.
+        # We need the ORIGINAL feature list to pass to clean_df_for_model so it can encode correctly.
+        # If metadata is missing, we fallback to standard.
+        baseline_feats_input = ['distance', 'angle_deg', 'game_state', 'is_net_empty'] # standard
+        
+        test_df_bl, _, _ = clean_df_for_model(test_df.copy(), baseline_feats_input, fixed_categorical_levels=cat_map_baseline)
+        
+        # Double check: ensure columns match what the model expects (final_feats_baseline)
+        X_test_bl = test_df_bl[final_feats_baseline].values
+        y_test_bl = test_df_bl['is_goal'].values
+        
+        _, _, metrics_bl = evaluate_model(clf_baseline, X_test_bl, y_test_bl)
+        metrics_bl['Model'] = 'Baseline'
+        metrics_bl['Features'] = str(final_feats_baseline)
+        metrics_bl['N Features'] = len(final_feats_baseline)
+        results.append(metrics_bl)
+        print(f"  -> Log Loss: {metrics_bl['log_loss']:.4f}, AUC: {metrics_bl['roc_auc']:.4f}")
+        
+    except Exception as e:
+        print(f"Failed to load Baseline: {e}")
+        print("Skipping Baseline comparison.")
+
+
+    # 4. Train 'With Shot Type' Model
+    print(f"\n--- Training 'With Shot Type' ---")
+    shot_type_conf = ModelConfig(
+        name='With Shot Type',
         features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'],
         n_estimators=500,
-        description="Standard Random Forest on distance/angle/context/shot_type"
+        description="Random Forest including shot_type"
     )
-
-    configs = [baseline_conf]
-
-    # 3. Train & Compare
-    # Split separately here to ensure all models see same data
-    train_df, test_df = train_test_split(df_all, test_size=0.2, random_state=42, stratify=df_all['is_goal'])
     
-    models, results = compare_models(configs, train_df, test_df)
+    # Prepare Data
+    train_df_st, final_feats_st, cat_map_st = clean_df_for_model(train_df.copy(), shot_type_conf.features)
+    X_train_st = train_df_st[final_feats_st].values
+    y_train_st = train_df_st['is_goal'].values
     
+    test_df_st, _, _ = clean_df_for_model(test_df.copy(), shot_type_conf.features, fixed_categorical_levels=cat_map_st)
+    X_test_st = test_df_st[final_feats_st].values
+    y_test_st = test_df_st['is_goal'].values
+    
+    # Fit
+    clf_st = RandomForestClassifier(
+        n_estimators=shot_type_conf.n_estimators,
+        random_state=42,
+        n_jobs=-1
+    )
+    clf_st.fit(X_train_st, y_train_st)
+    models['With Shot Type'] = clf_st
+    
+    # Evaluate
+    _, _, metrics_st = evaluate_model(clf_st, X_test_st, y_test_st)
+    metrics_st['Model'] = 'With Shot Type'
+    metrics_st['Features'] = str(final_feats_st)
+    metrics_st['N Features'] = len(final_feats_st)
+    results.append(metrics_st)
+    print(f"  -> Log Loss: {metrics_st['log_loss']:.4f}, AUC: {metrics_st['roc_auc']:.4f}")
+
+    # 5. Compare Results
     print("\n--- Model Comparison Results ---")
-    print(results.to_string(index=False))
-    
-    # 4. Save Baseline (Legacy Support)
-    # The 'Baseline' model is what we want to use for the app by default
-    if 'Baseline' in models:
-        clf = models['Baseline']
-        # Save to analysis location
-        model_path = 'analysis/xgs/xg_model.joblib'
-        meta_path = model_path + '.meta.json'
-        
-        try:
-            Path(model_path).parent.mkdir(parents=True, exist_ok=True)
-            joblib.dump(clf, model_path)
-            
-            # Save metadata
-            # For get_clf to work perfectly with 'load', it expects 'final_features' to be the processed column list.
-            # We can quickly generate it:
-            _, final_features, cat_map = clean_df_for_model(train_df.head(10), baseline_conf.features)
-                
-            meta = {
-                'final_features': final_features, 
-                'categorical_levels_map': cat_map,
-                'model_config': baseline_conf.to_dict()
-            }
-            
-            with open(meta_path, 'w', encoding='utf-8') as fh:
-                json.dump(meta, fh)
-            print(f"\nSaved Baseline model to {model_path}")
-            
-            # Also copy to static for web app if needed? 
-            # Previous code referenced 'web/static/xg_model.joblib' in analyze_game?
-            # analyze_game defaults to 'web/static/xg_model.joblib'
-            # Let's save there too to be helpful.
-            web_path = 'web/static/xg_model.joblib'
-            Path(web_path).parent.mkdir(parents=True, exist_ok=True)
-            joblib.dump(clf, web_path)
-            with open(web_path + '.meta.json', 'w', encoding='utf-8') as fh:
-                json.dump(meta, fh)
-                
-        except Exception as e:
-            print(f"Failed to save models: {e}")
+    results_df = pd.DataFrame(results)
+    # Reorder columns for readability
+    cols = ['Model', 'log_loss', 'roc_auc', 'brier', 'accuracy', 'N Features', 'Features']
+    # Handle case where keys might differ slightly (from evaluate vs inline) - but here we standardized
+    print(results_df[cols].to_string(index=False))
 
-    # 5. Debug / Interactive
+    # 6. Save 'With Shot Type' Model
+    st_path = 'analysis/xgs/xg_model_shot_type.joblib'
+    print(f"\nSaving 'With Shot Type' model to {st_path}...")
+    try:
+        Path(st_path).parent.mkdir(parents=True, exist_ok=True)
+        joblib.dump(clf_st, st_path)
+        
+        # Save metadata
+        meta_st = {
+            'final_features': final_feats_st, 
+            'categorical_levels_map': cat_map_st,
+            'model_config': shot_type_conf.to_dict()
+        }
+        with open(st_path + '.meta.json', 'w', encoding='utf-8') as fh:
+            json.dump(meta_st, fh)
+        print("Done.")
+    except Exception as e:
+        print(f"Failed to save 'With Shot Type' model: {e}")
+
+    # 7. Generate Comparative Heatmaps
     print("\nGenerating heatmaps...")
-    configs_map = {c.name: c for c in configs}
-    debug_model(models, model_configs=configs_map, interactive=interactive_mode)
+    
+    # Config map for debug_model
+    # We need to reconstruct config for Baseline for it to work right in debug_model if we want it to be smart
+    # debug_model handles simple list of features too.
+    # Let's create a proxy config for Baseline with hardcoded standard features
+    configs_map = {
+        'Baseline': ModelConfig(name='Baseline', features=['distance', 'angle_deg', 'game_state', 'is_net_empty']),
+        'With Shot Type': shot_type_conf
+    }
+    
+    # We need to pass the *actual* loaded features logic to debug_model if we want it to be perfect?
+    # debug_model re-constructs features. It needs to know 'shot_type' is used for the second model.
+    # It will use the 'features' list from config.
+    
+    # IMPORTANT: debug_model needs categorical levels to simulate data.
+    # For 'Baseline', we used cat_map_baseline.
+    # For 'Shot Type', we used cat_map_st.
+    # debug_model accepts ONE `categorical_levels_map`. 
+    # This might be a conflict if they differ (e.g. shot_type levels vs none).
+    # We should merge them?
+    # Actually, debug_model's `category_value_to_code` uses the global map passed in.
+    # If we merge them, it should be fine as long as keys don't conflict (they don't, different features).
+    
+    combined_cat_map = {}
+    if cat_map_baseline: combined_cat_map.update(cat_map_baseline)
+    if cat_map_st: combined_cat_map.update(cat_map_st)
+    
+    debug_model(models, model_configs=configs_map, categorical_levels_map=combined_cat_map, interactive=interactive_mode)
 
