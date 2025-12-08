@@ -964,7 +964,7 @@ if __name__ == '__main__':
     # Current Baseline: 500 trees, standard features
     baseline_conf = ModelConfig(
         name='Baseline',
-        features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'],
+        features=['distance', 'angle_deg', 'game_state', 'is_net_empty'],
         n_estimators=500,
         description="Standard Random Forest on distance/angle/context/shot_type"
     )
