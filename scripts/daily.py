@@ -96,7 +96,7 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         player_analysis_script = os.path.join(script_dir, 'run_player_analysis.py')
         
-        subprocess.run([sys.executable, player_analysis_script], check=True)
+        subprocess.run([sys.executable, player_analysis_script, '--season', season], check=True)
     except Exception as e:
         print(f"Player Analysis failed: {e}")
 
@@ -107,7 +107,7 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
         
-        subprocess.run([sys.executable, league_stats_script], check=True)
+        subprocess.run([sys.executable, league_stats_script, '--season', season], check=True)
     except Exception as e:
         print(f"Team Analysis failed: {e}")
 

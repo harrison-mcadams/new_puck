@@ -12,8 +12,13 @@ import os
 import json
 import gc
 
+import argparse
+
 def run_analysis():
-    season = '20252026'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--season', type=str, default='20252026')
+    args = parser.parse_args()
+    season = args.season
     out_dir_base = 'analysis/players'
     league_out_dir = os.path.join(out_dir_base, f'{season}/league')
     os.makedirs(league_out_dir, exist_ok=True)

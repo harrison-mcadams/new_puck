@@ -11,8 +11,13 @@ import os
 # Use Agg backend for non-interactive plotting
 matplotlib.use('Agg')
 
+import argparse
+
 if __name__ == '__main__':
-    season = '20252026'
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--season', type=str, default='20252026')
+    args = parser.parse_args()
+    season = args.season
     
     # Define conditions for analysis
     conditions = {
