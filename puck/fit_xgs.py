@@ -222,7 +222,7 @@ def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'loa
     # else: train
     # default features
     if features is None:
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
 
     # load data and prepare
     season_df = load_data(csv_path)
@@ -277,7 +277,7 @@ def get_or_train_clf(force_retrain: bool = False,
 
     # Default features if none provided
     if features is None:
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
 
     # Train a fresh model and cache metadata
     season_df = load_data(csv_path)
@@ -964,9 +964,9 @@ if __name__ == '__main__':
     # Current Baseline: 500 trees, standard features
     baseline_conf = ModelConfig(
         name='Baseline',
-        features=['distance', 'angle_deg', 'game_state', 'is_net_empty'],
+        features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'],
         n_estimators=500,
-        description="Standard Random Forest on distance/angle/context"
+        description="Standard Random Forest on distance/angle/context/shot_type"
     )
 
     configs = [baseline_conf]
