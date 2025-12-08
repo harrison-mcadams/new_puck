@@ -212,6 +212,8 @@ def run_analysis():
             all_player_stats.extend(game_player_stats)
 
             if (i+1) % 10 == 0:
+                print(f"Cleaning up memory (processed {i+1} games)...")
+                timing._SHIFTS_CACHE.clear()
                 gc.collect() # Helper for low-memory environments
                 
         if not all_player_stats:
@@ -418,6 +420,11 @@ def run_analysis():
             percentiles=percentiles,
             min_games=min_games_for_percentile
         )
+        
+        # Cleanup after each team
+        if hasattr(timing, '_SHIFTS_CACHE'):
+             timing._SHIFTS_CACHE.clear()
+        gc.collect()
         
     # Save Manifest
     try:
