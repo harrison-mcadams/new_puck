@@ -211,10 +211,10 @@ def run_analysis():
                 
             all_player_stats.extend(game_player_stats)
 
-            if (i+1) % 10 == 0:
-                print(f"Cleaning up memory (processed {i+1} games)...")
+            # Aggressively clear cache and collect garbage every game for Pi stability
+            if hasattr(timing, '_SHIFTS_CACHE'):
                 timing._SHIFTS_CACHE.clear()
-                gc.collect() # Helper for low-memory environments
+            gc.collect()
                 
         if not all_player_stats:
             print("No player stats calculated.")
