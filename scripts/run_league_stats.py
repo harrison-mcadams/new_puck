@@ -163,7 +163,7 @@ if __name__ == '__main__':
             # Wait, league_res['summary'] comes from analyze.league().
             # analyze.league() computes them.
             # So we can use league_res['summary'].
-            analyze.generate_scatter_plot(league_res.get('summary', []), f'static/league/{season}/{cond_name}', cond_name)
+            analyze.generate_scatter_plot(league_res.get('summary', []), f'analysis/league/{season}/{cond_name}', cond_name)
                 
         print("\n=== Generating Special Teams Plots ===")
         # We need the base output directory where 5v4/4v5 folders are
