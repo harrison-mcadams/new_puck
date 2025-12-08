@@ -83,6 +83,13 @@ def run_analysis():
         # Cache Directory for Player Game Stats
         cache_dir = os.path.join('data', season, 'game_stats_player')
         os.makedirs(cache_dir, exist_ok=True)
+        
+        # Ensure clean state for temp streaming file
+        if os.path.exists('temp_player_stats.csv'):
+            try:
+                os.remove('temp_player_stats.csv')
+            except OSError:
+                pass
 
         for i, game_id in enumerate(game_ids):
             if (i+1) % 10 == 0:
@@ -95,11 +102,22 @@ def run_analysis():
                 try:
                     with open(cache_file, 'r') as f:
                         cached_stats = json.load(f)
-                        all_player_stats.extend(cached_stats)
-                        # print(f"Loaded {len(cached_stats)} stats from cache for game {game_id}")
+                        
+                    # Stream cached stats to CSV
+                    if cached_stats:
+                        temp_df = pd.DataFrame(cached_stats)
+                        write_header = not os.path.exists('temp_player_stats.csv')
+                        temp_df.to_csv('temp_player_stats.csv', mode='a', header=write_header, index=False)
+                        del temp_df
+                        del cached_stats
+                        
+                        # Aggressively clear cache/GC even on cache hit path
+                        gc.collect() 
                         continue
+                        
                 except Exception as e:
-                    print(f"Failed to load cache for {game_id}, recalculating: {e}")
+                    print(f"Failed to load cache for {game_id}: {e}")
+                    # If failed, fall through to recompute
 
             # --- Calculation (if not cached) ---
             
@@ -209,20 +227,28 @@ def run_analysis():
             except Exception as e:
                 print(f"Failed to save cache for {game_id}: {e}")
                 
-            all_player_stats.extend(game_player_stats)
+            # Stream to temp CSV to avoid OOM
+            if game_player_stats:
+                temp_df = pd.DataFrame(game_player_stats)
+                # Write header only if file doesn't exist
+                write_header = not os.path.exists('temp_player_stats.csv')
+                temp_df.to_csv('temp_player_stats.csv', mode='a', header=write_header, index=False)
+                del temp_df
 
             # Aggressively clear cache and collect garbage every game for Pi stability
             if hasattr(timing, '_SHIFTS_CACHE'):
                 timing._SHIFTS_CACHE.clear()
             gc.collect()
                 
-        if not all_player_stats:
-            print("No player stats calculated.")
-            return
-
         # Aggregate stats per player
         print("Aggregating stats per player...")
-        df_raw = pd.DataFrame(all_player_stats)
+        if os.path.exists('temp_player_stats.csv'):
+            df_raw = pd.read_csv('temp_player_stats.csv')
+            # Clean up temp file
+            os.remove('temp_player_stats.csv')
+        else:
+            print("No player stats calculated.")
+            return
         
         # Group by player_id
         # Sum: xg_for, xg_against, toi_sec, games_played (count)
