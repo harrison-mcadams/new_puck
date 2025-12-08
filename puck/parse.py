@@ -215,6 +215,16 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
         except Exception:
             is_net_empty = 0
 
+        # Extract shot type
+        shot_type = None
+        if isinstance(details, dict):
+            # Prefer secondaryType (common in new API for 'Wrist Shot', etc.)
+            # fallback to shotType or typeDescription
+            shot_type = details.get('secondaryType') or details.get('shotType') or details.get('typeDescription')
+            # If still nothing, occasionally it's just in 'description' but usually that's the full sentence
+            # We'll stick to specific fields to avoid noise.
+
+
         # Define whether the event is a shot attempt:
         shot_attempt_types = ['shot-on-goal', 'missed-shot', 'blocked-shot',
                               'goal']
@@ -450,6 +460,7 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                     'away_abb': away_abb,
                     'home_team_defending_side': home_side,
                     'game_id': game_feed.get('id') or game_feed.get('gamePk'),
+                    'shot_type': shot_type,
                     'periodTimeType': period_time_type
                 })
             else:
