@@ -82,13 +82,16 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
       
     Final Probability = P(Unblocked) * P(On Net) * P(Goal)
     """
-    def __init__(self, random_state=42, n_estimators=200):
+    def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val=-1):
         self.random_state = random_state
         self.n_estimators = n_estimators
+        self.unknown_shot_type_val = unknown_shot_type_val
         
         self.model_block = None
         self.model_accuracy = None
         self.model_finish = None
+        
+        self.shot_type_priors = None # Dict[int, float] mapping shot_type_code -> probability
         
         # Define configurations for internal layers
         # Note: We assume the input DataFrame has the necessary columns (or we create them)
@@ -107,12 +110,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def fit(self, X, y=None):
         """
-        Fit the nested models.
-        
-        Args:
-            X: pandas DataFrame containing feature columns AND 'event' column (for stratification).
-               If 'event' is missing, valid training is impossible for layers.
-            y: (Ignored), we derive targets from 'event' column in X.
+        Fit the nested models and learn shot type priors for imputation.
         """
         if not isinstance(X, pd.DataFrame):
              raise ValueError("NestedXGClassifier.fit expects a pandas DataFrame as X to access column names.")
@@ -120,11 +118,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = X.copy()
         
         # --- Preprocessing (Internal) ---
-        # 1. Ensure Targets Exist (derived from 'event' or passed in X)
-        # We need 'event' to determine if blocked/missed/goal
         if 'event' not in df.columns:
-            # Fallback? If y is provided and simple binary, we can't do nested training.
-            # We strictly need event types.
             raise ValueError("NestedXGClassifier requires 'event' column in X for training to determine layer targets.")
             
         # Create Layer Targets
@@ -146,26 +140,93 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_finish = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
         self.model_finish.fit(df_on_net[self.config_finish.feature_cols], df_on_net[self.config_finish.target_col])
         
+        # 5. Learn Shot Type Priors (Calculated from UNBLOCKED shots only, matching user intent)
+        # We only care about known shot types.
+        if 'shot_type_encoded' in df_unblocked.columns:
+             counts = df_unblocked['shot_type_encoded'].value_counts(normalize=True)
+             # Filter out unknown if present (though we found it's negligible)
+             if self.unknown_shot_type_val is not None:
+                 if self.unknown_shot_type_val in counts.index:
+                      counts = counts.drop(self.unknown_shot_type_val)
+                      # Re-normalize
+                      counts = counts / counts.sum()
+             
+             self.shot_type_priors = counts.to_dict()
+             # print(f"Learned Shot Type Priors (Unblocked): {self.shot_type_priors}")
+        
         return self
 
     def predict_proba(self, X):
         """
         Return probability estimates for the test data X.
-        Returns: array-like of shape (n_samples, 2) -> [P(NoGoal), P(Goal)]
+        Implements 'Marginalization' for rows with Unknown shot type.
         """
         if not isinstance(X, pd.DataFrame):
-             # Try to convert if it's a known schema? 
-             # For now, require DF.
              raise ValueError("NestedXGClassifier.predict_proba expects a pandas DataFrame.")
              
+        # 1. Block Prob (Independent of shot type)
         p_blocked = self.model_block.predict_proba(X[self.config_block.feature_cols])[:, 1]
         p_unblocked = 1.0 - p_blocked
         
-        p_on_net = self.model_accuracy.predict_proba(X[self.config_accuracy.feature_cols])[:, 1]
+        # 2. Goal Prob (Conditional on Unblocked)
+        # P(Goal | Unblocked) = P(OnNet | Unblocked) * P(Goal | OnNet)
         
-        p_finish = self.model_finish.predict_proba(X[self.config_finish.feature_cols])[:, 1]
+        # We need to calculate this.
+        # Strategy:
+        # For rows with KNOWN shot type: Calculate directly.
+        # For rows with UNKNOWN shot type (and unblocked model thinks they are blocked? irrelevant, we calculate for all):
+        #   Calculate Expected Value over all possible shot types.
         
-        p_goal = p_unblocked * p_on_net * p_finish
+        # Initialize arrays
+        p_goal_given_unblocked = np.zeros(len(X))
+        
+        # Identify rows to marginalize
+        feature_cols_acc = self.config_accuracy.feature_cols
+        feature_cols_fin = self.config_finish.feature_cols
+        
+        # Check if we have priors to marginalize with
+        can_marginalize = (
+            self.shot_type_priors is not None 
+            and 'shot_type_encoded' in X.columns
+            and self.unknown_shot_type_val is not None
+        )
+        
+        mask_impute = np.zeros(len(X), dtype=bool)
+        if can_marginalize:
+            mask_impute = (X['shot_type_encoded'] == self.unknown_shot_type_val)
+            
+        # A. Direct Calculation (Known Types)
+        mask_direct = ~mask_impute
+        if np.any(mask_direct):
+            X_direct = X.loc[mask_direct]
+            p_on_net_d = self.model_accuracy.predict_proba(X_direct[feature_cols_acc])[:, 1]
+            p_finish_d = self.model_finish.predict_proba(X_direct[feature_cols_fin])[:, 1]
+            p_goal_given_unblocked[mask_direct] = p_on_net_d * p_finish_d
+            
+        # B. Marginalized Calculation (Unknown Types)
+        if np.any(mask_impute):
+            X_impute_base = X.loc[mask_impute].copy()
+            weighted_prob_sum = np.zeros(len(X_impute_base))
+            
+            # Loop through each possible shot type
+            for st_code, st_prob in self.shot_type_priors.items():
+                # Temporarily set the shot type
+                X_impute_base['shot_type_encoded'] = st_code
+                
+                # Predict
+                p_on_net_i = self.model_accuracy.predict_proba(X_impute_base[feature_cols_acc])[:, 1]
+                p_finish_i = self.model_finish.predict_proba(X_impute_base[feature_cols_fin])[:, 1]
+                
+                # Combine: P(Goal | Unblocked, Type)
+                p_g_u_t = p_on_net_i * p_finish_i
+                
+                # Add to weighted sum
+                weighted_prob_sum += (p_g_u_t * st_prob)
+                
+            p_goal_given_unblocked[mask_impute] = weighted_prob_sum
+        
+        # 3. Final xG = P(Unblocked) * P(Goal | Unblocked)
+        p_goal = p_unblocked * p_goal_given_unblocked
         
         return np.column_stack((1 - p_goal, p_goal))
     

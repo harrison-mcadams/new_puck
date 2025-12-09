@@ -1141,14 +1141,47 @@ if __name__ == '__main__':
             features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
         )
         
-        # Get data with codes
-        train_df_nested, feats_n, map_n = clean_df_for_model(train_df.copy(), nested_conf_dummy.features)
-        test_df_nested, _, _ = clean_df_for_model(test_df.copy(), nested_conf_dummy.features, fixed_categorical_levels=map_n)
+        # We need to Ensure 'Unknown' is in the levels map so we can identify its code.
+        # But 'clean_df_for_model' determines levels from data.
+        # If 'Unknown' is not in data (as we saw, unblocked data has no unknowns),
+        # we might have a problem if we just rely on unblocked data for mapping?
+        # A: clean_df_for_model processes the passed DF. `train_df` contains blocked shots which DO have missing shot_type.
+        # So 'Unknown' (or filled value) WILL be in the data.
+        
+        # 1. Fill NaNs in shot_type with 'Unknown' explicitly before cleaning, 
+        #    so we know what string to look for in the map.
+        train_df_n = train_df.copy()
+        test_df_n = test_df.copy()
+        
+        unknown_label = 'Unknown'
+        train_df_n['shot_type'] = train_df_n['shot_type'].fillna(unknown_label)
+        test_df_n['shot_type'] = test_df_n['shot_type'].fillna(unknown_label)
+        
+        # 2. Add 'event' back after cleaning? No, clean_df filters events.
+        # cleaning usually filters for ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
+        # which is what we want.
+        
+        # Codes are generated here.
+        train_df_nested, feats_n, map_n = clean_df_for_model(train_df_n, nested_conf_dummy.features)
+        
+        # Identify the integer code for 'Unknown'
+        shot_type_cols = [c for c in map_n.keys() if 'shot_type' in c] # usually just 'shot_type'
+        unknown_code = -1
+        if 'shot_type' in map_n:
+             levels = map_n['shot_type'] # list of strings
+             if unknown_label in levels:
+                 unknown_code = levels.index(unknown_label)
+             else:
+                 print(f"Warning: '{unknown_label}' not found in shot_type levels: {levels}")
+                 # Maybe it got mapped to __other__? 
+                 # If OneHotEncode used fixed_mappings, it might be different, but here we generated them.
+        
+        print(f"  Nested xG: Identified 'Unknown' shot_type code = {unknown_code}")
+
+        # Clean Test using same map
+        test_df_nested, _, _ = clean_df_for_model(test_df_n, nested_conf_dummy.features, fixed_categorical_levels=map_n)
         
         # Rename columns to match NestedXGClassifier defaults
-        # shot_type_code -> shot_type_encoded
-        # game_state_code -> game_state_encoded
-        
         rename_map = {
             'shot_type_code': 'shot_type_encoded',
             'game_state_code': 'game_state_encoded'
@@ -1156,28 +1189,22 @@ if __name__ == '__main__':
         train_df_nested = train_df_nested.rename(columns=rename_map)
         test_df_nested = test_df_nested.rename(columns=rename_map)
         
-        # Add 'event' column back (it was dropped by clean_df_for_model usually, but we need to ensure it's kept)
-        # Actually clean_df_for_model filters and returns. It DOES NOT return 'event' usually.
-        # It processes based on features list.
-        # We need to explicitly ask for 'event' in clean_df_for_model? No, it drops non-feature cols.
-        # We need to merge 'event' back or modify clean_df.
-        
-        # Easier: Just grab 'event' from original `train_df` (aligned via index?)
-        # `clean_df_for_model` does `dropna()`, potentially changing rows.
-        # Validation: `clean_df_for_model` drops rows. Index is preserved?
-        # Yes, `dropna()` preserves index. 
-        # So we can join.
-        
-        train_df_nested['event'] = train_df.loc[train_df_nested.index, 'event']
-        test_df_nested['event'] = test_df.loc[test_df_nested.index, 'event']
+        # Add 'event' column back (aligned via index)
+        # Note: clean_df_for_model operates on a copy and might drop rows (if NaNs in features).
+        # We ensured NaNs filled for shot_type.
+        train_df_nested['event'] = train_df_n.loc[train_df_nested.index, 'event']
+        test_df_nested['event'] = test_df_n.loc[test_df_nested.index, 'event']
         
         # Instantiate & Fit
-        clf_nested = NestedXGClassifier(n_estimators=500, random_state=42)
-        clf_nested.fit(train_df_nested) # y is ignored/derived
+        # Pass unknown_shot_type_val for marginalization
+        clf_nested = NestedXGClassifier(n_estimators=500, random_state=42, unknown_shot_type_val=unknown_code)
+        
+        print("  Fitting Nested xG (Block->Accuracy->Finish)...")
+        clf_nested.fit(train_df_nested) 
         models['Nested xG'] = clf_nested
         
         # Evaluate
-        # predict_proba expects DF
+        print("  Evaluating Nested xG...")
         y_prob_nested = clf_nested.predict_proba(test_df_nested)[:, 1]
         y_test_nested = test_df_nested['is_goal'].values
         
@@ -1202,7 +1229,6 @@ if __name__ == '__main__':
         try:
             Path(nested_path).parent.mkdir(parents=True, exist_ok=True)
             joblib.dump(clf_nested, nested_path)
-            # Metadata for nested? It's complex. Skipping simple meta json for now as class handles it.
         except Exception as e:
             print(f"Failed to save Nested model: {e}")
 
