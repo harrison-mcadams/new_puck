@@ -332,6 +332,7 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
 
             # The schedule endpoint can return either a 'gameWeek' structure or
             # a 'dates' list; handle both shapes defensively.
+            candidates_this_week = []
             if isinstance(data, dict):
                 # handle 'gameWeek' shape (older / weekly API)
                 gw = data.get('gameWeek')
@@ -341,7 +342,7 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
                             continue
                         for g in day.get('games', []) or []:
                             if isinstance(g, dict):
-                                games.append(g)
+                                candidates_this_week.append(g)
 
                 # handle 'dates' shape (the more common schedule API)
                 dates = data.get('dates')
@@ -351,11 +352,23 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
                             continue
                         for g in d.get('games', []) or []:
                             if isinstance(g, dict):
-                                games.append(g)
+                                candidates_this_week.append(g)
+
+            # Filter candidates by Season ID prefix (Robust Fix)
+            # Standard game IDs start with the 4-digit season start year (e.g. 2024...)
+            # We strictly enforce this to prevent next-season games from leaking in.
+            expected_prefix = str(start_year)
+            for g in candidates_this_week:
+                gid = str(g.get('id') or g.get('gamePk') or '')
+                if gid.startswith(expected_prefix):
+                    games.append(g)
+                # else:
+                #     print(f"DEBUG: Discarding next-season game {gid} in {season}")
 
             # advance to the next week
             week_start_dt = week_start_dt + timedelta(days=7)
-
+        
+        print(f"DEBUG: get_season finished. Found {len(games)} games for {season} matching prefix {start_year}")
         return games
 
     TEAM_ABB = (team or 'PHI').upper()

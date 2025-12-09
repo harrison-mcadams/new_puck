@@ -68,6 +68,112 @@ class LayerConfig:
     feature_cols: List[str]
     n_estimators: int = 200
     max_depth: Optional[int] = 10
+
+from sklearn.base import BaseEstimator, ClassifierMixin
+
+class NestedXGClassifier(BaseEstimator, ClassifierMixin):
+    """
+    A scikit-learn compatible classifier that implements the Nested (Layered) xG Model.
+    
+    It trains three sequential Random Forest models:
+      1. Block Model: P(Unblocked)
+      2. Accuracy Model: P(On Net | Unblocked)
+      3. Finish Model: P(Goal | On Net)
+      
+    Final Probability = P(Unblocked) * P(On Net) * P(Goal)
+    """
+    def __init__(self, random_state=42, n_estimators=200):
+        self.random_state = random_state
+        self.n_estimators = n_estimators
+        
+        self.model_block = None
+        self.model_accuracy = None
+        self.model_finish = None
+        
+        # Define configurations for internal layers
+        # Note: We assume the input DataFrame has the necessary columns (or we create them)
+        self.config_block = LayerConfig(
+            name="Block Model", target_col='is_blocked', positive_label=1,
+            feature_cols=['distance', 'angle_deg', 'is_net_empty', 'game_state_encoded']
+        )
+        self.config_accuracy = LayerConfig(
+            name="Accuracy Model", target_col='is_on_net', positive_label=1,
+            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+        )
+        self.config_finish = LayerConfig(
+            name="Finish Model", target_col='is_goal_layer', positive_label=1,
+            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+        )
+
+    def fit(self, X, y=None):
+        """
+        Fit the nested models.
+        
+        Args:
+            X: pandas DataFrame containing feature columns AND 'event' column (for stratification).
+               If 'event' is missing, valid training is impossible for layers.
+            y: (Ignored), we derive targets from 'event' column in X.
+        """
+        if not isinstance(X, pd.DataFrame):
+             raise ValueError("NestedXGClassifier.fit expects a pandas DataFrame as X to access column names.")
+             
+        df = X.copy()
+        
+        # --- Preprocessing (Internal) ---
+        # 1. Ensure Targets Exist (derived from 'event' or passed in X)
+        # We need 'event' to determine if blocked/missed/goal
+        if 'event' not in df.columns:
+            # Fallback? If y is provided and simple binary, we can't do nested training.
+            # We strictly need event types.
+            raise ValueError("NestedXGClassifier requires 'event' column in X for training to determine layer targets.")
+            
+        # Create Layer Targets
+        df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
+        df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
+        df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
+
+        # 2. Train Layer 1: Block Model (All Data)
+        self.model_block = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
+        self.model_block.fit(df[self.config_block.feature_cols], df[self.config_block.target_col])
+        
+        # 3. Train Layer 2: Accuracy Model (Unblocked Only)
+        df_unblocked = df[df['is_blocked'] == 0]
+        self.model_accuracy = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
+        self.model_accuracy.fit(df_unblocked[self.config_accuracy.feature_cols], df_unblocked[self.config_accuracy.target_col])
+
+        # 4. Train Layer 3: Finish Model (On Net Only)
+        df_on_net = df[df['is_on_net'] == 1]
+        self.model_finish = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
+        self.model_finish.fit(df_on_net[self.config_finish.feature_cols], df_on_net[self.config_finish.target_col])
+        
+        return self
+
+    def predict_proba(self, X):
+        """
+        Return probability estimates for the test data X.
+        Returns: array-like of shape (n_samples, 2) -> [P(NoGoal), P(Goal)]
+        """
+        if not isinstance(X, pd.DataFrame):
+             # Try to convert if it's a known schema? 
+             # For now, require DF.
+             raise ValueError("NestedXGClassifier.predict_proba expects a pandas DataFrame.")
+             
+        p_blocked = self.model_block.predict_proba(X[self.config_block.feature_cols])[:, 1]
+        p_unblocked = 1.0 - p_blocked
+        
+        p_on_net = self.model_accuracy.predict_proba(X[self.config_accuracy.feature_cols])[:, 1]
+        
+        p_finish = self.model_finish.predict_proba(X[self.config_finish.feature_cols])[:, 1]
+        
+        p_goal = p_unblocked * p_on_net * p_finish
+        
+        return np.column_stack((1 - p_goal, p_goal))
+    
+    def predict(self, X):
+        # Threshold at 0.5 (arbitrary for xG, but required for API)
+        proba = self.predict_proba(X)[:, 1]
+        return (proba >= 0.5).astype(int)
+
     
     
 def load_data(path_pattern: str = 'data/**/*.csv') -> pd.DataFrame:

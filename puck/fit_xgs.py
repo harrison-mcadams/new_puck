@@ -44,7 +44,25 @@ except Exception:  # pragma: no cover - graceful fallback for environment missin
     RandomForestClassifier = None
     train_test_split = None
     accuracy_score = log_loss = roc_auc_score = brier_score_loss = None
+    from sklearn.calibration import calibration_curve
+except Exception:  # pragma: no cover - graceful fallback for environment missing sklearn
+    RandomForestClassifier = None
+    train_test_split = None
+    accuracy_score = log_loss = roc_auc_score = brier_score_loss = None
     calibration_curve = None
+
+# Import Nested Model
+try:
+    # Try relative import first (module mode)
+    from .fit_nested_xgs import NestedXGClassifier
+except ImportError:
+    try:
+        # Try direct import (script mode, assuming dir is in path)
+        import fit_nested_xgs
+        NestedXGClassifier = fit_nested_xgs.NestedXGClassifier
+    except ImportError as e:
+        print(f"Warning: Could not import NestedXGClassifier: {e}")
+        NestedXGClassifier = None
 
 # --- Simple module-level caching for the trained classifier ---
 _GLOBAL_CLF = None
@@ -1020,8 +1038,9 @@ if __name__ == '__main__':
         print("Skipping Baseline comparison.")
 
 
-    # 4. Train 'With Shot Type' Model
-    print(f"\n--- Training 'With Shot Type' ---")
+    # 4. Train or Load 'With Shot Type' Model
+    print(f"\n--- Model: 'With Shot Type' ---")
+    st_path = 'analysis/xgs/xg_model_shot_type.joblib'
     shot_type_conf = ModelConfig(
         name='With Shot Type',
         features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'],
@@ -1029,25 +1048,57 @@ if __name__ == '__main__':
         description="Random Forest including shot_type"
     )
     
-    # Prepare Data
-    train_df_st, final_feats_st, cat_map_st = clean_df_for_model(train_df.copy(), shot_type_conf.features)
-    X_train_st = train_df_st[final_feats_st].values
-    y_train_st = train_df_st['is_goal'].values
+    clf_st = None
+    # Try loading first
+    if Path(st_path).exists():
+        print(f"Found existing model at {st_path}. Loading...")
+        try:
+            clf_st, final_feats_st, cat_map_st = get_clf(st_path, 'load')
+        except Exception as e:
+            print(f"Load failed ({e}). Will retrain.")
+            
+    if clf_st is None:
+        print("Training 'With Shot Type'...")
+        # Prepare Data
+        train_df_st, final_feats_st, cat_map_st = clean_df_for_model(train_df.copy(), shot_type_conf.features)
+        X_train_st = train_df_st[final_feats_st].values
+        y_train_st = train_df_st['is_goal'].values
+        
+        # Fit
+        clf_st = RandomForestClassifier(
+            n_estimators=shot_type_conf.n_estimators,
+            random_state=42,
+            n_jobs=-1
+        )
+        clf_st.fit(X_train_st, y_train_st)
+        
+        # Save immediately
+        print(f"Saving 'With Shot Type' model to {st_path}...")
+        try:
+            Path(st_path).parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump(clf_st, st_path)
+            # Save metadata
+            meta_st = {
+                'final_features': final_feats_st, 
+                'categorical_levels_map': cat_map_st,
+                'model_config': shot_type_conf.to_dict()
+            }
+            with open(st_path + '.meta.json', 'w', encoding='utf-8') as fh:
+                json.dump(meta_st, fh)
+        except Exception as e:
+            print(f"Failed to save: {e}")
+
+    models['With Shot Type'] = clf_st
     
+    # Evaluate (always evaluate on current test set to ensure fair comparison)
+    # We need to clean test/train to get correct columns regardless of load/train path
+    # Use final_feats_st and cat_map_st from whichever path we took
+    
+    # Re-clean test set using known map
     test_df_st, _, _ = clean_df_for_model(test_df.copy(), shot_type_conf.features, fixed_categorical_levels=cat_map_st)
     X_test_st = test_df_st[final_feats_st].values
     y_test_st = test_df_st['is_goal'].values
-    
-    # Fit
-    clf_st = RandomForestClassifier(
-        n_estimators=shot_type_conf.n_estimators,
-        random_state=42,
-        n_jobs=-1
-    )
-    clf_st.fit(X_train_st, y_train_st)
-    models['With Shot Type'] = clf_st
-    
-    # Evaluate
+
     _, _, metrics_st = evaluate_model(clf_st, X_test_st, y_test_st)
     metrics_st['Model'] = 'With Shot Type'
     metrics_st['Features'] = str(final_feats_st)
@@ -1055,61 +1106,136 @@ if __name__ == '__main__':
     results.append(metrics_st)
     print(f"  -> Log Loss: {metrics_st['log_loss']:.4f}, AUC: {metrics_st['roc_auc']:.4f}")
 
-    # 5. Compare Results
-    print("\n--- Model Comparison Results ---")
+    # (Skip re-saving if loaded, already done above if trained)
+
+    # 7. Train 'Nested xG' Model (Comparison)
+    if NestedXGClassifier:
+        print(f"\n--- Training 'Nested xG' ---")
+        # Nested Model needs special data preparation: it requires 'event' column for training
+        # and encoded shot_type/game_state.
+        # We can use the SAME preparation as 'With Shot Type' but ensure 'event' is included in cols.
+        
+        nested_features_req = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type', 'event']
+        
+        # We use the 'With Shot Type' categorical map to ensure encoding consistency (for shared features like shot_type)
+        # But wait, fit_nested_xgs does its OWN internal encoding via LabelEncoder in preprocess_features usually.
+        # However, our NestedXGClassifier expects standard DF input.
+        # Actually, looking at NestedXGClassifier implementation, it expects 'shot_type_encoded' and 'game_state_encoded'.
+        # We need to manually prep these columns if we are passing a "cleaned" DF from here.
+        
+        # Strategy:
+        # 1. Take raw `train_df`.
+        # 2. Add 'shot_type_encoded' and 'game_state_encoded' matching `fit_nested_xgs.preprocess_features` style?
+        #    OR: Just rely on clean_df_for_model's output which produces `{col}_code`.
+        #    The NestedXGClassifier config (in fit_nested_xgs.py) expects `shot_type_encoded` and `game_state_encoded`.
+        #    `clean_df_for_model` produces `shot_type_code` and `game_state_code`.
+        #    Mis-match!
+        #
+        #    FIX: We will monkey-patch or adjust the NestedXGClassifier configs instance or pass data with renamed columns.
+        
+        # Let's map our `clean_df_for_model` outputs to what Nested expects.
+        # clean_df_for_model(features=['shot_type', 'game_state']) -> `shot_type_code`, `game_state_code`.
+        
+        nested_conf_dummy = ModelConfig(
+            name='Nested Prep',
+            features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        )
+        
+        # Get data with codes
+        train_df_nested, feats_n, map_n = clean_df_for_model(train_df.copy(), nested_conf_dummy.features)
+        test_df_nested, _, _ = clean_df_for_model(test_df.copy(), nested_conf_dummy.features, fixed_categorical_levels=map_n)
+        
+        # Rename columns to match NestedXGClassifier defaults
+        # shot_type_code -> shot_type_encoded
+        # game_state_code -> game_state_encoded
+        
+        rename_map = {
+            'shot_type_code': 'shot_type_encoded',
+            'game_state_code': 'game_state_encoded'
+        }
+        train_df_nested = train_df_nested.rename(columns=rename_map)
+        test_df_nested = test_df_nested.rename(columns=rename_map)
+        
+        # Add 'event' column back (it was dropped by clean_df_for_model usually, but we need to ensure it's kept)
+        # Actually clean_df_for_model filters and returns. It DOES NOT return 'event' usually.
+        # It processes based on features list.
+        # We need to explicitly ask for 'event' in clean_df_for_model? No, it drops non-feature cols.
+        # We need to merge 'event' back or modify clean_df.
+        
+        # Easier: Just grab 'event' from original `train_df` (aligned via index?)
+        # `clean_df_for_model` does `dropna()`, potentially changing rows.
+        # Validation: `clean_df_for_model` drops rows. Index is preserved?
+        # Yes, `dropna()` preserves index. 
+        # So we can join.
+        
+        train_df_nested['event'] = train_df.loc[train_df_nested.index, 'event']
+        test_df_nested['event'] = test_df.loc[test_df_nested.index, 'event']
+        
+        # Instantiate & Fit
+        clf_nested = NestedXGClassifier(n_estimators=500, random_state=42)
+        clf_nested.fit(train_df_nested) # y is ignored/derived
+        models['Nested xG'] = clf_nested
+        
+        # Evaluate
+        # predict_proba expects DF
+        y_prob_nested = clf_nested.predict_proba(test_df_nested)[:, 1]
+        y_test_nested = test_df_nested['is_goal'].values
+        
+        auc_n = roc_auc_score(y_test_nested, y_prob_nested)
+        ll_n = log_loss(y_test_nested, y_prob_nested)
+        
+        metrics_n = {
+            'Model': 'Nested xG',
+            'log_loss': ll_n,
+            'roc_auc': auc_n,
+            'brier': brier_score_loss(y_test_nested, y_prob_nested),
+            'accuracy': accuracy_score(y_test_nested, (y_prob_nested >= 0.5).astype(int)),
+            'N Features': '3 Layers',
+            'Features': 'Nested(Block->Acc->Finish)'
+        }
+        results.append(metrics_n)
+        print(f"  -> Log Loss: {ll_n:.4f}, AUC: {auc_n:.4f}")
+        
+        # Save Nested Model
+        nested_path = 'analysis/nested_xgs/nested_xg_model.joblib'
+        print(f"Saving 'Nested xG' model to {nested_path}...")
+        try:
+            Path(nested_path).parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump(clf_nested, nested_path)
+            # Metadata for nested? It's complex. Skipping simple meta json for now as class handles it.
+        except Exception as e:
+            print(f"Failed to save Nested model: {e}")
+
+    else:
+        print("NestedXGClassifier could not be imported. Skipping.")
+
+
+    # 8. Compare Results (Final)
+    print("\n--- Final Model Comparison Results ---")
     results_df = pd.DataFrame(results)
-    # Reorder columns for readability
     cols = ['Model', 'log_loss', 'roc_auc', 'brier', 'accuracy', 'N Features', 'Features']
-    # Handle case where keys might differ slightly (from evaluate vs inline) - but here we standardized
     print(results_df[cols].to_string(index=False))
 
-    # 6. Save 'With Shot Type' Model
-    st_path = 'analysis/xgs/xg_model_shot_type.joblib'
-    print(f"\nSaving 'With Shot Type' model to {st_path}...")
-    try:
-        Path(st_path).parent.mkdir(parents=True, exist_ok=True)
-        joblib.dump(clf_st, st_path)
-        
-        # Save metadata
-        meta_st = {
-            'final_features': final_feats_st, 
-            'categorical_levels_map': cat_map_st,
-            'model_config': shot_type_conf.to_dict()
-        }
-        with open(st_path + '.meta.json', 'w', encoding='utf-8') as fh:
-            json.dump(meta_st, fh)
-        print("Done.")
-    except Exception as e:
-        print(f"Failed to save 'With Shot Type' model: {e}")
 
-    # 7. Generate Comparative Heatmaps
+    # 9. Generate Comparative Heatmaps
     print("\nGenerating heatmaps...")
     
     # Config map for debug_model
-    # We need to reconstruct config for Baseline for it to work right in debug_model if we want it to be smart
-    # debug_model handles simple list of features too.
-    # Let's create a proxy config for Baseline with hardcoded standard features
     configs_map = {
         'Baseline': ModelConfig(name='Baseline', features=['distance', 'angle_deg', 'game_state', 'is_net_empty']),
-        'With Shot Type': shot_type_conf
+        'With Shot Type': shot_type_conf,
+        # 'Nested xG': ... debug_model might struggle with Nested if it expects simple OneHot structure.
+        # debug_model simulates data. NestedXGClassifier expects specific columns (shot_type_encoded).
+        # We might skip heatmap for Nested for now to avoid complexity blowup, 
+        # or we try to hack it.
+        # Let's skip heatmap for Nested for this iteration to ensure stability of the main task.
     }
-    
-    # We need to pass the *actual* loaded features logic to debug_model if we want it to be perfect?
-    # debug_model re-constructs features. It needs to know 'shot_type' is used for the second model.
-    # It will use the 'features' list from config.
-    
-    # IMPORTANT: debug_model needs categorical levels to simulate data.
-    # For 'Baseline', we used cat_map_baseline.
-    # For 'Shot Type', we used cat_map_st.
-    # debug_model accepts ONE `categorical_levels_map`. 
-    # This might be a conflict if they differ (e.g. shot_type levels vs none).
-    # We should merge them?
-    # Actually, debug_model's `category_value_to_code` uses the global map passed in.
-    # If we merge them, it should be fine as long as keys don't conflict (they don't, different features).
     
     combined_cat_map = {}
     if cat_map_baseline: combined_cat_map.update(cat_map_baseline)
     if cat_map_st: combined_cat_map.update(cat_map_st)
     
-    debug_model(models, model_configs=configs_map, categorical_levels_map=combined_cat_map, interactive=interactive_mode)
+    # Only run debug_model for the standard models for now
+    models_subset = {k: v for k, v in models.items() if k in configs_map}
+    debug_model(models_subset, model_configs=configs_map, categorical_levels_map=combined_cat_map, interactive=interactive_mode)
 

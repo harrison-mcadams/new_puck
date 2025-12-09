@@ -48,20 +48,23 @@ def main():
                 print(f"Warning: Failed to clear cache: {e}")
         
         # Also remove potential shadowing CSVs that timing.load_season_df might prefer
-        shadow_csv = os.path.join('data', season, f'{season}.csv')
-        if os.path.exists(shadow_csv):
-            try:
-                os.remove(shadow_csv)
-                print(f"Removed shadowing CSV: {shadow_csv}")
-            except Exception as e:
-                print(f"Warning: Failed to remove shadow CSV: {e}")
-                
-        # And the target CSV to be safe
-        target_csv = os.path.join('data', f'{season}.csv')
-        if os.path.exists(target_csv):
-            try:
-                os.remove(target_csv)
-            except: pass
+        # We need to be aggressive here because load_season_df looks for _df.csv too
+        files_to_nuke = [
+            os.path.join('data', season, f'{season}.csv'),
+            os.path.join('data', season, f'{season}_df.csv'),
+            os.path.join('data', season, f'{season}_game_feeds.csv'),
+            os.path.join('data', season, f'{season}_game_feeds.json'),
+            os.path.join('data', f'{season}.csv'),
+            os.path.join('data', f'{season}_df.csv')
+        ]
+        
+        for f in files_to_nuke:
+            if os.path.exists(f):
+                try:
+                    os.remove(f)
+                    print(f"Removed stale file: {f}")
+                except Exception as e:
+                    print(f"Warning: Failed to remove {f}: {e}")
                 
     # parse._season with use_cache=True will check static/cache/game_ID.json
     # We disable cache if force is True
