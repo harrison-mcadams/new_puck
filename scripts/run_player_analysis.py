@@ -163,6 +163,12 @@ def run_analysis():
             players_in_game = df_shifts['player_id'].unique()
             p_team_map = df_shifts.groupby('player_id')['team_id'].first().to_dict()
             
+            # Optimization: Extract game dataframe once outside the player loop
+            df_game = df_data[df_data['game_id'] == game_id]
+            if df_game.empty:
+               # This might happen if we have shifts but no events? Rare.
+               pass 
+
             game_player_stats = []
             
             # 4. Process Each Player
@@ -195,7 +201,7 @@ def run_analysis():
                     p_cond = condition.copy()
                     p_cond['team'] = p_team_id
                     
-                    df_game = df_data[df_data['game_id'] == game_id]
+                    # df_game is now pre-calculated outside loop
                     
                     _, _, _, p_stats = analyze.xgs_map(
                         season=season,
