@@ -2680,7 +2680,6 @@ def xgs_map(season: Optional[str] = '20252026', *,
         
         if df_filtered is not None and not df_filtered.empty and 'team_id' in df_filtered.columns:
              u_teams = df_filtered['team_id'].unique()
-             print(f"DEBUG: xgs_map df_filtered unique teams: {u_teams} (condition={condition})")
 
         if team_val is not None:
             # determine membership using home/away or ids
@@ -2876,8 +2875,6 @@ def xgs_map(season: Optional[str] = '20252026', *,
         heatmap_mode = 'home_away'
     else:
         heatmap_mode = 'orient_all_left'
-    
-    print(f"DEBUG: xgs_map heatmap_mode={heatmap_mode} team_val={team_val} condition={condition}", flush=True)
 
 
     # Call plot_events and handle both return shapes and the optional heatmap return
