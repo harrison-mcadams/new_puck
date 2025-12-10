@@ -21,10 +21,6 @@ from puck import parse
 from puck import timing
 from puck import analyze
 
-# Scripts in the same directory
-import run_player_analysis
-import run_league_stats
-
 def main():
     parser = argparse.ArgumentParser(description="Daily NHL Analysis Update")
     parser.add_argument('--season', type=str, default='20252026', help='Season string (e.g., 20252026)')

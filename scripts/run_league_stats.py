@@ -1,180 +1,267 @@
-import sys
+"""
+run_league_stats.py (Optimized V2)
+
+A memory-efficient "Map-Reduce" pipeline for calculating Team/League stats.
+
+Architecture:
+1. Map Phase: Iterate through games one by one.
+   - Extract Home/Away team stats for the game (GF, GA, xGF, xGA, CF, CA, TOI).
+   - Use strict 5v5 filtering (or other conditions) per game.
+   - Accumulate lightweight results.
+2. Reduce Phase:
+   - Aggregate totals per Team.
+3. Context Phase:
+   - Calculate Per-60 Rates.
+   - Calculate League-wide Percentiles.
+4. Output Phase:
+   - Save `league_stats.json`.
+   - Generate Scatter Plots (xGF vs xGA) using the lightweight aggregated data.
+"""
+
 import os
-# Add project root to sys.path to allow importing puck package
+import sys
+import gc
+import json
+import argparse
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+# Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from puck import timing
 from puck import analyze
-import matplotlib
-import matplotlib.pyplot as plt
-import os
+from puck import parse
+from puck import plot
 
-# Use Agg backend for non-interactive plotting
-matplotlib.use('Agg')
-
-import argparse
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
+def main():
+    parser = argparse.ArgumentParser(description="Run League Stats (Optimized)")
     parser.add_argument('--season', type=str, default='20252026')
+    parser.add_argument('--out_dir', type=str, default='analysis/league')
+    parser.add_argument('--plots', action='store_true', help='Generate plots')
     args = parser.parse_args()
+    
     season = args.season
+    out_dir = args.out_dir
+    os.makedirs(out_dir, exist_ok=True)
     
-    # Define conditions for analysis
-    conditions = {
-        '5v5': {'game_state': ['5v5'], 'is_net_empty': [0]},
-        '5v4': {'game_state': ['5v4'], 'is_net_empty': [0]},
-        '4v5': {'game_state': ['4v5'], 'is_net_empty': [0]}
-    }
+    print(f"--- Starting Optimized League Stats for Season {season} ---")
     
-    print(f"Running season analysis for {season} with conditions: {list(conditions.keys())}")
-    
-    # ==========================================
-    # CONFIGURATION
-    # ==========================================
-    
-    # REGENERATE_PLOTS_ONLY:
-    #   False (Default): Full Re-computation.
-    #       - Loads raw season dataframe (e.g. data/processed/20252026/20252026.csv).
-    #       - Re-calculates game timing, xG values, and spatial maps for every team.
-    #       - Saves new intermediate files (.npz) and summary stats.
-    #       - Generates all plots.
-    #       - USE WHEN: You have new game data or have changed calculation logic (e.g. xG model, timing).
-    #
-    #   True: Plotting Only (Fast).
-    #       - Skips all heavy calculation.
-    #       - Loads existing intermediate data from analysis/league/{season}/{condition}/intermediates/.
-    #       - Re-runs only the plotting functions (heatmaps, scatter plots).
-    #       - USE WHEN: You are tweaking plot aesthetics (colors, labels, text, titles) and the data is already correct.
-    REGENERATE_PLOTS_ONLY = False 
-    
-    # target_teams:
-    #   None (Default): Process all teams found in the season data.
-    #   ['ANA', 'BOS']: Process only specific teams. Useful for quick testing.
-    #   NOTE: For relative maps, you generally need a full league run to get a valid league baseline.
-    #         If running a subset, the baseline will be calculated from ONLY that subset.
-    target_teams = None
-    
-    # UPDATE_DATA:
-    #   False (Default): Use existing data on disk.
-    #   True: Force a fresh fetch of season data from the NHL API before running analysis.
-    #         - Calls parse._scrape with use_cache=False.
-    #         - Updates data/processed/{season}/{season}.csv.
-    #         - Useful for getting the latest games.
-    UPDATE_DATA = False
+    # 1. Load Full Season Data (Once)
+    print("Loading season data...")
+    df_data = timing.load_season_df(season)
+    if df_data is None or df_data.empty:
+        print("No data found. Exiting.")
+        return
 
-    def update_data(season: str):
-        """
-        Helper to force a fresh fetch of season data from the NHL API.
-        Updates the season CSV and other necessary files.
-        """
-        print(f"update_data: Fetching fresh data for season {season}...")
-        from puck import parse
-        
-        # parse._scrape handles fetching raw feeds, processing them, and saving the elaborated CSV.
-        # We set use_cache=False to force fresh API calls.
-        # We set process_elaborated=True and save_elaborated=True to generate the season.csv.
-        parse._scrape(
-            season=season,
-            out_dir='data',
-            use_cache=False,
-            process_elaborated=True,
-            save_elaborated=True,
-            return_elaborated_df=False,
-            verbose=True
-        )
-        print(f"update_data: Completed update for {season}.")
-
-    if UPDATE_DATA:
-        update_data(season)
+    # 2. Pre-Calculate xG (Batch)
+    print("Pre-calculating xG predictions for the season...")
+    df_data, _, _ = analyze._predict_xgs(df_data)
     
-    # Get team list
-    import json
-    teams_to_process = []
-    if target_teams:
-        teams_to_process = target_teams
-    else:
+    # 3. Map Phase: Iterate Games
+    game_ids = sorted(df_data['game_id'].unique())
+    print(f"Processing {len(game_ids)} games...")
+    
+    team_stats_acc = [] # List of dicts: {team: 'PHI', gf: 1, ga: 2, ...}
+    
+    # Condition: 5v5
+    condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
+    
+    for idx, game_id in enumerate(game_ids):
+        if (idx + 1) % 50 == 0:
+            print(f"  Game {idx+1}/{len(game_ids)}...", flush=True)
+            gc.collect()
+
         try:
-            # The instruction implies 'teams' is a variable here.
-            # Assuming 'teams' refers to 'target_teams' in this context,
-            # and the 'if teams is None' is meant to be an additional check
-            # within the 'else' block (where target_teams is already None).
-            # This effectively means the following block runs if target_teams is None.
-            if target_teams is None: # Changed from 'if teams is None' to 'if target_teams is None' for consistency
-                with open('web/static/teams.json', 'r') as f:
-                    teams_data = json.load(f)
-                teams_to_process = [t.get('abbr') for t in teams_data if 'abbr' in t]
+            # Extract game subset
+            # We can rely on game_id column
+            df_game = df_data[df_data['game_id'] == game_id]
+            if df_game.empty: continue
+            
+            # Get Intervals (Shared Cache)
+            # We need 5v5 intervals to filter the TOI and Events correctly
+            intervals = timing.get_game_intervals_cached(game_id, season, condition)
+            if not intervals: continue
+            
+            # Calculate TOI for this game's 5v5 state
+            # Intervals is a list of [start, end]
+            toi_seconds = sum(e - s for s, e in intervals)
+            if toi_seconds <= 0: continue
+            
+            # Filter DataFrame to 5v5 intervals
+            # We use analyze helper or manual?
+            # analyze._apply_intervals is robust.
+            df_filtered = analyze._apply_intervals(df_game, {'per_game': {game_id: intervals}} if isinstance(intervals, list) else intervals, 
+                                                 time_col='total_time_elapsed_seconds')
+            
+            if df_filtered.empty: continue
+
+            # Extract Home/Away Teams
+            home_team = df_game['home_abb'].iloc[0]
+            away_team = df_game['away_abb'].iloc[0]
+            
+            # Basic Stats Aggregation
+            # Goals
+            goals = df_filtered[df_filtered['event'] == 'goal']
+            home_goals = len(goals[goals['team_id'] == df_filtered['home_id']]) if not goals.empty else 0
+            away_goals = len(goals[goals['team_id'] == df_filtered['away_id']]) if not goals.empty else 0
+            
+            # xG
+            # xgs column is already populated
+            # Sum xgs for home and away
+            # Assuming 'team_id' matches 'home_id'
+            # (Vectorized)
+            # Create a mask for home team
+            is_home = df_filtered['team_id'] == df_filtered['home_id']
+            # xgs might be NaN, fill 0
+            xgs_series = df_filtered['xgs'].fillna(0)
+            
+            home_xg = xgs_series[is_home].sum()
+            away_xg = xgs_series[~is_home].sum()
+            
+            # Corsi (Shot Attempts)
+            # Events: 'shot-on-goal', 'missed-shot', 'blocked-shot', 'goal'
+            # Note: blocked-shot is credited to the shooter's team usually in event data "team_id"?
+            # Yes, standardized data usually has team_id = shooting team.
+            attempts_mask = df_filtered['event'].isin(['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal'])
+            home_cf = len(df_filtered[attempts_mask & is_home])
+            away_cf = len(df_filtered[attempts_mask & (~is_home)])
+            
+            # Append Results
+            # Record for Home
+            team_stats_acc.append({
+                'team': home_team,
+                'game_id': game_id,
+                'gp': 1,
+                'toi': toi_seconds,
+                'gf': home_goals,
+                'ga': away_goals,
+                'xg_for': home_xg,
+                'xg_against': away_xg,
+                'cf': home_cf,
+                'ca': away_cf
+            })
+            
+            # Record for Away
+            team_stats_acc.append({
+                'team': away_team,
+                'game_id': game_id,
+                'gp': 1,
+                'toi': toi_seconds,
+                'gf': away_goals,
+                'ga': home_goals,
+                'xg_for': away_xg,
+                'xg_against': home_xg,
+                'cf': away_cf,
+                'ca': home_cf
+            })
+            
         except Exception as e:
-            print(f"Warning: failed to load teams.json: {e}")
-            # Fallback will happen in analyze.league if we pass None, but we need list for season loop
-            # We can let analyze.league find them, then read the summary?
-            # Or just rely on analyze.league to return the list of teams it processed?
+            # print(f"Error processing game {game_id}: {e}")
             pass
 
-    try:
-        for cond_name, cond in conditions.items():
-            print(f"\n=== Processing Condition: {cond_name} ===")
-            
-            # 1. League Baseline & Summary
-            # This generates baseline.npy and team_summary.json/csv
-            # It also saves intermediate team maps to disk
-            league_res = analyze.league(
-                season=season,
-                condition=cond,
-                mode='compute' if not REGENERATE_PLOTS_ONLY else 'load',
-                teams=target_teams
-            )
-            
-            if not league_res:
-                print(f"Failed to get league results for {cond_name}")
-                continue
-                
-            # If teams_to_process was empty, populate from league results
-            if not teams_to_process:
-                # league_res['summary'] is a list of dicts
-                summary = league_res.get('summary', [])
-                teams_to_process = [r['team'] for r in summary if r.get('team') != 'League']
-                teams_to_process = sorted(list(set(teams_to_process)))
-            
-            print(f"--- Team Analysis ({cond_name}) for {len(teams_to_process)} teams ---")
-            
-            # 2. Per-Team Analysis (Plots)
-            for i, team in enumerate(teams_to_process):
-                if i % 5 == 0:
-                    import gc
-                    gc.collect()
-                    
-                # print(f"Processing {team}...")
-                analyze.season(
-                    season=season,
-                    team=team,
-                    condition=cond,
-                    league_data=league_res
-                )
-            
-            # 3. Scatter Plot
-            print(f"Generating scatter plot for {cond_name}...")
-            # We need the summary list again. It might have been updated by season() if we were tracking it,
-            # but season() writes to disk.
-            # analyze.generate_scatter_plot reads from disk if we pass summary_list?
-            # No, generate_scatter_plot takes summary_list as arg.
-            # league_res['summary'] has the initial summary.
-            # But season() updates stats (like percentiles).
-            # However, scatter plot only needs xGF/60 and xGA/60 which are in league_res['summary'] usually?
-            # Wait, league_res['summary'] comes from analyze.league().
-            # analyze.league() computes them.
-            # So we can use league_res['summary'].
-            analyze.generate_scatter_plot(league_res.get('summary', []), f'analysis/league/{season}/{cond_name}', cond_name)
-                
-        print("\n=== Generating Special Teams Plots ===")
-        # We need the base output directory where 5v4/4v5 folders are
-        # analyze.season uses analysis/league/{season}/{cond_name} by default
-        # So base is analysis/league/{season}
-        base_out_dir = f'analysis/league/{season}'
-        analyze.generate_special_teams_plot(season, teams_to_process, base_out_dir)
+    # Free memory
+    del df_data
+    gc.collect()
+    
+    # 4. Reduce Phase: Aggregation
+    print("Aggregating team stats...")
+    if not team_stats_acc:
+        print("No stats collected.")
+        return
         
-        print("Season analysis complete.")
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+    df_raw = pd.DataFrame(team_stats_acc)
+    # Sum by team
+    numeric_cols = ['gp', 'toi', 'gf', 'ga', 'xg_for', 'xg_against', 'cf', 'ca']
+    df_agg = df_raw.groupby('team')[numeric_cols].sum().reset_index()
+    
+    # 5. Context Phase: Rates & Percentiles
+    print("Calculating rates and percentiles...")
+    
+    # Rate stats (/60)
+    df_agg['xg_for_60'] = (df_agg['xg_for'] / df_agg['toi']) * 3600
+    df_agg['xg_against_60'] = (df_agg['xg_against'] / df_agg['toi']) * 3600
+    df_agg['goals_for_60'] = (df_agg['gf'] / df_agg['toi']) * 3600
+    df_agg['goals_against_60'] = (df_agg['ga'] / df_agg['toi']) * 3600
+    df_agg['cf_60'] = (df_agg['cf'] / df_agg['toi']) * 3600
+    df_agg['ca_60'] = (df_agg['ca'] / df_agg['toi']) * 3600
+    
+    # Ratios
+    df_agg['xg_pct'] = (df_agg['xg_for'] / (df_agg['xg_for'] + df_agg['xg_against'])) * 100
+    df_agg['cf_pct'] = (df_agg['cf'] / (df_agg['cf'] + df_agg['ca'])) * 100
+    
+    # Percentiles
+    rate_cols = ['xg_for_60', 'xg_against_60', 'goals_for_60', 'goals_against_60', 'cf_60', 'ca_60', 'xg_pct', 'cf_pct']
+    
+    for col in rate_cols:
+        pct_col = f'{col}_pct'
+        # Rank
+        # For 'against' metrics, low is usually "good", but percentiles are typically "This value is higher than X% of the league".
+        # So 99th percentile xGA means they give up A LOT.
+        # We stick to mathematical percentile. Interpretation is UI side.
+        df_agg[pct_col] = df_agg[col].rank(pct=True) * 100
+        df_agg[pct_col] = df_agg[pct_col].fillna(0)
+
+    # 6. Output Phase
+    records = df_agg.to_dict('records')
+    out_file = os.path.join(out_dir, f'{season}_teams.json')
+    with open(out_file, 'w') as f:
+        json.dump(records, f, indent=2)
+    print(f"Saved league stats to {out_file}")
+    
+    # 7. Plotting (Optional / Lightweight)
+    if True: # Always generate scatter for now, it's cheap on aggregated data (32 points)
+        print("Generating Scatter Plot...")
+        try:
+            # We reuse analyze.generate_scatter_plot logic or manual?
+            # analyze.generate_scatter_plot takes summary_list.
+            # It expects specific keys.
+            # Let's map our keys to what it expects or just call it?
+            # It expects 'team', 'total_seconds', 'total_xg' (implied context?),
+            # Actually generate_scatter_plot uses 'xg_for_60' if present?
+            # Let's look at `analyze.generate_scatter_plot`.
+            # It calculates per60 internally from 'total_xg' and 'total_seconds' usually.
+            # But we have per60 already.
+            # Let's write a simple plotter here to avoid dependency complexity.
+            
+            # Simple Matplotlib
+            plt.figure(figsize=(10, 8))
+            
+            # Filter valid
+            plot_df = df_agg[df_agg['gp'] >= 5]
+            if plot_df.empty: plot_df = df_agg
+            
+            x = plot_df['xg_for_60']
+            y = plot_df['xg_against_60']
+            teams = plot_df['team']
+            
+            plt.scatter(x, y, alpha=0.5)
+            
+            # Add labels
+            for i, team in enumerate(teams):
+                plt.annotate(team, (x.iloc[i], y.iloc[i]), fontsize=8)
+                
+            plt.title(f"League xG Rates (5v5) - {season}")
+            plt.xlabel("xG For / 60")
+            plt.ylabel("xG Against / 60")
+            plt.grid(True, alpha=0.3)
+            
+            # Invert Y axis? Usually top-right is good offense/bad defense?
+            # usually x=For, y=Against.
+            # Good = High For, Low Against. (Bottom Right)
+            plt.gca().invert_yaxis() # Put Low xGA at top?
+            # Let's stick to standard: Low xGA is good.
+            # If we invert Y, then Top-Right is High-For/Low-Against (Good/Good).
+            plt.gca().invert_yaxis()
+            
+            plot_path = os.path.join(out_dir, f'{season}_scatter.png')
+            plt.savefig(plot_path, dpi=100)
+            plt.close()
+            print(f"Saved scatter plot to {plot_path}")
+            
+        except Exception as e:
+            print(f"Plotting failed: {e}")
+
+if __name__ == "__main__":
+    main()

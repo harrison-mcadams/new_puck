@@ -363,7 +363,7 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
                 if gid.startswith(expected_prefix):
                     games.append(g)
                 # else:
-                #     print(f"DEBUG: Discarding next-season game {gid} in {season}")
+                #     print(f"DEBUG: Discarding game {gid} (expected prefix {expected_prefix})")
 
             # advance to the next week
             week_start_dt = week_start_dt + timedelta(days=7)
