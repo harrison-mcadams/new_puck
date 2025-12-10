@@ -106,17 +106,20 @@ def main():
         # Extract game subset (View/Slice)
         df_game = df_data[df_data['game_id'] == game_id]
         if df_game.empty:
+            if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty df_game")
             continue
             
         # Get Shifts
         # Using cache=True to leverage disk/mem cache
         df_shifts = timing._get_shifts_df(int(game_id))
         if df_shifts.empty:
+            if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty df_shifts")
             continue
             
         # Get Intervals (Shared)
         common_intervals = timing.get_game_intervals_cached(game_id, season, condition)
         if not common_intervals:
+            if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty intervals")
             continue
             
         # Identify Players

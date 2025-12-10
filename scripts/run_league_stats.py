@@ -77,17 +77,23 @@ def main():
             # Extract game subset
             # We can rely on game_id column
             df_game = df_data[df_data['game_id'] == game_id]
-            if df_game.empty: continue
+            if df_game.empty: 
+                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty df_game")
+                continue
             
             # Get Intervals (Shared Cache)
             # We need 5v5 intervals to filter the TOI and Events correctly
             intervals = timing.get_game_intervals_cached(game_id, season, condition)
-            if not intervals: continue
+            if not intervals: 
+                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty intervals (Condition: {condition})")
+                continue
             
             # Calculate TOI for this game's 5v5 state
             # Intervals is a list of [start, end]
             toi_seconds = sum(e - s for s, e in intervals)
-            if toi_seconds <= 0: continue
+            if toi_seconds <= 0: 
+                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Zero TOI (Intervals: {intervals})")
+                continue
             
             # Filter DataFrame to 5v5 intervals
             # We use analyze helper or manual?
@@ -95,7 +101,9 @@ def main():
             df_filtered = analyze._apply_intervals(df_game, {'per_game': {game_id: intervals}} if isinstance(intervals, list) else intervals, 
                                                  time_col='total_time_elapsed_seconds')
             
-            if df_filtered.empty: continue
+            if df_filtered.empty: 
+                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty df_filtered (Events count: {len(df_game)})")
+                continue
 
             # Extract Home/Away Teams
             home_team = df_game['home_abb'].iloc[0]
