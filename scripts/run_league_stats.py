@@ -4,7 +4,7 @@ run_league_stats.py (Optimized V2)
 A memory-efficient "Map-Reduce" pipeline for calculating Team/League stats.
 
 Architecture:
-1. Map Phase: Iterate through games one by one.
+1. Map Phase: Iterate through games one by one (or in parallel).
    - Extract Home/Away team stats for the game (GF, GA, xGF, xGA, CF, CA, TOI).
    - Use strict 5v5 filtering (or other conditions) per game.
    - Accumulate lightweight results.
@@ -26,6 +26,7 @@ import argparse
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import multiprocessing
 
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -35,18 +36,116 @@ from puck import analyze
 from puck import parse
 from puck import plot
 
+def process_game_league(args):
+    """
+    Pure function to process a single game for league stats.
+    Args:
+        args (tuple): (game_id, df_game, condition, season)
+    Returns:
+        list: List of dicts (usually 2, one for home one for away).
+    """
+    game_id, df_game, condition, season = args
+    results = []
+    
+    try:
+        if df_game.empty: 
+            return []
+        
+        # Get Intervals (Shared Cache)
+        # We need 5v5 intervals to filter the TOI and Events correctly
+        intervals = timing.get_game_intervals_cached(game_id, season, condition)
+        if not intervals: 
+            return []
+        
+        # Calculate TOI for this game's 5v5 state
+        # Intervals is a list of [start, end]
+        toi_seconds = sum(e - s for s, e in intervals)
+        if toi_seconds <= 0: 
+            return []
+        
+        # Filter DataFrame to 5v5 intervals
+        # We use analyze helper or manual?
+        # analyze._apply_intervals is robust.
+        df_filtered = analyze._apply_intervals(df_game, {'per_game': {game_id: intervals}} if isinstance(intervals, list) else intervals, 
+                                             time_col='total_time_elapsed_seconds')
+        
+        if df_filtered.empty: 
+            return []
+
+        # Extract Home/Away Teams
+        home_team = df_game['home_abb'].iloc[0]
+        away_team = df_game['away_abb'].iloc[0]
+        
+        # Basic Stats Aggregation
+        # Goals
+        goals = df_filtered[df_filtered['event'] == 'goal']
+        home_goals = len(goals[goals['team_id'] == goals['home_id']]) if not goals.empty else 0
+        away_goals = len(goals[goals['team_id'] == goals['away_id']]) if not goals.empty else 0
+        
+        # xG
+        # xgs column is already populated (pre-calculated in main)
+        # Sum xgs for home and away
+        is_home = df_filtered['team_id'] == df_filtered['home_id']
+        xgs_series = df_filtered['xgs'].fillna(0)
+        
+        home_xg = xgs_series[is_home].sum()
+        away_xg = xgs_series[~is_home].sum()
+        
+        # Corsi (Shot Attempts)
+        attempts_mask = df_filtered['event'].isin(['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal'])
+        home_cf = len(df_filtered[attempts_mask & is_home])
+        away_cf = len(df_filtered[attempts_mask & (~is_home)])
+        
+        # Append Results
+        # Record for Home
+        results.append({
+            'team': home_team,
+            'game_id': game_id,
+            'gp': 1,
+            'toi': toi_seconds,
+            'gf': home_goals,
+            'ga': away_goals,
+            'xg_for': home_xg,
+            'xg_against': away_xg,
+            'cf': home_cf,
+            'ca': away_cf
+        })
+        
+        # Record for Away
+        results.append({
+            'team': away_team,
+            'game_id': game_id,
+            'gp': 1,
+            'toi': toi_seconds,
+            'gf': away_goals,
+            'ga': home_goals,
+            'xg_for': away_xg,
+            'xg_against': home_xg,
+            'cf': away_cf,
+            'ca': home_cf
+        })
+        
+    except Exception as e:
+        # print(f"Error processing game {game_id}: {e}")
+        pass
+        
+    return results
+
 def main():
     parser = argparse.ArgumentParser(description="Run League Stats (Optimized)")
     parser.add_argument('--season', type=str, default='20252026')
     parser.add_argument('--out_dir', type=str, default='analysis/league')
     parser.add_argument('--plots', action='store_true', help='Generate plots')
+    parser.add_argument('--parallel', action='store_true', help="Use multiprocessing for faster execution on Mac")
     args = parser.parse_args()
     
     season = args.season
     out_dir = args.out_dir
+    use_parallel = args.parallel
     os.makedirs(out_dir, exist_ok=True)
     
     print(f"--- Starting Optimized League Stats for Season {season} ---")
+    print(f"Mode: {'PARALLEL' if use_parallel else 'SEQUENTIAL'}")
     
     # 1. Load Full Season Data (Once)
     print("Loading season data...")
@@ -63,115 +162,39 @@ def main():
     game_ids = sorted(df_data['game_id'].unique())
     print(f"Processing {len(game_ids)} games...")
     
-    team_stats_acc = [] # List of dicts: {team: 'PHI', gf: 1, ga: 2, ...}
+    team_stats_acc = [] 
     
     # Condition: 5v5
     condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
     
-    for idx, game_id in enumerate(game_ids):
-        if (idx + 1) % 50 == 0:
-            print(f"  Game {idx+1}/{len(game_ids)}...", flush=True)
-            gc.collect()
-
-        try:
-            # Extract game subset
-            # We can rely on game_id column
-            df_game = df_data[df_data['game_id'] == game_id]
-            if df_game.empty: 
-                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty df_game")
-                continue
+    map_args = []
+    if use_parallel:
+        print("Preparing tasks for parallel execution...")
+        for gid in game_ids:
+            df_g = df_data[df_data['game_id'] == gid].copy()
+            map_args.append((gid, df_g, condition, season))
             
-            # Get Intervals (Shared Cache)
-            # We need 5v5 intervals to filter the TOI and Events correctly
-            intervals = timing.get_game_intervals_cached(game_id, season, condition)
-            if not intervals: 
-                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty intervals (Condition: {condition})")
-                continue
+        print(f"Dispatching {len(map_args)} tasks to worker pool...")
+        with multiprocessing.Pool() as pool:
+            results_nested = pool.map(process_game_league, map_args)
             
-            # Calculate TOI for this game's 5v5 state
-            # Intervals is a list of [start, end]
-            toi_seconds = sum(e - s for s, e in intervals)
-            if toi_seconds <= 0: 
-                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Zero TOI (Intervals: {intervals})")
-                continue
+        for res_list in results_nested:
+            team_stats_acc.extend(res_list)
             
-            # Filter DataFrame to 5v5 intervals
-            # We use analyze helper or manual?
-            # analyze._apply_intervals is robust.
-            df_filtered = analyze._apply_intervals(df_game, {'per_game': {game_id: intervals}} if isinstance(intervals, list) else intervals, 
-                                                 time_col='total_time_elapsed_seconds')
+    else:
+        # Sequential
+        for idx, game_id in enumerate(game_ids):
+            if (idx + 1) % 50 == 0:
+                print(f"  Game {idx+1}/{len(game_ids)}...", flush=True)
+                gc.collect()
             
-            if df_filtered.empty: 
-                if idx < 5: print(f"DEBUG: Game {game_id} skipped: Empty df_filtered (Events count: {len(df_game)})")
-                continue
-
-            # Extract Home/Away Teams
-            home_team = df_game['home_abb'].iloc[0]
-            away_team = df_game['away_abb'].iloc[0]
-            
-            # Basic Stats Aggregation
-            # Goals
-            goals = df_filtered[df_filtered['event'] == 'goal']
-            home_goals = len(goals[goals['team_id'] == goals['home_id']]) if not goals.empty else 0
-            away_goals = len(goals[goals['team_id'] == goals['away_id']]) if not goals.empty else 0
-            
-            # xG
-            # xgs column is already populated
-            # Sum xgs for home and away
-            # Assuming 'team_id' matches 'home_id'
-            # (Vectorized)
-            # Create a mask for home team
-            
-            is_home = df_filtered['team_id'] == df_filtered['home_id']
-            # xgs might be NaN, fill 0
-            xgs_series = df_filtered['xgs'].fillna(0)
-            
-            home_xg = xgs_series[is_home].sum()
-            away_xg = xgs_series[~is_home].sum()
-            
-            # Corsi (Shot Attempts)
-            # Events: 'shot-on-goal', 'missed-shot', 'blocked-shot', 'goal'
-            # Note: blocked-shot is credited to the shooter's team usually in event data "team_id"?
-            # Yes, standardized data usually has team_id = shooting team.
-            attempts_mask = df_filtered['event'].isin(['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal'])
-            home_cf = len(df_filtered[attempts_mask & is_home])
-            away_cf = len(df_filtered[attempts_mask & (~is_home)])
-            
-            # Append Results
-            # Record for Home
-            team_stats_acc.append({
-                'team': home_team,
-                'game_id': game_id,
-                'gp': 1,
-                'toi': toi_seconds,
-                'gf': home_goals,
-                'ga': away_goals,
-                'xg_for': home_xg,
-                'xg_against': away_xg,
-                'cf': home_cf,
-                'ca': away_cf
-            })
-            
-            # Record for Away
-            team_stats_acc.append({
-                'team': away_team,
-                'game_id': game_id,
-                'gp': 1,
-                'toi': toi_seconds,
-                'gf': away_goals,
-                'ga': home_goals,
-                'xg_for': away_xg,
-                'xg_against': home_xg,
-                'cf': away_cf,
-                'ca': home_cf
-            })
-            
-        except Exception as e:
-            print(f"Error processing game {game_id}: {e}")
-            pass
+            df_g = df_data[df_data['game_id'] == game_id]
+            res_list = process_game_league((game_id, df_g, condition, season))
+            team_stats_acc.extend(res_list)
 
     # Free memory
     del df_data
+    if 'map_args' in locals(): del map_args
     gc.collect()
     
     # 4. Reduce Phase: Aggregation
@@ -205,10 +228,6 @@ def main():
     
     for col in rate_cols:
         pct_col = f'{col}_pct'
-        # Rank
-        # For 'against' metrics, low is usually "good", but percentiles are typically "This value is higher than X% of the league".
-        # So 99th percentile xGA means they give up A LOT.
-        # We stick to mathematical percentile. Interpretation is UI side.
         df_agg[pct_col] = df_agg[col].rank(pct=True) * 100
         df_agg[pct_col] = df_agg[pct_col].fillna(0)
 
@@ -223,17 +242,6 @@ def main():
     if True: # Always generate scatter for now, it's cheap on aggregated data (32 points)
         print("Generating Scatter Plot...")
         try:
-            # We reuse analyze.generate_scatter_plot logic or manual?
-            # analyze.generate_scatter_plot takes summary_list.
-            # It expects specific keys.
-            # Let's map our keys to what it expects or just call it?
-            # It expects 'team', 'total_seconds', 'total_xg' (implied context?),
-            # Actually generate_scatter_plot uses 'xg_for_60' if present?
-            # Let's look at `analyze.generate_scatter_plot`.
-            # It calculates per60 internally from 'total_xg' and 'total_seconds' usually.
-            # But we have per60 already.
-            # Let's write a simple plotter here to avoid dependency complexity.
-            
             # Simple Matplotlib
             plt.figure(figsize=(10, 8))
             
@@ -256,12 +264,8 @@ def main():
             plt.ylabel("xG Against / 60")
             plt.grid(True, alpha=0.3)
             
-            # Invert Y axis? Usually top-right is good offense/bad defense?
-            # usually x=For, y=Against.
-            # Good = High For, Low Against. (Bottom Right)
-            plt.gca().invert_yaxis() # Put Low xGA at top?
-            # Let's stick to standard: Low xGA is good.
-            # If we invert Y, then Top-Right is High-For/Low-Against (Good/Good).
+            # Use Inverted Y-Axis so Top-Right is High-For / Low-Against (Good/Good)
+            # Low AGainst is 'Top' on Y graph if inverted
             plt.gca().invert_yaxis()
             
             plot_path = os.path.join(out_dir, f'{season}_scatter.png')
@@ -273,4 +277,5 @@ def main():
             print(f"Plotting failed: {e}")
 
 if __name__ == "__main__":
+    multiprocessing.freeze_support()
     main()

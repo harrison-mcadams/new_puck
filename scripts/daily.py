@@ -25,10 +25,17 @@ def main():
     parser = argparse.ArgumentParser(description="Daily NHL Analysis Update")
     parser.add_argument('--season', type=str, default='20252026', help='Season string (e.g., 20252026)')
     parser.add_argument('--force', action='store_true', help='Force full re-download/re-calc')
+    parser.add_argument('--parallel', action='store_true', help='Force parallel execution (default on Mac)')
     args = parser.parse_args()
     
     season = args.season
+    # Auto-detect Mac or use explicit flag
+    is_mac = sys.platform == 'darwin'
+    use_parallel = args.parallel or is_mac
+    
     print(f"--- Starting Daily Update for Season {season} ---")
+    if use_parallel:
+        print("Parallel execution enabled (Mac optimized).")
     
     # 1. Update Data
     # If force is true, clear the nhl_api cache to ensure fresh schedule
@@ -122,7 +129,11 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         player_analysis_script = os.path.join(script_dir, 'run_player_analysis.py')
         
-        subprocess.run([sys.executable, player_analysis_script, '--season', season], check=True)
+        cmd = [sys.executable, player_analysis_script, '--season', season]
+        if use_parallel:
+            cmd.append('--parallel')
+            
+        subprocess.run(cmd, check=True)
     except Exception as e:
         print(f"Player Analysis failed: {e}")
 
@@ -133,7 +144,11 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
         
-        subprocess.run([sys.executable, league_stats_script, '--season', season], check=True)
+        cmd = [sys.executable, league_stats_script, '--season', season]
+        if use_parallel:
+            cmd.append('--parallel')
+
+        subprocess.run(cmd, check=True)
     except Exception as e:
         print(f"Team Analysis failed: {e}")
 
