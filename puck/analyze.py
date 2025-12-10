@@ -1946,6 +1946,7 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
         pd.DataFrame: A filtered dataframe containing only rows within the specified intervals and satisfying `condition` when provided.
     """
     from . import timing as _timing  # local import to avoid top-level circular deps
+    from . import parse as _parse
 
     # Deduplicate columns to prevent Series comparison errors during DataFrame reconstruction
     if not df_in.empty and df_in.columns.duplicated().any():
@@ -2269,6 +2270,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     from . import fit_xgs
     from . import plot as plot_mod
     from . import parse as _parse
+    from . import timing
 
     # --- Helpers ------------------------------------------------------------
     # Determine the CSV path to use for model training if needed.
@@ -2295,8 +2297,6 @@ def xgs_map(season: Optional[str] = '20252026', *,
         # Based on grep, it was `timing.load_season_df`.
         # I need to import timing here? Or assume it's imported.
         # Step 780 showed `from . import timing`.
-        if 'timing' not in locals():
-             from . import timing
         df_all = timing.load_season_df(season)
 
 

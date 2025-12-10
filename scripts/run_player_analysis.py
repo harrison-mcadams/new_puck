@@ -176,7 +176,7 @@ def main():
                     total_seconds=toi_seconds,
                     use_intervals=True,
                     intervals_input=intervals_input,
-                    start_time_col='start_total_seconds', # Should match cache? usually total_time_elapsed_seconds in events
+                    interval_time_col='total_time_elapsed_seconds', # Match event data column
                 )
                 
                 if p_stats:
