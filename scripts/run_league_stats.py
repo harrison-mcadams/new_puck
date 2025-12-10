@@ -112,8 +112,8 @@ def main():
             # Basic Stats Aggregation
             # Goals
             goals = df_filtered[df_filtered['event'] == 'goal']
-            home_goals = len(goals[goals['team_id'] == df_filtered['home_id']]) if not goals.empty else 0
-            away_goals = len(goals[goals['team_id'] == df_filtered['away_id']]) if not goals.empty else 0
+            home_goals = len(goals[goals['team_id'] == goals['home_id']]) if not goals.empty else 0
+            away_goals = len(goals[goals['team_id'] == goals['away_id']]) if not goals.empty else 0
             
             # xG
             # xgs column is already populated
@@ -121,6 +121,7 @@ def main():
             # Assuming 'team_id' matches 'home_id'
             # (Vectorized)
             # Create a mask for home team
+            
             is_home = df_filtered['team_id'] == df_filtered['home_id']
             # xgs might be NaN, fill 0
             xgs_series = df_filtered['xgs'].fillna(0)
