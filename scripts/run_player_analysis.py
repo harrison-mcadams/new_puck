@@ -38,6 +38,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from puck import timing
 from puck import analyze
 from puck import parse
+from puck import plot
 
 def process_game(args):
     """
@@ -108,9 +109,9 @@ def process_game(args):
                     season=season,
                     data_df=df_game, # Passed explicitly
                     condition=p_cond,
-                    return_heatmaps=False,
+                    return_heatmaps=False, # We compute separately
                     show=False,
-                    stats_only=True, # Critical
+                    stats_only=True, # Critical to avoid plotting overhead
                     total_seconds=toi_seconds,
                     use_intervals=True,
                     intervals_input=intervals_input,
@@ -123,6 +124,60 @@ def process_game(args):
                     p_stats['team'] = p_stats.get('team') # Abbrev usually returned by xgs_map
                     p_stats['game_id'] = int(game_id)
                     p_stats['toi'] = toi_seconds
+                    
+                    # --- HEATMAP GRID COMPUTATION ---
+                    # We need the player's filtered dataframe to compute their specific heatmap.
+                    # xgs_map did the filtering internally but didn't return the df because stats_only=True
+                    # We should probably do the filtering ourselves to be efficient if we need the df for both.
+                    # Or just call apply_intervals here.
+                    
+                    # Re-filter for grid (inefficient to do twice? xgs_map does it.)
+                    # Let's use analyze._apply_intervals locally.
+                    df_filtered = analyze._apply_intervals(
+                        df_game, 
+                        intervals_input['per_game'][game_id]['intersection_intervals'],
+                        time_col='total_time_elapsed_seconds'
+                    )
+                    
+                    if not df_filtered.empty:
+                        # Adjust xy
+                        df_adj = plot.adjust_xy_for_homeaway(df_filtered, split_mode='home_away')
+                        
+                        # Compute grid (Team Perspective - i.e. Player's perspective)
+                        res = 1.0
+                        sigma = 6.0
+                        # We want shots BY the player's team (and specifically usually the player? No, usually "On Ice" calls are team stats)
+                        # analyze.players() usually creates "Relative to League" maps which means we need On-Ice Team For.
+                        
+                        # Compute 'On-Ice For' Grid
+                        # Note: we need to know the 'team_id' integer.
+                        try:
+                            tid_int = int(p_team_id) if p_team_id else None
+                        except:
+                            tid_int = None
+                            
+                        # If p_team_id is None, we can't filter 'For'.
+                        # But we have map from shifts.
+                        
+                        _, _, grid_for, _, _ = analyze.compute_xg_heatmap_from_df(
+                            df_adj, grid_res=res, sigma=sigma,
+                            selected_team=tid_int, selected_role='team',
+                            total_seconds=toi_seconds
+                        )
+                        
+                        # We attach grid to result
+                        p_stats['grid_for'] = grid_for
+                        # Do we need 'Against'? Usually player maps are Offense.
+                        # If we want Defense maps, we need Against.
+                        # analyze.players() generates both?
+                        # It generates "Relative xG" maps. Usually just offense shown? 
+                        # Let's store Against too just in case.
+                        _, _, grid_against, _, _ = analyze.compute_xg_heatmap_from_df(
+                            df_adj, grid_res=res, sigma=sigma,
+                            selected_team=tid_int, selected_role='other',
+                            total_seconds=toi_seconds
+                        )
+                        p_stats['grid_against'] = grid_against
                     
                     # Accumulate
                     results.append(p_stats)
@@ -242,17 +297,45 @@ def main():
     gc.collect()
     
     # 5. Reduce Phase: Aggregation
-    print("Aggregating stats...")
+    print("Aggregating stats and grids...")
     if not all_player_stats:
         print("No stats collected.")
         return
         
     df_raw = pd.DataFrame(all_player_stats)
     
+    # Separate Grids from Scalar
+    # Accumulate grids in a dictionary first because DataFrame groupby sum is inconsistent with arrays
+    player_grids = {}
+    
+    print("  Summing player heatmap grids...")
+    # This loop might be slow if millions of rows?
+    # Player-games: 1300 games * 36 players ~ 46,000 rows. Fast enough.
+    for item in all_player_stats:
+        pid = item['player_id']
+        if pid not in player_grids:
+            player_grids[pid] = {'for': None, 'against': None}
+            
+        g_for = item.get('grid_for')
+        g_ag = item.get('grid_against')
+        
+        if g_for is not None:
+            if player_grids[pid]['for'] is None:
+                player_grids[pid]['for'] = g_for.copy()
+            else:
+                player_grids[pid]['for'] += g_for
+                
+        if g_ag is not None:
+            if player_grids[pid]['against'] is None:
+                player_grids[pid]['against'] = g_ag.copy()
+            else:
+                player_grids[pid]['against'] += g_ag
+    
     # Define aggregation columns
+    # We must exclude 'grid_for', 'grid_against' explicitly as they are in df_raw now
     numeric_cols = df_raw.select_dtypes(include=[np.number]).columns.tolist()
     # exclude game_id from sum
-    numeric_cols = [c for c in numeric_cols if c != 'game_id' and c != 'player_id']
+    numeric_cols = [c for c in numeric_cols if c != 'game_id' and c != 'player_id' and c != 'grid_for' and c != 'grid_against']
     
     df_agg = df_raw.groupby('player_id')[numeric_cols].sum().reset_index()
     
@@ -293,6 +376,33 @@ def main():
         json.dump(records, f, indent=2)
         
     print(f"Saved player analysis to {out_file}")
+    
+    # 7. Generate Player Heatmaps
+    print("Generating Player Heatmaps...")
+    extent = (-100, 100, -42.5, 42.5)
+    
+    # Only generate for players with meaningful TOI?
+    # e.g. > 60 mins
+    
+    count_plots = 0
+    for pid, grids in player_grids.items():
+        # Check TOI from agg
+        p_rec = next((x for x in records if x['player_id'] == pid), None)
+        if not p_rec or p_rec.get('toi', 0) < 3000: # 50 mins
+            continue
+            
+        p_name = p_rec.get('player_name', f'Player {pid}')
+        
+        g_for = grids.get('for')
+        if g_for is not None:
+             out_p = os.path.join(out_dir, f"{season}_player_{pid}_for.png")
+             try:
+                 plot.plot_heatmap_grid(g_for, extent, color='black', title=f"{p_name} xG For (5v5)", out_path=out_p)
+                 count_plots += 1
+             except Exception as e:
+                 pass
+                 
+    print(f"Generated heatmaps for {count_plots} players.")
 
 if __name__ == "__main__":
     # On Mac/Windows, spawn is default in recent Pythons.

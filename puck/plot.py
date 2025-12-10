@@ -793,6 +793,67 @@ def plot_events(
 
     return fig, ax
 
+def _heat_to_rgba(h, color, alpha_scale=0.6):
+    """Convert a 2D heatmap grid to an RGBA image."""
+    try:
+        maxv = float(np.nanmax(h)) if np.nanmax(h) > 0 else 0.0
+    except Exception:
+        maxv = 0.0
+    if maxv <= 0:
+        return None
+    norm = np.clip(h / maxv, 0.0, 1.0)
+    rgba = np.zeros((h.shape[0], h.shape[1], 4), dtype=float)
+    r, g, b, _ = mcolors.to_rgba(color)
+    rgba[..., 0] = r
+    rgba[..., 1] = g
+    rgba[..., 2] = b
+    # Use non-linear alpha for better visibility of low values?
+    # Or strict linear. Adhering to original logic:
+    rgba[..., 3] = norm * alpha_scale
+    return rgba
+
+def plot_heatmap_grid(
+    grid: np.ndarray,
+    extent: Tuple[float, float, float, float],
+    color: str = 'black',
+    alpha: float = 0.6,
+    ax: Optional[plt.Axes] = None,
+    rink: bool = True,
+    figsize: Tuple[float, float] = (8, 4.5),
+    title: Optional[str] = None,
+    out_path: Optional[str] = None,
+    zorder: int = 1
+) -> Tuple[plt.Figure, plt.Axes]:
+    """
+    Render a pre-computed heatmap grid onto a rink.
+    """
+    if ax is None:
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.set_aspect('equal')
+        ax.axis('off')
+        if rink:
+            try:
+                draw_rink(ax=ax)
+            except Exception:
+                pass
+    else:
+        fig = ax.figure
+
+    rgba = _heat_to_rgba(grid, color, alpha_scale=alpha)
+    if rgba is not None:
+        ax.imshow(rgba, extent=extent, origin='lower', zorder=zorder)
+    
+    if title:
+        ax.set_title(title)
+
+    if out_path:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out_path, dpi=150)
+        plt.close(fig)
+
+    return fig, ax
+
+
 def _game(gameID, conditions=None, plot_kwargs=None):
     """Simple helper to create a shot/goal plot for a single game.
 
