@@ -2098,34 +2098,55 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
                 if condition and isinstance(condition, dict):
                     # Check if condition includes state-based filters that need validation
                     needs_validation = ('game_state' in condition or 'is_net_empty' in condition)
-
+                    
                     if needs_validation:
-                        # Build a temporary dataframe from matched rows for validation
-                        df_matched = df_game.loc[unique_idx]
-
-                        # If game_state is in condition, add game_state_relative_to_team column
-                        if 'game_state' in condition and hasattr(_timing, 'add_game_state_relative_column'):
-                            try:
-                                df_matched = _timing.add_game_state_relative_column(df_matched.copy(), team_for_game)
-                                # Replace game_state column with relative version for condition matching
-                                if 'game_state_relative_to_team' in df_matched.columns:
-                                    df_matched['game_state'] = df_matched['game_state_relative_to_team']
-                            except Exception as e:
-                                print(f"_apply_intervals: failed to add game_state_relative_to_team for game {gid_str}: {e}")
-
-                        # Build a mask using parse.build_mask to test condition against matched rows
                         try:
-                            # Create a condition without 'team' or player keys for build_mask validation
-                            # We rely on intervals for player presence; row-level validation would exclude events by others.
-                            validation_condition = {k: v for k, v in condition.items() if k not in ['team', 'player_id', 'player_ids']}
-                            if validation_condition:
-                                condition_mask = _parse.build_mask(df_matched, validation_condition)
-                                condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
-                                # Filter unique_idx using vectorized boolean indexing
-                                validated_mask = pd.Series([ii in df_matched.index and condition_mask.loc[ii] for ii in unique_idx], index=unique_idx)
-                                unique_idx = [ii for ii, keep in zip(unique_idx, validated_mask) if keep]
+                            # Build a temporary dataframe from matched rows for validation
+                            df_matched = df_game.loc[unique_idx]
+                            
+                            # If game_state is in condition, add game_state_relative_to_team column
+                            if 'game_state' in condition and hasattr(_timing, 'add_game_state_relative_column'):
+                                try:
+                                    df_matched = _timing.add_game_state_relative_column(df_matched.copy(), team_for_game)
+                                    # Replace game_state column with relative version for condition matching
+                                    if 'game_state_relative_to_team' in df_matched.columns:
+                                        df_matched['game_state'] = df_matched['game_state_relative_to_team']
+                                except Exception as e:
+                                    print(f"_apply_intervals: failed to add game_state_relative_to_team for game {gid_str}: {e}")
+                            
+                            # Build a mask using parse.build_mask to test condition against matched rows
+                            try:
+                                # Create a condition without 'team' or player keys for build_mask validation
+                                # We rely on intervals for player presence; row-level validation would exclude events by others.
+                                validation_condition = {k: v for k, v in condition.items() if k not in ['team', 'player_id', 'player_ids']}
+                                if validation_condition:
+                                    condition_mask = _parse.build_mask(df_matched, validation_condition)
+                                    condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
+                                    # Filter unique_idx using vectorized boolean indexing
+                                    # ERROR TRAP HERE
+                                    keep_list = []
+                                    for ii in unique_idx:
+                                        try:
+                                            # Careful: condition_mask.loc[ii] might be a Series if index duplicates exist?
+                                            val = condition_mask.loc[ii]
+                                            if isinstance(val, pd.Series):
+                                                val = bool(val.any())
+                                            keep_list.append(bool(val))
+                                        except Exception:
+                                            keep_list.append(False)
+                                    
+                                    unique_idx = [ii for ii, keep in zip(unique_idx, keep_list) if keep]
+                            except Exception as e:
+                                print(f"_apply_intervals: failed to validate condition for game {gid_str}: {e}")
+                                # Print debug info about shapes
+                                try:
+                                    print(f"DEBUG SHAPES: df_matched={df_matched.shape}, condition_mask={getattr(condition_mask, 'shape', 'N/A')}")
+                                except: pass
+                                raise e
                         except Exception as e:
-                            print(f"_apply_intervals: failed to validate condition for game {gid_str}: {e}")
+                            # Catch broad validation failure
+                            print(f"_apply_intervals: Validation block failed for game {gid_str}: {e}")
+                            pass
 
                 # append validated matched rows to filtered list by index reference
                 for ii in unique_idx:
