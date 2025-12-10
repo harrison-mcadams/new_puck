@@ -191,7 +191,7 @@ def main():
                     
             except Exception as e:
                 # Log but don't crash loop
-                # print(f"Error processing player {pid} in game {game_id}: {e}")
+                print(f"Error processing player {pid} in game {game_id}: {e}")
                 pass
                 
     # Free memory of full season data before aggregation if constrained

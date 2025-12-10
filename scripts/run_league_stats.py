@@ -166,7 +166,7 @@ def main():
             })
             
         except Exception as e:
-            # print(f"Error processing game {game_id}: {e}")
+            print(f"Error processing game {game_id}: {e}")
             pass
 
     # Free memory
