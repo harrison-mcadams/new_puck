@@ -1931,6 +1931,266 @@ def season(season: str = '20252026',
     return stats
 
 
+def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_time_elapsed_seconds', team_val: Optional[object] = None, condition: Optional[dict] = None) -> pd.DataFrame:
+    """
+    Filters the input dataframe to include only rows where the event time falls within the specified intervals.
+
+    Args:
+        df_in (pd.DataFrame): The input dataframe containing event data.
+        intervals_obj (dict): The intervals object containing per-game intersection intervals (as produced by timing.compute_game_timing).
+        time_col (str): The column name in df_in representing the event time.
+        team_val (Optional[object]): The team identifier to extract team-specific intervals when appropriate.
+        condition (Optional[dict]): Additional per-row conditions to enforce (e.g. {'game_state': ['5v5'], 'is_net_empty':[0]}).
+
+    Returns:
+        pd.DataFrame: A filtered dataframe containing only rows within the specified intervals and satisfying `condition` when provided.
+    """
+    from . import timing as _timing  # local import to avoid top-level circular deps
+
+    filtered_rows = []
+    skipped_games = []
+
+    per_game = intervals_obj.get('per_game', {}) if isinstance(intervals_obj, dict) else {}
+
+    # Iterate over each game_id in the intervals object
+    for game_id, game_data in per_game.items():
+        # normalize game id to string for robust matching with df values
+        gid_str = str(game_id)
+
+        # Determine which team perspective to use when evaluating game_state_relative_to_team
+        team_for_game = team_val if team_val is not None else (game_data.get('selected_team') if isinstance(game_data, dict) else None)
+
+        # Obtain intervals for this game in a few supported shapes
+        team_intervals = []
+        try:
+            if isinstance(game_data, dict):
+                # preferred shape: game_data['sides']['team']['intersection_intervals']
+                sides = game_data.get('sides')
+                if isinstance(sides, dict):
+                    team_side = sides.get('team') or {}
+                    team_intervals = team_side.get('intersection_intervals') or team_side.get('pooled_intervals') or []
+                # fallback: top-level intersection_intervals
+                if not team_intervals:
+                    team_intervals = game_data.get('intersection_intervals') or game_data.get('merged_intervals') or []
+                # another fallback: intervals_per_condition when only one condition present
+                if not team_intervals and isinstance(game_data.get('intervals_per_condition'), dict) and condition:
+                    # try to pick the intersection across requested condition keys
+                    ipc = game_data.get('intervals_per_condition')
+                    # if the intervals_per_condition contains keys matching condition, merge them
+                    candidate_lists = []
+                    for k in (condition.keys() if isinstance(condition, dict) else []):
+                        if k in ipc and isinstance(ipc.get(k), list):
+                            candidate_lists.append(ipc.get(k))
+                    if candidate_lists:
+                        # intersect multiple lists
+                        from math import isfinite
+                        def _intersect_two_local(a,b):
+                            res=[]
+                            i=j=0
+                            a_sorted=sorted(a)
+                            b_sorted=sorted(b)
+                            while i<len(a_sorted) and j<len(b_sorted):
+                                s1,e1=a_sorted[i]
+                                s2,e2=b_sorted[j]
+                                s=max(s1,s2); e=min(e1,e2)
+                                if e> s:
+                                    res.append((s,e))
+                                if e1<e2:
+                                    i+=1
+                                else:
+                                    j+=1
+                            return res
+                        inter = candidate_lists[0]
+                        for lst in candidate_lists[1:]:
+                            inter = _intersect_two_local(inter, lst)
+                        team_intervals = inter
+            else:
+                # game_data might be a plain list of intervals
+                if isinstance(game_data, (list, tuple)):
+                    team_intervals = list(game_data)
+        except Exception:
+            team_intervals = []
+
+        # Debug print: show per-game summary to help trace empty-filtering
+        try:
+            rows_in_game = 0
+            if 'game_id' in df_in.columns:
+                rows_in_game = int((df_in['game_id'].astype(str) == gid_str).sum())
+            print(f"_apply_intervals: game {gid_str} rows_in_game={rows_in_game} parsed_intervals={len(team_intervals)} team_for_game={team_for_game}")
+        except Exception:
+            pass
+
+        # If no intervals found for this game, skip it
+        if not team_intervals:
+            # try to continue -- nothing to apply for this game
+            skipped_games.append((gid_str, 'no_intervals'))
+            continue
+
+        # Subset rows for this game (robust to int/str mismatch)
+        try:
+            if 'game_id' in df_in.columns:
+                df_game = df_in[df_in['game_id'].astype(str) == gid_str]
+            else:
+                df_game = df_in.copy().iloc[0:0]
+        except Exception:
+            df_game = df_in[df_in.get('game_id') == game_id]
+
+        try:
+            print(f"_apply_intervals: game {gid_str} df_game_rows={0 if df_game is None else int(df_game.shape[0])}")
+        except Exception:
+            pass
+
+        if df_game is None or df_game.empty:
+            # no rows for this game in df_in
+            skipped_games.append((gid_str, 'no_rows'))
+            continue
+
+        # If we need to test game_state, prepare a df with game_state_relative_to_team
+        need_game_state = False
+        gs_series = None
+        if condition and isinstance(condition, dict) and 'game_state' in condition:
+            need_game_state = True
+            try:
+                # If timing module provides helper to add relative game state, use it
+                if hasattr(_timing, 'add_game_state_relative_column'):
+                    df_game_rel = _timing.add_game_state_relative_column(df_game.copy(), team_for_game)
+                    gs_series = df_game_rel.get('game_state_relative_to_team') if isinstance(df_game_rel, dict) is False else None
+                    # if helper returned a DataFrame-like object, try attribute
+                    if gs_series is None and isinstance(df_game_rel, pd.DataFrame):
+                        gs_series = df_game_rel.get('game_state_relative_to_team')
+                else:
+                    gs_series = None
+            except Exception:
+                gs_series = None
+
+        # Vectorized selection: collect indices of rows whose time_col falls into any interval
+        try:
+            matched_indices = []
+            # coerce time column to numeric once for this game's rows
+            # Ensure times is always a Series aligned with df_game.index
+            if time_col in df_game.columns:
+                times = pd.to_numeric(df_game[time_col], errors='coerce')
+            else:
+                import numpy as _np
+                times = pd.Series(_np.nan, index=df_game.index)
+            for (start, end) in team_intervals:
+                try:
+                    s = float(start); e = float(end)
+                except Exception:
+                    continue
+                if s == 0:
+                    mask = times.notna() & (times >= s) & (times <= e)
+                else:
+                    mask = times.notna() & (times > s) & (times <= e)
+                if mask.any():
+                    matched_indices.extend(df_game.loc[mask].index.tolist())
+            # deduplicate while preserving order
+            if matched_indices:
+                seen = set()
+                unique_idx = []
+                for ii in matched_indices:
+                    if ii not in seen:
+                        seen.add(ii); unique_idx.append(ii)
+
+                # Post-filter validation: verify that matched rows satisfy the condition
+                # This handles edge cases where an event at a boundary time (e.g., power-play goal)
+                # should be included/excluded based on its actual game_state, not just time interval
+                if condition and isinstance(condition, dict):
+                    # Check if condition includes state-based filters that need validation
+                    needs_validation = ('game_state' in condition or 'is_net_empty' in condition)
+
+                    if needs_validation:
+                        # Build a temporary dataframe from matched rows for validation
+                        df_matched = df_game.loc[unique_idx]
+
+                        # If game_state is in condition, add game_state_relative_to_team column
+                        if 'game_state' in condition and hasattr(_timing, 'add_game_state_relative_column'):
+                            try:
+                                df_matched = _timing.add_game_state_relative_column(df_matched.copy(), team_for_game)
+                                # Replace game_state column with relative version for condition matching
+                                if 'game_state_relative_to_team' in df_matched.columns:
+                                    df_matched['game_state'] = df_matched['game_state_relative_to_team']
+                            except Exception as e:
+                                print(f"_apply_intervals: failed to add game_state_relative_to_team for game {gid_str}: {e}")
+
+                        # Build a mask using parse.build_mask to test condition against matched rows
+                        try:
+                            # Create a condition without 'team' or player keys for build_mask validation
+                            # We rely on intervals for player presence; row-level validation would exclude events by others.
+                            validation_condition = {k: v for k, v in condition.items() if k not in ['team', 'player_id', 'player_ids']}
+                            if validation_condition:
+                                condition_mask = _parse.build_mask(df_matched, validation_condition)
+                                condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
+                                # Filter unique_idx using vectorized boolean indexing
+                                validated_mask = pd.Series([ii in df_matched.index and condition_mask.loc[ii] for ii in unique_idx], index=unique_idx)
+                                unique_idx = [ii for ii, keep in zip(unique_idx, validated_mask) if keep]
+                        except Exception as e:
+                            print(f"_apply_intervals: failed to validate condition for game {gid_str}: {e}")
+
+                # append validated matched rows to filtered list by index reference
+                for ii in unique_idx:
+                    try:
+                        filtered_rows.append(df_game.loc[ii])
+                    except Exception:
+                        continue
+            else:
+                skipped_games.append((gid_str, 'no_matches'))
+        except Exception:
+            skipped_games.append((gid_str, 'match_error'))
+
+    # Create a new dataframe from the filtered rows
+    if not filtered_rows:
+        # Diagnostic output to help debugging why nothing matched
+        try:
+            print('\n_apply_intervals debug: no rows matched any intervals')
+            print('intervals_obj per_game count =', len(per_game))
+            # show up to 10 games summary
+            i = 0
+            for gk, gd in list(per_game.items())[:10]:
+                try:
+                    # count intervals found by our parsing
+                    s = None
+                    sides = gd.get('sides') if isinstance(gd, dict) else None
+                    if isinstance(sides, dict) and sides.get('team'):
+                        team_section = sides.get('team') or {}
+                        if isinstance(team_section, dict) and team_section.get('intersection_intervals'):
+                            s = len(team_section.get('intersection_intervals') or [])
+                        else:
+                            s = len(team_section.get('pooled_intervals') or []) if isinstance(team_section, dict) else 0
+                    elif isinstance(gd, dict) and gd.get('intersection_intervals'):
+                        s = len(gd.get('intersection_intervals') or [])
+                    else:
+                        s = 0
+                except Exception:
+                    s = '?'
+                print(' game', gk, 'intervals_parsed=', s)
+                i += 1
+            print('skipped_games (sample):', skipped_games[:20])
+            # print a little info about df_in shape/type for clarity
+            try:
+                if df_in is None:
+                    print('df_in is None')
+                    cols = []
+                else:
+                    try:
+                        cols = list(df_in.columns)
+                        print('df_in shape:', getattr(df_in, 'shape', None), 'columns_count=', len(cols))
+                    except Exception:
+                        cols = []
+                        print('df_in present but columns not introspectable; type=', type(df_in))
+            except Exception:
+                cols = []
+        except Exception:
+            cols = []
+        # Return an empty DataFrame with the same columns as input when possible
+        try:
+            return pd.DataFrame(columns=cols)
+        except Exception:
+            return pd.DataFrame()
+
+    return pd.DataFrame(filtered_rows, columns=df_in.columns)
+
+
 def xgs_map(season: Optional[str] = '20252026', *,
             game_id: Optional[str] = None,
 
@@ -2146,264 +2406,6 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
         return df
 
-    def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_time_elapsed_seconds', team_val: Optional[object] = None, condition: Optional[dict] = None) -> pd.DataFrame:
-        """
-        Filters the input dataframe to include only rows where the event time falls within the specified intervals.
-
-        Args:
-            df_in (pd.DataFrame): The input dataframe containing event data.
-            intervals_obj (dict): The intervals object containing per-game intersection intervals (as produced by timing.compute_game_timing).
-            time_col (str): The column name in df_in representing the event time.
-            team_val (Optional[object]): The team identifier to extract team-specific intervals when appropriate.
-            condition (Optional[dict]): Additional per-row conditions to enforce (e.g. {'game_state': ['5v5'], 'is_net_empty':[0]}).
-
-        Returns:
-            pd.DataFrame: A filtered dataframe containing only rows within the specified intervals and satisfying `condition` when provided.
-        """
-        from . import timing as _timing  # local import to avoid top-level circular deps
-
-        filtered_rows = []
-        skipped_games = []
-
-        per_game = intervals_obj.get('per_game', {}) if isinstance(intervals_obj, dict) else {}
-
-        # Iterate over each game_id in the intervals object
-        for game_id, game_data in per_game.items():
-            # normalize game id to string for robust matching with df values
-            gid_str = str(game_id)
-
-            # Determine which team perspective to use when evaluating game_state_relative_to_team
-            team_for_game = team_val if team_val is not None else (game_data.get('selected_team') if isinstance(game_data, dict) else None)
-
-            # Obtain intervals for this game in a few supported shapes
-            team_intervals = []
-            try:
-                if isinstance(game_data, dict):
-                    # preferred shape: game_data['sides']['team']['intersection_intervals']
-                    sides = game_data.get('sides')
-                    if isinstance(sides, dict):
-                        team_side = sides.get('team') or {}
-                        team_intervals = team_side.get('intersection_intervals') or team_side.get('pooled_intervals') or []
-                    # fallback: top-level intersection_intervals
-                    if not team_intervals:
-                        team_intervals = game_data.get('intersection_intervals') or game_data.get('merged_intervals') or []
-                    # another fallback: intervals_per_condition when only one condition present
-                    if not team_intervals and isinstance(game_data.get('intervals_per_condition'), dict) and condition:
-                        # try to pick the intersection across requested condition keys
-                        ipc = game_data.get('intervals_per_condition')
-                        # if the intervals_per_condition contains keys matching condition, merge them
-                        candidate_lists = []
-                        for k in (condition.keys() if isinstance(condition, dict) else []):
-                            if k in ipc and isinstance(ipc.get(k), list):
-                                candidate_lists.append(ipc.get(k))
-                        if candidate_lists:
-                            # intersect multiple lists
-                            from math import isfinite
-                            def _intersect_two_local(a,b):
-                                res=[]
-                                i=j=0
-                                a_sorted=sorted(a)
-                                b_sorted=sorted(b)
-                                while i<len(a_sorted) and j<len(b_sorted):
-                                    s1,e1=a_sorted[i]
-                                    s2,e2=b_sorted[j]
-                                    s=max(s1,s2); e=min(e1,e2)
-                                    if e> s:
-                                        res.append((s,e))
-                                    if e1<e2:
-                                        i+=1
-                                    else:
-                                        j+=1
-                                return res
-                            inter = candidate_lists[0]
-                            for lst in candidate_lists[1:]:
-                                inter = _intersect_two_local(inter, lst)
-                            team_intervals = inter
-                else:
-                    # game_data might be a plain list of intervals
-                    if isinstance(game_data, (list, tuple)):
-                        team_intervals = list(game_data)
-            except Exception:
-                team_intervals = []
-
-            # Debug print: show per-game summary to help trace empty-filtering
-            try:
-                rows_in_game = 0
-                if 'game_id' in df_in.columns:
-                    rows_in_game = int((df_in['game_id'].astype(str) == gid_str).sum())
-                print(f"_apply_intervals: game {gid_str} rows_in_game={rows_in_game} parsed_intervals={len(team_intervals)} team_for_game={team_for_game}")
-            except Exception:
-                pass
-
-            # If no intervals found for this game, skip it
-            if not team_intervals:
-                # try to continue -- nothing to apply for this game
-                skipped_games.append((gid_str, 'no_intervals'))
-                continue
-
-            # Subset rows for this game (robust to int/str mismatch)
-            try:
-                if 'game_id' in df_in.columns:
-                    df_game = df_in[df_in['game_id'].astype(str) == gid_str]
-                else:
-                    df_game = df_in.copy().iloc[0:0]
-            except Exception:
-                df_game = df_in[df_in.get('game_id') == game_id]
-
-            try:
-                print(f"_apply_intervals: game {gid_str} df_game_rows={0 if df_game is None else int(df_game.shape[0])}")
-            except Exception:
-                pass
-
-            if df_game is None or df_game.empty:
-                # no rows for this game in df_in
-                skipped_games.append((gid_str, 'no_rows'))
-                continue
-
-            # If we need to test game_state, prepare a df with game_state_relative_to_team
-            need_game_state = False
-            gs_series = None
-            if condition and isinstance(condition, dict) and 'game_state' in condition:
-                need_game_state = True
-                try:
-                    # If timing module provides helper to add relative game state, use it
-                    if hasattr(_timing, 'add_game_state_relative_column'):
-                        df_game_rel = _timing.add_game_state_relative_column(df_game.copy(), team_for_game)
-                        gs_series = df_game_rel.get('game_state_relative_to_team') if isinstance(df_game_rel, dict) is False else None
-                        # if helper returned a DataFrame-like object, try attribute
-                        if gs_series is None and isinstance(df_game_rel, pd.DataFrame):
-                            gs_series = df_game_rel.get('game_state_relative_to_team')
-                    else:
-                        gs_series = None
-                except Exception:
-                    gs_series = None
-
-            # Vectorized selection: collect indices of rows whose time_col falls into any interval
-            try:
-                matched_indices = []
-                # coerce time column to numeric once for this game's rows
-                # Ensure times is always a Series aligned with df_game.index
-                if time_col in df_game.columns:
-                    times = pd.to_numeric(df_game[time_col], errors='coerce')
-                else:
-                    import numpy as _np
-                    times = pd.Series(_np.nan, index=df_game.index)
-                for (start, end) in team_intervals:
-                    try:
-                        s = float(start); e = float(end)
-                    except Exception:
-                        continue
-                    if s == 0:
-                        mask = times.notna() & (times >= s) & (times <= e)
-                    else:
-                        mask = times.notna() & (times > s) & (times <= e)
-                    if mask.any():
-                        matched_indices.extend(df_game.loc[mask].index.tolist())
-                # deduplicate while preserving order
-                if matched_indices:
-                    seen = set()
-                    unique_idx = []
-                    for ii in matched_indices:
-                        if ii not in seen:
-                            seen.add(ii); unique_idx.append(ii)
-                    
-                    # Post-filter validation: verify that matched rows satisfy the condition
-                    # This handles edge cases where an event at a boundary time (e.g., power-play goal)
-                    # should be included/excluded based on its actual game_state, not just time interval
-                    if condition and isinstance(condition, dict):
-                        # Check if condition includes state-based filters that need validation
-                        needs_validation = ('game_state' in condition or 'is_net_empty' in condition)
-                        
-                        if needs_validation:
-                            # Build a temporary dataframe from matched rows for validation
-                            df_matched = df_game.loc[unique_idx]
-                            
-                            # If game_state is in condition, add game_state_relative_to_team column
-                            if 'game_state' in condition and hasattr(_timing, 'add_game_state_relative_column'):
-                                try:
-                                    df_matched = _timing.add_game_state_relative_column(df_matched.copy(), team_for_game)
-                                    # Replace game_state column with relative version for condition matching
-                                    if 'game_state_relative_to_team' in df_matched.columns:
-                                        df_matched['game_state'] = df_matched['game_state_relative_to_team']
-                                except Exception as e:
-                                    print(f"_apply_intervals: failed to add game_state_relative_to_team for game {gid_str}: {e}")
-                            
-                            # Build a mask using parse.build_mask to test condition against matched rows
-                            try:
-                                # Create a condition without 'team' or player keys for build_mask validation
-                                # We rely on intervals for player presence; row-level validation would exclude events by others.
-                                validation_condition = {k: v for k, v in condition.items() if k not in ['team', 'player_id', 'player_ids']}
-                                if validation_condition:
-                                    condition_mask = _parse.build_mask(df_matched, validation_condition)
-                                    condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
-                                    # Filter unique_idx using vectorized boolean indexing
-                                    validated_mask = pd.Series([ii in df_matched.index and condition_mask.loc[ii] for ii in unique_idx], index=unique_idx)
-                                    unique_idx = [ii for ii, keep in zip(unique_idx, validated_mask) if keep]
-                            except Exception as e:
-                                print(f"_apply_intervals: failed to validate condition for game {gid_str}: {e}")
-                    
-                    # append validated matched rows to filtered list by index reference
-                    for ii in unique_idx:
-                        try:
-                            filtered_rows.append(df_game.loc[ii])
-                        except Exception:
-                            continue
-                else:
-                    skipped_games.append((gid_str, 'no_matches'))
-            except Exception:
-                skipped_games.append((gid_str, 'match_error'))
-
-        # Create a new dataframe from the filtered rows
-        if not filtered_rows:
-            # Diagnostic output to help debugging why nothing matched
-            try:
-                print('\n_apply_intervals debug: no rows matched any intervals')
-                print('intervals_obj per_game count =', len(per_game))
-                # show up to 10 games summary
-                i = 0
-                for gk, gd in list(per_game.items())[:10]:
-                    try:
-                        # count intervals found by our parsing
-                        s = None
-                        sides = gd.get('sides') if isinstance(gd, dict) else None
-                        if isinstance(sides, dict) and sides.get('team'):
-                            team_section = sides.get('team') or {}
-                            if isinstance(team_section, dict) and team_section.get('intersection_intervals'):
-                                s = len(team_section.get('intersection_intervals') or [])
-                            else:
-                                s = len(team_section.get('pooled_intervals') or []) if isinstance(team_section, dict) else 0
-                        elif isinstance(gd, dict) and gd.get('intersection_intervals'):
-                            s = len(gd.get('intersection_intervals') or [])
-                        else:
-                            s = 0
-                    except Exception:
-                        s = '?'
-                    print(' game', gk, 'intervals_parsed=', s)
-                    i += 1
-                print('skipped_games (sample):', skipped_games[:20])
-                # print a little info about df_in shape/type for clarity
-                try:
-                    if df_in is None:
-                        print('df_in is None')
-                        cols = []
-                    else:
-                        try:
-                            cols = list(df_in.columns)
-                            print('df_in shape:', getattr(df_in, 'shape', None), 'columns_count=', len(cols))
-                        except Exception:
-                            cols = []
-                            print('df_in present but columns not introspectable; type=', type(df_in))
-                except Exception:
-                    cols = []
-            except Exception:
-                cols = []
-            # Return an empty DataFrame with the same columns as input when possible
-            try:
-                return pd.DataFrame(columns=cols)
-            except Exception:
-                return pd.DataFrame()
-
-        return pd.DataFrame(filtered_rows, columns=df_in.columns)
 
     # ------------------- Main flow -----------------------------------------
     # Allow caller to specify a single game_id: fetch and parse that game's feed
