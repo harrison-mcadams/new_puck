@@ -35,6 +35,8 @@ data/
 analysis/
 *.joblib
 *.joblibx
+*.npz
+*.npy
 repro_*.txt
 
 # Generated images (root)
