@@ -1947,6 +1947,10 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
     """
     from . import timing as _timing  # local import to avoid top-level circular deps
 
+    # Deduplicate columns to prevent Series comparison errors during DataFrame reconstruction
+    if not df_in.empty and df_in.columns.duplicated().any():
+        df_in = df_in.loc[:, ~df_in.columns.duplicated()]
+
     filtered_rows = []
     skipped_games = []
 
@@ -2034,6 +2038,10 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
                 df_game = df_in.copy().iloc[0:0]
         except Exception:
             df_game = df_in[df_in.get('game_id') == game_id]
+        
+        # CRITICAL FIX: reset index to ensure uniqueness and avoid duplicate-label comparison errors
+        if df_game is not None:
+             df_game = df_game.reset_index(drop=True)
 
         try:
             print(f"_apply_intervals: game {gid_str} df_game_rows={0 if df_game is None else int(df_game.shape[0])}")
@@ -2073,6 +2081,7 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
             else:
                 import numpy as _np
                 times = pd.Series(_np.nan, index=df_game.index)
+            
             for (start, end) in team_intervals:
                 try:
                     s = float(start); e = float(end)
@@ -2084,6 +2093,7 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
                     mask = times.notna() & (times > s) & (times <= e)
                 if mask.any():
                     matched_indices.extend(df_game.loc[mask].index.tolist())
+            
             # deduplicate while preserving order
             if matched_indices:
                 seen = set()
@@ -2123,26 +2133,10 @@ def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_
                                     condition_mask = _parse.build_mask(df_matched, validation_condition)
                                     condition_mask = condition_mask.reindex(df_matched.index).fillna(False).astype(bool)
                                     # Filter unique_idx using vectorized boolean indexing
-                                    # ERROR TRAP HERE
-                                    keep_list = []
-                                    for ii in unique_idx:
-                                        try:
-                                            # Careful: condition_mask.loc[ii] might be a Series if index duplicates exist?
-                                            val = condition_mask.loc[ii]
-                                            if isinstance(val, pd.Series):
-                                                val = bool(val.any())
-                                            keep_list.append(bool(val))
-                                        except Exception:
-                                            keep_list.append(False)
-                                    
-                                    unique_idx = [ii for ii, keep in zip(unique_idx, keep_list) if keep]
+                                    validated_mask = pd.Series([ii in df_matched.index and condition_mask.loc[ii] for ii in unique_idx], index=unique_idx)
+                                    unique_idx = [ii for ii, keep in zip(unique_idx, validated_mask) if keep]
                             except Exception as e:
                                 print(f"_apply_intervals: failed to validate condition for game {gid_str}: {e}")
-                                # Print debug info about shapes
-                                try:
-                                    print(f"DEBUG SHAPES: df_matched={df_matched.shape}, condition_mask={getattr(condition_mask, 'shape', 'N/A')}")
-                                except: pass
-                                raise e
                         except Exception as e:
                             # Catch broad validation failure
                             print(f"_apply_intervals: Validation block failed for game {gid_str}: {e}")
