@@ -1,392 +1,69 @@
 import sys
 import os
-# Add project root to sys.path to allow importing puck package
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-from puck import analyze
-from puck import timing
-import pandas as pd
+import argparse
 import numpy as np
-import matplotlib.pyplot as plt
-import os
+import pandas as pd
 import json
 import gc
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
-import argparse
+# Add project root
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from puck import config
+from puck import analyze
+from puck import timing
+from puck.rink import draw_rink
+from puck.plot import add_summary_text, plot_events
+from puck.analyze import compute_relative_map, league
 
 def run_analysis():
     parser = argparse.ArgumentParser()
     parser.add_argument('--season', type=str, default='20252026')
     args = parser.parse_args()
     season = args.season
+    
     out_dir_base = 'analysis/players'
     league_out_dir = os.path.join(out_dir_base, f'{season}/league')
     os.makedirs(league_out_dir, exist_ok=True)
     
-    print(f"Loading season data for {season}...")
+    print(f"--- Cached Player Analysis for {season} ---")
+    
+    # 1. Load DataFrame (needed for scatter plots of events)
+    print("Loading season data...")
     df_data = timing.load_season_df(season)
     if df_data is None or df_data.empty:
         print("No data found.")
         return
 
-    # Ensure xGs
-    print("Ensuring xG predictions...")
-    df_data, _, _ = analyze._predict_xgs(df_data)
-
-    # Identify all teams
-    # We can find teams by looking at home_abb / away_abb
-    teams = sorted(pd.concat([df_data['home_abb'], df_data['away_abb']]).unique())
-    # For testing, limit to a few teams
-    # teams = ['PHI']
-    print(f"Found {len(teams)} teams: {teams}")
+    # Helper maps
+    # We construct them from df_data to ensure coverage
+    cols = ['player_id', 'player_name', 'home_abb', 'away_abb', 'home_id', 'away_id']
+    if 'player_number' in df_data.columns: cols.append('player_number')
     
-    # MEMORY OPTIMIZATION: Extract player names now, then drop string columns
-    global _PLAYER_NAME_MAP
-    _PLAYER_NAME_MAP = df_data[['player_id', 'player_name']].dropna().drop_duplicates('player_id').set_index('player_id')['player_name'].to_dict()
+    # Player Name/Number Map
+    # Group by ID and take first non-null
+    p_info = df_data[['player_id', 'player_name']].dropna().drop_duplicates('player_id').set_index('player_id')
+    pid_name_map = p_info['player_name'].to_dict()
     
-    cols_to_drop = ['player_name', 'team_name', 'event_type', 'event_description', 'game_date']
-    existing_cols = [c for c in cols_to_drop if c in df_data.columns]
-    if existing_cols:
-        print(f"Dropping columns to save RAM: {existing_cols}")
-        df_data.drop(columns=existing_cols, inplace=True)
-        gc.collect()
+    # Team Map (ID -> Abb)
+    t1 = df_data[['home_id', 'home_abb']].rename(columns={'home_id': 'id', 'home_abb': 'abb'})
+    t2 = df_data[['away_id', 'away_abb']].rename(columns={'away_id': 'id', 'away_abb': 'abb'})
+    t_map = pd.concat([t1, t2]).drop_duplicates('id').set_index('id')['abb'].to_dict()
 
+    # Drop heavy columns to save RAM
+    drop_cols = ['event_description', 'game_date']
+    for c in drop_cols:
+        if c in df_data.columns:
+            df_data.drop(columns=[c], inplace=True)
+    gc.collect()
 
-    # Condition for analysis (5v5)
-    condition = {'game_state': ['5v5'], 'is_net_empty': [0]}
-    
-    # --- PASS 1: Calculate Stats (Game-Centric Optimization) ---
-    master_csv_path = os.path.join(league_out_dir, 'league_player_stats.csv')
-    
-    # Incremental Caching Enabled: Always run Pass 1 loop, which checks per-game cache.
-    if True:
-        print("\n--- PASS 1: Calculating Player Stats (Game-Centric) ---")
-        all_player_stats = []
-        
-        # Group data by game_id to iterate efficiently
-        if 'game_id' not in df_data.columns:
-            print("Error: 'game_id' not found in data.")
-            return
-
-        # Get unique games
-        game_ids = sorted(df_data['game_id'].unique())
-        print(f"Found {len(game_ids)} games to process.")
-
-        # Helper for intersection (copied from timing._intersect_two to avoid internal import issues if any)
-        def _intersect_intervals(a, b):
-            res = []
-            i = j = 0
-            # Ensure sorted
-            a = sorted(a)
-            b = sorted(b)
-            while i < len(a) and j < len(b):
-                s1, e1 = a[i]
-                s2, e2 = b[j]
-                s = max(s1, s2)
-                e = min(e1, e2)
-                if e > s:
-                    res.append((s, e))
-                if e1 < e2:
-                    i += 1
-                else:
-                    j += 1
-            return res
-
-        # Cache Directory for Player Game Stats
-        cache_dir = os.path.join('data', season, 'game_stats_player')
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        # Ensure clean state for temp streaming file
-        if os.path.exists('temp_player_stats.csv'):
-            try:
-                os.remove('temp_player_stats.csv')
-            except OSError:
-                pass
-
-        for i, game_id in enumerate(game_ids):
-            if (i+1) % 10 == 0:
-                print(f"Processing game {i+1}/{len(game_ids)}: {game_id}...")
-            
-            cache_file = os.path.join(cache_dir, f"{game_id}.json")
-            
-            # Check Cache
-            if os.path.exists(cache_file):
-                try:
-                    with open(cache_file, 'r') as f:
-                        cached_stats = json.load(f)
-                        
-                    # Stream cached stats to CSV
-                    if cached_stats:
-                        temp_df = pd.DataFrame(cached_stats)
-                        write_header = not os.path.exists('temp_player_stats.csv')
-                        temp_df.to_csv('temp_player_stats.csv', mode='a', header=write_header, index=False)
-                        del temp_df
-                        del cached_stats
-                        
-                        # Aggressively clear cache/GC even on cache hit path
-                        gc.collect() 
-                        continue
-                        
-                except Exception as e:
-                    print(f"Failed to load cache for {game_id}: {e}")
-                    # If corrupted, delete it so we don't trip again
-                    try:
-                        os.remove(cache_file)
-                        print(f"Deleted corrupted cache file: {cache_file}")
-                    except OSError:
-                        pass
-                    # Fall through to recompute
-
-
-            # --- Calculation (if not cached) ---
-            
-            # 1. Load Shifts for Game (Once)
-            # Use timing._get_shifts_df which now has in-memory caching
-            df_shifts = timing._get_shifts_df(int(game_id))
-            if df_shifts.empty:
-                # Cache empty result to avoid re-processing empty games?
-                # Yes, save empty list.
-                with open(cache_file, 'w') as f:
-                    json.dump([], f)
-                continue
-                
-            # 2. Compute Common 5v5 Intervals (Once)
-            # Use shared interval cache
-            common_intervals = timing.get_game_intervals_cached(game_id, season, condition)
-            
-            if not common_intervals:
-                with open(cache_file, 'w') as f:
-                    json.dump([], f)
-                continue
-                
-            # 3. Identify Players in Game
-            players_in_game = df_shifts['player_id'].unique()
-            p_team_map = df_shifts.groupby('player_id')['team_id'].first().to_dict()
-            
-            # Optimization: Extract game dataframe once outside the player loop
-            df_game = df_data[df_data['game_id'] == game_id]
-            if df_game.empty:
-               # This might happen if we have shifts but no events? Rare.
-               pass 
-
-            game_player_stats = []
-            
-            # 4. Process Each Player
-            for pid in players_in_game:
-                try:
-                    # Intersect player's shifts with common 5v5 intervals
-                    p_shifts_df = df_shifts[df_shifts['player_id'] == pid]
-                    if p_shifts_df.empty:
-                        continue
-                    
-                    p_intervals = list(zip(p_shifts_df['start_total_seconds'], p_shifts_df['end_total_seconds']))
-                    final_intervals = _intersect_intervals(common_intervals, p_intervals)
-                    
-                    if not final_intervals:
-                        continue
-                    
-                    toi = sum(e - s for s, e in final_intervals)
-                    if toi <= 0:
-                        continue
-                    
-                    intervals_input = {
-                        'per_game': {
-                            game_id: {
-                                'intersection_intervals': final_intervals,
-                            }
-                        }
-                    }
-                    
-                    p_team_id = p_team_map.get(pid)
-                    p_cond = condition.copy()
-                    p_cond['team'] = p_team_id
-                    
-                    # df_game is now pre-calculated outside loop
-                    
-                    _, _, _, p_stats = analyze.xgs_map(
-                        season=season,
-                        data_df=df_game,
-                        condition=p_cond,
-                        out_path=None,
-                        return_heatmaps=False,
-                        show=False,
-                        total_seconds=toi,
-                        use_intervals=True,
-                        intervals_input=intervals_input,
-                        stats_only=True
-                    )
-                    
-                    if p_stats:
-                        p_stats['player_id'] = int(pid) # Ensure int for JSON
-                        p_stats['game_id'] = int(game_id)
-                        
-                        if not df_game.empty:
-                            r = df_game.iloc[0]
-                            if str(r.get('home_id')) == str(p_team_id):
-                                p_stats['team'] = r.get('home_abb')
-                            elif str(r.get('away_id')) == str(p_team_id):
-                                p_stats['team'] = r.get('away_abb')
-                            else:
-                                p_stats['team'] = 'UNK'
-                        else:
-                             p_stats['team'] = 'UNK'
-                             
-                        p_stats['xg_for'] = p_stats.get('team_xgs', 0.0)
-                        p_stats['xg_against'] = p_stats.get('other_xgs', 0.0)
-                        p_stats['goals_for'] = p_stats.get('team_goals', 0)
-                        p_stats['goals_against'] = p_stats.get('other_goals', 0)
-                        p_stats['attempts_for'] = p_stats.get('team_attempts', 0)
-                        p_stats['attempts_against'] = p_stats.get('other_attempts', 0)
-                        p_stats['toi_sec'] = toi
-                        
-                        game_player_stats.append(p_stats)
-                        
-                except Exception as e:
-                    # print(f"Error processing player {pid} in game {game_id}: {e}")
-                    continue
-            
-            # Save to Cache
-            try:
-                with open(cache_file, 'w') as f:
-                    json.dump(game_player_stats, f)
-            except Exception as e:
-                print(f"Failed to save cache for {game_id}: {e}")
-                
-            # Stream to temp CSV to avoid OOM
-            if game_player_stats:
-                temp_df = pd.DataFrame(game_player_stats)
-                # Write header only if file doesn't exist
-                write_header = not os.path.exists('temp_player_stats.csv')
-                temp_df.to_csv('temp_player_stats.csv', mode='a', header=write_header, index=False)
-                del temp_df
-
-            # Aggressively clear cache and collect garbage every game for Pi stability
-            if hasattr(timing, '_SHIFTS_CACHE'):
-                timing._SHIFTS_CACHE.clear()
-            gc.collect()
-                
-        # Aggregate stats per player
-        print("Aggregating stats per player...")
-        if os.path.exists('temp_player_stats.csv'):
-            df_raw = pd.read_csv('temp_player_stats.csv')
-            # Clean up temp file
-            os.remove('temp_player_stats.csv')
-        else:
-            print("No player stats calculated.")
-            return
-        
-        # Group by player_id
-        # Sum: xg_for, xg_against, toi_sec, games_played (count)
-        # First, ensure we have a name. We can get name from df_data or just use what we have?
-        # Group by player_id
-        # Sum: xg_for, xg_against, toi_sec, games_played (count)
-        # Use global name map extracted earlier
-        p_name_map = _PLAYER_NAME_MAP
-        
-        agg_stats = []
-        for pid, grp in df_raw.groupby('player_id'):
-            tot_xg_for = grp['xg_for'].sum()
-            tot_xg_against = grp['xg_against'].sum()
-            tot_goals_for = grp['goals_for'].sum()
-            tot_goals_against = grp['goals_against'].sum()
-            tot_attempts_for = grp['attempts_for'].sum()
-            tot_attempts_against = grp['attempts_against'].sum()
-            
-            tot_toi = grp['toi_sec'].sum()
-            games = grp['game_id'].nunique()
-            team = grp['team'].mode().iloc[0] if not grp['team'].empty else 'UNK'
-            name = p_name_map.get(pid, f"Player {pid}")
-            
-            if tot_toi > 0:
-                xg_for_60 = (tot_xg_for / tot_toi) * 3600
-                xg_against_60 = (tot_xg_against / tot_toi) * 3600
-            else:
-                xg_for_60 = 0
-                xg_against_60 = 0
-                
-            # Percentages
-            xg_total = tot_xg_for + tot_xg_against
-            xgf_pct = (tot_xg_for / xg_total * 100) if xg_total > 0 else 0.0
-            
-            g_total = tot_goals_for + tot_goals_against
-            gf_pct = (tot_goals_for / g_total * 100) if g_total > 0 else 0.0
-            
-            c_total = tot_attempts_for + tot_attempts_against
-            cf_pct = (tot_attempts_for / c_total * 100) if c_total > 0 else 0.0
-            
-            last_game = grp['game_id'].max()
-                
-            agg_stats.append({
-                'player_id': pid,
-                'name': name,
-                'team': team,
-                'xg_for': tot_xg_for,
-                'xg_against': tot_xg_against,
-                'goals_for': tot_goals_for,
-                'goals_against': tot_goals_against,
-                'attempts_for': tot_attempts_for,
-                'attempts_against': tot_attempts_against,
-                'toi_sec': tot_toi,
-                'xg_for_60': xg_for_60,
-                'xg_against_60': xg_against_60,
-                'xgf_pct': xgf_pct,
-                'gf_pct': gf_pct,
-                'cf_pct': cf_pct,
-                'games_played': games,
-                'last_game_id': last_game
-            })
-        
-        all_player_stats = agg_stats # Replace with aggregated list for CSV generation
-
-        # Create Master DataFrame
-        df_master = pd.DataFrame(all_player_stats)
-        df_master.to_csv(master_csv_path, index=False)
-        print(f"Saved master stats to {master_csv_path}")
-
-    # --- Calculate Percentiles ---
-    print("\n--- Calculating Percentiles ---")
-    # We calculate percentiles for xG For, xG Against, Rel Off, Rel Def
-    # We should filter for min_games before calculating percentiles? 
-    # Usually percentiles are based on "qualified" players.
-    # Let's use min_games=5 for percentile basis to avoid noise from 1-game wonders.
-    min_games_for_percentile = 5
-    qual_df = df_master[df_master['games_played'] >= min_games_for_percentile]
-    
-    percentiles = {} # pid -> {off: val, def: val}
-    
-    for pid in df_master['player_id'].unique():
-        # Get player's stats
-        p_row = df_master[df_master['player_id'] == pid]
-        if p_row.empty: continue
-        p_row = p_row.iloc[0]
-        
-        # Calculate percentile rank within qualified players
-        # If player is not qualified, we still calculate their rank against qualifieds?
-        # Or just assign N/A? Let's calculate against qualifieds.
-        
-        # Offense (Higher is better)
-        off_val = p_row['xg_for_60']
-        off_pct = (qual_df['xg_for_60'] < off_val).mean() * 100
-        
-        # Defense (Lower is better) - so we count how many are GREATER than this value (worse defense)
-        # Wait, percentile usually means "better than X%".
-        # For defense, lower xGA is better.
-        # So if I have 2.0 xGA, and 90% of league has > 2.0, I am in 90th percentile?
-        # Yes. (qual_df['xg_against_60'] > def_val).mean() * 100
-        def_val = p_row['xg_against_60']
-        def_pct = (qual_df['xg_against_60'] > def_val).mean() * 100
-        
-        percentiles[pid] = {
-            'off': off_pct, # Pass as float
-            'def': def_pct  # Pass as float
-        }
-
-    # --- PASS 2: Generate Maps ---
-    print("\n--- PASS 2: Generating Maps ---")
-    
-    # Filter for qualified players
-    qual_pids = df_master[df_master['games_played'] >= min_games_for_percentile]['player_id'].unique().tolist()
-    print(f"Generating maps for {len(qual_pids)} qualified players (>= {min_games_for_percentile} games).")
+    # 2. Identify Players & Updates
+    # We only care about 5v5 for now to match old script
+    COND = '5v5'
+    base_cond = {'game_state': ['5v5'], 'is_net_empty': [0]}
     
     # Load Manifest
     manifest_path = os.path.join(league_out_dir, 'map_manifest.json')
@@ -397,179 +74,271 @@ def run_analysis():
                 manifest = json.load(f)
         except: pass
         
-    # Create lookup for current stats
-    current_stats = df_master.set_index('player_id')[['games_played', 'last_game_id']].to_dict('index')
-
-    for team in teams:
-        print(f"Processing {team} (Plotting)...")
-        
-        # Filter qualified players for THIS team
-        team_pids = df_master[
-            (df_master['games_played'] >= min_games_for_percentile) & 
-            (df_master['team'] == team)
-        ]['player_id'].unique().tolist()
-        
-        if not team_pids:
-            # print(f"No qualified players found for {team}.")
-            continue
-            
+    # Get current game counts
+    player_games = df_data.groupby('player_id')['game_id'].agg(['count', 'max'])
+    player_games.columns = ['games_played', 'last_game_id']
+    
+    # Filter players needing update
+    pids_to_process = []
+    min_games = 5
+    
+    for pid, row in player_games.iterrows():
         # Check Manifest
-        pids_to_process = []
-        out_dir_team = os.path.join(out_dir_base, f'{season}/{team}')
+        cached = manifest.get(str(pid))
         
-        for pid in team_pids:
-            pid_str = str(pid)
-            curr = current_stats.get(pid)
-            if not curr: 
-                pids_to_process.append(pid)
-                continue
-            
-            cached = manifest.get(pid_str)
-            
-            # Check files existence
-            f1 = os.path.join(out_dir_team, f"{pid}_map.png")
-            f2 = os.path.join(out_dir_team, f"{pid}_relative.png")
-            files_exist = os.path.exists(f1) and os.path.exists(f2)
-            
-            if cached and files_exist:
-                # Check if up to date
-                # Handle NaN/None for last_game_id
-                c_games = cached.get('games_played')
-                c_last = cached.get('last_game_id')
+        # Check files existence (assuming we know team? - we'll check output later)
+        # We don't verify file existence here perfectly without team loop, checking manifest is faster.
+        # If forced refresh needed, user can delete manifest.
+        
+        needs_update = True
+        if cached:
+            if cached.get('games_played') == row['games_played'] and \
+               cached.get('last_game_id') == int(row['last_game_id']):
+                needs_update = False
                 
-                curr_games = curr['games_played']
-                curr_last = curr['last_game_id']
-                if pd.isna(curr_last): curr_last = None
-                else: curr_last = int(curr_last)
-                
-                if c_games == curr_games and c_last == curr_last:
-                    # Up to date
-                    continue
-            
+        if needs_update and row['games_played'] >= 1: # Process even with 1 game, plot filtered by min_games later
             pids_to_process.append(pid)
             
-            # Update manifest in memory
-            manifest[pid_str] = {
-                'games_played': int(curr['games_played']),
-                'last_game_id': int(curr['last_game_id']) if pd.notna(curr['last_game_id']) else None
-            }
-            
-        if not pids_to_process:
-            print(f"  All players up to date for {team}.")
-            continue
-            
-        print(f"  Generating maps for {len(pids_to_process)} players (skipped {len(team_pids) - len(pids_to_process)} up-to-date).")
-            
-        analyze.players(
-            season=season,
-            team=team,
-            player_ids=pids_to_process, # Only process needed players
-            condition=condition,
-            out_dir=out_dir_team,
-            data_df=df_data,
-            plot=True,
-            percentiles=percentiles,
-            min_games=min_games_for_percentile
-        )
-        
-        # Cleanup after each team
-        if hasattr(timing, '_SHIFTS_CACHE'):
-             timing._SHIFTS_CACHE.clear()
-        gc.collect()
-        
-    # Save Manifest
+    print(f"Found {len(pids_to_process)} players needing updates.")
+
+    # 3. Load League Baseline (for relative maps)
+    # Using analyze.league from cache (or standard)
+    # If run_league_stats runs BEFORE this, baseline should be on disk.
+    print("Loading league baseline...")
+    baseline_path = os.path.join('analysis', 'league', season, COND)
+    # We can try to load directly from .npy if analyze.league saved it
     try:
-        with open(manifest_path, 'w') as f:
-            json.dump(manifest, f)
-        print(f"Saved map manifest to {manifest_path}")
+        baseline_res = league(season=season, mode='load', condition=base_cond, baseline_path=baseline_path)
+        league_map = baseline_res.get('combined_norm')
+        league_map_right = baseline_res.get('combined_norm_right')
     except Exception as e:
-        print(f"Failed to save manifest: {e}")
+        print(f"Warning: Failed to load league baseline (maybe run league stats first?): {e}")
+        league_map = None
+        league_map_right = None
 
-    # --- League-Wide Scatter Plot ---
-    print("\n--- Generating League-Wide Scatter Plot ---")
-    generate_league_scatter(df_master, league_out_dir, season, min_games=5)
-
-def generate_league_scatter(df, out_dir, season, min_games=5):
-    # Filter
-    df_plot = df[df['games_played'] >= min_games].copy()
-    print(f"League Scatter: {len(df_plot)} players (min_games={min_games})")
+    # 4. Processing Loop (Chunks)
+    chunk_size = config.BATCH_SIZE
+    pids_sorted = sorted(pids_to_process)
     
-    if df_plot.empty:
-        return
-
-    fig, ax = plt.subplots(figsize=(12, 12))
+    # Resolve Partial Files
+    cache_dir = os.path.join(config.get_cache_dir(season), 'partials')
+    print(f"Checking cache dir: {cache_dir}")
+    all_partials = sorted([f for f in os.listdir(cache_dir) if f.endswith(f'_{COND}.npz')]) if os.path.exists(cache_dir) else []
     
-    # Plot all points
-    # Color by position? We don't have position in df_master yet (it's in p_stats if we added it, but we didn't explicitly)
-    # We can color by Team? Too many colors.
-    # Just uniform color, maybe density?
-    ax.scatter(df_plot['xg_for_60'], df_plot['xg_against_60'], alpha=0.5, c='gray', s=30, label='Players')
+    if not all_partials:
+        print(f"Warning: No partial files found for {COND} in {cache_dir}")
     
-    # Smart Labeling
-    # Label top 5% offense, top 5% defense (low xGA), top 5% bad defense, top 5% bad offense?
-    # Or just outliers from the diagonal?
-    # Let's label top 3 players in each "quadrant" relative to median.
-    
-    med_off = df_plot['xg_for_60'].median()
-    med_def = df_plot['xg_against_60'].median()
-    
-    # Add median lines
-    ax.axvline(med_off, color='k', linestyle=':', alpha=0.3)
-    ax.axhline(med_def, color='k', linestyle=':', alpha=0.3)
-    
-    # Identify outliers to label
-    # We can calculate a "distance from center" or "impact score"
-    # Impact = (Off - Med_Off) - (Def - Med_Def) ? (since lower Def is better)
-    # Let's label top 10 by "Net xG Diff" (xGF - xGA)
-    df_plot['net_xg'] = df_plot['xg_for_60'] - df_plot['xg_against_60']
-    top_net = df_plot.nlargest(10, 'net_xg')
-    bottom_net = df_plot.nsmallest(5, 'net_xg')
-    
-    # Also label extreme offense/defense
-    top_off = df_plot.nlargest(5, 'xg_for_60')
-    top_def = df_plot.nsmallest(5, 'xg_against_60') # Low xGA
-    
-    labels_to_plot = pd.concat([top_net, bottom_net, top_off, top_def]).drop_duplicates('player_id')
-    
-    # Highlight labeled points
-    ax.scatter(labels_to_plot['xg_for_60'], labels_to_plot['xg_against_60'], color='red', s=40, zorder=5)
-    
-    from adjustText import adjust_text
-    texts = []
-    for _, row in labels_to_plot.iterrows():
-        t = ax.text(row['xg_for_60'], row['xg_against_60'], f"{row['name']} ({row['team']})", fontsize=8)
-        texts.append(t)
+    # Map GameID -> Path
+    # filename format: {game_id}_{cond}.npz
+    game_path_map = {}
+    for f in all_partials:
+        gid = f.split('_')[0]
+        try:
+            game_path_map[int(gid)] = os.path.join(cache_dir, f)
+        except: pass
         
-    # Try to adjust text if library exists, otherwise just basic
-    try:
-        from adjustText import adjust_text
-        adjust_text(texts, arrowprops=dict(arrowstyle='-', color='k', lw=0.5))
-    except ImportError:
-        pass
+    stats_accumulator = []
 
-    # Limits and Unity Line
-    vals = pd.concat([df_plot['xg_for_60'], df_plot['xg_against_60']])
-    max_val = vals.max()
-    min_val = vals.min()
-    padding = (max_val - min_val) * 0.05
-    limit_max = max_val + padding
-    limit_min = max(0, min_val - padding)
-    
-    ax.set_xlim(limit_min, limit_max)
-    ax.set_ylim(limit_min, limit_max)
-    ax.invert_yaxis()
-    ax.plot([limit_min, limit_max], [limit_min, limit_max], color='gray', linestyle='--', alpha=0.5, label='xGF = xGA')
-    
-    ax.set_aspect('equal')
-    ax.set_xlabel('xG For / 60')
-    ax.set_ylabel('xG Against / 60')
-    ax.set_title(f'League-Wide Player xG Rates (5v5) - {season}\n(Min {min_games} Games)')
-    ax.grid(True, alpha=0.3)
-    
-    out_path = os.path.join(out_dir, 'league_scatter.png')
-    fig.savefig(out_path, dpi=150, bbox_inches='tight')
-    plt.close(fig)
-    print(f"Saved league scatter to {out_path}")
+    for i in range(0, len(pids_sorted), chunk_size):
+        chunk = pids_sorted[i:i+chunk_size]
+        print(f"Processing chunk {i//chunk_size + 1}: {len(chunk)} players...")
+        
+        # Aggregate Data for Chunk
+        # Dict: pid -> { 'grid_team': ..., 'grid_other': ..., 'stats': {} }
+        agg_data = {pid: {'grid_team': None, 'grid_other': None, 'stats': []} for pid in chunk}
+        
+        # Identify relevant games for this chunk to minimize I/O?
+        # A set of game_ids where ANY player in chunk played.
+        chunk_games = set()
+        for pid in chunk:
+            # We can use df_data to find games
+            pgs = df_data[df_data['player_id'] == pid]['game_id'].unique()
+            chunk_games.update(pgs)
+            
+        # Scan games
+        loaded_games = 0
+        for gid in chunk_games:
+            path = game_path_map.get(gid)
+            if not path: continue
+            
+            try:
+                # Load NPZ
+                with np.load(path) as data:
+                    if 'empty' in data: continue
+                    
+                    # For each player in chunk
+                    for pid in chunk:
+                        # Check keys
+                        k_grid = f"p_{pid}_grid_team" # or grid_other
+                        # Wait, process_daily_cache saves 'p_{pid}_grid_team' and 'p_{pid}_grid_other'
+                        
+                        if k_grid not in data: continue
+                        
+                        # Sum Grids
+                        g_tm = data[f"p_{pid}_grid_team"]
+                        g_ot = data[f"p_{pid}_grid_other"] if f"p_{pid}_grid_other" in data else None
+                        
+                        if agg_data[pid]['grid_team'] is None:
+                            agg_data[pid]['grid_team'] = g_tm.astype(np.float64)
+                        else:
+                            agg_data[pid]['grid_team'] += g_tm
+                            
+                        if g_ot is not None:
+                            if agg_data[pid]['grid_other'] is None:
+                                agg_data[pid]['grid_other'] = g_ot.astype(np.float64)
+                            else:
+                                agg_data[pid]['grid_other'] += g_ot
+                                
+                        # Stats
+                        k_stats = f"p_{pid}_stats"
+                        if k_stats in data:
+                            s_str = str(data[k_stats])
+                            # It was saved as json string in npz?
+                            # np.load of string usually returns a 0-d array.
+                            s_dict = json.loads(s_str)
+                            agg_data[pid]['stats'].append(s_dict)
+                            
+                loaded_games += 1
+            except Exception as e:
+                # print(f"Error reading {path}: {e}")
+                pass
+                
+        # Generate Plots for Chunk
+        for pid in chunk:
+            data = agg_data[pid]
+            if not data['stats']: continue
+            
+            # Aggregate stats
+             # Sum numerical fields
+            total_stats = {}
+            keys_to_sum = ['team_xgs', 'other_xgs', 'team_goals', 'other_goals', 'team_attempts', 'other_attempts', 'team_seconds']
+            
+            for s in data['stats']:
+                for k in keys_to_sum:
+                    total_stats[k] = total_stats.get(k, 0.0) + s.get(k, 0.0)
+            
+            # Derived
+            seconds = total_stats.get('team_seconds', 0.0)
+            if seconds <= 0: continue
+            
+            xg_for = total_stats.get('team_xgs', 0.0)
+            xg_ag = total_stats.get('other_xgs', 0.0)
+            xg_for_60 = (xg_for / seconds) * 3600
+            xg_ag_60 = (xg_ag / seconds) * 3600
+            
+            # Determine Team
+            # Mode of teams in stats?
+            # Or just use pre-loaded
+            # We need explicit team for output usage
+            # Let's use name map
+            pname = pid_name_map.get(pid, f"Player {pid}")
+            
+            # Find team from stats
+            team_counts = {}
+            for s in data['stats']:
+                t = s.get('team', 'UNK')
+                team_counts[t] = team_counts.get(t, 0) + 1
+            p_team = max(team_counts, key=team_counts.get) if team_counts else 'UNK'
+            
+            # Output Dir
+            out_dir_team = os.path.join(out_dir_base, f'{season}/{p_team}')
+            os.makedirs(out_dir_team, exist_ok=True)
+            
+            # Relative Map & Plot
+            team_map = data['grid_team']
+            other_map = data['grid_other']
+            
+            # Plot Relative
+            rel_path = os.path.join(out_dir_team, f"{pid}_relative.png")
+            if team_map is not None and league_map is not None:
+                try:
+                    combined_rel, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
+                        team_map, league_map, seconds, other_map, seconds, 
+                        league_baseline_right=league_map_right
+                    )
+                    
+                    # Plotting code adapted from analyze.players
+                    fig, ax = plt.subplots(figsize=(10, 5))
+                    draw_rink(ax=ax)
+                    from matplotlib.colors import SymLogNorm
+                    norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-0.0006, vmax=0.0006, base=10)
+                    extent = (-100.5, 100.5, -42.5, 42.5) # Approximate
+                    
+                    cmap = plt.get_cmap('RdBu_r')
+                    try: cmap.set_bad(color=(1,1,1,0)) 
+                    except: pass
+                    
+                    m = np.ma.masked_invalid(combined_rel)
+                    im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
+                    
+                    # Summary Text
+                    txt_props = {
+                        'home_xg': xg_for,
+                        'away_xg': xg_ag,
+                        'have_xg': True,
+                        'home_goals': total_stats.get('team_goals', 0),
+                        'away_goals': total_stats.get('other_goals', 0),
+                        'home_attempts': total_stats.get('team_attempts', 0),
+                        'away_attempts': total_stats.get('other_attempts', 0),
+                        'rel_off_pct': rel_off_pct,
+                        'rel_def_pct': rel_def_pct,
+                        'home_shot_pct': 0, 'away_shot_pct': 0 # Calc below
+                    }
+                    
+                    tot_att = txt_props['home_attempts'] + txt_props['away_attempts']
+                    if tot_att > 0:
+                        txt_props['home_shot_pct'] = 100.0 * txt_props['home_attempts'] / tot_att
+                        txt_props['away_shot_pct'] = 100.0 * txt_props['away_attempts'] / tot_att
+
+                    add_summary_text(
+                        ax=ax, stats=txt_props, main_title=pname, is_season_summary=True,
+                        team_name=p_team, full_team_name=pname, filter_str="5v5"
+                    )
+                    ax.axis('off')
+                    fig.savefig(rel_path, dpi=100, bbox_inches='tight') # Reduced DPI for speed/size?
+                    plt.close(fig)
+                    
+                    stats_accumulator.append({
+                        'player_id': pid, 'xg_for_60': xg_for_60, 'xg_against_60': xg_ag_60,
+                        'games_played': len(data['stats']), 'name': pname, 'team': p_team
+                    })
+                    
+                    # Update Manifest
+                    manifest[str(pid)] = {
+                        'games_played': int(row['games_played']),
+                        'last_game_id': int(row['last_game_id'])
+                    }
+
+                except Exception as e:
+                    print(f"Error plotting relative for {pname}: {e}")
+
+            # Plot Raw Map with Shots (Legacy Requirement)
+            # We filter df_data for this player
+            try:
+                p_out_path = os.path.join(out_dir_team, f"{pid}_map.png")
+                # Need just the shots df
+                # Filter by player_id
+                p_df = df_data[(df_data['player_id'] == pid) & df_data['game_id'].isin(chunk_games)].copy()
+                
+                # We need to replicate analyze.players call to plot_events
+                # Pass summary stats
+                plot_events(
+                    p_df, out_path=p_out_path, title=pname, summary_stats=txt_props,
+                    plot_kwargs={'is_season_summary': True, 'filter_str': '5v5', 'team_for_heatmap': p_team}
+                )
+                plt.close('all')
+            except Exception as e:
+                pass
+
+
+        # Memory cleanup after chunk
+        gc.collect()
+
+    # Save Manifest
+    with open(manifest_path, 'w') as f:
+        json.dump(manifest, f)
+        
+    print("Done.")
 
 if __name__ == "__main__":
     run_analysis()

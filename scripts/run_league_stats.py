@@ -1,180 +1,253 @@
 import sys
 import os
-# Add project root to sys.path to allow importing puck package
+import argparse
+import numpy as np
+import pandas as pd
+import json
+import gc
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+
+# Add project root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from puck import config
 from puck import analyze
-import matplotlib
-import matplotlib.pyplot as plt
-import os
+from puck.rink import draw_rink
+from puck.plot import add_summary_text
+from puck.analyze import compute_relative_map
 
-# Use Agg backend for non-interactive plotting
-matplotlib.use('Agg')
-
-import argparse
-
-if __name__ == '__main__':
+def run_league_analysis():
     parser = argparse.ArgumentParser()
     parser.add_argument('--season', type=str, default='20252026')
     args = parser.parse_args()
     season = args.season
     
-    # Define conditions for analysis
-    conditions = {
-        '5v5': {'game_state': ['5v5'], 'is_net_empty': [0]},
-        '5v4': {'game_state': ['5v4'], 'is_net_empty': [0]},
-        '4v5': {'game_state': ['4v5'], 'is_net_empty': [0]}
-    }
+    print(f"--- Cached League Analysis for {season} ---")
     
-    print(f"Running season analysis for {season} with conditions: {list(conditions.keys())}")
-    
-    # ==========================================
-    # CONFIGURATION
-    # ==========================================
-    
-    # REGENERATE_PLOTS_ONLY:
-    #   False (Default): Full Re-computation.
-    #       - Loads raw season dataframe (e.g. data/processed/20252026/20252026.csv).
-    #       - Re-calculates game timing, xG values, and spatial maps for every team.
-    #       - Saves new intermediate files (.npz) and summary stats.
-    #       - Generates all plots.
-    #       - USE WHEN: You have new game data or have changed calculation logic (e.g. xG model, timing).
-    #
-    #   True: Plotting Only (Fast).
-    #       - Skips all heavy calculation.
-    #       - Loads existing intermediate data from analysis/league/{season}/{condition}/intermediates/.
-    #       - Re-runs only the plotting functions (heatmaps, scatter plots).
-    #       - USE WHEN: You are tweaking plot aesthetics (colors, labels, text, titles) and the data is already correct.
-    REGENERATE_PLOTS_ONLY = False 
-    
-    # target_teams:
-    #   None (Default): Process all teams found in the season data.
-    #   ['ANA', 'BOS']: Process only specific teams. Useful for quick testing.
-    #   NOTE: For relative maps, you generally need a full league run to get a valid league baseline.
-    #         If running a subset, the baseline will be calculated from ONLY that subset.
-    target_teams = None
-    
-    # UPDATE_DATA:
-    #   False (Default): Use existing data on disk.
-    #   True: Force a fresh fetch of season data from the NHL API before running analysis.
-    #         - Calls parse._scrape with use_cache=False.
-    #         - Updates data/processed/{season}/{season}.csv.
-    #         - Useful for getting the latest games.
-    UPDATE_DATA = False
+    cache_dir = os.path.join(config.get_cache_dir(season), 'partials')
+    print(f"Checking cache dir: {cache_dir}")
+    if not os.path.exists(cache_dir):
+        print(f"No cache directory found at {cache_dir}. Run daily.py to generate caches.")
+        return
 
-    def update_data(season: str):
-        """
-        Helper to force a fresh fetch of season data from the NHL API.
-        Updates the season CSV and other necessary files.
-        """
-        print(f"update_data: Fetching fresh data for season {season}...")
-        from puck import parse
+    # Team Info (Abbreviation map)
+    from puck import timing
+    df_meta = timing.load_season_df(season) 
+    if df_meta is None or df_meta.empty:
+        print("No season data.")
+        return
+
+    t1 = df_meta[['home_id', 'home_abb']].rename(columns={'home_id': 'id', 'home_abb': 'abb'})
+    t2 = df_meta[['away_id', 'away_abb']].rename(columns={'away_id': 'id', 'away_abb': 'abb'})
+    t_map = pd.concat([t1, t2]).drop_duplicates('id').set_index('id')['abb'].to_dict()
+    del df_meta
+    gc.collect()
+
+    conditions = ['5v5', '5v4', '4v5']
+    
+    for cond in conditions:
+        print(f"\nProcessing Condition: {cond}")
+        out_root = os.path.join('analysis', 'league', season, cond)
+        os.makedirs(out_root, exist_ok=True)
         
-        # parse._scrape handles fetching raw feeds, processing them, and saving the elaborated CSV.
-        # We set use_cache=False to force fresh API calls.
-        # We set process_elaborated=True and save_elaborated=True to generate the season.csv.
-        parse._scrape(
-            season=season,
-            out_dir='data',
-            use_cache=False,
-            process_elaborated=True,
-            save_elaborated=True,
-            return_elaborated_df=False,
-            verbose=True
-        )
-        print(f"update_data: Completed update for {season}.")
-
-    if UPDATE_DATA:
-        update_data(season)
-    
-    # Get team list
-    import json
-    teams_to_process = []
-    if target_teams:
-        teams_to_process = target_teams
-    else:
-        try:
-            # The instruction implies 'teams' is a variable here.
-            # Assuming 'teams' refers to 'target_teams' in this context,
-            # and the 'if teams is None' is meant to be an additional check
-            # within the 'else' block (where target_teams is already None).
-            # This effectively means the following block runs if target_teams is None.
-            if target_teams is None: # Changed from 'if teams is None' to 'if target_teams is None' for consistency
-                with open('web/static/teams.json', 'r') as f:
-                    teams_data = json.load(f)
-                teams_to_process = [t.get('abbr') for t in teams_data if 'abbr' in t]
-        except Exception as e:
-            print(f"Warning: failed to load teams.json: {e}")
-            # Fallback will happen in analyze.league if we pass None, but we need list for season loop
-            # We can let analyze.league find them, then read the summary?
-            # Or just rely on analyze.league to return the list of teams it processed?
-            pass
-
-    try:
-        for cond_name, cond in conditions.items():
-            print(f"\n=== Processing Condition: {cond_name} ===")
-            
-            # 1. League Baseline & Summary
-            # This generates baseline.npy and team_summary.json/csv
-            # It also saves intermediate team maps to disk
-            league_res = analyze.league(
-                season=season,
-                condition=cond,
-                mode='compute' if not REGENERATE_PLOTS_ONLY else 'load',
-                teams=target_teams
-            )
-            
-            if not league_res:
-                print(f"Failed to get league results for {cond_name}")
-                continue
-                
-            # If teams_to_process was empty, populate from league results
-            if not teams_to_process:
-                # league_res['summary'] is a list of dicts
-                summary = league_res.get('summary', [])
-                teams_to_process = [r['team'] for r in summary if r.get('team') != 'League']
-                teams_to_process = sorted(list(set(teams_to_process)))
-            
-            print(f"--- Team Analysis ({cond_name}) for {len(teams_to_process)} teams ---")
-            
-            # 2. Per-Team Analysis (Plots)
-            for i, team in enumerate(teams_to_process):
-                if i % 5 == 0:
-                    import gc
-                    gc.collect()
+        # Scan caches
+        files =  sorted([f for f in os.listdir(cache_dir) if f.endswith(f'_{cond}.npz')])
+        print(f"  Found {len(files)} game files.")
+        
+        league_grid = None
+        league_seconds = 0.0
+        
+        team_grids = {}
+        team_stats = {} # tid -> {summed stats}
+        
+        # Load & Aggregate
+        for fname in files:
+            try:
+                path = os.path.join(cache_dir, fname)
+                with np.load(path) as data:
+                    if 'empty' in data: continue
                     
-                # print(f"Processing {team}...")
-                analyze.season(
-                    season=season,
-                    team=team,
-                    condition=cond,
-                    league_data=league_res
-                )
+                    # Keys: team_{tid}_grid_team, team_{tid}_stats
+                    keys = list(data.keys())
+                    
+                    for k in keys:
+                        if k.startswith('team_') and k.endswith('_grid_team'):
+                            tid_str = k.split('_')[1]
+                            tid = int(tid_str)
+                            
+                            grid = data[k]
+                            
+                            # Add to League
+                            if league_grid is None:
+                                league_grid = grid.astype(np.float64)
+                            else:
+                                league_grid += grid
+                                
+                            # Add to Team
+                            if tid not in team_grids:
+                                team_grids[tid] = grid.astype(np.float64)
+                            else:
+                                team_grids[tid] += grid
+                                
+                        if k.startswith('team_') and k.endswith('_stats'):
+                             tid_str = k.split('_')[1]
+                             tid = int(tid_str)
+                             
+                             s_str = str(data[k])
+                             s = json.loads(s_str)
+                             
+                             # We only add to league_seconds once per team per game
+                             # But here we just sum total team seconds
+                             # Wait, league_seconds should be sum of ALL intervals in league.
+                             # If we sum team_seconds for all teams, we get 2x total time (home+away).
+                             # So league_seconds = Sum(TeamSecs) / 2
+                             
+                             if tid not in team_stats:
+                                 team_stats[tid] = {'team_xgs': 0.0, 'other_xgs': 0.0, 'team_seconds': 0.0, 
+                                                    'team_goals': 0, 'other_goals': 0,
+                                                    'team_attempts': 0, 'other_attempts': 0}
+                                 
+                             ts = team_stats[tid]
+                             ts['team_xgs'] += s.get('team_xgs', 0.0)
+                             ts['other_xgs'] += s.get('other_xgs', 0.0)
+                             ts['team_seconds'] += s.get('team_seconds', 0.0)
+                             ts['team_goals'] += s.get('team_goals', 0)
+                             ts['other_goals'] += s.get('other_goals', 0)
+                             ts['team_attempts'] += s.get('team_attempts', 0)
+                             ts['other_attempts'] += s.get('other_attempts', 0)
+                             
+            except Exception as e:
+                # print(f"Error loading {fname}: {e}")
+                pass
+        
+        # Calculate true league seconds
+        total_team_seconds = sum(t['team_seconds'] for t in team_stats.values())
+        league_seconds = total_team_seconds / 2.0 if total_team_seconds > 0 else 0.0
+        
+        # League Baseline
+        if league_grid is None or league_seconds <= 0:
+            print(f"  No data for {cond}.")
+            continue
             
-            # 3. Scatter Plot
-            print(f"Generating scatter plot for {cond_name}...")
-            # We need the summary list again. It might have been updated by season() if we were tracking it,
-            # but season() writes to disk.
-            # analyze.generate_scatter_plot reads from disk if we pass summary_list?
-            # No, generate_scatter_plot takes summary_list as arg.
-            # league_res['summary'] has the initial summary.
-            # But season() updates stats (like percentiles).
-            # However, scatter plot only needs xGF/60 and xGA/60 which are in league_res['summary'] usually?
-            # Wait, league_res['summary'] comes from analyze.league().
-            # analyze.league() computes them.
-            # So we can use league_res['summary'].
-            analyze.generate_scatter_plot(league_res.get('summary', []), f'analysis/league/{season}/{cond_name}', cond_name)
+        # Normalize: League Grid is sum of Home+Away grids.
+        # So it represents shots per (League Seconds * 2) if looked at naively?
+        # No, league_grid is sum of expected shots.
+        # Rate = Total xG / Total Time.
+        # But we want League Average Team.
+        # League Avg Team xG/60 = (Total League xG / 2) / (Total Time) ?
+        # Or (Total League xG) / (Total Team Time).
+        # Total Team Time = 2 * Real Time.
+        # So yes, league_grid / total_team_seconds.
+        league_norm = league_grid / total_team_seconds
+        
+        # Save Baseline
+        np.save(os.path.join(out_root, 'baseline.npy'), league_norm)
+        
+        # Generate Team Plots
+        summary_list = []
+        
+        for tid, grid in team_grids.items():
+            tname = t_map.get(tid, str(tid))
+            stats = team_stats.get(tid, {})
+            sec = stats.get('team_seconds', 0.0)
+            if sec <= 0: continue
+            
+            # Normalize Team
+            team_norm = grid / sec
+            
+            xg_f = stats['team_xgs']
+            xg_a = stats['other_xgs']
+            xg_f60 = (xg_f/sec)*3600
+            xg_a60 = (xg_a/sec)*3600
+            
+            summary_list.append({
+                'team': tname,
+                'xg_for_60': xg_f60,
+                'xg_against_60': xg_a60,
+                'gf_pct': 100 * stats['team_goals'] / (stats['team_goals'] + stats['other_goals']) if (stats['team_goals'] + stats['other_goals']) > 0 else 0,
+                'xgf_pct': 100 * xg_f / (xg_f + xg_a) if (xg_f + xg_a) > 0 else 0
+            })
+            
+            # Plot Relative
+            # Team - League
+            # Note: compute_relative_map expects 'league_map' to be the baseline rate
+            # We calculated league_norm correctly above.
+            
+            # Relative Plot
+            out_path = os.path.join(out_root, f"{tname}.png")
+            
+            try:
+                # We use other_map=None for Team vs League? 
+                # No, standard relative map is Team For vs League For.
+                # analyze.season uses:
+                # combined_rel_map = team_norm - league_norm (simplification) or log ratio.
                 
-        print("\n=== Generating Special Teams Plots ===")
-        # We need the base output directory where 5v4/4v5 folders are
-        # analyze.season uses analysis/league/{season}/{cond_name} by default
-        # So base is analysis/league/{season}
-        base_out_dir = f'analysis/league/{season}'
-        analyze.generate_special_teams_plot(season, teams_to_process, base_out_dir)
-        
-        print("Season analysis complete.")
-        
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        sys.exit(1)
+                # Let's use compute_relative_map but we only have 1 map (Team For).
+                # Wait, compute_relative_map takes (team_map, league_map, ...).
+                # It handles the math.
+                
+                # Dummy 'other' map
+                # Actually compute_relative_map is for Player vs Team OR Team vs League.
+                # If we pass team_map and league_map, it works.
+                
+                combined_rel, rel_off_pct, rel_def_pct, _, _ = compute_relative_map(
+                    team_norm * sec, league_norm * sec, sec, 
+                    None, sec, # No 'other' comparison for pure team map?
+                    # Wait, analyze.season passes league_res as 'league_data'.
+                    # And calls xgs_map.
+                    # xgs_map plots the absolute map.
+                    # Then it plots relative.
+                    # We need both.
+                )
+                
+                # Actually analyze.season mostly plots xG For vs xG Against if cond is 5v5?
+                # Or just Team Offense?
+                # Usually it plots Team Offense Relative to League Average.
+                
+                fig, ax = plt.subplots(figsize=(10, 5))
+                draw_rink(ax=ax)
+                from matplotlib.colors import SymLogNorm
+                norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-0.0006, vmax=0.0006, base=10)
+                extent = (-100.5, 100.5, -42.5, 42.5) 
+                
+                cmap = plt.get_cmap('RdBu_r')
+                try: cmap.set_bad(color=(1,1,1,0)) 
+                except: pass
+                
+                # Calc relative manually if compute_relative_map is complex with None
+                # Rel = TeamRate - LeagueRate
+                rel_grid = team_norm - league_norm
+                
+                m = np.ma.masked_invalid(rel_grid)
+                im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
+                
+                txt_props = {
+                    'home_xg': xg_f, 'away_xg': xg_a, 'have_xg': True,
+                    'home_goals': stats['team_goals'], 'away_goals': stats['other_goals'],
+                    'home_attempts': stats['team_attempts'], 'away_attempts': stats['other_attempts'],
+                }
+                
+                add_summary_text(ax=ax, stats=txt_props, main_title=tname, is_season_summary=True,
+                                 team_name=tname, full_team_name=tname, filter_str=cond)
+                
+                ax.axis('off')
+                fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
+                fig.savefig(out_path, dpi=100, bbox_inches='tight')
+                plt.close(fig)
+                
+            except Exception as e:
+                # print(f"Error plotting {tname}: {e}")
+                pass
+                
+        # Save Summary
+        df_sum = pd.DataFrame(summary_list)
+        df_sum.to_csv(os.path.join(out_root, 'team_summary.csv'), index=False)
+        with open(os.path.join(out_root, 'team_summary.json'), 'w') as f:
+            json.dump(summary_list, f)
+            
+        print(f"  Generated stats/plots for {len(summary_list)} teams.")
+
+if __name__ == '__main__':
+    run_league_analysis()

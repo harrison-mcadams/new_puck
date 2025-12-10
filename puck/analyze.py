@@ -2761,14 +2761,19 @@ def xgs_map(season: Optional[str] = '20252026', *,
         team_attempts = other_attempts = 0
 
     # extract seconds from timing_result aggregate
+    # extract seconds from timing_result aggregate
     try:
         agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
-        inter = agg.get('intersection_seconds_total', {}) if isinstance(agg,
-                                                               dict) else {}
+        inter = agg.get('intersection_seconds_total', 0.0)
         team_seconds = float(inter or 0.0)
+        
+        # Fallback to provided total_seconds if calculated is zero
+        if team_seconds <= 0 and total_seconds is not None and total_seconds > 0:
+            team_seconds = float(total_seconds)
+            
         other_seconds = team_seconds
     except Exception:
-        team_seconds = other_seconds = 0.0
+        team_seconds = other_seconds = float(total_seconds) if total_seconds else 0.0
 
     team_xg_per60 = (team_xgs / team_seconds * 3600.0) if team_seconds > 0 else 0.0
     other_xg_per60 = (other_xgs / other_seconds * 3600.0) if other_seconds > 0 else 0.0

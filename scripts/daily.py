@@ -111,6 +111,21 @@ def main():
     del game_ids
     gc.collect()
 
+    # 2b. Process Game Caches (The Heavy Lifting)
+    # This runs the "Map" phase of Map-Reduce, creating .npz files for all games.
+    print("\n[2b/4] Processing Game Caches (Map Phase)...")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    cache_script = os.path.join(script_dir, 'process_daily_cache.py')
+    
+    conditions_to_process = ['5v5', '5v4', '4v5']
+    for cond in conditions_to_process:
+        print(f"  -> Processing {cond} cache...")
+        try:
+            subprocess.run([sys.executable, cache_script, '--season', season, '--condition', cond], check=True)
+        except Exception as e:
+            print(f"Cache processing failed for {cond}: {e}")
+
+
     # 3. Run Player Analysis
     print("\n[3/4] Running Player Analysis (Incremental)...")
     try:
