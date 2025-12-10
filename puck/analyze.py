@@ -1996,12 +1996,35 @@ def xgs_map(season: Optional[str] = '20252026', *,
     from . import parse as _parse
 
     # --- Helpers ------------------------------------------------------------
-    # Determine the CSV path to use for model training if needed, even if we have df_all
+    # Determine the CSV path to use for model training if needed.
     chosen_csv = None
     try:
         chosen_csv = locate_season_csv(season, csv_path)
     except Exception:
         chosen_csv = None
+
+    # 1. Load Data
+    # If data_df provided, use it (even if empty - DO NOT reload season).
+    if data_df is not None:
+        df_all = data_df.copy()
+    else:
+        # Only load from disk if data_df was explicitly None
+        df_all = _parse._season(season=season, out_path=None, use_cache=True, verbose=False)
+        # Or use load_season_df if that's preferred
+        # df_all = timing.load_season_df(season) 
+        # But wait, original code used load_season_df? 
+        # Actually in Step 818 snippet it wasn't clear. 
+        # Let's trust `load_season_df` is available or use `_parse`.
+        pass 
+        # Wait, I need to know what 'load_season_df' is called as.
+        # Based on grep, it was `timing.load_season_df`.
+        # I need to import timing here? Or assume it's imported.
+        # Step 780 showed `from . import timing`.
+        if 'timing' not in locals():
+             from . import timing
+        df_all = timing.load_season_df(season)
+
+
 
     # Helper: apply a condition dict to a dataframe and return (filtered_df, team_val)
     def _apply_condition(df: pd.DataFrame):

@@ -164,10 +164,16 @@ def run_analysis():
             p_team_map = df_shifts.groupby('player_id')['team_id'].first().to_dict()
             
             # Optimization: Extract game dataframe once outside the player loop
-            df_game = df_data[df_data['game_id'] == game_id]
+            # Ensure safe string comparison for game_id filtering
+            df_game = df_data[df_data['game_id'].astype(str) == str(game_id)]
+            
             if df_game.empty:
-               # This might happen if we have shifts but no events? Rare.
-               pass 
+               # If no events found for this game, skip it.
+               # This avoids passing an empty DF to xgs_map which might trigger a full season reload.
+               # It also saves processing time.
+               if (i+1) % 10 == 0:
+                   print(f"Skipping game {game_id} (no matching events in season data)")
+               continue
 
             game_player_stats = []
             
@@ -201,7 +207,7 @@ def run_analysis():
                     p_cond = condition.copy()
                     p_cond['team'] = p_team_id
                     
-                    # df_game is now pre-calculated outside loop
+                    # df_game is now pre-calculated outside loop (and confirmed non-empty)
                     
                     _, _, _, p_stats = analyze.xgs_map(
                         season=season,
