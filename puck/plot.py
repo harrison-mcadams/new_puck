@@ -2,7 +2,7 @@
 # The main input is an events DataFrame. Provide flexibility in what events
 # are plotted and what plot symbols/colors are used for each event type.
 
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 import os
 import matplotlib
 # Only force the non-interactive 'Agg' backend when explicitly requested
@@ -1338,3 +1338,95 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
     # Title
 
     fig.text(0.5, header_y, final_title, fontsize=12, fontweight='bold', ha='center', color='black')
+
+def plot_relative_map(
+    ax: plt.Axes,
+    rel_grid: np.ndarray,
+    title: str,
+    stats: Dict[str, Any],
+    team_name: str,
+    full_team_name: str,
+    cond: str = "5v5",
+    cmap: str = 'RdBu_r',
+    mask_neutral_zone: bool = True
+):
+    """
+    Shared plotting routine for relative xG maps (Team and Player).
+    Ensures feature parity (masking, normalization, summary text).
+    Returns the image object (im) for colorbar creation.
+    """
+    from .rink import draw_rink
+    from .plot import add_summary_text
+    import numpy as np
+    import matplotlib.colors as mcolors
+
+    draw_rink(ax=ax)
+
+    # 1. Masking (Neutral Zone)
+    # Assumes standard grid shape mapping to -100..100
+    # rel_grid shape (rows, cols). Cols map to X.
+    # We assume 'lower' origin.
+    processed_grid = rel_grid.copy()
+    
+    if mask_neutral_zone:
+        # Standard assumption: grid spans -100 to 100 in X
+        # Cols = processed_grid.shape[1]
+        cols = processed_grid.shape[1]
+        
+        # Create X coordinates for columns
+        # linspace inclusive or arange? 
+        # puck.analyze.bin_events uses histogram2d with ranges [[-100,100], [-42.5,42.5]]
+        # So x is linear from -100 to 100.
+        xs = np.linspace(-100, 100, cols)
+        
+        # Create mask: True where |x| < 25 (Neutral Zone)
+        # Note: 25ft from center is Blue Line
+        mask_x = np.abs(xs) < 25
+        
+        # Apply mask (broadcasting over rows)
+        # We use a masked array for transparency
+        mask = np.tile(mask_x, (processed_grid.shape[0], 1))
+        
+        processed_grid_ma = np.ma.masked_where(mask, processed_grid)
+    else:
+        processed_grid_ma = processed_grid
+
+    # 2. Normalization (Linear, Symmetric around 0)
+    # Determine Vmax from masked data (ignore zeroes in neutral zone)
+    # Use unmasked data max? Or masked?
+    # Usually masked is better to focus on offensive zone contrast.
+    vmax = np.max(np.abs(processed_grid_ma))
+    if np.ma.is_masked(vmax) or vmax == 0:
+        vmax = 1.0
+    
+    # Ensure minimum dynamic range to avoid blank plots for low xG diffs
+    if vmax < 1e-4:
+        vmax = 1e-4
+        
+    norm = matplotlib.colors.Normalize(vmin=-vmax, vmax=vmax)
+    
+    # 3. Plot
+    if isinstance(cmap, str):
+        cmap = plt.get_cmap(cmap)
+    try:
+        cmap.set_bad(color='none')
+    except:
+        pass
+
+    extent = (-100, 100, -42.5, 42.5) # Standard rink extent
+    im = ax.imshow(processed_grid_ma, extent=extent, origin='lower', cmap=cmap, norm=norm, alpha=0.8)
+    
+    # 4. Summary Text
+    display_cond = f"{cond} | Empty Net: False"
+    add_summary_text(
+        ax=ax, 
+        stats=stats, 
+        main_title=title, 
+        is_season_summary=True, 
+        team_name=team_name, 
+        full_team_name=full_team_name, 
+        filter_str=display_cond
+    )
+    
+    ax.axis('off')
+    return im

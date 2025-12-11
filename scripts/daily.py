@@ -75,6 +75,13 @@ def main():
         use_cache=not args.force
     )
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
+    
+    # 1b. Update Teams List (Ensure analysis/teams.json is fresh)
+    print("Updating teams list...")
+    try:
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'generate_teams.py')], check=False)
+    except Exception as e:
+        print(f"Warning: generate_teams.py failed: {e}")
 
     
     if df_season.empty:

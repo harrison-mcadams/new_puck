@@ -1,130 +1,312 @@
 [
   {
-    "abbr": "ANA",
-    "name": "Anaheim Ducks"
-  },
-  {
-    "abbr": "BOS",
-    "name": "Boston Bruins"
-  },
-  {
-    "abbr": "BUF",
-    "name": "Buffalo Sabres"
-  },
-  {
-    "abbr": "CAR",
-    "name": "Carolina Hurricanes"
-  },
-  {
-    "abbr": "CBJ",
-    "name": "Columbus Blue Jackets"
-  },
-  {
-    "abbr": "CGY",
-    "name": "Calgary Flames"
-  },
-  {
-    "abbr": "CHI",
-    "name": "Chicago Blackhawks"
-  },
-  {
-    "abbr": "COL",
-    "name": "Colorado Avalanche"
-  },
-  {
-    "abbr": "DAL",
-    "name": "Dallas Stars"
-  },
-  {
-    "abbr": "DET",
-    "name": "Detroit Red Wings"
-  },
-  {
-    "abbr": "EDM",
-    "name": "Edmonton Oilers"
-  },
-  {
-    "abbr": "FLA",
-    "name": "Florida Panthers"
-  },
-  {
-    "abbr": "LAK",
-    "name": "Los Angeles Kings"
-  },
-  {
-    "abbr": "MIN",
-    "name": "Minnesota Wild"
-  },
-  {
-    "abbr": "MTL",
-    "name": "Montr\u00e9al Canadiens"
-  },
-  {
+    "id": 1,
     "abbr": "NJD",
     "name": "New Jersey Devils"
   },
   {
-    "abbr": "NSH",
-    "name": "Nashville Predators"
-  },
-  {
+    "id": 2,
     "abbr": "NYI",
     "name": "New York Islanders"
   },
   {
+    "id": 3,
     "abbr": "NYR",
     "name": "New York Rangers"
   },
   {
-    "abbr": "OTT",
-    "name": "Ottawa Senators"
-  },
-  {
+    "id": 4,
     "abbr": "PHI",
     "name": "Philadelphia Flyers"
   },
   {
+    "id": 5,
     "abbr": "PIT",
     "name": "Pittsburgh Penguins"
   },
   {
-    "abbr": "SEA",
-    "name": "Seattle Kraken"
+    "id": 6,
+    "abbr": "BOS",
+    "name": "Boston Bruins"
   },
   {
-    "abbr": "SJS",
-    "name": "San Jose Sharks"
+    "id": 7,
+    "abbr": "BUF",
+    "name": "Buffalo Sabres"
   },
   {
-    "abbr": "STL",
-    "name": "St. Louis Blues"
+    "id": 8,
+    "abbr": "MTL",
+    "name": "Montr\u00e9al Canadiens"
   },
   {
-    "abbr": "TBL",
-    "name": "Tampa Bay Lightning"
+    "id": 9,
+    "abbr": "OTT",
+    "name": "Ottawa Senators"
   },
   {
+    "id": 10,
     "abbr": "TOR",
     "name": "Toronto Maple Leafs"
   },
   {
-    "abbr": "UTA",
-    "name": "Utah Mammoth"
+    "id": 11,
+    "abbr": "ATL",
+    "name": "Atlanta Thrashers"
   },
   {
+    "id": 12,
+    "abbr": "CAR",
+    "name": "Carolina Hurricanes"
+  },
+  {
+    "id": 13,
+    "abbr": "FLA",
+    "name": "Florida Panthers"
+  },
+  {
+    "id": 14,
+    "abbr": "TBL",
+    "name": "Tampa Bay Lightning"
+  },
+  {
+    "id": 15,
+    "abbr": "WSH",
+    "name": "Washington Capitals"
+  },
+  {
+    "id": 16,
+    "abbr": "CHI",
+    "name": "Chicago Blackhawks"
+  },
+  {
+    "id": 17,
+    "abbr": "DET",
+    "name": "Detroit Red Wings"
+  },
+  {
+    "id": 18,
+    "abbr": "NSH",
+    "name": "Nashville Predators"
+  },
+  {
+    "id": 19,
+    "abbr": "STL",
+    "name": "St. Louis Blues"
+  },
+  {
+    "id": 20,
+    "abbr": "CGY",
+    "name": "Calgary Flames"
+  },
+  {
+    "id": 21,
+    "abbr": "COL",
+    "name": "Colorado Avalanche"
+  },
+  {
+    "id": 22,
+    "abbr": "EDM",
+    "name": "Edmonton Oilers"
+  },
+  {
+    "id": 23,
     "abbr": "VAN",
     "name": "Vancouver Canucks"
   },
   {
-    "abbr": "VGK",
-    "name": "Vegas Golden Knights"
+    "id": 24,
+    "abbr": "ANA",
+    "name": "Anaheim Ducks"
   },
   {
+    "id": 25,
+    "abbr": "DAL",
+    "name": "Dallas Stars"
+  },
+  {
+    "id": 26,
+    "abbr": "LAK",
+    "name": "Los Angeles Kings"
+  },
+  {
+    "id": 27,
+    "abbr": "PHX",
+    "name": "Phoenix Coyotes"
+  },
+  {
+    "id": 28,
+    "abbr": "SJS",
+    "name": "San Jose Sharks"
+  },
+  {
+    "id": 29,
+    "abbr": "CBJ",
+    "name": "Columbus Blue Jackets"
+  },
+  {
+    "id": 30,
+    "abbr": "MIN",
+    "name": "Minnesota Wild"
+  },
+  {
+    "id": 31,
+    "abbr": "MNS",
+    "name": "Minnesota North Stars"
+  },
+  {
+    "id": 32,
+    "abbr": "QUE",
+    "name": "Quebec Nordiques"
+  },
+  {
+    "id": 33,
+    "abbr": "WIN",
+    "name": "Winnipeg Jets (1979)"
+  },
+  {
+    "id": 34,
+    "abbr": "HFD",
+    "name": "Hartford Whalers"
+  },
+  {
+    "id": 35,
+    "abbr": "CLR",
+    "name": "Colorado Rockies"
+  },
+  {
+    "id": 36,
+    "abbr": "SEN",
+    "name": "Ottawa Senators (1917)"
+  },
+  {
+    "id": 37,
+    "abbr": "HAM",
+    "name": "Hamilton Tigers"
+  },
+  {
+    "id": 38,
+    "abbr": "PIR",
+    "name": "Pittsburgh Pirates"
+  },
+  {
+    "id": 39,
+    "abbr": "QUA",
+    "name": "Philadelphia Quakers"
+  },
+  {
+    "id": 40,
+    "abbr": "DCG",
+    "name": "Detroit Cougars"
+  },
+  {
+    "id": 41,
+    "abbr": "MWN",
+    "name": "Montreal Wanderers"
+  },
+  {
+    "id": 42,
+    "abbr": "QBD",
+    "name": "Quebec Bulldogs"
+  },
+  {
+    "id": 43,
+    "abbr": "MMR",
+    "name": "Montreal Maroons"
+  },
+  {
+    "id": 44,
+    "abbr": "NYA",
+    "name": "New York Americans"
+  },
+  {
+    "id": 45,
+    "abbr": "SLE",
+    "name": "St. Louis Eagles"
+  },
+  {
+    "id": 46,
+    "abbr": "OAK",
+    "name": "Oakland Seals"
+  },
+  {
+    "id": 47,
+    "abbr": "AFM",
+    "name": "Atlanta Flames"
+  },
+  {
+    "id": 48,
+    "abbr": "KCS",
+    "name": "Kansas City Scouts"
+  },
+  {
+    "id": 49,
+    "abbr": "CLE",
+    "name": "Cleveland Barons"
+  },
+  {
+    "id": 50,
+    "abbr": "DFL",
+    "name": "Detroit Falcons"
+  },
+  {
+    "id": 51,
+    "abbr": "BRK",
+    "name": "Brooklyn Americans"
+  },
+  {
+    "id": 52,
     "abbr": "WPG",
     "name": "Winnipeg Jets"
   },
   {
-    "abbr": "WSH",
-    "name": "Washington Capitals"
+    "id": 53,
+    "abbr": "ARI",
+    "name": "Arizona Coyotes"
+  },
+  {
+    "id": 54,
+    "abbr": "VGK",
+    "name": "Vegas Golden Knights"
+  },
+  {
+    "id": 55,
+    "abbr": "SEA",
+    "name": "Seattle Kraken"
+  },
+  {
+    "id": 56,
+    "abbr": "CGS",
+    "name": "California Golden Seals"
+  },
+  {
+    "id": 57,
+    "abbr": "TAN",
+    "name": "Toronto Arenas"
+  },
+  {
+    "id": 58,
+    "abbr": "TSP",
+    "name": "Toronto St. Patricks"
+  },
+  {
+    "id": 59,
+    "abbr": "UTA",
+    "name": "Utah Hockey Club"
+  },
+  {
+    "id": 68,
+    "abbr": "UTA",
+    "name": "Utah Mammoth"
+  },
+  {
+    "id": 70,
+    "abbr": "TBD",
+    "name": "To be determined"
+  },
+  {
+    "id": 99,
+    "abbr": "NHL",
+    "name": "NHL"
   }
 ]

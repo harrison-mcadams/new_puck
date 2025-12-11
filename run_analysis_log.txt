@@ -1,0 +1,7 @@
+Config: Mode=standard, Workers=4, Platform=Mac/Other
+Traceback (most recent call last):
+  File "/Users/harrisonmcadams/Desktop/new_puck/scripts/run_player_analysis.py", line 19, in <module>
+    from puck.plot import add_summary_text, plot_events, plot_relative_map
+  File "/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py", line 1346, in <module>
+    stats: Dict[str, Any],
+NameError: name 'Any' is not defined. Did you mean: 'any'?
