@@ -57,8 +57,12 @@ else:
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 CACHE_DIR = os.path.join(DATA_DIR, 'cache')
+ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis')
 
 def get_cache_dir(season):
     return os.path.join(CACHE_DIR, season)
+
+def get_analysis_dir(season):
+    return os.path.join(ANALYSIS_DIR, season)
 
 print(f"Config: Mode={MEMORY_MODE}, Workers={MAX_WORKERS}, Platform={'Pi' if IS_PI else 'Mac/Other'}")
