@@ -57,13 +57,27 @@ def run_analysis():
     drop_cols = ['event_description', 'game_date']
     for c in drop_cols:
         if c in df_data.columns:
+            # removing event_description is fine, but keep game_date if needed for verify? no.
             df_data.drop(columns=[c], inplace=True)
+    # df_data now held in memory for raw plotting
     gc.collect()
 
     # 2. Identify Players & Updates
     # We only care about 5v5 for now to match old script
+    # 2. Identify Players & Updates
+    # We only care about 5v5 for now to match old script
     COND = '5v5'
     base_cond = {'game_state': ['5v5'], 'is_net_empty': [0]}
+    
+    # Filter df_data globally for this condition to ensure raw plots are 5v5 only
+    from puck.parse import build_mask
+    if not df_data.empty:
+        mask = build_mask(df_data, base_cond)
+        df_data = df_data[mask].copy()
+        print(f"DEBUG: Filtered df_data size: {len(df_data)}")
+        if len(df_data) > 0:
+            print(f"DEBUG: Sample game_ids in global df: {df_data['game_id'].unique()[:5]}")
+        gc.collect()
     
     # Load Manifest
     manifest_path = os.path.join(league_out_dir, 'map_manifest.json')
@@ -168,15 +182,26 @@ def run_analysis():
                     
                     # For each player in chunk
                     for pid in chunk:
+                        # Ensure PID is int for key lookup
+                        try:
+                            pid_int = int(pid)
+                        except:
+                            pid_int = pid
+                            
                         # Check keys
-                        k_grid = f"p_{pid}_grid_team" # or grid_other
+                        k_grid = f"p_{pid_int}_grid_team" 
+                        # or grid_other
                         # Wait, process_daily_cache saves 'p_{pid}_grid_team' and 'p_{pid}_grid_other'
                         
-                        if k_grid not in data: continue
+                        if k_grid not in data: 
+                             # print(f"DEBUG: {k_grid} not in {path}")
+                             continue
+                        
+                        # print(f"DEBUG: Found {k_grid}")
                         
                         # Sum Grids
-                        g_tm = data[f"p_{pid}_grid_team"]
-                        g_ot = data[f"p_{pid}_grid_other"] if f"p_{pid}_grid_other" in data else None
+                        g_tm = data[f"p_{pid_int}_grid_team"]
+                        g_ot = data[f"p_{pid_int}_grid_other"] if f"p_{pid_int}_grid_other" in data else None
                         
                         if agg_data[pid]['grid_team'] is None:
                             agg_data[pid]['grid_team'] = g_tm.astype(np.float64)
@@ -190,7 +215,7 @@ def run_analysis():
                                 agg_data[pid]['grid_other'] += g_ot
                                 
                         # Stats
-                        k_stats = f"p_{pid}_stats"
+                        k_stats = f"p_{pid_int}_stats"
                         if k_stats in data:
                             s_str = str(data[k_stats])
                             # It was saved as json string in npz?
@@ -206,7 +231,9 @@ def run_analysis():
         # Generate Plots for Chunk
         for pid in chunk:
             data = agg_data[pid]
-            if not data['stats']: continue
+            if not data['stats']: 
+                print(f"DEBUG: No stats for {pid}")
+                continue
             
             # Aggregate stats
              # Sum numerical fields
@@ -227,19 +254,34 @@ def run_analysis():
             xg_ag_60 = (xg_ag / seconds) * 3600
             
             # Determine Team
-            # Mode of teams in stats?
-            # Or just use pre-loaded
-            # We need explicit team for output usage
-            # Let's use name map
-            pname = pid_name_map.get(pid, f"Player {pid}")
+            pname = pid_name_map.get(pid_int, f"Player {pid_int}") # Use pid_int here too
+
+            # Stats dict missing 'team' key apparently.
+            # Derive from df_data events
+            # We already filter p_df later, but we need team now for directory.
+            # Let's peek at df_data for this pid
+            # We can use p_df logic here or just do a quick lookup
+            # But we haven't created p_df yet.
+            # Let's create p_df earlier
+            p_df = df_data[(df_data['player_id'] == pid)].copy()
             
-            # Find team from stats
-            team_counts = {}
-            for s in data['stats']:
-                t = s.get('team', 'UNK')
-                team_counts[t] = team_counts.get(t, 0) + 1
-            p_team = max(team_counts, key=team_counts.get) if team_counts else 'UNK'
+            p_team = 'UNK'
+            if not p_df.empty and 'team_id' in p_df.columns:
+                 # Get most common team_id
+                 tid_mode = p_df['team_id'].mode()
+                 if not tid_mode.empty:
+                     tid = int(tid_mode[0])
+                     p_team = t_map.get(tid, 'UNK')
             
+            if p_team == 'UNK':
+                 # Fallback to stats if available (unlikely based on debug)
+                 team_counts = {}
+                 for s in data['stats']:
+                     t = s.get('team', 'UNK')
+                     team_counts[t] = team_counts.get(t, 0) + 1
+                 if team_counts:
+                     p_team = max(team_counts, key=team_counts.get)
+
             # Output Dir
             out_dir_team = os.path.join(out_dir_base, f'{season}/{p_team}')
             os.makedirs(out_dir_team, exist_ok=True)
@@ -248,8 +290,9 @@ def run_analysis():
             team_map = data['grid_team']
             other_map = data['grid_other']
             
+            
             # Plot Relative
-            rel_path = os.path.join(out_dir_team, f"{pid}_relative.png")
+            rel_path = os.path.join(out_dir_team, f"{pid_int}_relative.png")
             if team_map is not None and league_map is not None:
                 try:
                     combined_rel, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
@@ -315,17 +358,34 @@ def run_analysis():
             # Plot Raw Map with Shots (Legacy Requirement)
             # We filter df_data for this player
             try:
-                p_out_path = os.path.join(out_dir_team, f"{pid}_map.png")
-                # Need just the shots df
-                # Filter by player_id
-                p_df = df_data[(df_data['player_id'] == pid) & df_data['game_id'].isin(chunk_games)].copy()
+                p_out_path = os.path.join(out_dir_team, f"{pid_int}_map.png")
+                # Need just the shots df for this player
+                # p_df already created above
+                if p_df.empty:
+                    print(f"DEBUG: No raw events for {pid_int} in filtered df_data (len={len(df_data)})")
+                else: 
+                     print(f"Plotting raw map for {pid_int} -> {p_out_path}")
                 
-                # We need to replicate analyze.players call to plot_events
-                # Pass summary stats
+                # Custom styles for raw plot consistency
+                custom_styles = {
+                    'goal': {'marker': 'D', 'size': 80, 'team_color': 'green', 'away_color': 'green', 'zorder': 10},
+                    'shot-on-goal': {'marker': 'o', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'},
+                    'missed-shot': {'marker': 'x', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'},
+                    'blocked-shot': {'marker': '^', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'}
+                }
+
                 plot_events(
-                    p_df, out_path=p_out_path, title=pname, summary_stats=txt_props,
-                    plot_kwargs={'is_season_summary': True, 'filter_str': '5v5', 'team_for_heatmap': p_team}
+                    p_df, 
+                    events_to_plot=['goal', 'shot-on-goal', 'missed-shot', 'blocked-shot'],
+                    event_styles=custom_styles,
+                    out_path=p_out_path, 
+                    title=f"{pname} - {p_team}", 
+                    summary_stats=txt_props,
+                    heatmap_split_mode='home_away', # Player raw map usually just shows their shots
+                    plot_kwargs={'is_season_summary': True, 'filter_str': '5v5', 'team_for_heatmap': p_team},
+                    return_heatmaps=False
                 )
+                plt.close('all')
                 plt.close('all')
             except Exception as e:
                 pass
