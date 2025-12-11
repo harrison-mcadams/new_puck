@@ -30,6 +30,7 @@ def run_analysis():
     os.makedirs(league_out_dir, exist_ok=True)
     
     print(f"--- Cached Player Analysis for {season} ---")
+    print(f"DEBUG: Process ID: {os.getpid()}")
     
     # 1. Load DataFrame (needed for scatter plots of events)
     print("Loading season data...")
@@ -117,6 +118,8 @@ def run_analysis():
     
     # Sanitize PIDs to ensure uniqueness and type consistency
     pids_to_process = sorted(list(set([int(p) for p in pids_to_process if str(p).replace('.0','').isdigit()])))
+    # pids_to_process = [8483085]
+    # print(f"DEBUG: FORCED SINGLE PID: {pids_to_process}")
     print(f"Sanitized PIDs: {len(pids_to_process)} unique integers.")
     print(f"DEBUG_UNIQUENESS: Total={len(pids_to_process)}, Unique={len(set(pids_to_process))}")
     if len(pids_to_process) != len(set(pids_to_process)):
@@ -144,6 +147,9 @@ def run_analysis():
     # 4. Processing Loop (Chunks)
     chunk_size = config.BATCH_SIZE
     pids_sorted = sorted(pids_to_process)
+    print(f"DEBUG: Final pids_sorted len={len(pids_sorted)}")
+    print(f"DEBUG: Final pids_sorted unique len={len(set(pids_sorted))}")
+    print(f"DEBUG: Start of pids_sorted: {pids_sorted[:10]}")
     
     # Resolve Partial Files
     cache_dir = os.path.join(config.get_cache_dir(season), 'partials')
@@ -169,6 +175,7 @@ def run_analysis():
     for i in range(0, len(pids_sorted), chunk_size):
         chunk = pids_sorted[i:i+chunk_size]
         print(f"Processing chunk {i//chunk_size + 1}: {len(chunk)} players...")
+        print(f"DEBUG: Chunk values: {chunk}")
         
         # Aggregate Data for Chunk
         # Dict: pid -> { 'grid_team': ..., 'grid_other': ..., 'stats': {} }
@@ -237,12 +244,17 @@ def run_analysis():
                             agg_data[pid]['stats'].append(s_dict)
                             
                 loaded_games += 1
-            except Exception as e:
-                # print(f"Error reading {path}: {e}")
+            except Exception:
                 pass
                 
         # Generate Plots for Chunk
         for pid in chunk:
+            # FIX: Update pid_int for this loop iteration
+            try:
+                pid_int = int(pid)
+            except:
+                pid_int = pid
+                
             data = agg_data[pid]
             if not data['stats']: 
                 print(f"DEBUG: No stats for {pid}")
@@ -271,6 +283,7 @@ def run_analysis():
             
             # Defense against phantom duplication
             if pid in processed_pids:
+                print(f"DEBUG: SKIPPING {pid} (Already Processed)")
                 continue
             processed_pids.add(pid)
             
