@@ -114,6 +114,17 @@ def run_analysis():
             pids_to_process.append(pid)
             
     print(f"Found {len(pids_to_process)} players needing updates.")
+    
+    # Sanitize PIDs to ensure uniqueness and type consistency
+    pids_to_process = sorted(list(set([int(p) for p in pids_to_process if str(p).replace('.0','').isdigit()])))
+    print(f"Sanitized PIDs: {len(pids_to_process)} unique integers.")
+    print(f"DEBUG_UNIQUENESS: Total={len(pids_to_process)}, Unique={len(set(pids_to_process))}")
+    if len(pids_to_process) != len(set(pids_to_process)):
+         from collections import Counter
+         c = Counter(pids_to_process)
+         print(f"DEBUG: Duplicates found: {c.most_common(5)}")
+    
+    print(f"DEBUG: df_data['player_id'] type: {df_data['player_id'].dtype}")
 
     # 3. Load League Baseline (for relative maps)
     # Using analyze.league from cache (or standard)
@@ -153,6 +164,8 @@ def run_analysis():
         
     stats_accumulator = []
 
+    # Processing Loop
+    processed_pids = set()
     for i in range(0, len(pids_sorted), chunk_size):
         chunk = pids_sorted[i:i+chunk_size]
         print(f"Processing chunk {i//chunk_size + 1}: {len(chunk)} players...")
@@ -255,7 +268,12 @@ def run_analysis():
             
             # Determine Team
             pname = pid_name_map.get(pid_int, f"Player {pid_int}") # Use pid_int here too
-
+            
+            # Defense against phantom duplication
+            if pid in processed_pids:
+                continue
+            processed_pids.add(pid)
+            
             # Stats dict missing 'team' key apparently.
             # Derive from df_data events
             # We already filter p_df later, but we need team now for directory.

@@ -374,12 +374,15 @@ def plot_events(
             c2 = away_c
 
         if not grp1.empty:
-            h = ax.scatter(grp1[xcol], grp1[ycol], c=c1, marker=m, s=s, edgecolors='none', zorder=5, alpha=0.7)
+            # Fix for 'x' marker warning: use edgecolors='face' or remove 'none'
+            ec = 'face' if m == 'x' else 'none'
+            h = ax.scatter(grp1[xcol], grp1[ycol], c=c1, marker=m, s=s, edgecolors=ec, zorder=5, alpha=0.7)
             if ev_type not in labels:
                 handles.append(h)
                 labels.append(ev_type)
         if not grp2.empty:
-            h2 = ax.scatter(grp2[xcol], grp2[ycol], c=c2, marker=m, s=s, edgecolors='none', zorder=5, alpha=0.7)
+            ec = 'face' if m == 'x' else 'none'
+            h2 = ax.scatter(grp2[xcol], grp2[ycol], c=c2, marker=m, s=s, edgecolors=ec, zorder=5, alpha=0.7)
             if ev_type not in labels:
                 handles.append(h2)
                 labels.append(ev_type)
