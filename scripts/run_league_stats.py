@@ -98,9 +98,9 @@ def run_league_analysis():
         
         # Prepare filtered DF for (Raw Plotting)
         df_cond = pd.DataFrame()
-        cond_dict = {'5v5': {'game_state': ['5v5']}, 
-                     '5v4': {'game_state': ['5v4']}, 
-                     '4v5': {'game_state': ['4v5']}}.get(cond)
+        cond_dict = {'5v5': {'game_state': ['5v5'], 'is_net_empty': 0}, 
+                     '5v4': {'game_state': ['5v4'], 'is_net_empty': 0}, 
+                     '4v5': {'game_state': ['4v5'], 'is_net_empty': 0}}.get(cond)
         if cond_dict and not df_season.empty:
             mask = build_mask(df_season, cond_dict)
             df_cond = df_season[mask].copy()
@@ -389,8 +389,9 @@ def run_league_analysis():
                 im = ax.imshow(rel_grid_masked_ma, extent=extent, origin='lower', cmap=cmap, norm=norm, alpha=0.8)
                 
                 # Summary Text
+                display_cond = f"{cond} | Empty Net: False"
                 add_summary_text(ax=ax, stats=s, main_title=f"{tname} Relative xG", 
-                                 is_season_summary=True, team_name=tname, full_team_name=tname, filter_str=cond)
+                                 is_season_summary=True, team_name=tname, full_team_name=tname, filter_str=display_cond)
                                  
                 ax.axis('off')
                 cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
