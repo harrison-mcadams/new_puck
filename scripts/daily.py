@@ -10,6 +10,7 @@ Workflow:
 
 import os
 import sys
+import subprocess
 import argparse
 import pandas as pd
 import gc
@@ -135,8 +136,6 @@ def main():
         # Looking at run_player_analysis.py, it runs on import if __name__ == "__main__".
         # We should probably refactor it slightly or just use subprocess to be safe and clean.
         # Subprocess is safer to avoid global state pollution between scripts.
-        import subprocess
-        
         # Determine paths to sibling scripts
         script_dir = os.path.dirname(os.path.abspath(__file__))
         player_analysis_script = os.path.join(script_dir, 'run_player_analysis.py')
