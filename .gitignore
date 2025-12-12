@@ -38,6 +38,7 @@ analysis/
 *.npz
 *.npy
 repro_*.txt
+run_analysis_log_*.txt
 
 # Generated images (root)
 *.png
