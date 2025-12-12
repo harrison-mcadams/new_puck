@@ -11,7 +11,7 @@ from puck import timing
 
 def debug_game():
     season = '20252026'
-    game_id = '2025020460'
+    game_id = '2025020001'
     
     print(f"Debugging Game {game_id}...")
     
@@ -49,19 +49,15 @@ def debug_game():
             condition={'game_state': ['5v5']}
         )
         
-        home_grid = heatmaps.get('home')
-        away_grid = heatmaps.get('away')
-        
-        print("\n--- Grid Results ---")
-        if home_grid is not None:
-            print(f"Home Grid: nan={np.isnan(home_grid).any()}, max={np.nanmax(home_grid)}")
+        if heatmaps:
+            print(f"Heatmap Keys: {list(heatmaps.keys())}")
+            for k, grid in heatmaps.items():
+                if grid is not None:
+                     print(f"Grid {k}: nan={np.isnan(grid).any()}, max={np.nanmax(grid)}")
+                else:
+                    print(f"Grid {k} is None")
         else:
-            print("Home Grid is None")
-            
-        if away_grid is not None:
-             print(f"Away Grid: nan={np.isnan(away_grid).any()}, max={np.nanmax(away_grid)}")
-        else:
-            print("Away Grid is None")
+            print("No heatmaps returned.")
             
         print("\n--- Stats ---")
         print(stats)

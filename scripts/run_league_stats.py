@@ -206,32 +206,8 @@ def run_league_analysis():
                         opp_map = {}
                         
                     for tid in tids_in_game:
+                         # Ensure we loaded the grid
                         if tid not in game_grids: continue
-                        
-                        grid_for = game_grids[tid]
-                        
-                        # Find Opponent Grid (Against)
-                        grid_against = np.zeros_like(grid_for)
-                        if tid in opp_map:
-                            opp_id = opp_map[tid]
-                            if opp_id in game_grids:
-                                # Rotate Opponent's For Grid to become This Team's Against Grid
-                                # Opponent Shoots Left -> Rotate 180 -> Opponent Shoots Right (Defended by This Team)
-                                grid_against = np.rot90(game_grids[opp_id], 2)
-                                
-                        full_game_grid = grid_for + grid_against
-                        
-                        # Add to Team Accumulator
-                        if tid not in team_grids:
-                            team_grids[tid] = full_game_grid.astype(np.float64)
-                        else:
-                            team_grids[tid] += full_game_grid
-                            
-                        # Add to League Accumulator
-                        if league_grid_sum is None:
-                            league_grid_sum = full_game_grid.astype(np.float64)
-                        else:
-                            league_grid_sum += full_game_grid
                             
             except Exception as e:
                 print(f"Error processing {fname}: {e}")

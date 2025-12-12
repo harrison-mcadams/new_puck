@@ -4,7 +4,8 @@ import sys
 
 # Find a valid cache file
 cache_dir = "data/cache/20252026/partials"
-files = [f for f in os.listdir(cache_dir) if f.endswith('5v5.npz') and 'empty' not in f]
+fname = "2025020001_5v5.npz"
+files = [fname]
 
 if not files:
     print("No cache files found.")
