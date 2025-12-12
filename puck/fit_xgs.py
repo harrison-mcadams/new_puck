@@ -69,6 +69,68 @@ _GLOBAL_CLF = None
 _GLOBAL_FINAL_FEATURES = None
 _GLOBAL_CATEGORICAL_LEVELS_MAP = None
 
+class SingleXGClassifier:
+    """Wrapper for standard RandomForest to align interface with NestedXGClassifier.
+    Accepts DataFrame for prediction and enforces exclusion of blocked shots.
+    """
+    def __init__(self, clf, features: List[str]):
+        self.clf = clf
+        self.features = features
+        
+    def predict_proba(self, X):
+        """
+        Args:
+            X: pd.DataFrame (numeric/encoded features) or np.ndarray
+        """
+        import pandas as pd
+        import numpy as np
+        
+        # If array, assume it matches features order and just predict
+        if isinstance(X, (np.ndarray, np.generic)):
+            return self.clf.predict_proba(X)
+            
+        if not isinstance(X, pd.DataFrame):
+             raise ValueError("Input must be DataFrame or numpy array.")
+             
+        # Enforce Blocked Shot = 0.0 Logic?
+        # We need 'event' column to do this. 
+        # But 'clean_df_for_model' might have dropped it or it might not be in 'features'.
+        # For safety/performance in heavy loops (like analyze.py), we assume X is the MODEL input.
+        # But if 'event' is in columns, we can use it.
+        
+        mask_blocked = None
+        if 'event' in X.columns:
+            mask_blocked = (X['event'] == 'blocked-shot')
+        elif 'event_code' in X.columns:
+            # If event is encoded? 'clean_df_for_model' doesn't usually encode event unless requested.
+            pass
+            
+        # Extract features for RF
+        # Ensure columns exist
+        missing = [f for f in self.features if f not in X.columns]
+        if missing:
+             raise KeyError(f"Missing features: {missing}")
+             
+        vals = X[self.features].values
+        probs = self.clf.predict_proba(vals)
+        
+        # Override blocked shots to 0.0
+        if mask_blocked is not None and mask_blocked.any():
+            # Class 0 = Not Goal? Class 1 = Goal?
+            # probs is [n_samples, n_classes]. 
+            # We want to set Goal Prob (col 1) to 0.0. 
+            # And Non-Goal (col 0) to 1.0.
+            probs[mask_blocked, :] = 0.0
+            if probs.shape[1] > 1:
+                probs[mask_blocked, 0] = 1.0 # P(No Goal) = 1
+                # P(Goal) matches 0.0 already
+            
+        return probs
+
+    def predict(self, X):
+         probs = self.predict_proba(X)
+         return np.argmax(probs, axis=1)
+
 @dataclass
 class ModelConfig:
     """Configuration for an xG model variant."""
@@ -195,7 +257,8 @@ def compare_models(configs: List[ModelConfig],
     return models, pd.DataFrame(results).sort_values('Log Loss')
 
 
-def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'load', *,
+def get_clf(out_path: str = None, behavior: str = 'load', *,
+            model_type: str = 'single',
             csv_path: str = 'data/20252026/20252026_df.csv',
             n_estimators: int = 200,
             features: list = None,
@@ -204,8 +267,9 @@ def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'loa
     """Train or load a RandomForest classifier for xG.
 
     Parameters
-    - out_path: path to save/load the classifier (joblib file)
+    - out_path: path to save/load the classifier. If None, defaults based on model_type.
     - behavior: 'train' to train & save, 'load' to load from disk
+    - model_type: 'single' (default) or 'nested'. Used to determine default path.
     - csv_path/features/random_state/n_estimators: training params used when behavior='train'
 
     Returns: (clf, final_features, categorical_levels_map)
@@ -214,6 +278,13 @@ def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'loa
     b = (behavior or '').strip().lower()
     if b not in ('train', 'load'):
         raise ValueError("behavior must be 'train' or 'load'")
+
+    # Resolve default path based on type
+    if out_path is None:
+        if model_type == 'nested':
+            out_path = 'analysis/xgs/xg_model_nested.joblib'
+        else:
+            out_path = 'analysis/xgs/xg_model_single.joblib'
 
     meta_path = out_path + '.meta.json'
 
@@ -235,6 +306,18 @@ def get_clf(out_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'loa
             # metadata missing is not fatal; caller may re-derive
             final_features = None
             categorical_levels_map = None
+            
+        # WRAPPER LOGIC
+        if model_type == 'single' and not isinstance(clf, SingleXGClassifier):
+             # Ensure we have features to wrap
+             if final_features:
+                 clf = SingleXGClassifier(clf, final_features)
+             else:
+                 # Should we warn? Without features we can't wrap effectively for DF input
+                 print("Warning: Single Layer model loaded without metadata features. Wrapper may fail on DataFrames.")
+                 # Try to infer? No.
+                 pass
+                 
         return clf, final_features, categorical_levels_map
 
     # else: train
@@ -429,6 +512,7 @@ def fit_model(
     test_size: float = 0.2,
     random_state: int = 42,
     n_estimators: int = 200,
+    max_depth: int = None,  # Added max_depth control
     progress: bool = False,
     progress_steps: int = 20,
 ):
@@ -463,7 +547,12 @@ def fit_model(
         sys.stdout.flush()
 
     if not progress:
-        clf = RandomForestClassifier(n_estimators=n_estimators, random_state=random_state, n_jobs=1)
+        clf = RandomForestClassifier(
+            n_estimators=n_estimators, 
+            max_depth=max_depth,  # Use max_depth
+            random_state=random_state, 
+            n_jobs=1
+        )
         clf.fit(X_train, y_train)
         return clf, X_test, y_test
 

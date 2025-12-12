@@ -82,10 +82,13 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
       
     Final Probability = P(Unblocked) * P(On Net) * P(Goal)
     """
-    def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val=-1):
+    def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val=-1, 
+                 max_depth=10, prevent_overfitting=True):
         self.random_state = random_state
         self.n_estimators = n_estimators
         self.unknown_shot_type_val = unknown_shot_type_val
+        self.max_depth = max_depth if prevent_overfitting else None
+        self.prevent_overfitting = prevent_overfitting
         
         self.model_block = None
         self.model_accuracy = None
@@ -97,15 +100,18 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         # Note: We assume the input DataFrame has the necessary columns (or we create them)
         self.config_block = LayerConfig(
             name="Block Model", target_col='is_blocked', positive_label=1,
-            feature_cols=['distance', 'angle_deg', 'is_net_empty', 'game_state_encoded']
+            feature_cols=['distance', 'angle_deg', 'is_net_empty', 'game_state_encoded'],
+            max_depth=self.max_depth, n_estimators=self.n_estimators
         )
         self.config_accuracy = LayerConfig(
             name="Accuracy Model", target_col='is_on_net', positive_label=1,
-            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded'],
+            max_depth=self.max_depth, n_estimators=self.n_estimators
         )
         self.config_finish = LayerConfig(
             name="Finish Model", target_col='is_goal_layer', positive_label=1,
-            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded'],
+            max_depth=self.max_depth, n_estimators=self.n_estimators
         )
 
     def fit(self, X, y=None):
@@ -120,24 +126,53 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         # --- Preprocessing (Internal) ---
         if 'event' not in df.columns:
             raise ValueError("NestedXGClassifier requires 'event' column in X for training to determine layer targets.")
-            
+
+        # 1. Handle Missing/Categorical
+        if 'shot_type' not in df.columns:
+            df['shot_type'] = 'Unknown'
+        df['shot_type'] = df['shot_type'].fillna('Unknown')
+        
+        df['game_state'] = df['game_state'].fillna('5v5')
+
+        # Fit Encoders
+        self.le_shot = LabelEncoder()
+        df['shot_type_encoded'] = self.le_shot.fit_transform(df['shot_type'].astype(str))
+        
+        self.le_state = LabelEncoder()
+        df['game_state_encoded'] = self.le_state.fit_transform(df['game_state'].astype(str))
+
         # Create Layer Targets
         df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
         df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
         df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
 
         # 2. Train Layer 1: Block Model (All Data)
-        self.model_block = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
+        self.model_block = RandomForestClassifier(
+            n_estimators=self.config_block.n_estimators, 
+            max_depth=self.config_block.max_depth, 
+            random_state=self.random_state, 
+            n_jobs=-1
+        )
         self.model_block.fit(df[self.config_block.feature_cols], df[self.config_block.target_col])
         
         # 3. Train Layer 2: Accuracy Model (Unblocked Only)
         df_unblocked = df[df['is_blocked'] == 0]
-        self.model_accuracy = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
+        self.model_accuracy = RandomForestClassifier(
+            n_estimators=self.config_accuracy.n_estimators, 
+            max_depth=self.config_accuracy.max_depth, 
+            random_state=self.random_state, 
+            n_jobs=-1
+        )
         self.model_accuracy.fit(df_unblocked[self.config_accuracy.feature_cols], df_unblocked[self.config_accuracy.target_col])
 
         # 4. Train Layer 3: Finish Model (On Net Only)
         df_on_net = df[df['is_on_net'] == 1]
-        self.model_finish = RandomForestClassifier(n_estimators=self.n_estimators, max_depth=10, random_state=self.random_state, n_jobs=-1)
+        self.model_finish = RandomForestClassifier(
+            n_estimators=self.config_finish.n_estimators, 
+            max_depth=self.config_finish.max_depth, 
+            random_state=self.random_state, 
+            n_jobs=-1
+        )
         self.model_finish.fit(df_on_net[self.config_finish.feature_cols], df_on_net[self.config_finish.target_col])
         
         # 5. Learn Shot Type Priors (Calculated from UNBLOCKED shots only, matching user intent)
@@ -164,8 +199,43 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         if not isinstance(X, pd.DataFrame):
              raise ValueError("NestedXGClassifier.predict_proba expects a pandas DataFrame.")
              
+        # Don't modify original X
+        df = X.copy()
+        
+        # Apply encodings using stored encoders
+        if getattr(self, 'le_shot', None):
+            if 'shot_type' not in df.columns:
+                 df['shot_type'] = 'Unknown'
+            df['shot_type'] = df['shot_type'].fillna('Unknown')
+            
+            # Robust Transform: Map unseen to 'Unknown' or fill with known? 
+            # Simple approach: Replace unseen with mode or 'Unknown' if valid?
+            # Sklearn LE errors on unseen.
+            # We will use map.
+            
+            # Shot Type
+            shot_map = dict(zip(self.le_shot.classes_, self.le_shot.transform(self.le_shot.classes_)))
+            # Fallback for unknown: use 'Unknown' if in map, else first class?
+            fallback = shot_map.get('Unknown', 0)
+            df['shot_type_encoded'] = df['shot_type'].astype(str).map(shot_map).fillna(fallback).astype(int)
+            
+        else:
+            # Fallback if fit wasn't called properly? Or loaded old model?
+            # We assume fit ran.
+            if 'shot_type_encoded' not in df.columns:
+                 raise ValueError("Model not fitted or features missing.")
+
+        if getattr(self, 'le_state', None):
+            if 'game_state' not in df.columns:
+                 df['game_state'] = '5v5'
+            df['game_state'] = df['game_state'].fillna('5v5')
+            
+            state_map = dict(zip(self.le_state.classes_, self.le_state.transform(self.le_state.classes_)))
+            fallback_state = state_map.get('5v5', 0)
+            df['game_state_encoded'] = df['game_state'].astype(str).map(state_map).fillna(fallback_state).astype(int)
+        
         # 1. Block Prob (Independent of shot type)
-        p_blocked = self.model_block.predict_proba(X[self.config_block.feature_cols])[:, 1]
+        p_blocked = self.model_block.predict_proba(df[self.config_block.feature_cols])[:, 1]
         p_unblocked = 1.0 - p_blocked
         
         # 2. Goal Prob (Conditional on Unblocked)
@@ -178,7 +248,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         #   Calculate Expected Value over all possible shot types.
         
         # Initialize arrays
-        p_goal_given_unblocked = np.zeros(len(X))
+        p_goal_given_unblocked = np.zeros(len(df))
         
         # Identify rows to marginalize
         feature_cols_acc = self.config_accuracy.feature_cols
@@ -187,25 +257,25 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         # Check if we have priors to marginalize with
         can_marginalize = (
             self.shot_type_priors is not None 
-            and 'shot_type_encoded' in X.columns
+            and 'shot_type_encoded' in df.columns
             and self.unknown_shot_type_val is not None
         )
         
-        mask_impute = np.zeros(len(X), dtype=bool)
+        mask_impute = np.zeros(len(df), dtype=bool)
         if can_marginalize:
-            mask_impute = (X['shot_type_encoded'] == self.unknown_shot_type_val)
+            mask_impute = (df['shot_type_encoded'] == self.unknown_shot_type_val)
             
         # A. Direct Calculation (Known Types)
         mask_direct = ~mask_impute
         if np.any(mask_direct):
-            X_direct = X.loc[mask_direct]
+            X_direct = df.loc[mask_direct]
             p_on_net_d = self.model_accuracy.predict_proba(X_direct[feature_cols_acc])[:, 1]
             p_finish_d = self.model_finish.predict_proba(X_direct[feature_cols_fin])[:, 1]
             p_goal_given_unblocked[mask_direct] = p_on_net_d * p_finish_d
             
         # B. Marginalized Calculation (Unknown Types)
         if np.any(mask_impute):
-            X_impute_base = X.loc[mask_impute].copy()
+            X_impute_base = df.loc[mask_impute].copy()
             weighted_prob_sum = np.zeros(len(X_impute_base))
             
             # Loop through each possible shot type

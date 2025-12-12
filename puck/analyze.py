@@ -1290,11 +1290,27 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model.jo
     # predict probabilities when possible
     if clf is not None and df_model.shape[0] > 0 and final_features:
         try:
-            X = df_model[final_features].values
-            probs = clf.predict_proba(X)[:, 1]
+            # Inject 'event' back into df_model so SingleXGClassifier can filter blocked shots
+            # (clean_df_for_model drops it if not in features)
+            if 'event' not in df_model.columns and 'event' in df.columns:
+                df_model['event'] = df.loc[df_model.index, 'event'].values
+
+            # Support both SingleXGClassifier (wrapper) and NestedXGClassifier (native)
+            # Both now accept DataFrame input.
+            probs = clf.predict_proba(df_model)[:, 1]
             df.loc[df_model.index, 'xgs'] = probs
-        except Exception:
-            pass
+        except Exception as e:
+            # Fallback for raw RF if wrapper failed or not used?
+            try:
+                # Remove event if it causes issues for raw RF? 
+                # Raw RF usually takes specific cols list X, so extra cols in DF don't matter 
+                # if we select properly below.
+                X = df_model[final_features].values
+                probs = clf.predict_proba(X)[:, 1]
+                df.loc[df_model.index, 'xgs'] = probs
+            except Exception as e2:
+                print(f"Prediction failed: {e}; Fallback failed: {e2}")
+                pass
 
     return df, clf, (final_features, cat_levels)
 

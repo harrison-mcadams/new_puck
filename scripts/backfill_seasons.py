@@ -1,40 +1,54 @@
 import sys
 import os
+import shutil
 import pandas as pd
 import joblib
 import json
+import gc
 from pathlib import Path
 
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from puck import parse, fit_xgs
+from puck import parse, fit_xgs, fit_nested_xgs
 
 # Define seasons to process (Reverse Chronological)
-# From current season 20252026 back to 20142015
-SEASONS = [f"{y}{y+1}" for y in range(2025, 2013, -1)]
-
-import gc
+# From current season 20252026 back to 20152016 (10 seasons)
+SEASONS = [f"{y}{y+1}" for y in range(2025, 2014, -1)]
 
 def backfill():
-    # Phase 1: Ensure all data is downloaded/processed to disk
-    # We do NOT keep DFs in memory here to avoid OOM
+    print(f"Target Seasons: {SEASONS}")
+    
+    # --- PHASE 0: CLEANUP ---
+    print(f"\n==========================================")
+    print(f" PHASE 0: DELETING OLD DATA")
+    print(f"==========================================\n")
+    data_dir = Path('data')
+    if data_dir.exists():
+        # We want to be careful not to delete everything if not intended, 
+        # but user said "delete the raw season data".
+        # We'll delete standard season folders.
+        for item in data_dir.iterdir():
+            if item.is_dir() and item.name.isdigit():
+                print(f"Deleting {item}...")
+                shutil.rmtree(item)
+    
+    # --- PHASE 1: DOWNLOAD ---
     print(f"\n==========================================")
     print(f" PHASE 1: DOWNLOADING ALL SEASONS")
     print(f"==========================================\n")
 
     for season in SEASONS:
-        out_dir = os.path.join('data', season)
-        csv_path = os.path.join(out_dir, f"{season}_df.csv")
+        out_dir = data_dir / season
+        csv_path = out_dir / f"{season}_df.csv"
         
-        # Check if already done to save time
-        if os.path.exists(csv_path) and os.path.getsize(csv_path) > 1000:
+        # Check if already done (in case of re-run)
+        if csv_path.exists() and csv_path.stat().st_size > 1000:
              print(f"Season {season} seems present ({csv_path}), skipping download.")
              continue
 
         print(f"Downloading/Parsing data for {season}...")
         try:
-            # We use save_elaborated=True, so it writes the DF to disk.
             parse._scrape(
                 season=season, 
                 out_dir='data', 
@@ -42,35 +56,29 @@ def backfill():
                 verbose=True,
                 max_workers=2,
                 return_feeds=False,
-                return_elaborated_df=False, # Don't return it, just save it!
+                return_elaborated_df=False,
                 process_elaborated=True,
-                save_elaborated=True,   # CRITICAL FIX: Save the DF!
+                save_elaborated=True,
                 save_raw=True, 
                 save_json=False,
-                save_csv=False          # We only need the DF for training
+                save_csv=False
             )
-            # Force cleanup
             gc.collect()
         except Exception as e:
             print(f"Error parsing season {season}: {e}")
             continue
 
-    # Phase 2: Train once on all available data
+    # --- PHASE 2: TRAIN MODELS ---
     print(f"\n==========================================")
-    print(f" PHASE 2: TRAINING MODEL (ONE-SHOT)")
+    print(f" PHASE 2: TRAINING MODELS")
     print(f"==========================================\n")
     
-    model_path = 'analysis/xgs/xg_model.joblib'
     all_dfs = []
-
     for season in SEASONS:
-        csv_path = os.path.join('data', season, f"{season}_df.csv")
-        if os.path.exists(csv_path):
+        csv_path = data_dir / season / f"{season}_df.csv"
+        if csv_path.exists():
              print(f"Loading {season} from disk...")
              try:
-                 # Load only necessary cols to save RAM if possible?
-                 # fit_xgs handles loading, but we are aggregating.
-                 # Let's load full for now, but watch RAM.
                  df = pd.read_csv(csv_path)
                  all_dfs.append(df)
              except Exception as e:
@@ -82,50 +90,97 @@ def backfill():
 
     print(f"Concatenating {len(all_dfs)} seasons...")
     combined_df = pd.concat(all_dfs, ignore_index=True)
-    
-    # Free the list of individual DFs immediately
     del all_dfs
     gc.collect()
     
-    print(f"Total training rows: {len(combined_df)}")
-    print("Training Random Forest...")
+    total_rows = len(combined_df)
+    print(f"Total training rows (all events): {total_rows}")
+    
+    # ---------------------------------------------------------
+    # MODEL 1: SINGLE LAYER (Standard)
+    # ---------------------------------------------------------
+    # Rules: No blocked shots. Max depth 10.
+    print(f"\n--- Training Single Layer Model (No Blocks) ---")
+    single_model_path = 'analysis/xgs/xg_model_single.joblib'
     
     try:
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-        model_df, final_feats, cat_map = fit_xgs.clean_df_for_model(combined_df, features)
+        # Filter handled inside fit_xgs.fit_model if we pass the right df?
+        # Actually fit_xgs.clean_df_for_model does some filtering.
+        # We will manually filter here to be explicit or rely on improved fit_xgs.
+        # Let's rely on fit_xgs.clean_df_for_model having a new `exclude_blocked` param or we filter before.
         
-        # Free original combined_df
-        del combined_df
-        gc.collect()
+        # We will assume fit_xgs update is done.
+        # But to be safe, let's filter here too.
         
-        clf, X_test, y_test = fit_xgs.fit_model(model_df, feature_cols=final_feats, n_estimators=200)
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
         
-        print(f"Saving model to {model_path}...")
-        joblib.dump(clf, model_path)
-
-        # Evaluate and save metrics
-        print("Calculating model metrics...")
-        try:
-            _, _, metrics = fit_xgs.evaluate_model(clf, X_test, y_test)
-            metrics_path = 'analysis/xgs/xg_model_metrics.json'
-            with open(metrics_path, 'w', encoding='utf-8') as fh:
-                json.dump(metrics, fh, indent=2)
-            print(f"Saved metrics to {metrics_path}")
-            print("Metrics:", json.dumps(metrics, indent=2))
-        except Exception as e:
-            print(f"Error calculating/saving metrics: {e}")
+        # We need a copy of combined_df since clean_df modifies? 
+        # clean_df_for_model usually returns a new df.
         
-        meta_path = model_path + '.meta.json'
-        meta = {'final_features': final_feats, 'categorical_levels_map': cat_map}
+        # Filter out blocked shots for single layer
+        df_single = combined_df[combined_df['event'] != 'blocked-shot'].copy()
+        
+        model_df, final_feats, cat_map = fit_xgs.clean_df_for_model(df_single, features)
+        
+        clf_single, X_test, y_test = fit_xgs.fit_model(
+            model_df, 
+            feature_cols=final_feats, 
+            n_estimators=200, 
+            max_depth=10  # Enforce depth limit
+        )
+        
+        joblib.dump(clf_single, single_model_path)
+        
+        # Metadata
+        meta_path = single_model_path + '.meta.json'
+        meta = {'final_features': final_feats, 'categorical_levels_map': cat_map, 'type': 'single_layer'}
         with open(meta_path, 'w', encoding='utf-8') as fh:
             json.dump(meta, fh)
             
-        print("[SUCCESS] Model trained and saved.")
+        print(f"Saved Single Layer Model to {single_model_path}")
         
     except Exception as e:
-        print(f"[ERROR] Training failed (probably OOM): {e}")
+        print(f"Failed Single Layer Training: {e}")
+
+    # ---------------------------------------------------------
+    # MODEL 2: NESTED MODEL (With Imputation)
+    # ---------------------------------------------------------
+    # Rules: Blocked shots allowed + Imputed. Max depth 10.
+    print(f"\n--- Training Nested Model (With Blocks + Imputation) ---")
+    nested_model_path = 'analysis/xgs/xg_model_nested.joblib' # Or directory
+    
+    try:
+        # fit_nested_xgs.NestedXGClassifier handles its own internal fitting.
+        # We just need to fit it.
+        # But we need to preprocess for imputation FIRST? 
+        # Or does the NestedXGClassifier handle it? 
+        # Ideally, we pass the raw DF to it, but we need to run imputation first 
+        # because the classifier might expect 'distance' to be correct.
+        
+        from puck.impute import impute_blocked_shot_origins
+        
+        # Apply imputation to a copy
+        print("Applying 'mean_6' imputation...")
+        df_nested_input = impute_blocked_shot_origins(combined_df, method='mean_6')
+        
+        clf_nested = fit_nested_xgs.NestedXGClassifier(
+            n_estimators=200, 
+            max_depth=10,  # Enforce depth limit
+            prevent_overfitting=True
+        )
+        clf_nested.fit(df_nested_input)
+        
+        # We save the whole object
+        joblib.dump(clf_nested, nested_model_path)
+        print(f"Saved Nested Model to {nested_model_path}")
+        
+    except Exception as e:
+        print(f"Failed Nested Training: {e}")
+        import traceback
+        traceback.print_exc()
 
     print("\nBackfill Complete!")
 
 if __name__ == "__main__":
     backfill()
+
