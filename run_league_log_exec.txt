@@ -1,0 +1,184 @@
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+Config: Mode=standard, Workers=4, Platform=Mac/Other
+--- Cached League Analysis for 20252026 ---
+Checking cache dir: /Users/harrisonmcadams/Desktop/new_puck/data/cache/20252026/partials
+Loaded 62 teams from teams.json
+Processing 5v5...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/WPG_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/PHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/SEA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/DAL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CAR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VGK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NYI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/TBL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CGY_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VAN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CBJ_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NJD_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/ANA_season_summary.png
+Traceback (most recent call last):
+  File "/Users/harrisonmcadams/Desktop/new_puck/scripts/run_league_stats.py", line 409, in <module>
+    run_league_analysis()
+  File "/Users/harrisonmcadams/Desktop/new_puck/scripts/run_league_stats.py", line 386, in run_league_analysis
+    fig.savefig(out_path, dpi=120, bbox_inches='tight')
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/figure.py", line 3490, in savefig
+    self.canvas.print_figure(fname, **kwargs)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/backend_bases.py", line 2157, in print_figure
+    self.figure.draw(renderer)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/artist.py", line 94, in draw_wrapper
+    result = draw(artist, renderer, *args, **kwargs)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/figure.py", line 3257, in draw
+    mimage._draw_list_compositing_images(
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axes/_base.py", line 3226, in draw
+    mimage._draw_list_compositing_images(
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/image.py", line 134, in _draw_list_compositing_images
+    a.draw(renderer)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/artist.py", line 71, in draw_wrapper
+    return draw(artist, renderer)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 1404, in draw
+    ticks_to_draw = self._update_ticks()
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 1283, in _update_ticks
+    major_ticks = self.get_major_ticks(len(major_locs))
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 1664, in get_major_ticks
+    tick = self._get_tick(major=True)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 1592, in _get_tick
+    return self._tick_class(self.axes, 0, major=major, **tick_kw)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 429, in __init__
+    super().__init__(*args, **kwargs)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 181, in __init__
+    self._apply_tickdir(tickdir)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/axis.py", line 464, in _apply_tickdir
+    self.tick1line.set_marker(mark1)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/lines.py", line 1214, in set_marker
+    self._marker = MarkerStyle(marker, self._marker.get_fillstyle())
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/markers.py", line 248, in __init__
+    self._set_marker(marker)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/markers.py", line 334, in _set_marker
+    self._recache()
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/markers.py", line 264, in _recache
+    self._marker_function()
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/markers.py", line 757, in _set_tickleft
+    self._transform = Affine2D().scale(-1.0, 1.0)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/transforms.py", line 1901, in __init__
+    self._mtx = matrix.copy()
+KeyboardInterrupt

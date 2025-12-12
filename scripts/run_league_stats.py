@@ -235,8 +235,55 @@ def run_league_analysis():
                             
             except Exception as e:
                 print(f"Error processing {fname}: {e}")
+                continue # Ensure we skip helper logic below if load failed
                 
-        # --- PHASE 2: COMPUTE METRICS ---
+            # --- DEFENSIVE CHECK ---
+            # Verify grids before adding
+            for tid in tids_in_game:
+                if tid not in game_grids: continue
+                
+                grid_for = game_grids[tid]
+                
+                # Check for NaNs or Inf
+                if not np.isfinite(grid_for).all():
+                    print(f"WARNING: infinite/NaN values in 'For' grid for team {tid} in {fname}. Skipping team.")
+                    continue
+                
+                # Find Opponent Grid (Against)
+                grid_against = np.zeros_like(grid_for)
+                if tid in opp_map:
+                    opp_id = opp_map[tid]
+                    if opp_id in game_grids:
+                        op_grid = game_grids[opp_id]
+                        if not np.isfinite(op_grid).all():
+                            print(f"WARNING: infinite/NaN values in Opponent 'For' grid (opp={opp_id}) for team {tid} in {fname}. Skipping team.")
+                            continue
+                            
+                        # Rotate Opponent's For Grid to become This Team's Against Grid
+                        grid_against = np.rot90(op_grid, 2)
+                        
+                full_game_grid = grid_for + grid_against
+                
+                if not np.isfinite(full_game_grid).all():
+                     print(f"CRITICAL WARNING: infinite/NaN values in full_game_grid for team {tid} in {fname}. Skipping.")
+                     continue
+                
+                # Add to Team Accumulator
+                if tid not in team_grids:
+                    team_grids[tid] = full_game_grid.astype(np.float64)
+                else:
+                    team_grids[tid] += full_game_grid
+                    
+                # Add to League Accumulator
+                if league_grid_sum is None:
+                    league_grid_sum = full_game_grid.astype(np.float64)
+                else:
+                    league_grid_sum += full_game_grid
+                    
+                # Sanity check league sum
+                if not np.isfinite(league_grid_sum).all():
+                    print(f"CRITICAL ERROR: League Grid somehow became NaN after processing {fname} team {tid}!") 
+
         if not team_stats:
             print(f"  No stats found for {cond}.")
             continue
@@ -360,13 +407,25 @@ def run_league_analysis():
             # 2. Relative xG Map
             # Team Norm Grid = Team Sum Grid / Team Seconds
             team_norm_grid = grid / s['team_seconds']
-            rel_grid = team_norm_grid - league_norm_grid
+            # Convert to Per 60
+            rel_grid = (team_norm_grid - league_norm_grid) * 3600.0
             
             # Masking and Plotting handled by plot_relative_map
             out_path = os.path.join(out_root, f"{tname}_relative.png")
             try:
                 fig, ax = plt.subplots(figsize=(10, 6))
                 
+                
+                if tname == 'CHI':
+                    print(f"DEBUG: Plotting CHI.")
+                    print(f"  Team Seconds: {s['team_seconds']}")
+                    print(f"  Team Grid: Min={np.min(grid)}, Max={np.max(grid)}, Mean={np.mean(grid)}, HasNan={np.isnan(grid).any()}")
+                    print(f"  League Norm: Min={np.min(league_norm_grid)}, Max={np.max(league_norm_grid)}")
+                    print(f"  Team Norm: Min={np.min(team_norm_grid)}, Max={np.max(team_norm_grid)}")
+                    print(f"  Rel Grid: Min={np.min(rel_grid)}, Max={np.max(rel_grid)}")
+                    # Save debug dump
+                    np.savez('debug_chi_live.npz', grid=grid, team_norm=team_norm_grid, rel_grid=rel_grid, league_norm=league_norm_grid)
+
                 # Use plot_relative_map
                 im = plot_relative_map(
                     ax=ax,

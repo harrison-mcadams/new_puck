@@ -690,6 +690,25 @@ def plot_events(
                     # All shots oriented left, single heatmap
                     gx, gy, heat_all, all_xg, all_seconds = analyze.compute_xg_heatmap_from_df(
                         events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, total_seconds=total_seconds)
+                    # To use team colors, pass 'team_name' matching a key in team_colors
+    
+                    # Force copy to ensure writeability and avoid "output array is read-only" errors
+                    # especially when calculating percentiles/partitions on mmap'd or masked views.
+                    processed_grid = np.array(rel_grid, copy=True)
+                    
+                    # 1. Orientation Adjustment
+                    # If the user wants the "Home" team on the left or right, we can flip.
+                    # Standard: Home team attacks Right? Left?
+                    # New Standard: We assume input is "Team Relative" (Team is Home).
+                    # If we want standard orientation (Home Right), we don't flip.
+                    # But usually heatmaps are shown "Attacking Right" (Offense on Right).
+                    # Our data format: x > 0 is offensive zone?
+                    # Rink: -100 to 100.
+                    # If we assume standard NHL data (Offense variable):
+                    # We don't rotate here unless requested.
+                    
+                    if rotate:
+                        processed_grid = np.rot90(processed_grid)
                     # Overlay as a single color (e.g., black)
                     all_color = 'black'
 
@@ -1394,10 +1413,18 @@ def plot_relative_map(
     # 2. Normalization (Linear, Symmetric around 0)
     # Determine Vmax from masked data (ignore zeroes in neutral zone)
     # Use unmasked data max? Or masked?
-    # Usually masked is better to focus on offensive zone contrast.
-    vmax = np.max(np.abs(processed_grid_ma))
-    if np.ma.is_masked(vmax) or vmax == 0:
-        vmax = 1.0
+    
+    # Robust Scanning for Vmax (Ignore top 0.5% outliers which wash out the map)
+    # This fixes "blank map" issues where one pixel is 10x the rest.
+    # Convert MaskedArray to simple Numpy array with NaNs to avoid "read-only" issues
+    # and partition warnings.
+    p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
+    
+    # If percentile is valid and non-zero, use it. But clamp to absolute max just in case.
+    if np.ma.is_masked(p995) or p995 == 0:
+         vmax = 1.0
+    else:
+         vmax = p995
     
     # Ensure minimum dynamic range to avoid blank plots for low xG diffs
     if vmax < 1e-4:

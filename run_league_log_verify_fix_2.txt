@@ -1,0 +1,880 @@
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/scripts/run_league_stats.py:368: RuntimeWarning:
+
+More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:271: RuntimeWarning:
+
+More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+Config: Mode=standard, Workers=4, Platform=Mac/Other
+--- Cached League Analysis for 20252026 ---
+Checking cache dir: /Users/harrisonmcadams/Desktop/new_puck/data/cache/20252026/partials
+Loaded 62 teams from teams.json
+Processing 5v5...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/WPG_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/PHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/SEA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/DAL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CAR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VGK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NYI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/TBL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CGY_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VAN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CBJ_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NJD_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/ANA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/OTT_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/LAK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/FLA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/UTA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/STL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/WSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NYR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/PIT_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/MIN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/BUF_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/MTL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/SJS_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/BOS_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/COL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/TOR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/DET_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/EDM_season_summary.png
+Saved scatter plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/scatter.png
+  Processed 32 teams for 5v5.
+Processing 5v4...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/BUF_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/ANA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NJD_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/UTA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/FLA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NYR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/WSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/LAK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/DAL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/PHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/VAN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CAR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NYI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/WPG_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/MIN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CGY_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/VGK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/MTL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CBJ_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/BOS_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/PIT_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/TOR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/SJS_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/COL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/OTT_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/EDM_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/STL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/TBL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/DET_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/SEA_season_summary.png
+Saved scatter plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/scatter.png
+  Processed 32 teams for 5v4.
+Processing 4v5...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/VGK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NYR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CAR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NJD_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/UTA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/SJS_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/WPG_season_summary.png
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/WSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/DET_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CGY_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/PIT_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/COL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/PHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/SEA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/FLA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/TBL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/DAL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/OTT_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CBJ_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/STL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/BOS_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/VAN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NYI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/LAK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/BUF_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/TOR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/MIN_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/MTL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/ANA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/EDM_season_summary.png
+Saved scatter plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/scatter.png
+  Processed 32 teams for 4v5.

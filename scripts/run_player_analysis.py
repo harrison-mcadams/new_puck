@@ -132,8 +132,7 @@ def run_analysis():
     
     # Sanitize PIDs to ensure uniqueness and type consistency
     pids_to_process = sorted(list(set([int(p) for p in pids_to_process if str(p).replace('.0','').isdigit()])))
-    # pids_to_process = [8483085]
-    # print(f"DEBUG: FORCED SINGLE PID: {pids_to_process}")
+    
     print(f"Sanitized PIDs: {len(pids_to_process)} unique integers.")
     print(f"DEBUG_UNIQUENESS: Total={len(pids_to_process)}, Unique={len(set(pids_to_process))}")
     if len(pids_to_process) != len(set(pids_to_process)):
@@ -381,9 +380,13 @@ def run_analysis():
                     league_baseline_right=league_map_right
                 )
                 
-                # Check for blank map issue (Min/Max)
-                # vmin, vmax = np.nanmin(combined_rel), np.nanmax(combined_rel)
-                # print(f"DEBUG {pname}: Range [{vmin:.5f}, {vmax:.5f}]")
+                # Plot using Shared Routine
+                # Debug map integrity
+                # v_min = np.nanmin(combined_rel)
+                # v_max = np.nanmax(combined_rel)
+                # print(f"DEBUG {pname}: Range [{v_min:.5f}, {v_max:.5f}]")
+                
+                fig, ax = plt.subplots(figsize=(10, 6))
                 
                 minutes = seconds / 60.0
                 display_cond = f"5v5 | {minutes:.1f} min"
@@ -429,7 +432,10 @@ def run_analysis():
                 fig.savefig(rel_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
                 
-                # Raw Plot
+            except Exception as e:
+                print(f"Error plotting relative map for {pname}: {e}")
+                
+            # Raw Plot
                 p_out_path = os.path.join(out_dir_team, f"{pid}_map.png")
                 # Need shots DF. 
                 # p_df is already filtered and ready.

@@ -1,0 +1,3851 @@
+Config: Mode=standard, Workers=4, Platform=Mac/Other
+--- Cached Player Analysis for 20252026 ---
+DEBUG: Process ID: 42989
+Loading season data...
+Loaded season dataframe from data/20252026/20252026_df.csv -> shape=(133251, 24)
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/scripts/run_player_analysis.py:417: RuntimeWarning:
+
+More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/scripts/run_player_analysis.py:389: RuntimeWarning:
+
+More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+DEBUG: Filtered df_data size: 109494
+DEBUG: Sample game_ids in global df: [2025010077 2025010076 2025010073 2025010074 2025010079]
+Found 954 players needing updates.
+Sanitized PIDs: 954 unique integers.
+DEBUG_UNIQUENESS: Total=954, Unique=954
+DEBUG: df_data['player_id'] type: float64
+Loading league baseline...
+league: loading baseline from analysis/league/20252026/5v5/20252026_league_baseline.npy
+DEBUG: Final pids_sorted len=954
+DEBUG: Final pids_sorted unique len=954
+DEBUG: Start of pids_sorted: [8470613, 8470621, 8471214, 8471215, 8471675, 8471685, 8471724, 8471734, 8471817, 8473419]
+Checking cache dir: /Users/harrisonmcadams/Desktop/new_puck/data/cache/20252026/partials
+Starting Single-Pass Data Loading for 954 players...
+Loading game 0/488...
+Loading game 100/488...
+Loading game 200/488...
+Loading game 300/488...
+Loading game 400/488...
+Data Loading Complete. Computing Aggregates...
+Calculating Percentiles...
+Generating Plots for 954 players...
+Done.

@@ -202,6 +202,13 @@ def players(season: str = '20252026',
     baseline_res = league(season=season, mode='load', condition=condition, baseline_path=baseline_path)
     league_map = baseline_res.get('combined_norm')
     league_map_right = baseline_res.get('combined_norm_right')
+    
+    # Scale Baseline to Per 60
+    if league_map is not None:
+        league_map = league_map * 3600.0
+    if league_map_right is not None:
+        league_map_right = league_map_right * 3600.0
+        
     league_xg_per60 = baseline_res.get('stats', {}).get('xg_per60', 0.0)
 
     # 5. Analyze Each Player

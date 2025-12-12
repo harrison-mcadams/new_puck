@@ -1,0 +1,118 @@
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+Config: Mode=standard, Workers=4, Platform=Mac/Other
+--- Cached League Analysis for 20252026 ---
+Checking cache dir: /Users/harrisonmcadams/Desktop/new_puck/data/cache/20252026/partials
+Loaded 62 teams from teams.json
+Processing 5v5...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/WPG_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NSH_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/PHI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/SEA_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/DAL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CAR_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VGK_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NYI_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/TBL_season_summary.png
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CGY_season_summary.png
+Traceback (most recent call last):
+  File "/Users/harrisonmcadams/Desktop/new_puck/scripts/run_league_stats.py", line 409, in <module>
+    run_league_analysis()
+  File "/Users/harrisonmcadams/Desktop/new_puck/scripts/run_league_stats.py", line 386, in run_league_analysis
+    fig.savefig(out_path, dpi=120, bbox_inches='tight')
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/figure.py", line 3490, in savefig
+    self.canvas.print_figure(fname, **kwargs)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/backend_bases.py", line 2160, in print_figure
+    bbox_inches = self.figure.get_tightbbox(
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/figure.py", line 1865, in get_tightbbox
+    _bbox = Bbox.union(bb)
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/transforms.py", line 647, in union
+    x0 = np.min([bbox.xmin for bbox in bboxes])
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/transforms.py", line 647, in <listcomp>
+    x0 = np.min([bbox.xmin for bbox in bboxes])
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/matplotlib/transforms.py", line 303, in xmin
+    return np.min(self.get_points()[:, 0])
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/_core/fromnumeric.py", line 3302, in min
+    return _wrapreduction(a, np.minimum, 'min', axis, None, out,
+  File "/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/_core/fromnumeric.py", line 86, in _wrapreduction
+    return ufunc.reduce(obj, axis, dtype, out, **passkwargs)
+KeyboardInterrupt

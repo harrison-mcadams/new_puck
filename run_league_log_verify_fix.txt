@@ -1,0 +1,1360 @@
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/scripts/run_league_stats.py:368: RuntimeWarning:
+
+More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:271: RuntimeWarning:
+
+More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+Config: Mode=standard, Workers=4, Platform=Mac/Other
+--- Cached League Analysis for 20252026 ---
+Checking cache dir: /Users/harrisonmcadams/Desktop/new_puck/data/cache/20252026/partials
+Loaded 62 teams from teams.json
+Processing 5v5...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/WPG_season_summary.png
+Error plotting relative for WPG: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NSH_season_summary.png
+Error plotting relative for NSH: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/PHI_season_summary.png
+Error plotting relative for PHI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/SEA_season_summary.png
+Error plotting relative for SEA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/DAL_season_summary.png
+Error plotting relative for DAL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CAR_season_summary.png
+Error plotting relative for CAR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VGK_season_summary.png
+Error plotting relative for VGK: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NYI_season_summary.png
+Error plotting relative for NYI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/TBL_season_summary.png
+Error plotting relative for TBL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CGY_season_summary.png
+Error plotting relative for CGY: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/VAN_season_summary.png
+Error plotting relative for VAN: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CBJ_season_summary.png
+Error plotting relative for CBJ: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NJD_season_summary.png
+Error plotting relative for NJD: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/ANA_season_summary.png
+Error plotting relative for ANA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/OTT_season_summary.png
+Error plotting relative for OTT: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/LAK_season_summary.png
+Error plotting relative for LAK: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/FLA_season_summary.png
+Error plotting relative for FLA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/UTA_season_summary.png
+Error plotting relative for UTA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/STL_season_summary.png
+Error plotting relative for STL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/CHI_season_summary.png
+Error plotting relative for CHI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/WSH_season_summary.png
+Error plotting relative for WSH: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/NYR_season_summary.png
+Error plotting relative for NYR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/PIT_season_summary.png
+Error plotting relative for PIT: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/MIN_season_summary.png
+Error plotting relative for MIN: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/BUF_season_summary.png
+Error plotting relative for BUF: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/MTL_season_summary.png
+Error plotting relative for MTL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/SJS_season_summary.png
+Error plotting relative for SJS: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/BOS_season_summary.png
+Error plotting relative for BOS: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/COL_season_summary.png
+Error plotting relative for COL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/TOR_season_summary.png
+Error plotting relative for TOR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/DET_season_summary.png
+Error plotting relative for DET: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/EDM_season_summary.png
+Error plotting relative for EDM: output array is read-only
+Saved scatter plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v5/scatter.png
+  Processed 32 teams for 5v5.
+Processing 5v4...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/BUF_season_summary.png
+Error plotting relative for BUF: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/ANA_season_summary.png
+Error plotting relative for ANA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NJD_season_summary.png
+Error plotting relative for NJD: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NSH_season_summary.png
+Error plotting relative for NSH: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/UTA_season_summary.png
+Error plotting relative for UTA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/FLA_season_summary.png
+Error plotting relative for FLA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NYR_season_summary.png
+Error plotting relative for NYR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/WSH_season_summary.png
+Error plotting relative for WSH: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/LAK_season_summary.png
+Error plotting relative for LAK: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/DAL_season_summary.png
+Error plotting relative for DAL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/PHI_season_summary.png
+Error plotting relative for PHI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/VAN_season_summary.png
+Error plotting relative for VAN: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CAR_season_summary.png
+Error plotting relative for CAR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/NYI_season_summary.png
+Error plotting relative for NYI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/WPG_season_summary.png
+Error plotting relative for WPG: output array is read-only
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:379: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+/Users/harrisonmcadams/Desktop/new_puck/puck/plot.py:385: UserWarning:
+
+You passed a edgecolor/edgecolors ('face') for an unfilled marker ('x').  Matplotlib is ignoring the edgecolor in favor of the facecolor.  This behavior may change in the future.
+
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/MIN_season_summary.png
+Error plotting relative for MIN: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CGY_season_summary.png
+Error plotting relative for CGY: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/VGK_season_summary.png
+Error plotting relative for VGK: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/MTL_season_summary.png
+Error plotting relative for MTL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CBJ_season_summary.png
+Error plotting relative for CBJ: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/BOS_season_summary.png
+Error plotting relative for BOS: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/PIT_season_summary.png
+Error plotting relative for PIT: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/TOR_season_summary.png
+Error plotting relative for TOR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/CHI_season_summary.png
+Error plotting relative for CHI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/SJS_season_summary.png
+Error plotting relative for SJS: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/COL_season_summary.png
+Error plotting relative for COL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/OTT_season_summary.png
+Error plotting relative for OTT: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/EDM_season_summary.png
+Error plotting relative for EDM: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/STL_season_summary.png
+Error plotting relative for STL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/TBL_season_summary.png
+Error plotting relative for TBL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/DET_season_summary.png
+Error plotting relative for DET: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/SEA_season_summary.png
+Error plotting relative for SEA: output array is read-only
+Saved scatter plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/5v4/scatter.png
+  Processed 32 teams for 5v4.
+Processing 4v5...
+  Found 488 game files.
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/VGK_season_summary.png
+Error plotting relative for VGK: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NYR_season_summary.png
+Error plotting relative for NYR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CAR_season_summary.png
+Error plotting relative for CAR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NJD_season_summary.png
+Error plotting relative for NJD: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/UTA_season_summary.png
+Error plotting relative for UTA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/SJS_season_summary.png
+Error plotting relative for SJS: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/WPG_season_summary.png
+Error plotting relative for WPG: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/WSH_season_summary.png
+Error plotting relative for WSH: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/DET_season_summary.png
+Error plotting relative for DET: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CGY_season_summary.png
+Error plotting relative for CGY: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NSH_season_summary.png
+Error plotting relative for NSH: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/PIT_season_summary.png
+Error plotting relative for PIT: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/COL_season_summary.png
+Error plotting relative for COL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/PHI_season_summary.png
+Error plotting relative for PHI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/SEA_season_summary.png
+Error plotting relative for SEA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/FLA_season_summary.png
+Error plotting relative for FLA: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/TBL_season_summary.png
+Error plotting relative for TBL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/DAL_season_summary.png
+Error plotting relative for DAL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/OTT_season_summary.png
+Error plotting relative for OTT: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CBJ_season_summary.png
+Error plotting relative for CBJ: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/STL_season_summary.png
+Error plotting relative for STL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/BOS_season_summary.png
+Error plotting relative for BOS: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/CHI_season_summary.png
+Error plotting relative for CHI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/VAN_season_summary.png
+Error plotting relative for VAN: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/NYI_season_summary.png
+Error plotting relative for NYI: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/LAK_season_summary.png
+Error plotting relative for LAK: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/BUF_season_summary.png
+Error plotting relative for BUF: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/TOR_season_summary.png
+Error plotting relative for TOR: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/MIN_season_summary.png
+Error plotting relative for MIN: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/MTL_season_summary.png
+Error plotting relative for MTL: output array is read-only
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/ANA_season_summary.png
+Error plotting relative for ANA: output array is read-only
+/Users/harrisonmcadams/Desktop/new_puck/.venv/lib/python3.10/site-packages/numpy/lib/_function_base_impl.py:4842: UserWarning:
+
+Warning: 'partition' will ignore the 'mask' of the MaskedArray.
+
+Saved plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/EDM_season_summary.png
+Error plotting relative for EDM: output array is read-only
+Saved scatter plot to /Users/harrisonmcadams/Desktop/new_puck/analysis/league/20252026/4v5/scatter.png
+  Processed 32 teams for 4v5.
