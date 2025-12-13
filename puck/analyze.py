@@ -1278,7 +1278,11 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_ne
         clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path)
 
     # Prepare the model DataFrame using canonical feature list
-    features = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+    # If the model provided feature names (from metadata), use them.
+    if feature_names:
+        features = feature_names
+    else:
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
     df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
 
     # prefer classifier's expected features when available

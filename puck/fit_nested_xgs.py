@@ -544,7 +544,8 @@ def main():
     meta = {
         'model_type': 'nested',
         'imputation': 'mean_6',
-        'training_rows': len(df_imputed)
+        'training_rows': len(df_imputed),
+        'final_features': ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
     }
     with open(str(out_path) + '.meta.json', 'w') as f:
         json.dump(meta, f, indent=2)

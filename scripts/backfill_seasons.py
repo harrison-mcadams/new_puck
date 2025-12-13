@@ -54,7 +54,7 @@ def backfill():
                 out_dir='data', 
                 use_cache=True, 
                 verbose=True,
-                max_workers=2,
+                max_workers=1,
                 return_feeds=False,
                 return_elaborated_df=False,
                 process_elaborated=True,

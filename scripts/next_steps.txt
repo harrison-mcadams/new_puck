@@ -1,0 +1,15 @@
+## next steps
+
+# fix player website
+
+# fix colorbar
+
+# add all of the features: score_state, time_elapsed, time_elapsed_in_period
+
+# add past event infrastructure, leading to rebounds, cycle, rush, and *more*
+
+# remove empty net situations entirely?
+
+# rink adjustment?
+
+# team-wise and player-wise models, looking for ways in which a team/player feature would influence xg from a given event
