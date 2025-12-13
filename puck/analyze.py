@@ -1251,7 +1251,7 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
 
 
-def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model.joblib', behavior='load', csv_path=None):
+def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_nested.joblib', behavior='load', csv_path=None):
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
     Meta is (final_feature_names, categorical_levels_map) to be reused by callers.
@@ -1272,7 +1272,7 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model.jo
     try:
         # prefer explicit csv_path if provided; otherwise pass None when using data_df
         # Use csv_path passed in
-        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=csv_path)
+        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=csv_path, model_type='nested')
     except Exception as e:
         print(f"xgs_map: get_clf failed with {e} — trying to train a new model")
         clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path)
