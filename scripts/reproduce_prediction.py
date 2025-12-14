@@ -10,7 +10,12 @@ from puck import analyze
 from puck import fit_xgs
 
 print("Loading Data...")
-df = pd.read_csv('data/20252026/20252026_df.csv')
+if os.path.exists('data/20252026.csv'):
+    df = pd.read_csv('data/20252026.csv')
+elif os.path.exists('data/20252026/20252026_df.csv'):
+    df = pd.read_csv('data/20252026/20252026_df.csv')
+else:
+    raise FileNotFoundError("Could not find season data CSV")
 print(f"Data Loaded: {len(df)} rows")
 
 if 'shot_type' not in df.columns:

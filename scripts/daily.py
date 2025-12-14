@@ -129,7 +129,11 @@ def main():
     for cond in conditions_to_process:
         print(f"  -> Processing {cond} cache...")
         try:
-            subprocess.run([sys.executable, cache_script, '--season', season, '--condition', cond], check=True)
+            cmd = [sys.executable, cache_script, '--season', season, '--condition', cond]
+            if args.force:
+                cmd.append('--force')
+            
+            subprocess.run(cmd, check=True)
         except Exception as e:
             print(f"Cache processing failed for {cond}: {e}")
 
