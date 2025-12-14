@@ -1,0 +1,41 @@
+--- xG Inflation Debugger ---
+Loading data from data/20252026/20252026_df.csv...
+Loaded 61262 shot attempts.
+Loading model from analysis/xgs/xg_model_nested.joblib...
+Predicting xG...
+Block Model Features: ['distance', 'angle_deg', 'is_net_empty', 'game_state_encoded']
+Finish Model Features: ['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded']
+
+--- Calibration Summary ---
+Total Actual Goals: 3259
+Total Predicted xG: 3219.77
+Ratio (xG / Goals): 0.99 (Expected ~1.0)
+
+--- Layer Diagnostics ---
+Block Rate: Actual=27.3%, Predicted=4.9%
+Accuracy (On Net | Unblocked): Actual=66.1%, Predicted=71.4%
+Finish (Goal | On Net): Actual=11.1%, Predicted=10.6%
+
+--- Feature Stats (All Shots) ---
+           distance     angle_deg
+count  61262.000000  61262.000000
+mean      32.702816     91.961704
+std       23.129082     41.085569
+min        0.000000      0.000000
+25%       15.231546     61.699244
+50%       29.427878     90.000000
+75%       44.407207    120.068583
+max      188.042548    358.152390
+
+--- Top High xG Events (Top 10) ---
+       event shot_type   distance   angle_deg        xg
+64785   goal     wrist  10.000000   90.000000  0.939851
+8003    goal     wrist  10.000000   90.000000  0.939851
+26579   goal     wrist   7.071068   98.130102  0.929070
+131640  goal     wrist   6.708204  116.565051  0.928814
+26316   goal     wrist  11.045361   84.805571  0.921816
+48277   goal     wrist   8.062258   82.874984  0.910028
+82133   goal     wrist  10.295630  119.054604  0.904461
+101339  goal     wrist  13.038405   94.398705  0.897389
+141260  goal     wrist  14.035669   85.914383  0.890736
+8919    goal  backhand   7.000000   90.000000  0.878089

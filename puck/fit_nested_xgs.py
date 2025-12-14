@@ -81,12 +81,14 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
       3. Finish Model: P(Goal | On Net)
       
     Final Probability = P(Unblocked) * P(On Net) * P(Goal)
+    
+    UPDATED: Now uses One-Hot Encoding for consistency with other models.
     """
-    def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val=-1, 
+    def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val='Unknown', 
                  max_depth=10, prevent_overfitting=True):
         self.random_state = random_state
         self.n_estimators = n_estimators
-        self.unknown_shot_type_val = unknown_shot_type_val
+        self.unknown_shot_type_val = unknown_shot_type_val # Value in raw column (if present) or resulting OHE column logic
         self.max_depth = max_depth if prevent_overfitting else None
         self.prevent_overfitting = prevent_overfitting
         
@@ -94,32 +96,32 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_accuracy = None
         self.model_finish = None
         
-        self.shot_type_priors = None # Dict[int, float] mapping shot_type_code -> probability
+        self.shot_type_priors = None # Dict[str_col_name, float] mapping OHE column -> probability
         
-        # Define configurations for internal layers
-        # Note: We assume the input DataFrame has the necessary columns (or we create them)
-        self.config_block = LayerConfig(
-            name="Block Model", target_col='is_blocked', positive_label=1,
-            feature_cols=['distance', 'angle_deg', 'is_net_empty', 'game_state_encoded'],
-            max_depth=self.max_depth, n_estimators=self.n_estimators
-        )
-        self.config_accuracy = LayerConfig(
-            name="Accuracy Model", target_col='is_on_net', positive_label=1,
-            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded'],
-            max_depth=self.max_depth, n_estimators=self.n_estimators
-        )
-        self.config_finish = LayerConfig(
-            name="Finish Model", target_col='is_goal_layer', positive_label=1,
-            feature_cols=['distance', 'angle_deg', 'shot_type_encoded', 'is_net_empty', 'game_state_encoded'],
-            max_depth=self.max_depth, n_estimators=self.n_estimators
-        )
+        # We will populate these after fit
+        self.shot_type_cols = []
+        self.game_state_cols = []
+        self.base_features = ['distance', 'angle_deg', 'is_net_empty']
+        
+        self.config_block = None
+        self.config_accuracy = None
+        self.config_finish = None
 
     def fit(self, X, y=None):
         """
         Fit the nested models and learn shot type priors for imputation.
+        Expects X to be a DataFrame. 
+        Note: If OHE is already done externally, we identify cols. 
+        BUT for consistency, we often expect Raw data and do OHE, 
+        OR we expect clean_df_for_model to have done it?
+        
+        DECISION: To support analyze.py which uses clean_df_for_model, 
+        we assume X ALREADY contains the OHE columns and we just need to identify them.
+        However, fit_nested_xgs.py main() passes raw data.
+        So we support both: if raw cols exist, we encode. If not, we assume we find them.
         """
         if not isinstance(X, pd.DataFrame):
-             raise ValueError("NestedXGClassifier.fit expects a pandas DataFrame as X to access column names.")
+             raise ValueError("NestedXGClassifier.fit expects a pandas DataFrame as X.")
              
         df = X.copy()
         
@@ -127,19 +129,51 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         if 'event' not in df.columns:
             raise ValueError("NestedXGClassifier requires 'event' column in X for training to determine layer targets.")
 
-        # 1. Handle Missing/Categorical
-        if 'shot_type' not in df.columns:
-            df['shot_type'] = 'Unknown'
-        df['shot_type'] = df['shot_type'].fillna('Unknown')
+        # 1. Handle Categorical / OHE
+        # We need to determine the features dynamically.
         
-        df['game_state'] = df['game_state'].fillna('5v5')
+        # If raw columns exist, perform OHE (Training Mode from Raw)
+        if 'shot_type' in df.columns:
+            df['shot_type'] = df['shot_type'].fillna('Unknown')
+            # Get dummies
+            prefix_sep = '_'
+            cat_cols = ['shot_type']
+            if 'game_state' in df.columns:
+                df['game_state'] = df['game_state'].fillna('5v5')
+                cat_cols.append('game_state')
+            
+            df = pd.get_dummies(df, columns=cat_cols, prefix_sep=prefix_sep)
+            
+        # Identify columns dynamically
+        self.shot_type_cols = [c for c in df.columns if c.startswith('shot_type_')]
+        self.game_state_cols = [c for c in df.columns if c.startswith('game_state_')]
+        
+        if not self.shot_type_cols:
+             raise ValueError("No shot_type columns found or generated.")
 
-        # Fit Encoders
-        self.le_shot = LabelEncoder()
-        df['shot_type_encoded'] = self.le_shot.fit_transform(df['shot_type'].astype(str))
+        # Define Feature Sets
+        # Block: distance, angle, net_empty, game_state_*
+        feats_block = self.base_features + self.game_state_cols
+        # Acc/Finish: + shot_type_*
+        feats_shot = self.base_features + self.game_state_cols + self.shot_type_cols
         
-        self.le_state = LabelEncoder()
-        df['game_state_encoded'] = self.le_state.fit_transform(df['game_state'].astype(str))
+        # Filter to ensure they exist
+        feats_block = [c for c in feats_block if c in df.columns]
+        feats_shot = [c for c in feats_shot if c in df.columns]
+        
+        # Configure Layers
+        self.config_block = LayerConfig(
+            name="Block Model", target_col='is_blocked', positive_label=1,
+            feature_cols=feats_block, max_depth=self.max_depth, n_estimators=self.n_estimators
+        )
+        self.config_accuracy = LayerConfig(
+            name="Accuracy Model", target_col='is_on_net', positive_label=1,
+            feature_cols=feats_shot, max_depth=self.max_depth, n_estimators=self.n_estimators
+        )
+        self.config_finish = LayerConfig(
+            name="Finish Model", target_col='is_goal_layer', positive_label=1,
+            feature_cols=feats_shot, max_depth=self.max_depth, n_estimators=self.n_estimators
+        )
 
         # Create Layer Targets
         df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
@@ -175,131 +209,152 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         )
         self.model_finish.fit(df_on_net[self.config_finish.feature_cols], df_on_net[self.config_finish.target_col])
         
-        # 5. Learn Shot Type Priors (Calculated from UNBLOCKED shots only, matching user intent)
-        # We only care about known shot types.
-        if 'shot_type_encoded' in df_unblocked.columns:
-             counts = df_unblocked['shot_type_encoded'].value_counts(normalize=True)
-             # Filter out unknown if present (though we found it's negligible)
-             if self.unknown_shot_type_val is not None:
-                 if self.unknown_shot_type_val in counts.index:
-                      counts = counts.drop(self.unknown_shot_type_val)
-                      # Re-normalize
-                      counts = counts / counts.sum()
-             
-             self.shot_type_priors = counts.to_dict()
-             # print(f"Learned Shot Type Priors (Unblocked): {self.shot_type_priors}")
+        # 5. Learn Shot Type Priors (Calculated from UNBLOCKED shots only)
+        # We sum the OHE columns to get counts
+        # We assume one-hot, so sum() gives count of that type
+        stats = df_unblocked[self.shot_type_cols].sum()
+        total = stats.sum()
+        self.shot_type_priors = (stats / total).to_dict()
+        
+        # Remove 'Unknown' from priors if it exists as a column, to avoid imputing 'Unknown'
+        unk_col = f'shot_type_{self.unknown_shot_type_val}'
+        if unk_col in self.shot_type_priors:
+             # re-normalize without unknown
+             del self.shot_type_priors[unk_col]
+             # Re-calc sum
+             new_sum = sum(self.shot_type_priors.values())
+             if new_sum > 0:
+                 self.shot_type_priors = {k: v/new_sum for k, v in self.shot_type_priors.items()}
         
         return self
 
     def predict_proba(self, X):
         """
         Return probability estimates for the test data X.
-        Implements 'Marginalization' for rows with Unknown shot type.
+        Handles missing columns (aligns to training) and OHE-based Marginalization.
         """
         if not isinstance(X, pd.DataFrame):
              raise ValueError("NestedXGClassifier.predict_proba expects a pandas DataFrame.")
              
-        # Don't modify original X
         df = X.copy()
         
-        # Apply encodings using stored encoders
-        if getattr(self, 'le_shot', None):
-            if 'shot_type' not in df.columns:
-                 df['shot_type'] = 'Unknown'
-            df['shot_type'] = df['shot_type'].fillna('Unknown')
-            
-            # Robust Transform: Map unseen to 'Unknown' or fill with known? 
-            # Simple approach: Replace unseen with mode or 'Unknown' if valid?
-            # Sklearn LE errors on unseen.
-            # We will use map.
-            
-            # Shot Type
-            shot_map = dict(zip(self.le_shot.classes_, self.le_shot.transform(self.le_shot.classes_)))
-            # Fallback for unknown: use 'Unknown' if in map, else first class?
-            fallback = shot_map.get('Unknown', 0)
-            df['shot_type_encoded'] = df['shot_type'].astype(str).map(shot_map).fillna(fallback).astype(int)
-            
-        else:
-            # Fallback if fit wasn't called properly? Or loaded old model?
-            # We assume fit ran.
-            if 'shot_type_encoded' not in df.columns:
-                 raise ValueError("Model not fitted or features missing.")
-
-        if getattr(self, 'le_state', None):
-            if 'game_state' not in df.columns:
-                 df['game_state'] = '5v5'
-            df['game_state'] = df['game_state'].fillna('5v5')
-            
-            state_map = dict(zip(self.le_state.classes_, self.le_state.transform(self.le_state.classes_)))
-            fallback_state = state_map.get('5v5', 0)
-            df['game_state_encoded'] = df['game_state'].astype(str).map(state_map).fillna(fallback_state).astype(int)
+        # 0. Feature Alignment
+        # If input is raw, encode it. But typically input from analyze.py is already encoded.
+        # We just need to ensure ALL training columns exist.
         
+        # Check if we need to do OHE ourselves (legacy support or raw input)
+        if 'shot_type' in df.columns and not any(c in df.columns for c in self.shot_type_cols):
+             df['shot_type'] = df['shot_type'].fillna('Unknown')
+             df = pd.get_dummies(df, columns=['shot_type', 'game_state'], prefix_sep='_')
+        
+        # Add missing columns with 0
+        all_feats = list(set(self.config_block.feature_cols + self.config_accuracy.feature_cols + self.config_finish.feature_cols))
+        for c in all_feats:
+            if c not in df.columns:
+                df[c] = 0
+                
         # 1. Block Prob (Independent of shot type)
+        # Make sure we select columns in correct order? RF usually robust but better safe.
+        # (sklearn doesn't require column order matching by name, it requires by POSITION. 
+        # But we trained with pandas, so it shouldn't matter? Wait, sklearn converts pd to numpy array.
+        # ORDER MATTERS.)
+        
+        # We MUST enforce column order to match training config
         p_blocked = self.model_block.predict_proba(df[self.config_block.feature_cols])[:, 1]
         p_unblocked = 1.0 - p_blocked
         
         # 2. Goal Prob (Conditional on Unblocked)
-        # P(Goal | Unblocked) = P(OnNet | Unblocked) * P(Goal | OnNet)
+        # Determine rows to marginalize
+        # Marginalize input where Shot Type is Unknown.
+        # In OHE, "Unknown" means either 'shot_type_Unknown'==1 OR all 'shot_type_*'==0
         
-        # We need to calculate this.
-        # Strategy:
-        # For rows with KNOWN shot type: Calculate directly.
-        # For rows with UNKNOWN shot type (and unblocked model thinks they are blocked? irrelevant, we calculate for all):
-        #   Calculate Expected Value over all possible shot types.
+        unk_col = f'shot_type_{self.unknown_shot_type_val}'
+        if unk_col in df.columns:
+            mask_impute = (df[unk_col] == 1)
+        else:
+            # If no unknown col, maybe check if sum of known cols is 0?
+            known_cols = [c for c in self.shot_type_cols if c != unk_col and c in df.columns]
+            if known_cols:
+                mask_impute = (df[known_cols].sum(axis=1) == 0)
+            else:
+                mask_impute = np.zeros(len(df), dtype=bool)
+                
+        # Also force impute if any row has NaN in shot type cols? 
+        # Assuming cleaned data.
         
-        # Initialize arrays
+        # Initialize results
         p_goal_given_unblocked = np.zeros(len(df))
         
-        # Identify rows to marginalize
-        feature_cols_acc = self.config_accuracy.feature_cols
-        feature_cols_fin = self.config_finish.feature_cols
-        
-        # Check if we have priors to marginalize with
-        can_marginalize = (
-            self.shot_type_priors is not None 
-            and 'shot_type_encoded' in df.columns
-            and self.unknown_shot_type_val is not None
-        )
-        
-        mask_impute = np.zeros(len(df), dtype=bool)
-        if can_marginalize:
-            mask_impute = (df['shot_type_encoded'] == self.unknown_shot_type_val)
-            
         # A. Direct Calculation (Known Types)
         mask_direct = ~mask_impute
         if np.any(mask_direct):
             X_direct = df.loc[mask_direct]
-            p_on_net_d = self.model_accuracy.predict_proba(X_direct[feature_cols_acc])[:, 1]
-            p_finish_d = self.model_finish.predict_proba(X_direct[feature_cols_fin])[:, 1]
+            p_on_net_d = self.model_accuracy.predict_proba(X_direct[self.config_accuracy.feature_cols])[:, 1]
+            p_finish_d = self.model_finish.predict_proba(X_direct[self.config_finish.feature_cols])[:, 1]
             p_goal_given_unblocked[mask_direct] = p_on_net_d * p_finish_d
             
         # B. Marginalized Calculation (Unknown Types)
-        if np.any(mask_impute):
+        if np.any(mask_impute) and self.shot_type_priors:
             X_impute_base = df.loc[mask_impute].copy()
             weighted_prob_sum = np.zeros(len(X_impute_base))
             
-            # Loop through each possible shot type
-            for st_code, st_prob in self.shot_type_priors.items():
-                # Temporarily set the shot type
-                X_impute_base['shot_type_encoded'] = st_code
+            # Loop through each possible shot type (from priors)
+            for st_col, st_prob in self.shot_type_priors.items():
+                if st_col not in df.columns: 
+                    continue # Should be rare
+                    
+                # Set this shot type to 1, all others to 0
+                # We need to zero out ALL shot type cols first
+                for c in self.shot_type_cols:
+                    X_impute_base[c] = 0
+                X_impute_base[st_col] = 1
                 
                 # Predict
-                p_on_net_i = self.model_accuracy.predict_proba(X_impute_base[feature_cols_acc])[:, 1]
-                p_finish_i = self.model_finish.predict_proba(X_impute_base[feature_cols_fin])[:, 1]
+                p_on_net_i = self.model_accuracy.predict_proba(X_impute_base[self.config_accuracy.feature_cols])[:, 1]
+                p_finish_i = self.model_finish.predict_proba(X_impute_base[self.config_finish.feature_cols])[:, 1]
                 
-                # Combine: P(Goal | Unblocked, Type)
-                p_g_u_t = p_on_net_i * p_finish_i
-                
-                # Add to weighted sum
-                weighted_prob_sum += (p_g_u_t * st_prob)
+                # Accumulate
+                weighted_prob_sum += (p_on_net_i * p_finish_i * st_prob)
                 
             p_goal_given_unblocked[mask_impute] = weighted_prob_sum
-        
-        # 3. Final xG = P(Unblocked) * P(Goal | Unblocked)
+            
+        # 3. Final xG
         p_goal = p_unblocked * p_goal_given_unblocked
         
         return np.column_stack((1 - p_goal, p_goal))
     
+    def predict_proba_layer(self, X, layer: str):
+        """
+        Return raw probability estimates for a specific layer.
+        Useful for diagnostics/calibration plots.
+        does NOT do marginalization - assumes X has valid features for that layer.
+        """
+        if not isinstance(X, pd.DataFrame):
+             raise ValueError("NestedXGClassifier.predict_proba_layer expects a pandas DataFrame.")
+             
+        df = X.copy()
+        
+        # 0. Prep (OHE if needed)
+        # Check if we need to do OHE ourselves (legacy support or raw input)
+        if 'shot_type' in df.columns and not any(c in df.columns for c in self.shot_type_cols):
+             df['shot_type'] = df['shot_type'].fillna('Unknown')
+             df = pd.get_dummies(df, columns=['shot_type', 'game_state'], prefix_sep='_')
+        
+        # Add missing columns with 0
+        all_feats = list(set(self.config_block.feature_cols + self.config_accuracy.feature_cols + self.config_finish.feature_cols))
+        for c in all_feats:
+            if c not in df.columns:
+                df[c] = 0
+                
+        if layer == 'block':
+            return self.model_block.predict_proba(df[self.config_block.feature_cols])[:, 1]
+        elif layer == 'accuracy':
+            return self.model_accuracy.predict_proba(df[self.config_accuracy.feature_cols])[:, 1]
+        elif layer == 'finish':
+            return self.model_finish.predict_proba(df[self.config_finish.feature_cols])[:, 1]
+        else:
+             raise ValueError(f"Unknown layer '{layer}'. Must be block, accuracy, or finish.")
+
     def predict(self, X):
         # Threshold at 0.5 (arbitrary for xG, but required for API)
         proba = self.predict_proba(X)[:, 1]
@@ -504,15 +559,14 @@ def main():
     logger.info("Starting Nested xG Training...")
     
     # 1. Load & Preprocess
-    # We load raw data for inspection essentially, but passing to fit() handles internal preprocessing
-    # However, to be consistent with class usage, let's load full data.
     df = load_data()
     
-    # Pre-impute blocked shots if we want to bake that in, or let the class handle it?
-    # The class expects clean data or handles encoding. It does NOT currently handle imputation internally in fit() 
-    # except for filling efficient defaults.
-    # train_full_models.py uses impute.impute_blocked_shot_origins(..., method='mean_6').
-    # We should replicate that here for consistency.
+    # FILTER: Keep only shot attempts
+    valid = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+    logger.info(f"Filtering for valid events: {valid}")
+    df = df[df['event'].isin(valid)].copy()
+    logger.info(f"Rows after filtering: {len(df)}")
+    
     try:
         from . import impute
     except ImportError:
@@ -521,18 +575,98 @@ def main():
     logger.info("Applying 'mean_6' imputation for blocked shots...")
     df_imputed = impute.impute_blocked_shot_origins(df, method='mean_6')
     
-    # 2. Configure & Train Wrapper
-    logger.info("Initializing NestedXGClassifier...")
+    # 2. Evaluation Split
+    logger.info("Splitting data for evaluation (80/20)...")
+    df_train, df_test = train_test_split(df_imputed, test_size=0.2, random_state=42)
+    
+    # 3. Train Eval Model
+    logger.info("Training evaluation model on 80% split...")
+    clf_eval = NestedXGClassifier(n_estimators=100) # Faster for eval
+    clf_eval.fit(df_train)
+    
+    # 4. Generate Diagnostics
+    visuals_dir = Path('analysis/nested_xgs')
+    visuals_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Generating diagnostic plots in {visuals_dir}...")
+    
+    # Re-create targets for test set (mimicking fit logic)
+    df_test = df_test.copy()
+    df_test['is_blocked'] = (df_test['event'] == 'blocked-shot').astype(int)
+    # Note: is_on_net for validation of Accuracy Layer should be restricted to Unblocked shots
+    df_test['is_on_net'] = df_test['event'].isin(['shot-on-goal', 'goal']).astype(int)
+    # Note: is_goal for validation of Finish Layer should be restricted to On Net shots
+    df_test['is_goal_layer'] = (df_test['event'] == 'goal').astype(int)
+    
+    # --- Plot A: Block Model ---
+    p_block = clf_eval.predict_proba_layer(df_test, 'block')
+    plot_calibration_curve_layer(df_test['is_blocked'], p_block, "Block Model")
+    plt.savefig(visuals_dir / 'calibration_block.png')
+    plt.close()
+    
+    auc_block = roc_auc_score(df_test['is_blocked'], p_block)
+    ll_block = log_loss(df_test['is_blocked'], p_block)
+    logger.info(f"Block Model Eval: AUC={auc_block:.4f}, LogLoss={ll_block:.4f}")
+    
+    plot_feature_importance(clf_eval.model_block, clf_eval.config_block.feature_cols, "Block Model")
+    plt.savefig(visuals_dir / 'importance_block.png')
+    plt.close()
+    
+    # --- Plot B: Accuracy Model (Unblocked Only) ---
+    mask_unblocked = (df_test['is_blocked'] == 0)
+    if mask_unblocked.sum() > 0:
+        df_test_acc = df_test[mask_unblocked]
+        p_acc = clf_eval.predict_proba_layer(df_test_acc, 'accuracy')
+        plot_calibration_curve_layer(df_test_acc['is_on_net'], p_acc, "Accuracy Model")
+        plt.savefig(visuals_dir / 'calibration_accuracy.png')
+        plt.close()
+        
+        auc_acc = roc_auc_score(df_test_acc['is_on_net'], p_acc)
+        ll_acc = log_loss(df_test_acc['is_on_net'], p_acc)
+        logger.info(f"Accuracy Model Eval (Unblocked): AUC={auc_acc:.4f}, LogLoss={ll_acc:.4f}")
+        
+        plot_feature_importance(clf_eval.model_accuracy, clf_eval.config_accuracy.feature_cols, "Accuracy Model")
+        plt.savefig(visuals_dir / 'importance_accuracy.png')
+        plt.close()
+    
+    # --- Plot C: Finish Model (On Net Only) ---
+    mask_on_net = (df_test['is_blocked'] == 0) & (df_test['is_on_net'] == 1)
+    if mask_on_net.sum() > 0:
+        df_test_finish = df_test[mask_on_net]
+        p_finish = clf_eval.predict_proba_layer(df_test_finish, 'finish')
+        plot_calibration_curve_layer(df_test_finish['is_goal_layer'], p_finish, "Finish Model")
+        plt.savefig(visuals_dir / 'calibration_finish.png')
+        plt.close()
+        
+        auc_fin = roc_auc_score(df_test_finish['is_goal_layer'], p_finish)
+        ll_fin = log_loss(df_test_finish['is_goal_layer'], p_finish)
+        logger.info(f"Finish Model Eval (On Net): AUC={auc_fin:.4f}, LogLoss={ll_fin:.4f}")
+        
+        plot_feature_importance(clf_eval.model_finish, clf_eval.config_finish.feature_cols, "Finish Model")
+        plt.savefig(visuals_dir / 'importance_finish.png')
+        plt.close()
+        
+    # --- Plot D: Overall xG Calibration ---
+    # Compare final xG pred vs Actual Goal
+    p_xg = clf_eval.predict_proba(df_test)[:, 1]
+    df_test['is_goal_final'] = (df_test['event'] == 'goal').astype(int)
+    plot_calibration_curve_layer(df_test['is_goal_final'], p_xg, "Nested xG Model (Combined)")
+    plt.savefig(visuals_dir / 'calibration_overall.png')
+    plt.close()
+    
+    auc_xg = roc_auc_score(df_test['is_goal_final'], p_xg)
+    ll_xg = log_loss(df_test['is_goal_final'], p_xg)
+    logger.info(f"Total xG Model Eval: AUC={auc_xg:.4f}, LogLoss={ll_xg:.4f}")
+    
+    # 5. Train Final Model
+    logger.info("Retraining final model on FULL data (all years)...")
     clf = NestedXGClassifier(
         n_estimators=200, 
         max_depth=10, 
         prevent_overfitting=True
     )
-    
-    logger.info("Fitting model...")
     clf.fit(df_imputed)
     
-    # 3. Save
+    # 6. Save
     out_dir = Path('analysis/xgs')
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / 'xg_model_nested.joblib'
@@ -552,30 +686,7 @@ def main():
         
     logger.info("Model saved successfully.")
     
-    # 4. Evaluation / Visualization
-    # We can still generate plots using the internal models if we access them
-    visuals_dir = Path('analysis/nested_xgs')
-    visuals_dir.mkdir(parents=True, exist_ok=True)
-    
-    logger.info("Generating diagnostic plots...")
-    # Extract internal models for plotting
-    model_block = clf.model_block
-    model_accuracy = clf.model_accuracy
-    model_finish = clf.model_finish
-    
-    # We need test data to plot calibration.
-    # The class fits on ALL data passed to it (no internal holdout for validation exposed).
-    # To generate valid calibration plots, we should have split manually or we can just plot on training error (biased but checks syntax).
-    # OR, we can do a quick split here just for the plots?
-    # Let's do a quick split of the original data to generate "out of sample" plots, 
-    # even though the final saved model uses all data.
-    # Actually, standard practice for final model is train on all.
-    # But for calibration plots we want OOS.
-    # Let's just skip complex calibration plotting in the main() build script for now 
-    # or rely on the previous manual split logic just for plotting?
-    # simpler: just finish.
-    
-    # 5. Example Inference
+    # 7. Example Inference
     logger.info("Running example inference...")
     sample = df_imputed.sample(10).copy()
     probs = clf.predict_proba(sample)[:, 1]

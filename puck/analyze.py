@@ -1277,44 +1277,112 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_ne
         print(f"xgs_map: get_clf failed with {e} — trying to train a new model")
         clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path)
 
-    # Prepare the model DataFrame using canonical feature list
-    # If the model provided feature names (from metadata), use them.
-    if feature_names:
-        features = feature_names
-    else:
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
-    df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
+    # Check if this is the Nested Model
+    # We can check type safely
+    is_nested = False
+    try:
+        from .fit_nested_xgs import NestedXGClassifier
+        if isinstance(clf, NestedXGClassifier):
+            is_nested = True
+    except ImportError:
+        pass
+    
+    # Also check via string just in case of reload/import issues
+    if not is_nested and type(clf).__name__ == 'NestedXGClassifier':
+        is_nested = True
 
-    # prefer classifier's expected features when available
-    final_features = feature_names if feature_names is not None else final_feature_cols_game
+    if is_nested:
+        # NESTED MODEL LOGIC:
+        # 1. Apply Imputation (Crucial! Otherwise blocked shots look like close-range shots)
+        try:
+            from . import impute
+            # Use same method as training
+            df_model = impute.impute_blocked_shot_origins(df.copy(), method='mean_6')
+        except ImportError:
+            # Fallback if impute not found relative (shouldn't happen)
+            import impute
+            df_model = impute.impute_blocked_shot_origins(df.copy(), method='mean_6')
+        except Exception as e:
+            print(f"Warning: Imputation failed in _predict_xgs: {e}")
+            df_model = df.copy()
+
+        # 2. Features
+        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'] # Standard Nested Features
+        
+        # Ensure features exist
+        for f in features:
+            if f not in df_model.columns:
+                if f == 'shot_type':
+                    df_model[f] = 'Unknown'
+                elif f == 'game_state':
+                    df_model[f] = '5v5'
+                else:
+                    df_model[f] = 0
+            else:
+                # Basic fillna
+                if f == 'shot_type':
+                    df_model[f] = df_model[f].fillna('Unknown')
+                elif f == 'game_state':
+                    df_model[f] = df_model[f].fillna('5v5')
+                else:
+                     df_model[f] = df_model[f].fillna(0)
+                     
+        # Metadata pass-through
+        final_features = features
+        cat_levels = None 
+
+    else:
+        # STANDARD MODEL LOGIC:
+        # Prepare the model DataFrame using canonical feature list
+        # If the model provided feature names (from metadata), use them.
+        if feature_names:
+            features = feature_names
+        else:
+            features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        
+        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
+    
+        # prefer classifier's expected features when available
+        final_features = feature_names if feature_names is not None else final_feature_cols_game
 
     # ensure xgs column exists
     df['xgs'] = np.nan
+    
+    # FILTER: Only predict for valid shot events
+    valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+    # Create a mask for valid rows
+    mask_valid = df['event'].isin(valid_events)
+    
+    # Subset df_model to only valid rows
+    df_model_valid = df_model.loc[mask_valid]
 
     # predict probabilities when possible
-    if clf is not None and df_model.shape[0] > 0 and final_features:
+    if clf is not None and df_model_valid.shape[0] > 0 and final_features:
         try:
             # Inject 'event' back into df_model so SingleXGClassifier can filter blocked shots
             # (clean_df_for_model drops it if not in features)
-            if 'event' not in df_model.columns and 'event' in df.columns:
-                df_model['event'] = df.loc[df_model.index, 'event'].values
+            if 'event' not in df_model_valid.columns and 'event' in df.columns:
+                df_model_valid['event'] = df.loc[df_model_valid.index, 'event'].values
 
             # Support both SingleXGClassifier (wrapper) and NestedXGClassifier (native)
             # Both now accept DataFrame input.
-            probs = clf.predict_proba(df_model)[:, 1]
-            df.loc[df_model.index, 'xgs'] = probs
+            probs = clf.predict_proba(df_model_valid)[:, 1]
+            df.loc[df_model_valid.index, 'xgs'] = probs
         except Exception as e:
             # Fallback for raw RF if wrapper failed or not used?
             try:
                 # Remove event if it causes issues for raw RF? 
                 # Raw RF usually takes specific cols list X, so extra cols in DF don't matter 
                 # if we select properly below.
-                X = df_model[final_features].values
+                X = df_model_valid[final_features].values
                 probs = clf.predict_proba(X)[:, 1]
-                df.loc[df_model.index, 'xgs'] = probs
+                df.loc[df_model_valid.index, 'xgs'] = probs
             except Exception as e2:
                 print(f"Prediction failed: {e}; Fallback failed: {e2}")
                 pass
+    
+    # Fill remaining (invalid events) with 0.0
+    df['xgs'] = df['xgs'].fillna(0.0)
 
     return df, clf, (final_features, cat_levels)
 
