@@ -56,9 +56,20 @@ def run_league_analysis():
     
     
     # Load Season Data (Hybrid approach: needed for raw event plotting)
-    # rank_df_path = os.path.join(config.get_data_dir(season), f"{season}_df.csv")
-    rank_df_path = os.path.join(config.DATA_DIR, season, f"{season}_df.csv")
-    if os.path.exists(rank_df_path):
+    # Try multiple standard locations
+    rank_df_path = None
+    possible_paths = [
+        os.path.join(config.DATA_DIR, f"{season}.csv"),
+        os.path.join(config.DATA_DIR, season, f"{season}_df.csv")
+    ]
+    
+    for p in possible_paths:
+        if os.path.exists(p):
+            rank_df_path = p
+            break
+            
+    if rank_df_path:
+        print(f"Loading season data from {rank_df_path}")
         df_season = pd.read_csv(rank_df_path)
         # Ensure integer IDs
         for c in ['team_id', 'home_id', 'away_id']:
@@ -191,7 +202,7 @@ def run_league_analysis():
                         # Load 'For' Grid
                         k_grid = f"team_{tid}_grid_team"
                         if k_grid in data:
-                            g = np.nan_to_num(data[k_grid])
+                            g = data[k_grid]
                             game_grids[tid] = g
                             
                     # Second pass: Accumulate Full Grids (For + Against)
@@ -214,51 +225,53 @@ def run_league_analysis():
                 continue # Ensure we skip helper logic below if load failed
                 
             # --- DEFENSIVE CHECK ---
-            # Verify grids before adding
-            for tid in tids_in_game:
-                if tid not in game_grids: continue
-                
-                grid_for = game_grids[tid]
-                
-                # Check for NaNs or Inf
-                if not np.isfinite(grid_for).all():
-                    print(f"WARNING: infinite/NaN values in 'For' grid for team {tid} in {fname}. Skipping team.")
-                    continue
-                
-                # Find Opponent Grid (Against)
-                grid_against = np.zeros_like(grid_for)
-                if tid in opp_map:
-                    opp_id = opp_map[tid]
-                    if opp_id in game_grids:
-                        op_grid = game_grids[opp_id]
-                        if not np.isfinite(op_grid).all():
-                            print(f"WARNING: infinite/NaN values in Opponent 'For' grid (opp={opp_id}) for team {tid} in {fname}. Skipping team.")
-                            continue
+            try:
+                # Verify grids before adding
+                for tid in tids_in_game:
+                    if tid not in game_grids: continue
+                    
+                    grid_for = game_grids[tid]
+                    
+                    # Since process_daily_cache now guarantees clean float32 arrays, 
+                    # we can directly use them.
+                    # Basic check for shape consistency could be good, but assuming consistency for now.
+                    if grid_for is None: continue
+
+                    # Find Opponent Grid (Against)
+                    grid_against = np.zeros_like(grid_for)
+                    if tid in opp_map:
+                        opp_id = opp_map[tid]
+                        if opp_id in game_grids:
+                            op_grid = game_grids[opp_id]
+                            if op_grid is not None:
+                                # Rotate Opponent's For Grid to become This Team's Against Grid
+                                grid_against = np.rot90(op_grid, 2)
                             
-                        # Rotate Opponent's For Grid to become This Team's Against Grid
-                        grid_against = np.rot90(op_grid, 2)
+                    full_game_grid = grid_for + grid_against
+                    
+                    # Sanity check (rare edge case where sum overflows or something)
+                    if not np.isfinite(full_game_grid).all():
+                         print(f"CRITICAL WARNING: infinite/NaN values in full_game_grid for team {tid} in {fname}. Skipping.")
+                         continue
+                    
+                    # Add to Team Accumulator
+                    if tid not in team_grids:
+                        team_grids[tid] = full_game_grid.astype(np.float64)
+                    else:
+                        team_grids[tid] += full_game_grid
                         
-                full_game_grid = grid_for + grid_against
-                
-                if not np.isfinite(full_game_grid).all():
-                     print(f"CRITICAL WARNING: infinite/NaN values in full_game_grid for team {tid} in {fname}. Skipping.")
-                     continue
-                
-                # Add to Team Accumulator
-                if tid not in team_grids:
-                    team_grids[tid] = full_game_grid.astype(np.float64)
-                else:
-                    team_grids[tid] += full_game_grid
-                    
-                # Add to League Accumulator
-                if league_grid_sum is None:
-                    league_grid_sum = full_game_grid.astype(np.float64)
-                else:
-                    league_grid_sum += full_game_grid
-                    
-                # Sanity check league sum
-                if not np.isfinite(league_grid_sum).all():
-                    print(f"CRITICAL ERROR: League Grid somehow became NaN after processing {fname} team {tid}!") 
+                    # Add to League Accumulator
+                    if league_grid_sum is None:
+                        league_grid_sum = full_game_grid.astype(np.float64)
+                    else:
+                        league_grid_sum += full_game_grid
+                        
+                    # Sanity check league sum
+                    if not np.isfinite(league_grid_sum).all():
+                        print(f"CRITICAL ERROR: League Grid somehow became NaN after processing {fname} team {tid}!")
+            except Exception as e:
+                print(f"Error accumulating grids for {fname}: {e}")
+                continue 
 
         if not team_stats:
             print(f"  No stats found for {cond}.")

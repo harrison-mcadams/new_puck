@@ -1357,29 +1357,37 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_ne
     df_model_valid = df_model.loc[mask_valid]
 
     # predict probabilities when possible
-    if clf is not None and df_model_valid.shape[0] > 0 and final_features:
+    # PREDICTION
+    if clf is not None:
         try:
-            # Inject 'event' back into df_model so SingleXGClassifier can filter blocked shots
-            # (clean_df_for_model drops it if not in features)
-            if 'event' not in df_model_valid.columns and 'event' in df.columns:
-                df_model_valid['event'] = df.loc[df_model_valid.index, 'event'].values
-
-            # Support both SingleXGClassifier (wrapper) and NestedXGClassifier (native)
-            # Both now accept DataFrame input.
-            probs = clf.predict_proba(df_model_valid)[:, 1]
-            df.loc[df_model_valid.index, 'xgs'] = probs
+            # For Nested Classifier, we might just pass df_model. 
+            # For Standard, we used df_model_valid which was filtered/cleaned.
+            # But the logic above (lines 1335-1346) sets up df_model for standard too.
+            # Let's unify.
+            
+            target_df = df_model
+            
+            # Standard model legacy cleanup used 'df_model_valid' but my audit showed
+            # _predict_xgs Standard path returns `df_model`.
+            # Wait, line 1343: df_model, ..., ... = fit_xgs.clean_df_for_model(...)
+            # So `df_model` is the one to use.
+            
+            if target_df.shape[0] > 0:
+                 probs = clf.predict_proba(target_df)[:, 1]
+                 # Assignment: Ensure index alignment! 
+                 # df_model might be different shape if clean_df_for_model dropped rows?
+                 # clean_df_for_model drops rows with missing features.
+                 # So we need to assign to the matching indices in `df`.
+                 
+                 df.loc[target_df.index, 'xgs'] = probs
+            
+            # (Reverted: Manual override for blocked shots removed. 
+            #  Model is predictive and deals with pre-event probabilities.)
+                
         except Exception as e:
-            # Fallback for raw RF if wrapper failed or not used?
-            try:
-                # Remove event if it causes issues for raw RF? 
-                # Raw RF usually takes specific cols list X, so extra cols in DF don't matter 
-                # if we select properly below.
-                X = df_model_valid[final_features].values
-                probs = clf.predict_proba(X)[:, 1]
-                df.loc[df_model_valid.index, 'xgs'] = probs
-            except Exception as e2:
-                print(f"Prediction failed: {e}; Fallback failed: {e2}")
-                pass
+            print(f"xgs_map: prediction failed with {e}")
+            # Don't return None, allow fallback to 0.0 fill
+            pass
     
     # Fill remaining (invalid events) with 0.0
     df['xgs'] = df['xgs'].fillna(0.0)

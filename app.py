@@ -576,6 +576,12 @@ def monitor_view(filename):
     return render_template("log_view.html", filename=filename, content=content)
 
 
+@app.route("/monitor/download/<path:filename>")
+def monitor_download(filename):
+    """Download a specific log file."""
+    return send_from_directory(LOG_DIR, filename, as_attachment=True)
+
+
 @app.route('/admin/flush_cache', methods=['POST'])
 def admin_flush_cache():
     """Dev-only: clear the in-memory cache so static files are re-read.

@@ -25,7 +25,7 @@ def ensure_dirs(season):
 def get_game_partials_path(partials_dir, game_id, condition_name):
     return os.path.join(partials_dir, f"{game_id}_{condition_name}.npz")
 
-def process_game(game_id, df_game, season, condition, partials_dir, condition_name):
+def process_game(game_id, df_game, season, condition, partials_dir, condition_name, force=False):
     """
     Process a single game:
     1. Calculate Team Stats & Maps (Home/Away).
@@ -34,7 +34,7 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
     """
     try:
         out_path = get_game_partials_path(partials_dir, game_id, condition_name)
-        if os.path.exists(out_path):
+        if not force and os.path.exists(out_path):
             # We could check modification time vs data modification time?
             # For now, assume if it exists it's done unless force flag (handled by caller deleting).
             return True
@@ -74,22 +74,27 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                 pid = cond_local['player_id']
                 p_shifts = df_shifts[df_shifts['player_id'] == pid]
                 if p_shifts.empty:
+                    # print(f"DEBUG: No shifts for player {pid}")
                     return
                 p_intervals = list(zip(p_shifts['start_total_seconds'], p_shifts['end_total_seconds']))
                 # Intersect
                 # (Inline intersection for speed or use timing helper)
                 # timing._intersect_intervals is not public/exposed easily, let's use the one in previous script logic
                 # or verify timing.intersect_intervals exists.
-                # It's timing._intersect_intervals usually.
+                # It's timing._intersect_two usually.
                 # Let's just reimplement simple one here to avoid internal dep issues if not exposed.
-                intervals_to_use = _intersect(common_intervals, p_intervals)
+                intervals_to_use = timing._intersect_two(common_intervals, p_intervals)
             
             if not intervals_to_use:
+                # print(f"DEBUG: intervals_to_use empty for {prefix} (common={len(common_intervals)})")
                 return
-
+            
             toi = sum(e-s for s,e in intervals_to_use)
             if toi <= 0:
+                # print(f"DEBUG: TOI <= 0 for {prefix}")
                 return
+
+            print(f"DEBUG: Running xgs_map for {prefix} (TOI={toi:.1f})")
 
             # Construct intervals_input for xgs_map to force it to use these intervals
             intervals_input = {
@@ -99,102 +104,98 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                     }
                 }
             }
-
-            # Run Map
-            # We use heatmap_only=True if available, or return_heatmaps=True
-            # Note: xgs_map signature in analyze.py: 
-            #   heatmap_only: compute and return heatmap arrays instead of plotting
             
+            # RUN XGS MAP
+            # This calls analyze._predict_xgs internally if not present, but we already ensured it.
+            # analyze.xgs_map returns: (xg_grid, stats_dict)
             try:
-                # analyze.xgs_map might raise if no events found
-                res = analyze.xgs_map(
+                # IMPORTANT: We need to pass df_game via data_df!
+                # Prepare condition for xgs_map to filter/orient correctly
+                analysis_condition = {}
+                if 'player_id' in cond_local:
+                    analysis_condition['player_id'] = cond_local['player_id']
+                else:
+                    # For teams, we pass 'team' in the condition so xgs_map knows which team to orient for
+                    analysis_condition['team'] = entity_id
+
+                # xgs_map returns: (out_path, heatmaps, df_filtered, summary_stats)
+                _, grid_raw, _, stats = analyze.xgs_map(
                     season=season,
                     data_df=df_game,
-                    condition=cond_local,
-                    heatmap_only=True, # Efficient mode
-                    total_seconds=toi,
-                    use_intervals=True,
                     intervals_input=intervals_input,
-                    stats_only=False,
-                    return_heatmaps=True,
-                    show=False,
-                    out_path=None
+                    condition=analysis_condition,
+                    heatmap_only=True  # Return data only, do not generate plots
                 )
                 
-                # Unpack
-                # If heatmap_only=True, res should be (heatmap_grid, stats_dict) or similar?
-                # Let's check the function signature again or assume standard
-                # Standard with return_heatmaps=True is: (out_path, heatmaps, filtered_df, stats)
-                # If heatmap_only is set, it might change return. 
-                # Let's assume standard 4-tuple for now, as heatmap_only might just skip plot side effects.
-                
-                # Actually, I'll use the standard call to be safe: return_heatmaps=True, show=False.
-                # If heatmap_only is supported, it hopefully adheres to return pattern.
-                if isinstance(res, tuple):
-                    if len(res) == 4:
-                        _, heatmaps, _, stats = res
-                    elif len(res) == 2: # Maybe heatmap_only returns (heat, stats)
-                         heatmaps, stats = res
+                # Unwrap and Sanitize Grid
+                if grid_raw is not None:
+                    # Unwrap dict if xgs_map returned one (it returns {'team': ..., 'other': ...} when team is selected)
+                    if isinstance(grid_raw, dict):
+                        grid_final = grid_raw.get('team') # We only care about the entity's perspective here
                     else:
-                        return # Unknown
-                else:
-                    return
-
-                if stats:
-                    data_to_save[f"{prefix}_stats"] = json.dumps(stats) # Save stats as JSON string
+                        grid_final = grid_raw
+                        
+                    # Sanitize: Convert to float32 and fill NaNs with 0.0
+                    try:
+                        grid_final = np.asarray(grid_final, dtype=np.float32)
+                        grid_final = np.nan_to_num(grid_final, nan=0.0)
+                        data_to_save[f"{prefix}_grid_team"] = grid_final
+                    except Exception as e:
+                        print(f"Warning: Failed to sanitize grid for {prefix}: {e}")
                 
-                if heatmaps is not None:
-                    # heatmaps can be dict {'team': ..., 'other': ...}
-                    if isinstance(heatmaps, dict):
-                        if 'team' in heatmaps:
-                            data_to_save[f"{prefix}_grid_team"] = heatmaps['team']
-                        if 'other' in heatmaps:
-                            data_to_save[f"{prefix}_grid_other"] = heatmaps['other']
+                if stats:
+                    data_to_save[f"{prefix}_stats"] = json.dumps(stats)
+                    
             except Exception as e:
-                # print(f"Error in xgs_map for {prefix}: {e}")
+                print(f"Analysis failed for {prefix} in {game_id}: {e}")
+                import traceback
+                traceback.print_exc()
                 pass
 
+        # Helper for intersection
+        def _intersect(int_a, int_b):
+            # Assumes sorted, non-overlapping inputs
+            result = []
+            i, j = 0, 0
+            while i < len(int_a) and j < len(int_b):
+                a_start, a_end = int_a[i]
+                b_start, b_end = int_b[j]
+                
+                start = max(a_start, b_start)
+                end = min(a_end, b_end)
+                
+                if start < end:
+                    result.append((start, end))
+                
+                if a_end < b_end:
+                    i += 1
+                else:
+                    j += 1
+            return result
+
         # 1. Teams
-        # Home
-        run_analysis({**condition, 'team': home_id}, home_id, f"team_{home_id}")
-        # Away
-        run_analysis({**condition, 'team': away_id}, away_id, f"team_{away_id}")
+        run_analysis({}, home_id, f"team_{home_id}")
+        run_analysis({}, away_id, f"team_{away_id}")
         
         # 2. Players
-        players = df_shifts['player_id'].unique()
-        p_team_map = df_shifts.groupby('player_id')['team_id'].first().to_dict()
-        
-        for pid in players:
-            p_tm = p_team_map.get(pid)
-            cond_p = {**condition, 'player_id': pid, 'team': p_tm}
-            run_analysis(cond_p, pid, f"p_{pid}")
-            
-        # Save to NPZ
-        np.savez_compressed(out_path, **data_to_save)
+        # Get all players in game
+        pids = set(df_shifts['player_id'].unique())
+        for pid in pids:
+             run_analysis({'player_id': pid}, pid, f"p_{pid}")
+             
+        # Save
+        np.savez_compressed(out_path, processed=True, **data_to_save)
         return True
 
     except Exception as e:
         print(f"Failed to process game {game_id}: {e}")
+        # Delete corrupt file if exists
+        if os.path.exists(get_game_partials_path(partials_dir, game_id, condition_name)):
+            try: os.remove(get_game_partials_path(partials_dir, game_id, condition_name)) 
+            except: pass
         return False
-
-def _intersect(a, b):
-    res = []
-    i = j = 0
-    a = sorted(a)
-    b = sorted(b)
-    while i < len(a) and j < len(b):
-        s1, e1 = a[i]
-        s2, e2 = b[j]
-        s = max(s1, s2)
-        e = min(e1, e2)
-        if e > s:
-            res.append((s, e))
-        if e1 < e2:
-            i += 1
-        else:
-            j += 1
-    return res
-
+        
+        
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--season', type=str, default='20252026')
@@ -257,7 +258,7 @@ def main():
         df_game = df_data[df_data['game_id'] == gid]
         if df_game.empty: continue
         
-        success = process_game(gid, df_game, season, condition, partials_dir, cond_name)
+        success = process_game(gid, df_game, season, condition, partials_dir, cond_name, force=args.force)
         
         if success:
             count += 1

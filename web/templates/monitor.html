@@ -249,7 +249,9 @@
                             <td><strong>{{ log.name }}</strong></td>
                             <td>{{ log.mtime }}</td>
                             <td>{{ log.size }}</td>
-                            <td><a href="{{ url_for('monitor_view', filename=log.name) }}" class="btn-sm">View Log</a>
+                            <td>
+                                <a href="{{ url_for('monitor_view', filename=log.name) }}" class="btn-sm">View</a>
+                                <a href="{{ url_for('monitor_download', filename=log.name) }}" class="btn-sm" style="margin-left: 5px;">Download</a>
                             </td>
                         </tr>
                         {% endfor %}
