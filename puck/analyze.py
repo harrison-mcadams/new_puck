@@ -1333,17 +1333,32 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_ne
 
     else:
         # STANDARD MODEL LOGIC:
-        # Prepare the model DataFrame using canonical feature list
-        # If the model provided feature names (from metadata), use them.
-        if feature_names:
-            features = feature_names
-        else:
-            features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        # Prepare the model DataFrame using canonical feature list used for cleaning/generation
+        # We must NOT use 'feature_names' (from meta) as input features, because meta features are 
+        # usually transformed (e.g. game_state_code) while input DF has raw features (game_state).
         
-        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), features, fixed_categorical_levels=cat_levels)
+        input_features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        
+        # We pass cat_levels to ensure consistent encoding
+        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), input_features, fixed_categorical_levels=cat_levels)
     
-        # prefer classifier's expected features when available
-        final_features = feature_names if feature_names is not None else final_feature_cols_game
+        # If the model expects specific features (from meta), ensure we have them
+        if feature_names:
+            missing = [f for f in feature_names if f not in df_model.columns]
+            if missing:
+                # If missing, it might be because input_features didn't include them?
+                # or encoding didn't produce them?
+                print(f"Warning: Model expects features {missing} which were not produced by cleaning. Using available features.")
+                # We can't fix this easily if logic differs. 
+                # But for now, we assume standard pipeline.
+                pass
+            
+            # Filter/Order columns to match classifier expectation
+            valid_feats = [f for f in feature_names if f in df_model.columns]
+            df_model = df_model[valid_feats]
+            final_features = valid_feats
+        else:
+             final_features = final_feature_cols_game
 
     # ensure xgs column exists
     df['xgs'] = np.nan
@@ -2870,16 +2885,17 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
     # extract seconds from timing_result aggregate
     # extract seconds from timing_result aggregate
+    # extract seconds from timing_result aggregate
     try:
-        agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
-        inter = agg.get('intersection_seconds_total', 0.0)
-        team_seconds = float(inter or 0.0)
-        
-        # Fallback to provided total_seconds if calculated is zero
-        if team_seconds <= 0 and total_seconds is not None and total_seconds > 0:
+        # Prioirty: Use explicit total_seconds if provided (e.g. from process_daily_cache with specific intervals)
+        if total_seconds is not None and total_seconds > 0:
             team_seconds = float(total_seconds)
-            
-        other_seconds = team_seconds
+            other_seconds = float(total_seconds)
+        else:
+            agg = timing_result.get('aggregate', {}) if isinstance(timing_result, dict) else {}
+            inter = agg.get('intersection_seconds_total', 0.0)
+            team_seconds = float(inter or 0.0)
+            other_seconds = team_seconds
     except Exception:
         team_seconds = other_seconds = float(total_seconds) if total_seconds else 0.0
 

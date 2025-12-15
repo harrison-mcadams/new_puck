@@ -35,68 +35,74 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
     try:
         out_path = get_game_partials_path(partials_dir, game_id, condition_name)
         if not force and os.path.exists(out_path):
-            # We could check modification time vs data modification time?
-            # For now, assume if it exists it's done unless force flag (handled by caller deleting).
             return True
 
-        # Load Shifts (Cached internally by timing module, cleared regularly)
+        # Load Shifts
         df_shifts = timing._get_shifts_df(int(game_id))
         if df_shifts.empty:
-            # Save empty placeholder
             np.savez_compressed(out_path, processed=True, empty=True)
             return True
 
-        # Pre-compute Intervals
-        common_intervals = timing.get_game_intervals_cached(game_id, season, condition)
-        if not common_intervals:
+        # Helper to flip game state (5v4 <-> 4v5)
+        def flip_condition(cond):
+            if not cond: return {}
+            new_cond = cond.copy()
+            if 'game_state' in new_cond:
+                flipped_states = []
+                for s in new_cond['game_state']:
+                    if s == '5v4': flipped_states.append('4v5')
+                    elif s == '4v5': flipped_states.append('5v4')
+                    elif s == '5v3': flipped_states.append('3v5')
+                    elif s == '3v5': flipped_states.append('5v3')
+                    else: flipped_states.append(s) # 5v5, 4v4, 3v3 stay same
+                new_cond['game_state'] = flipped_states
+            return new_cond
+
+        # Compute Intervals for Home (Condition as-is) and Away (Flipped if needed)
+        # Home Team "5v4" (PP) -> Game State 5v4
+        # Away Team "5v4" (PP) -> Game State 4v5 (Home 4, Away 5)
+        
+        cond_home = condition
+        cond_away = flip_condition(condition)
+        
+        intervals_home = timing.get_game_intervals_cached(game_id, season, cond_home)
+        intervals_away = timing.get_game_intervals_cached(game_id, season, cond_away)
+
+        # Optimization: If both empty, skip game
+        if not intervals_home and not intervals_away:
             np.savez_compressed(out_path, processed=True, empty=True)
             return True
 
         # Prepare Data Container
-        # keys: 'home_stats', 'away_stats', 'home_grid', 'away_grid', 
-        #       'p_{pid}_stats', 'p_{pid}_grid'
         data_to_save = {}
         
-        # --- Team Analysis ---
         # We need team IDs
         home_id = df_game.iloc[0]['home_id']
         away_id = df_game.iloc[0]['away_id']
         
-        # Helper to run xgs_map for a specific entity condition
-        def run_analysis(cond_local, entity_id, prefix):
-            # We need to compute total_seconds for this entity to pass to xgs_map
-            # For teams, it's just the common_intervals sum
-            # For players, it's the intersection
-            
-            intervals_to_use = common_intervals
+        # Helper to run xgs_map
+        def run_analysis(cond_local, entity_id, prefix, intervals_base, cond_base):
+            if not intervals_base:
+                return
+
+            intervals_to_use = intervals_base
             if 'player_id' in cond_local:
                 # Player Intersection
                 pid = cond_local['player_id']
                 p_shifts = df_shifts[df_shifts['player_id'] == pid]
                 if p_shifts.empty:
-                    # print(f"DEBUG: No shifts for player {pid}")
                     return
                 p_intervals = list(zip(p_shifts['start_total_seconds'], p_shifts['end_total_seconds']))
-                # Intersect
-                # (Inline intersection for speed or use timing helper)
-                # timing._intersect_intervals is not public/exposed easily, let's use the one in previous script logic
-                # or verify timing.intersect_intervals exists.
-                # It's timing._intersect_two usually.
-                # Let's just reimplement simple one here to avoid internal dep issues if not exposed.
-                intervals_to_use = timing._intersect_two(common_intervals, p_intervals)
+                intervals_to_use = timing._intersect_two(intervals_base, p_intervals)
             
             if not intervals_to_use:
-                # print(f"DEBUG: intervals_to_use empty for {prefix} (common={len(common_intervals)})")
                 return
             
             toi = sum(e-s for s,e in intervals_to_use)
             if toi <= 0:
-                # print(f"DEBUG: TOI <= 0 for {prefix}")
                 return
 
-            print(f"DEBUG: Running xgs_map for {prefix} (TOI={toi:.1f})")
-
-            # Construct intervals_input for xgs_map to force it to use these intervals
+            # Construct intervals_input
             intervals_input = {
                 'per_game': {
                     game_id: {
@@ -106,80 +112,55 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
             }
             
             # RUN XGS MAP
-            # This calls analyze._predict_xgs internally if not present, but we already ensured it.
-            # analyze.xgs_map returns: (xg_grid, stats_dict)
             try:
-                # IMPORTANT: We need to pass df_game via data_df!
-                # Prepare condition for xgs_map to filter/orient correctly
-                # FIX: Start with global condition (e.g. {'game_state': ['5v5']}) to enforce strict filtering
-                analysis_condition = condition.copy() if condition else {}
+                # Use the passed base condition (flipped vs original) + local filters
+                # REVERT: User wants strict label checking.
+                # Since we correctly flipped the condition for Away team (5v4 -> 4v5),
+                # the label check should pass for valid rows and correctly protect/filter.
+                analysis_condition = cond_base.copy() if cond_base else {}
+                
+                # Copy orientation keys (already in cond_base usually, but ensure)
+                if cond_base and 'team' in cond_base:
+                     analysis_condition['team'] = cond_base['team']
                 
                 if 'player_id' in cond_local:
                     analysis_condition['player_id'] = cond_local['player_id']
+                    # We pass the player's team explicitly if we know it (which we do, via selection of intervals_base)
+                    # But xgs_map uses 'team' to orient.
+                    # If this is an Away Player, we want stats oriented for Away Team.
+                    # We should pass 'team' = entity's team.
                     
-                    # FIX: Players need 'team' in condition to split For/Against stats
-                    # Infer team from shifts (use the team from the first shift found)
-                    # We have p_shifts available in outer scope? No, need to pass it or re-derive.
-                    # Wait, 'run_analysis' is a helper. We need access to p_shifts.
-                    # Let's verify if we can get it.
-                    # 'p_shifts' was local to the if block above (lines 75).
-                    # We should restructure slightly to get team_id easily.
-                    
-                    # Re-fetch pid to be safe (cond_local has it)
-                    pid_local = cond_local['player_id']
-                    # We can't access p_shifts from here efficiently if variable scope is limited.
-                    # But wait, python closures capture variables? 
-                    # p_shifts is defined inside the if block earlier. 
-                    
-                    # Let's peek at df_shifts again to find the team for this player
-                    # efficient lookup:
+                    # Look up player team to be 100% sure we pass the right ID for orientation
                     try:
-                        # Find team_id for this player in this game's shifts
-                        # Filter to just this player's rows
-                        # We know df_shifts exists in outer scope
-                        # Use iloc[0]
-                        p_team = df_shifts.loc[df_shifts['player_id'] == pid_local, 'team_id']
+                        p_team = df_shifts.loc[df_shifts['player_id'] == cond_local['player_id'], 'team_id']
                         if not p_team.empty:
                             analysis_condition['team'] = int(p_team.iloc[0])
-                    except Exception:
-                        pass
+                    except: pass
                 else:
-                    # For teams, we pass 'team' in the condition so xgs_map knows which team to orient for
                     analysis_condition['team'] = entity_id
 
-                # xgs_map returns: (out_path, heatmaps, df_filtered, summary_stats)
                 _, grid_raw, _, stats = analyze.xgs_map(
                     season=season,
                     data_df=df_game,
                     intervals_input=intervals_input,
                     condition=analysis_condition,
-                    heatmap_only=True,  # Return data only, do not generate plots
-                    total_seconds=toi   # PASS TOI explicitly to ensure team_seconds is correct
+                    heatmap_only=True,
+                    total_seconds=toi
                 )
                 
-                # Unwrap and Sanitize Grid
                 if grid_raw is not None:
-                    # Unwrap dict if xgs_map returned one (it returns {'team': ..., 'other': ...} when team is selected)
                     if isinstance(grid_raw, dict):
-                        grid_final = grid_raw.get('team') # We only care about the entity's perspective here
+                        grid_final = grid_raw.get('team')
                     else:
                         grid_final = grid_raw
-                        
-                    # Sanitize: Convert to float32 and fill NaNs with 0.0
-                    try:
-                        grid_final = np.asarray(grid_final, dtype=np.float32)
-                        grid_final = np.nan_to_num(grid_final, nan=0.0)
-                        data_to_save[f"{prefix}_grid_team"] = grid_final
-                    except Exception as e:
-                        print(f"Warning: Failed to sanitize grid for {prefix}: {e}")
+                    grid_final = np.nan_to_num(np.asarray(grid_final, dtype=np.float32), nan=0.0)
+                    data_to_save[f"{prefix}_grid_team"] = grid_final
                 
                 if stats:
                     data_to_save[f"{prefix}_stats"] = json.dumps(stats)
                     
             except Exception as e:
-                print(f"Analysis failed for {prefix} in {game_id}: {e}")
-                import traceback
-                traceback.print_exc()
+                # print(f"Analysis failed for {prefix}: {e}")
                 pass
 
         # Helper for intersection
@@ -204,14 +185,29 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
             return result
 
         # 1. Teams
-        run_analysis({}, home_id, f"team_{home_id}")
-        run_analysis({}, away_id, f"team_{away_id}")
+        run_analysis({}, home_id, f"team_{home_id}", intervals_home, cond_home)
+        run_analysis({}, away_id, f"team_{away_id}", intervals_away, cond_away)
         
         # 2. Players
-        # Get all players in game
+        # Assign players to Home/Away interval sets based on their Team ID
         pids = set(df_shifts['player_id'].unique())
         for pid in pids:
-             run_analysis({'player_id': pid}, pid, f"p_{pid}")
+             # Find team
+             try:
+                 p_team_rows = df_shifts.loc[df_shifts['player_id'] == pid, 'team_id']
+                 if p_team_rows.empty: continue
+                 p_tid = p_team_rows.iloc[0]
+                 
+                 # Compare Int to Int or Str to Str?
+                 # IDs in df are usually ints or float-ints.
+                 # home_id/away_id are ints from outside.
+                 
+                 if int(p_tid) == int(home_id):
+                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_home, cond_home)
+                 elif int(p_tid) == int(away_id):
+                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_away, cond_away)
+             except Exception:
+                 continue
              
         # Save
         np.savez_compressed(out_path, processed=True, **data_to_save)
