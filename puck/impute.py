@@ -84,18 +84,20 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'mean_6',
     ox = bx + (ux * d)
     oy = by + (uy * d)
     
-    # Overwrite blocked
-    df_out.loc[mask_blocked, 'imputed_x'] = ox
-    df_out.loc[mask_blocked, 'imputed_y'] = oy
+    # Update ONLY where ox/oy are valid (not NaN)
+    # If source x/y was NaN, result is NaN. We don't want to overwrite valid distance/angle with NaN 
+    # (which later gets filled to 0 => High xG).
     
-    # Recalculate geometry for BLOCKED shots using imputed coordinates
-    # We leave non-blocked geometry alone (assuming it was correct from source)
-    # UNLESS we want to be safe and recalc everything? 
-    # Let's only recalc blocked rows to minimize side effects.
+    mask_valid_coords = mask_blocked & bx.notna() & by.notna()
     
-    new_dist, new_angle = calculate_geometry(df_out.loc[mask_blocked], x_col='imputed_x', y_col='imputed_y')
-    
-    df_out.loc[mask_blocked, 'distance'] = new_dist
-    df_out.loc[mask_blocked, 'angle_deg'] = new_angle
+    if mask_valid_coords.any():
+        df_out.loc[mask_valid_coords, 'imputed_x'] = ox[mask_valid_coords]
+        df_out.loc[mask_valid_coords, 'imputed_y'] = oy[mask_valid_coords]
+        
+        # Recalculate geometry ONLY for valid updates
+        new_dist, new_angle = calculate_geometry(df_out.loc[mask_valid_coords], x_col='imputed_x', y_col='imputed_y')
+        
+        df_out.loc[mask_valid_coords, 'distance'] = new_dist
+        df_out.loc[mask_valid_coords, 'angle_deg'] = new_angle
     
     return df_out

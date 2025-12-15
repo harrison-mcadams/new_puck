@@ -280,7 +280,11 @@ def run_league_analysis():
         # 1. Total League Seconds (Normalize League)
         # Sum of all team seconds = 2 * Real Time (since we sum both sides)
         total_team_seconds = sum(t['team_seconds'] for t in team_stats.values())
-        if total_team_seconds <= 0: continue
+        if total_team_seconds <= 0:
+            print(f"  WARNING: total_team_seconds={total_team_seconds} for {cond}. Skipping.")
+            continue
+        
+        print(f"  Total League Seconds for {cond}: {total_team_seconds}")
         
         # League Average Grid = (Sum of All Team Grids) / Total Team Seconds
         # This gives Rates per second.

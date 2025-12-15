@@ -111,9 +111,38 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
             try:
                 # IMPORTANT: We need to pass df_game via data_df!
                 # Prepare condition for xgs_map to filter/orient correctly
-                analysis_condition = {}
+                # FIX: Start with global condition (e.g. {'game_state': ['5v5']}) to enforce strict filtering
+                analysis_condition = condition.copy() if condition else {}
+                
                 if 'player_id' in cond_local:
                     analysis_condition['player_id'] = cond_local['player_id']
+                    
+                    # FIX: Players need 'team' in condition to split For/Against stats
+                    # Infer team from shifts (use the team from the first shift found)
+                    # We have p_shifts available in outer scope? No, need to pass it or re-derive.
+                    # Wait, 'run_analysis' is a helper. We need access to p_shifts.
+                    # Let's verify if we can get it.
+                    # 'p_shifts' was local to the if block above (lines 75).
+                    # We should restructure slightly to get team_id easily.
+                    
+                    # Re-fetch pid to be safe (cond_local has it)
+                    pid_local = cond_local['player_id']
+                    # We can't access p_shifts from here efficiently if variable scope is limited.
+                    # But wait, python closures capture variables? 
+                    # p_shifts is defined inside the if block earlier. 
+                    
+                    # Let's peek at df_shifts again to find the team for this player
+                    # efficient lookup:
+                    try:
+                        # Find team_id for this player in this game's shifts
+                        # Filter to just this player's rows
+                        # We know df_shifts exists in outer scope
+                        # Use iloc[0]
+                        p_team = df_shifts.loc[df_shifts['player_id'] == pid_local, 'team_id']
+                        if not p_team.empty:
+                            analysis_condition['team'] = int(p_team.iloc[0])
+                    except Exception:
+                        pass
                 else:
                     # For teams, we pass 'team' in the condition so xgs_map knows which team to orient for
                     analysis_condition['team'] = entity_id
@@ -124,7 +153,8 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                     data_df=df_game,
                     intervals_input=intervals_input,
                     condition=analysis_condition,
-                    heatmap_only=True  # Return data only, do not generate plots
+                    heatmap_only=True,  # Return data only, do not generate plots
+                    total_seconds=toi   # PASS TOI explicitly to ensure team_seconds is correct
                 )
                 
                 # Unwrap and Sanitize Grid

@@ -2741,9 +2741,14 @@ def xgs_map(season: Optional[str] = '20252026', *,
     try:
         xgs_series = pd.to_numeric(df_with_xgs.get('xgs', pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
         
-        if df_filtered is not None and not df_filtered.empty and 'team_id' in df_filtered.columns:
-             u_teams = df_filtered['team_id'].unique()
-
+        # KEY FIX: Filter xG sum to only include valid shot attempts
+        # Non-shot events (Faceoffs, Hits) allow feature extraction and thus get valid >0 xG predictions
+        # but they should not contribute to the game total.
+        attempt_types_xg = {'goal', 'shot-on-goal', 'missed-shot', 'blocked-shot'}
+        is_attempt_for_xg = df_with_xgs['event'].astype(str).str.strip().str.lower().isin(attempt_types_xg)
+        
+        # Zero out xG for non-attempts
+        xgs_series = xgs_series.where(is_attempt_for_xg, 0.0)
 
         if team_val is not None:
             # determine membership using home/away or ids
@@ -2957,15 +2962,25 @@ def xgs_map(season: Optional[str] = '20252026', *,
         # 1. Adjust coordinates
         df_adj = plot_mod.adjust_xy_for_homeaway(df_to_plot, split_mode=heatmap_mode, team_for_heatmap=team_val)
         
-        # 1. Adjust coordinates
+        # Filter for heatmaps: Only use valid shot attempts (exclude faceoffs, hits, etc.)
+        # Reuse strict attempt types defined earlier if available, or redefine
+        attempt_types_grid = {'goal', 'shot-on-goal', 'missed-shot', 'blocked-shot'}
+        if 'event' in df_adj.columns:
+            # Case-insensitive check
+            # Use local variable for filtered DF to avoid affecting other logic if any
+            df_adj_grid = df_adj[df_adj['event'].astype(str).str.strip().str.lower().isin(attempt_types_grid)].copy()
+        else:
+            df_adj_grid = df_adj.copy()
+        
         # 2. Compute heatmaps based on mode
+
         heatmaps = {}
         
         if heatmap_mode == 'team_not_team':
 
             # Compute 'team' heatmap
             _, _, heat_team, _, _ = compute_xg_heatmap_from_df(
-                df_adj, grid_res=grid_res, sigma=sigma,
+                df_adj_grid, grid_res=grid_res, sigma=sigma,
                 selected_team=team_val, selected_role='team',
                 total_seconds=total_seconds
             )
@@ -2973,7 +2988,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
             
             # Compute 'other' heatmap
             _, _, heat_other, _, _ = compute_xg_heatmap_from_df(
-                df_adj, grid_res=grid_res, sigma=sigma,
+                df_adj_grid, grid_res=grid_res, sigma=sigma,
                 selected_team=team_val, selected_role='other',
                 total_seconds=total_seconds
             )
@@ -2982,7 +2997,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
         elif heatmap_mode == 'home_away':
             # Compute 'home' heatmap
             _, _, heat_home, _, _ = compute_xg_heatmap_from_df(
-                df_adj, grid_res=grid_res, sigma=sigma,
+                df_adj_grid, grid_res=grid_res, sigma=sigma,
                 selected_role='home' # compute_xg_heatmap_from_df needs update to handle 'home' role if not present?
                 # Actually compute_xg_heatmap_from_df uses _is_selected_row which handles 'team'/'other'.
                 # For home/away, we might need to filter df manually?
@@ -3012,7 +3027,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                  
         else: # orient_all_left
              _, _, heat, _, _ = compute_xg_heatmap_from_df(
-                df_adj, grid_res=grid_res, sigma=sigma,
+                df_adj_grid, grid_res=grid_res, sigma=sigma,
                 total_seconds=total_seconds
             )
              heatmaps = heat

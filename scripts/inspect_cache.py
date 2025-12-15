@@ -1,43 +1,34 @@
+
 import numpy as np
 import os
+import json
 import sys
 
-# Find a valid cache file
-cache_dir = "data/cache/20252026/partials"
-fname = "2025020001_5v5.npz"
-files = [fname]
+# Path to a cache file
+param_path = sys.argv[1]
 
-if not files:
-    print("No cache files found.")
-    sys.exit(1)
-
-fpath = os.path.join(cache_dir, files[0])
-print(f"Inspecting {fpath}")
-
+print(f"Inspecting {param_path}")
 try:
-    with np.load(fpath, allow_pickle=True) as data:
+    with np.load(param_path, allow_pickle=True) as data:
         print("Keys:", list(data.keys()))
-        for k in data.keys():
-            if k.endswith('_stats'):
-                print(f"\n--- Key: {k} ---")
-                val = data[k]
-                print(f"Type: {type(val)}")
-                print(f"Shape: {val.shape}")
-                print(f"Dtype: {val.dtype}")
-                
-                # Try to extract the item
-                try:
-                    item = val.item()
-                    print(f"Item Type: {type(item)}")
-                    print(f"Item Content: {item}")
-                except Exception as e:
-                    print(f"Item extraction failed: {e}")
-                    
-            if k.endswith('_grid_team'):
-                 print(f"\n--- Key: {k} (Grid) ---")
-                 val = data[k]
-                 print(f"Shape: {val.shape}")
-                 print(f"Sum: {np.sum(val)}")
-                 
+        if 'empty' in data:
+            print("File is marked as empty.")
+        else:
+            for k in data.keys():
+                if k.endswith('_stats'):
+                    val = data[k]
+                    print(f"\n--- {k} ---")
+                    if val.shape == ():
+                         s = str(val)
+                         # Clean numpy wrapping
+                         print(s)
+                         try:
+                             d = json.loads(s)
+                             print("Parsed JSON:")
+                             print(json.dumps(d, indent=2))
+                         except:
+                             pass
+                    else:
+                        print(val)
 except Exception as e:
-    print(f"Failed to load: {e}")
+    print(f"Error: {e}")
