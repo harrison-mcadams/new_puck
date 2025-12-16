@@ -37,6 +37,7 @@ def main():
             game_id=game_id, 
             out_path=out_path,
             model_path='analysis/xgs/xg_model_nested.joblib',
+            condition={'team': 'PHI'},
             show=False
         )
         print(f"Map saved to {out_path}")
