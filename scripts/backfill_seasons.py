@@ -155,6 +155,8 @@ def backfill():
     # Rules: No blocked shots. Max depth 10.
     print(f"\n--- Training Single Layer Model (No Blocks) ---")
     single_model_path = os.path.join(ANALYSIS_DIR, 'xgs', 'xg_model_single.joblib')
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(single_model_path), exist_ok=True)
     
     try:
         features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
@@ -190,6 +192,7 @@ def backfill():
     # Rules: Blocked shots allowed + Imputed. Max depth 10.
     print(f"\n--- Training Nested Model (With Blocks + Imputation) ---")
     nested_model_path = os.path.join(ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
+    os.makedirs(os.path.dirname(nested_model_path), exist_ok=True)
     
     try:
         from puck.impute import impute_blocked_shot_origins
