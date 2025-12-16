@@ -1365,47 +1365,37 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_ne
     
     # FILTER: Only predict for valid shot events
     valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
-    # Create a mask for valid rows
+    # Create a mask for valid rows in the ORIGINAL dataframe
+    # We must use df index to align with df_model
     mask_valid = df['event'].isin(valid_events)
     
-    # Subset df_model to only valid rows
-    df_model_valid = df_model.loc[mask_valid]
-
+    # We only want to predict for rows that are both in df_model AND are valid events.
+    # df_model generally preserves index of df (or subset if clean_df dropped rows).
+    valid_indices = df_model.index.intersection(df.index[mask_valid])
+    
     # predict probabilities when possible
     # PREDICTION
-    if clf is not None:
+    if clf is not None and not valid_indices.empty:
         try:
-            # For Nested Classifier, we might just pass df_model. 
-            # For Standard, we used df_model_valid which was filtered/cleaned.
-            # But the logic above (lines 1335-1346) sets up df_model for standard too.
-            # Let's unify.
-            
-            target_df = df_model
-            
-            # Standard model legacy cleanup used 'df_model_valid' but my audit showed
-            # _predict_xgs Standard path returns `df_model`.
-            # Wait, line 1343: df_model, ..., ... = fit_xgs.clean_df_for_model(...)
-            # So `df_model` is the one to use.
+            target_df = df_model.loc[valid_indices]
             
             if target_df.shape[0] > 0:
                  probs = clf.predict_proba(target_df)[:, 1]
                  # Assignment: Ensure index alignment! 
-                 # df_model might be different shape if clean_df_for_model dropped rows?
-                 # clean_df_for_model drops rows with missing features.
-                 # So we need to assign to the matching indices in `df`.
-                 
-                 df.loc[target_df.index, 'xgs'] = probs
+                 df.loc[valid_indices, 'xgs'] = probs
             
-            # (Reverted: Manual override for blocked shots removed. 
-            #  Model is predictive and deals with pre-event probabilities.)
-                
         except Exception as e:
             print(f"xgs_map: prediction failed with {e}")
-            # Don't return None, allow fallback to 0.0 fill
             pass
     
-    # Fill remaining (invalid events) with 0.0
+    # Fill remaining (invalid events, or failed predictions) with 0.0
     df['xgs'] = df['xgs'].fillna(0.0)
+
+    # SAFEGUARD: Explicitly force 0.0 for known non-shooting events, just in case
+    # mask_valid was the "allowed" list. Anything NOT in valid_events should be 0.
+    # The fillna(0.0) above handles NaN, but if prediction somehow ran on invalid rows earlier,
+    # this overwrites them.
+    df.loc[~mask_valid, 'xgs'] = 0.0
 
     return df, clf, (final_features, cat_levels)
 
@@ -2391,7 +2381,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                     if s == 0:
                         mask = times.notna() & (times >= s) & (times <= e)
                     else:
-                        mask = times.notna() & (times > s) & (times <= e)
+                        mask = times.notna() & (times >= s) & (times <= e)
                     if mask.any():
                         matched_indices.extend(df_game.loc[mask].index.tolist())
                 # deduplicate while preserving order
@@ -2414,6 +2404,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
                             df_matched = df_game.loc[unique_idx]
                             
                             # If game_state is in condition, add game_state_relative_to_team column
+                            # (Restored: We match relative conditions (like 4v5) against relative API state
+                            #  to catch cases where API is '5v4' but relative is '4v5'.)
                             if 'game_state' in condition and hasattr(_timing, 'add_game_state_relative_column'):
                                 try:
                                     df_matched = _timing.add_game_state_relative_column(df_matched.copy(), team_for_game)
