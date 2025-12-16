@@ -36,6 +36,7 @@ def main():
             season='20252026', 
             game_id=game_id, 
             out_path=out_path,
+            model_path='analysis/xgs/xg_model_nested.joblib',
             show=False
         )
         print(f"Map saved to {out_path}")
