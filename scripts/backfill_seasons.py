@@ -53,7 +53,7 @@ def backfill():
 
         print(f"Fetching games list for {season}...")
         try:
-            games = nhl_api.get_season(season=season)
+            games = nhl_api.get_season(season=season, team='all')
         except Exception as e:
             print(f"Failed to get schedule for {season}: {e}")
             continue

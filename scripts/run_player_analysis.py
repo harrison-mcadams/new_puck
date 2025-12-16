@@ -412,8 +412,6 @@ def run_analysis():
                 # v_max = np.nanmax(combined_rel)
                 # print(f"DEBUG {pname}: Range [{v_min:.5f}, {v_max:.5f}]")
                 
-                fig, ax = plt.subplots(figsize=(10, 6))
-                
                 minutes = seconds / 60.0
                 display_cond = f"5v5 | {minutes:.1f} min"
                 
