@@ -25,7 +25,8 @@ def backfill():
     print(f"\n==========================================")
     print(f" PHASE 0: DELETING OLD DATA")
     print(f"==========================================\n")
-    data_dir = Path('data')
+    from puck.config import DATA_DIR, ANALYSIS_DIR
+    data_dir = Path(DATA_DIR)
     if data_dir.exists():
         # We want to be careful not to delete everything if not intended, 
         # but user said "delete the raw season data".
@@ -153,7 +154,7 @@ def backfill():
     # ---------------------------------------------------------
     # Rules: No blocked shots. Max depth 10.
     print(f"\n--- Training Single Layer Model (No Blocks) ---")
-    single_model_path = 'analysis/xgs/xg_model_single.joblib'
+    single_model_path = os.path.join(ANALYSIS_DIR, 'xgs', 'xg_model_single.joblib')
     
     try:
         features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
@@ -188,7 +189,7 @@ def backfill():
     # ---------------------------------------------------------
     # Rules: Blocked shots allowed + Imputed. Max depth 10.
     print(f"\n--- Training Nested Model (With Blocks + Imputation) ---")
-    nested_model_path = 'analysis/xgs/xg_model_nested.joblib' # Or directory
+    nested_model_path = os.path.join(ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
     
     try:
         from puck.impute import impute_blocked_shot_origins
