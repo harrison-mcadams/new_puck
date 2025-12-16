@@ -39,7 +39,7 @@ HEADERS = [
 PLAYER_ARGS = "--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa"
 
 # with frame drop tracking
-PLAYER_ARGS = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --osd-level=1 --osd-msg1='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
+#PLAYER_ARGS = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --osd-level=1 --osd-msg1='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
 
 def play_stream(stream_url):
     """
@@ -54,7 +54,7 @@ def play_stream(stream_url):
     cmd = [
         "streamlink",
         f"hls://{stream_url}" if "hls://" not in stream_url else stream_url,
-        "720p,best",                    # Prioritize 720p (smoother on Pi) before falling back to source/best
+        "1080p,best",                    # Prioritize 720p (smoother on Pi) before falling back to source/best
         "--hls-live-edge", "5",         # Buffer stability: stay 5 segments behind live
         "--ringbuffer-size", "32M",     # Network buffer: 32MB to handle Wi-Fi dips
         "--player", "mpv",
