@@ -445,8 +445,28 @@ def plot_events(
                 return False
 
         mask_team = events.apply(_is_team_row_events, axis=1) if 'team_id' in events.columns or 'home_abb' in events.columns else pd.Series([False] * len(events), index=events.index)
-        home_goals = int(((mask_team) & is_goal).sum())
-        away_goals = int(((~mask_team) & is_goal).sum())
+        if 'home_id' in events.columns and home_id is not None and team_for_heatmap is not None:
+             # Check if Team is Home or Away
+             is_team_home = (str(team_for_heatmap).strip() == str(home_id).strip())
+             # If using abbreviation
+             if not is_team_home and 'home_abb' in events.columns:
+                 is_team_home = (str(team_for_heatmap).strip().upper() == str(events['home_abb'].iloc[0]).strip().upper())
+             
+             # Calculate Team vs Other counts
+             team_goals_count = int(((mask_team) & is_goal).sum())
+             other_goals_count = int(((~mask_team) & is_goal).sum())
+             
+             if is_team_home:
+                 home_goals = team_goals_count
+                 away_goals = other_goals_count
+             else:
+                 # Team is Away (or unknown, assume Away if not Home)
+                 home_goals = other_goals_count
+                 away_goals = team_goals_count
+        else:
+             # Fallback if we can't identify home/away: treat Team as Home (Left)
+             home_goals = int(((mask_team) & is_goal).sum())
+             away_goals = int(((~mask_team) & is_goal).sum())
     else:
         if 'team_id' in events.columns and home_id is not None:
             home_goals = int(((events['team_id'].astype(str) == str(home_id)) & is_goal).sum())
@@ -480,8 +500,22 @@ def plot_events(
                 return False
 
         mask_attempts_team = attempts_df.apply(_is_team_row_events, axis=1) if not attempts_df.empty else pd.Series([], dtype=bool)
-        home_attempts = int(mask_attempts_team.sum())
-        away_attempts = int((~mask_attempts_team).sum() if not attempts_df.empty else 0)
+        team_attempts_count = int(mask_attempts_team.sum())
+        other_attempts_count = int((~mask_attempts_team).sum() if not attempts_df.empty else 0)
+        
+        # Determine Home/Away for Attempts (reuse logic or re-check)
+        is_team_home_att = False
+        if 'home_id' in events.columns and home_id is not None and team_for_heatmap is not None:
+             is_team_home_att = (str(team_for_heatmap).strip() == str(home_id).strip())
+             if not is_team_home_att and 'home_abb' in events.columns and not events['home_abb'].dropna().empty:
+                 is_team_home_att = (str(team_for_heatmap).strip().upper() == str(events['home_abb'].dropna().iloc[0]).strip().upper())
+        
+        if is_team_home_att:
+            home_attempts = team_attempts_count
+            away_attempts = other_attempts_count
+        else:
+            home_attempts = other_attempts_count
+            away_attempts = team_attempts_count
     else:
         if 'team_id' in events.columns and home_id is not None:
             home_attempts = int((attempts_df['team_id'].astype(str) == str(home_id)).sum())
@@ -505,8 +539,22 @@ def plot_events(
 
     if summary_stats and 'team_xgs' in summary_stats:
         try:
-            home_xg = float(summary_stats['team_xgs'])
-            away_xg = float(summary_stats['other_xgs'])
+            team_val = float(summary_stats['team_xgs'])
+            other_val = float(summary_stats['other_xgs'])
+            
+            # Determine Home/Away for xG
+            is_team_home_xg = False
+            if 'home_id' in events.columns and home_id is not None and team_for_heatmap is not None:
+                 is_team_home_xg = (str(team_for_heatmap).strip() == str(home_id).strip())
+                 if not is_team_home_xg and 'home_abb' in events.columns and not events['home_abb'].dropna().empty:
+                     is_team_home_xg = (str(team_for_heatmap).strip().upper() == str(events['home_abb'].dropna().iloc[0]).strip().upper())
+            
+            if is_team_home_xg:
+                home_xg = team_val
+                away_xg = other_val
+            else:
+                home_xg = other_val
+                away_xg = team_val
             have_xg = True
         except Exception:
             pass

@@ -2,44 +2,55 @@
 import subprocess
 import sys
 import os
+import argparse
+from urllib.parse import urlparse
 
 """
 stream.py - Raspberry Pi 4 Optimized Sports Streamer
 
-This script encapsulates the configuration needed to play high-framerate sports streams
-smoothly on a Raspberry Pi 4. It handles header spoofing to bypass website protections
-and sets specific mpv/decoder flags to ensure hardware acceleration works correctly.
-
 Usage:
-    python3 scripts/stream.py [optional_m3u8_url]
+    python3 scripts/stream.py [URL] [--team TEAM_NAME]
 
-Prerequisites on Pi:
-    sudo apt install streamlink mpv
-    (Optional) Force 1080p60 in /boot/cmdline.txt if connected to a 4K TV.
+Examples:
+    python3 scripts/stream.py "https://gg.poocloud.in/cdr_guadalajara/index.m3u8"
+    python3 scripts/stream.py "hls://..."
 """
 
-# Default URL for the specific stream source we found (EmbedSports / Poocloud)
-# This will likely change for different games, so override via command line args.
-DEFAULT_STREAM_URL = "https://gg.poocloud.in/cdr_guadalajara/index.m3u8"
+# ----------------- Configuration ----------------- #
 
-# Headers required to bypass the "Google HTML" block / 403 Forbidden
-# These mimic the browser request from the embedding site.
-HEADERS = [
+# Known headers for common streaming backends (EmbedSports, PooCloud, etc.)
+# These mimic a mobile Android device to bypass some PC-targeted ads/blocks.
+DEFAULT_HEADERS = [
     "Referer=https://embedsports.top/",
     "Origin=https://embedsports.top",
     "User-Agent=Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36"
 ]
 
-# Raspberry Pi 4 Performance Tunings for mpv
+# Alternate headers for "Streamed.pk" if the direct link is used (experimental)
+STREAMED_HEADERS = [
+    "Referer=https://streamed.pk/",
+    "Origin=https://streamed.pk",
+    "User-Agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+]
+
+# Raspberry Pi 4 Performance Tunings (mpv)
 # --profile=fast: Disables high-quality scalers (spline36) which are too heavy for Pi
 # --vo=gpu: Uses the GPU for video output
 # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4 (V4L2 Memory-to-Memory)
 # --framedrop=vo: Drops video frames instead of freezing if synchronization is lost
 # --ao=alsa: Uses ALSA directly for audio to reduce latency/lag vs PulseAudio
-PLAYER_ARGS = "--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa"
+# --osd-level=1: Ensures basic status info can be toggled
+PLAYER_ARGS = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --osd-level=1 --osd-msg1='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
 
-# with frame drop tracking
-#PLAYER_ARGS = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --osd-level=1 --osd-msg1='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
+# ----------------- functions ----------------- #
+
+def get_headers_for_url(url):
+    """Selects the best headers based on the URL domain."""
+    if "embedsports" in url or "poocloud" in url or "xyz" in url:
+        return DEFAULT_HEADERS
+    else:
+        # Default to the mobile headers as they are generally more permissive
+        return DEFAULT_HEADERS
 
 def play_stream(stream_url):
     """
@@ -47,32 +58,39 @@ def play_stream(stream_url):
     """
     # Ensure streamlink parses it as HLS if not specified
     if not stream_url.startswith("hls://") and not stream_url.startswith("http"):
-         # Assume it's a direct url if neither, but streamlink handles http, we just prepend hls:// to force HLS mode if ambiguous
-         pass
+         print(f"❌ Invalid URL format: {stream_url}")
+         return
     
-    # Streamlink command construction
+    # 1. Select Quality
+    # Prioritize 720p (smoother on Pi) before falling back to source/best.
+    # 1080p60 on Pi 4 is "possible" but often stutters without perfect cooling/overclock.
+    quality = "720p,best" 
+    
+    # 2. Build Command
     cmd = [
         "streamlink",
         f"hls://{stream_url}" if "hls://" not in stream_url else stream_url,
-        "1080p,best",                    # Prioritize 720p (smoother on Pi) before falling back to source/best
+        quality,
         "--hls-live-edge", "5",         # Buffer stability: stay 5 segments behind live
         "--ringbuffer-size", "32M",     # Network buffer: 32MB to handle Wi-Fi dips
         "--player", "mpv",
         "--player-args", PLAYER_ARGS
     ]
 
-    # Add all headers
-    for header in HEADERS:
+    # 3. Add Headers
+    headers = get_headers_for_url(stream_url)
+    for header in headers:
         cmd.extend(["--http-header", header])
 
-    # Environment variables to force display to the HDMI port (Display :0)
-    # This ensures the video window opens on the TV even if run via SSH.
+    # 4. Environment Variables
+    # Force display to HDMI port (:0) so it launches ON the TV, even if run from SSH.
     env = os.environ.copy()
     env["DISPLAY"] = ":0"
 
     print(f"\n📺 Starting Stream on Display :0")
     print(f"🔗 URL: {stream_url}")
     print(f"🚀 Optimization: Pi 4 Mode (v4l2m2m_copy, 720p pref)")
+    print(f"📡 Headers: Using {'EmbedSports/Mobile' if headers == DEFAULT_HEADERS else 'Standard'}")
     print("-" * 60)
     
     try:
@@ -85,6 +103,18 @@ def play_stream(stream_url):
         print("\n❌ Error: 'streamlink' is not installed. Run: sudo apt install streamlink")
 
 if __name__ == "__main__":
-    # Use command line argument if provided, otherwise default
-    target_url = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_STREAM_URL
-    play_stream(target_url)
+    parser = argparse.ArgumentParser(description="Play sports streams on Raspberry Pi 4")
+    parser.add_argument("url", nargs="?", help="The .m3u8 stream URL")
+    parser.add_argument("--team", help="Team name to search for (Not yet implemented)")
+    
+    args = parser.parse_args()
+
+    if args.url:
+        play_stream(args.url)
+    elif args.team:
+        print(f"🔍 Auto-discovery for '{args.team}' is not yet implemented (Anti-bot protection).")
+        print("   Please extract the .m3u8 link manually from the browser DevTools (Network tab).")
+    else:
+        # Fallback to the known good test stream if nothing provided
+        print("⚠️ No URL provided. Playing default test stream (Guadalajara).")
+        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8")

@@ -8,6 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from puck import analyze
 from puck.nhl_api import get_game_id
+from puck.fit_nested_xgs import NestedXGClassifier
 
 def main():
     # 1. Get most recent Flyers game

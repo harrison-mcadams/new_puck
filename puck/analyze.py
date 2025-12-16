@@ -2051,7 +2051,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
             game_id: Optional[str] = None,
 
             csv_path: Optional[str] = None,
-              model_path: str = 'analysis/xgs/xg_model.joblib',
+              model_path: str = 'analysis/xgs/xg_model_nested.joblib',
               behavior: str = 'load',
               out_path: str = 'analysis/xgs/xg_map.png',
               orient_all_left: bool = False,
