@@ -39,8 +39,7 @@ HEADERS = [
 PLAYER_ARGS = "--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa"
 
 # with frame drop tracking
-PLAYER_ARGS = "--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --osd-level=3 --osd-msg1='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
-
+PLAYER_ARGS = "--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --term-status-msg='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
 def play_stream(stream_url):
     """
     Constructs and runs the optimized streamlink command.
