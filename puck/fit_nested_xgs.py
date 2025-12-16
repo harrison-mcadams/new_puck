@@ -58,6 +58,19 @@ logging.basicConfig(
 )
 logger = logging.getLogger("NestedxG")
 
+# Import Config for valid Data Directory
+try:
+    from . import config as puck_config
+except ImportError:
+    try:
+        import config as puck_config
+    except ImportError:
+        # Provide a dummy config if strictly standalone and config missing (rare)
+        class DummyConfig:
+            DATA_DIR = 'data'
+            ANALYSIS_DIR = 'analysis'
+        puck_config = DummyConfig()
+
 
 # --- CONFIGURATION ---
 @dataclass
@@ -362,8 +375,12 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     
     
-def load_data(path_pattern: str = 'data/**/*.csv') -> pd.DataFrame:
+def load_data(path_pattern: str = None) -> pd.DataFrame:
     """Load and concatenate all available season data. Expects data/{year}/*.csv"""
+    
+    if path_pattern is None:
+        path_pattern = str(Path(puck_config.DATA_DIR) / "**" / "*.csv")
+        
     import glob
     files = glob.glob(path_pattern, recursive=True)
     
@@ -402,7 +419,7 @@ def load_data(path_pattern: str = 'data/**/*.csv') -> pd.DataFrame:
     
     if not data_files:
         logger.warning(f"No season files found matching pattern. Trying specific fallback.")
-        fallback = 'data/20252026/20252026_df.csv'
+        fallback = str(Path(puck_config.DATA_DIR) / '20252026/20252026_df.csv')
         if Path(fallback).exists():
             data_files = [fallback]
         else:

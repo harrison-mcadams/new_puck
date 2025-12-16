@@ -24,6 +24,7 @@ import joblib
 import json
 import sys
 import time
+import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Tuple
@@ -63,6 +64,19 @@ except ImportError:
     except ImportError as e:
         print(f"Warning: Could not import NestedXGClassifier: {e}")
         NestedXGClassifier = None
+
+# Import Config for valid Data Directory
+try:
+    from . import config as puck_config
+except ImportError:
+    try:
+        import config as puck_config
+    except ImportError:
+        # Provide a dummy config if strictly standalone and config missing (rare)
+        class DummyConfig:
+            DATA_DIR = 'data'
+            ANALYSIS_DIR = 'analysis'
+        puck_config = DummyConfig()
 
 # --- Simple module-level caching for the trained classifier ---
 _GLOBAL_CLF = None
@@ -144,16 +158,30 @@ class ModelConfig:
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if k != 'name'}
 
-def load_all_seasons_data(base_dir: str = 'data') -> pd.DataFrame:
+def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
     """Load and concatenate all season CSVs found in data/{season}."""
+    if base_dir is None:
+        base_dir = puck_config.DATA_DIR
+
     base_path = Path(base_dir)
+
+    # 1. If not found in CWD, try Project Root (robust to script location)
+    if not base_path.exists() and not base_path.is_absolute():
+        project_root = Path(__file__).resolve().parent.parent
+        alt_path = project_root / base_dir
+        if alt_path.exists():
+            print(f"Found data directory at: {alt_path}")
+            base_path = alt_path
+
     if not base_path.exists():
-        # Fallback to current season location if root not found
-        fallback = Path('data/20252026/20252026_df.csv')
+        # 2. Fallback check for single file in project root
+        project_root = Path(__file__).resolve().parent.parent
+        fallback = project_root / 'data/20252026/20252026_df.csv'
         if fallback.exists():
+            print(f"Data directory generic load failed, but found specific season file: {fallback}")
             return pd.read_csv(fallback)
-        raise FileNotFoundError(f"Data directory not found: {base_dir}")
-        
+            
+        raise FileNotFoundError(f"Data directory not found. Looked for '{base_dir}' in CWD ({Path.cwd()}) and Project Root ({project_root}).")        
     frames = []
     # Look for {year}/{year}_df.csv structure
     for year_dir in sorted(base_path.iterdir()):
@@ -261,7 +289,7 @@ _CLF_MEM_CACHE = {}
 
 def get_clf(out_path: str = None, behavior: str = 'load', *,
             model_type: str = 'single',
-            csv_path: str = 'data/20252026/20252026_df.csv',
+            csv_path: str = None,
             n_estimators: int = 200,
             features: list = None,
             random_state: int = 42):
@@ -273,6 +301,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     - behavior: 'train' to train & save, 'load' to load from disk
     - model_type: 'single' (default) or 'nested'. Used to determine default path.
     - csv_path/features/random_state/n_estimators: training params used when behavior='train'
+
 
     Returns: (clf, final_features, categorical_levels_map)
     """
@@ -368,7 +397,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
 # --- end of module-level caching helpers ---
 
 def get_or_train_clf(force_retrain: bool = False,
-                     csv_path: str = 'data/20252026/20252026_df.csv',
+                     csv_path: str = None,
                      features=None,
                      random_state: int = 42,
                      n_estimators: int = 200):
@@ -497,18 +526,21 @@ def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fi
     return df, categorical_dummies_map, categorical_levels_map
 
 
-def load_data(path: str = 'data/20252026/20252026_df.csv'):
+def load_data(path: str = None):
     """Load the season CSV and return a cleaned DataFrame.
 
     Parameters
-    - path: CSV path (default 'data/20252026/20252026_df.csv')
+    - path: CSV path (default uses config.DATA_DIR to find 20252026 csv)
     - feature_cols: a column name or list of column names to use as features
       (default ['dist_center', 'angle_deg', 'game_state', 'is_net_empty']). The function will try common
       alternate names if the requested columns are missing.
 
     Returns a DataFrame with at least the feature column and `is_goal` target.
-    The function will drop rows missing the required fields.
     """
+    if path is None:
+        # Default to the primary season file in DATA_DIR
+        path = os.path.join(puck_config.DATA_DIR, '20252026', '20252026_df.csv')
+        
     df = pd.read_csv(path)
 
 
