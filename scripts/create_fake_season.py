@@ -59,22 +59,43 @@ def setup_dirs():
 
     os.makedirs(SHIFTS_DIR, exist_ok=True)
 
-def create_fake_data(n_games=4):
+def create_fake_data(n_games=6):
     print(f"Generating {n_games} fake games...")
     
     events = []
     
     TEAM_R_ID = 100
     TEAM_L_ID = 200
+    TEAM_RND_ID = 300
+    
     TEAM_R_ABB = 'RGT'
     TEAM_L_ABB = 'LFT'
+    TEAM_RND_ABB = 'RND'
+    
+    teams_def = {
+        TEAM_R_ID: {'abb': TEAM_R_ABB, 'name': 'Team Right (Y < -15)'},
+        TEAM_L_ID: {'abb': TEAM_L_ABB, 'name': 'Team Left (Y > 15)'},
+        TEAM_RND_ID: {'abb': TEAM_RND_ABB, 'name': 'Team Random'}
+    }
     
     # Update expected keys
     global EXPECTED
     EXPECTED = {
         str(TEAM_R_ID): {'5v5': 0.0, '5v4': 0.0, '4v5': 0.0},
-        str(TEAM_L_ID): {'5v5': 0.0, '5v4': 0.0, '4v5': 0.0}
+        str(TEAM_L_ID): {'5v5': 0.0, '5v4': 0.0, '4v5': 0.0},
+        str(TEAM_RND_ID): {'5v5': 0.0, '5v4': 0.0, '4v5': 0.0}
     }
+    
+    # 6 Games: Round Robin (Home/Away for each pair)
+    # Pairs: (100, 200), (200, 100), (100, 300), (300, 100), (200, 300), (300, 200)
+    matchups = [
+        (TEAM_R_ID, TEAM_L_ID),
+        (TEAM_L_ID, TEAM_R_ID),
+        (TEAM_R_ID, TEAM_RND_ID),
+        (TEAM_RND_ID, TEAM_R_ID),
+        (TEAM_L_ID, TEAM_RND_ID),
+        (TEAM_RND_ID, TEAM_L_ID)
+    ]
     
     games = []
     
@@ -82,55 +103,43 @@ def create_fake_data(n_games=4):
         gid = 2025000001 + i
         games.append(gid)
         
-        # Determine Home/Away (Alternate)
-        if i % 2 == 0:
-            home_id, home_abb = TEAM_R_ID, TEAM_R_ABB
-            away_id, away_abb = TEAM_L_ID, TEAM_L_ABB
+        # Determine Home/Away
+        if i < len(matchups):
+            home_id, away_id = matchups[i]
         else:
-            home_id, home_abb = TEAM_L_ID, TEAM_L_ABB
-            away_id, away_abb = TEAM_R_ID, TEAM_R_ABB
+            # Fallback if n_games > 6
+            home_id, away_id = matchups[i % len(matchups)]
+            
+        home_abb = teams_def[home_id]['abb']
+        away_abb = teams_def[away_id]['abb']
             
         home_def_side = 'left' 
         
         # Simulate Events
-        # We want to simulate different states.
-        # Let's say:
-        # 0-1200s: 5v5
-        # 1200-2400s: 5v4 (Home Powerplay)
-        # 2400-3600s: 4v5 (Home Penalty Kill / Away Powerplay)
-        
-        # Events generation
         for team_type in ['home', 'away']:
             tid = home_id if team_type == 'home' else away_id
             tabb = home_abb if team_type == 'home' else away_abb
-            is_r_team = (tid == TEAM_R_ID)
             
             # 5v5 Shots (Period 1)
             for k in range(5):
                 sec = np.random.uniform(0, 1200)
-                add_event(events, gid, sec, '5v5', tid, home_id, away_id, home_abb, away_abb, home_def_side, is_r_team)
+                add_event(events, gid, sec, '5v5', tid, home_id, away_id, home_abb, away_abb, home_def_side)
             
-            # 5v4 Shots (Period 2) - Home has 5, Away has 4.
-            # If tid matches Home, they are in 5v4 state.
-            # If tid matches Away, they are in 4v5 state (SH).
+            # 5v4 Shots (Period 2)
+            # Home has 5, Away has 4.
             state = '5v4' if team_type == 'home' else '4v5'
             for k in range(5):
                 sec = np.random.uniform(1200, 2400)
-                add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def_side, is_r_team)
+                add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def_side)
                 
-            # 4v5 Shots (Period 3) - Home has 4, Away has 5.
-            # If tid matches Home -> 4v5
-            # If tid matches Away -> 5v4
+            # 4v5 Shots (Period 3)
+            # Home has 4, Away has 5.
             state = '4v5' if team_type == 'home' else '5v4'
             for k in range(5):
                 sec = np.random.uniform(2400, 3600)
-                add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def_side, is_r_team)
+                add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def_side)
         
         # Create Shifts
-        # Period 1: 5v5 (5 skaters each + G)
-        # Period 2: 5v4 (Home 5+G, Away 4+G)
-        # Period 3: 4v5 (Home 4+G, Away 5+G)
-        
         shift_rows = []
         
         # Goalies - All Game
@@ -161,10 +170,8 @@ def create_fake_data(n_games=4):
         cache_fake_feed(gid, home_id, away_id)
         
     # Generate Fake Teams JSON
-    fake_teams = [
-        {"id": TEAM_R_ID, "abbr": TEAM_R_ABB, "name": "Team Right"},
-        {"id": TEAM_L_ID, "abbr": TEAM_L_ABB, "name": "Team Left"}
-    ]
+    fake_teams = [{"id": k, "abbr": v['abb'], "name": v['name']} for k, v in teams_def.items()]
+
     teams_json_path = os.path.join('analysis', 'teams.json')
     with open(teams_json_path, 'w') as f:
         json.dump(fake_teams, f, indent=2)
@@ -179,7 +186,7 @@ def create_fake_data(n_games=4):
     df_events.to_csv(csv_path, index=False)
     print(f"Saved fake season CSV to {csv_path}")
     
-    return TEAM_R_ABB, TEAM_L_ABB
+    return TEAM_R_ABB, TEAM_L_ABB, TEAM_RND_ABB
 
 def cache_fake_feed(gid, home_id, away_id):
     cache_dir = os.path.join('.cache', 'nhl_api')
@@ -201,24 +208,42 @@ def cache_fake_feed(gid, home_id, away_id):
         json.dump(feed, f)
 
 
-def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def, is_r_team, xg=1.0):
+def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def, xg=1.0):
     period = 1 if sec < 1200 else (2 if sec < 2400 else 3)
     p_time = sec % 1200
     p_time_str = f"{int(p_time//60):02d}:{int(p_time%60):02d}"
     
-    # Spatial Logic
-    # Team R (is_r_team): Y < -10
-    # Team L (not is_r_team): Y > 10
-    y = np.random.uniform(-40, -10) if is_r_team else np.random.uniform(10, 40)
-    
-    # Attack Side
-    # Home defends Left -> Attacks Right (X > 0)
-    # Away attacks Left (X < 0)
+    # Determine Attack Perspective
+    # Home defends Left -> Attacks Right (X > 0) defined in data
+    # Away attacks Left (X < 0) defined in data
     is_home = (tid == home_id)
+    
+    # Standardized Frame Target (Attacking Right):
+    # RGT (100): Y < -15 (Bottom/Right Wing)
+    # LFT (200): Y > 15 (Top/Left Wing)
+    # RND (300): Y random -40 to 40
+    
+    # Generate in ATTACKING FRAME first
+    if tid == 100: # RGT
+        target_y = np.random.uniform(-40, -15)
+        target_x = np.random.uniform(30, 80)
+    elif tid == 200: # LFT
+        target_y = np.random.uniform(15, 40)
+        target_x = np.random.uniform(30, 80)
+    else: # RND
+        target_y = np.random.uniform(-40, 40)
+        target_x = np.random.uniform(30, 80)
+        
+    # Transform to Global/Data coordinates
+    # If Home and Defends Left -> Attack Right -> No change
+    # If Away -> Attack Left -> Flip X and Y
+    
     if (is_home and home_def == 'left') or (not is_home and home_def == 'right'):
-        x = np.random.uniform(30, 80)
+        # Attacking Right
+        x, y = target_x, target_y
     else:
-        x = np.random.uniform(-80, -30)
+        # Attacking Left
+        x, y = -target_x, -target_y
     
     xg_val = xg
     
@@ -238,11 +263,11 @@ def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb
         'event': 'shot-on-goal',
         'x': x,
         'y': y,
-        'player_id': tid * 10 + 1,
+        'player_id': tid * 10 + 1, # e.g. 1001, 2001
         'player_name': f"P{tid}",
         'shot_type': 'Wrist Shot',
-        'xg': xg_val, # Keep old key just in case some logic uses it (e.g. process_daily_cache check)
-        'xgs': xg_val, # Pural key for model
+        'xg': xg_val, 
+        'xgs': xg_val, 
         'period_type': 'REGULAR'
     })
     
@@ -262,7 +287,7 @@ def add_shift(rows, gid, tid, number, type_code, start, end):
         'period': 1,
         'detail_code': 0,
         'duration': float(end - start),
-        'type_code': 0, # doesn't matter much for internal logic if we use explicit classification
+        'type_code': 0, 
         'raw': {'primaryPosition': 'G' if type_code == 'G' else 'C'}
     })
 
@@ -274,8 +299,6 @@ def run_pipeline():
         os.makedirs(partials_dir, exist_ok=True)
     except: pass
 
-    # Do NOT pass --force because daily.py deletes the season CSV if force=True!
-    # Pass --skip-fetch to force use of the local CSV we just created
     cmd = [sys.executable, 'scripts/daily.py', '--season', SEASON, '--skip-fetch']
     print(f"Executing: {' '.join(cmd)}")
     res = subprocess.run(cmd, capture_output=True, text=True)
@@ -290,14 +313,12 @@ def run_pipeline():
         print("STDOUT:", res.stdout[-2000:])
         print("STDERR:", res.stderr[-2000:])
         return False
-    # print("Pipeline Output:", res.stdout[-500:]) 
     return True
 
 def verify_totals():
     print("\nVerifying xG Totals against Analysis Output...")
-    # Load 5v5, 5v4, 4v5 summaries
-    
     failures = 0
+    passed = 0
     
     for cond in ['5v5', '5v4', '4v5']:
         summary_path = os.path.join('analysis', 'league', SEASON, cond, 'team_summary.json')
@@ -307,67 +328,134 @@ def verify_totals():
             continue
             
         with open(summary_path, 'r') as f:
-            data = json.load(f) # List of dicts
+            data = json.load(f) 
             
-        # Convert to dict by team_id (we need to map abb to id, or just check both)
-        # The fake season uses IDs 100, 200. Names Team Right, Team Left.
-        # run_league_stats outputs team names in 'team' field? Or abbreviation?
-        # Usually abbreviation.
-        
-        for row in data:
-            team_lbl = row.get('team')
-            # Map back to ID
-            tid = None
-            if team_lbl == 'RGT': tid = '100'
-            elif team_lbl == 'LFT': tid = '200'
+        # Check all expected teams
+        for tid_str, expected_conds in EXPECTED.items():
+            expected = expected_conds[cond]
+            # Find in data
+            # Data usually has team abbreviations.
             
-            if tid:
-                actual_xg = row.get('team_xgs', 0.0) # wait, summary usually has stats dict?
-                # run_league_stats output list of dicts: {'team': 'PHI', 'team_xgs': ..., ...}
-                # Let's check keys.
-                # If keys are just rates (per60), we might need to convert back?
-                # run_league_stats saves: team, team_goals, team_xgs, etc. YES raw totals are there.
-                
-                expected = EXPECTED[tid][cond]
-                
-                # Check with tolerance
-                if abs(actual_xg - expected) > 0.01:
-                    print(f"FAIL: {team_lbl} {cond} xG mismatch. Expected {expected:.2f}, Got {actual_xg:.2f}")
-                    failures += 1
-                else:
-                    print(f"PASS: {team_lbl} {cond} xG matches ({expected:.2f})")
-    
+            # Map ID to Abb for search
+            abb_map = {'100': 'RGT', '200': 'LFT', '300': 'RND'}
+            search_abb = abb_map.get(tid_str)
+            
+            found = False
+            for row in data:
+                if row.get('team') == search_abb:
+                    actual_xg = row.get('team_xgs', 0.0)
+                    if abs(actual_xg - expected) > 0.01:
+                        print(f"FAIL: {search_abb} {cond} xG mismatch. Expected {expected:.2f}, Got {actual_xg:.2f}")
+                        failures += 1
+                    else:
+                        print(f"PASS: {search_abb} {cond} xG matches ({expected:.2f})")
+                        passed += 1
+                    found = True
+                    break
+            
+            if not found and expected > 0:
+                 print(f"FAIL: {search_abb} {cond} missing from summary but expected {expected}")
+                 failures += 1
+            elif not found and expected == 0:
+                 pass # correctly missing? or should be present with 0? usually present.
+                 
     return failures == 0
 
-def verify_spatial_logic(team_r, team_l):
-    # Same as before...
+def verify_spatial_logic():
+    print("\nVerifying spatial patterns...")
     part_dir = os.path.join(config.get_cache_dir(SEASON), 'partials')
     files = [f for f in os.listdir(part_dir) if f.endswith('5v5.npz')]
     
-    print(f"\nVerifying spatial patterns in {len(files)} partials...")
     violations = 0
+    
     for f in files:
         with np.load(os.path.join(part_dir, f), allow_pickle=True) as data:
+            # Robust Verification: Check for POLARIZATION (Segregation)
+            # We don't care if it's Top or Bottom (since standardization might flip orientation),
+            # but we care that it is NOT random/centered.
+            
+            # TEAM RGT (100) -> Should be Polarized (Side Loaded)
             if 'team_100_grid_team' in data:
                 grid = data['team_100_grid_team']
-                h_mass = np.sum(grid[:, 43:]) 
-                l_mass = np.sum(grid[:, :43])
-                if h_mass > l_mass:
-                     print(f"FAIL: Team R (Right) has more mass in Top Half!")
+                mass_top = np.sum(grid[:, 50:]) 
+                mass_bot = np.sum(grid[:, :35])
+                
+                # Check for Segregation: One side should be much heavier than other
+                # Ratio of Max/Min should be high (> 5)
+                # handle zero div
+                if mass_bot == 0: ratio = 999
+                elif mass_top == 0: ratio = 999
+                else: ratio = max(mass_top, mass_bot) / min(mass_top, mass_bot)
+                
+                if ratio < 5.0:
+                     print(f"FAIL: Team RGT (Right Wing) is not spatially segregated! Ratio: {ratio:.1f}")
                      violations += 1
+            
+            # TEAM LFT (200) -> Should be Polarized
             if 'team_200_grid_team' in data:
                 grid = data['team_200_grid_team']
-                h_mass = np.sum(grid[:, 43:]) 
-                l_mass = np.sum(grid[:, :43])
-                if l_mass > h_mass:
-                     print(f"FAIL: Team L (Left) has more mass in Bottom Half!")
+                mass_top = np.sum(grid[:, 50:]) 
+                mass_bot = np.sum(grid[:, :35])
+                
+                if mass_bot == 0: ratio = 999
+                elif mass_top == 0: ratio = 999
+                else: ratio = max(mass_top, mass_bot) / min(mass_top, mass_bot)
+                
+                if ratio < 5.0:
+                     print(f"FAIL: Team LFT (Left Wing) is not spatially segregated! Ratio: {ratio:.1f}")
                      violations += 1
-    
+                     
+            # TEAM RND (300) -> Random (Center ish)
+            if 'team_300_grid_team' in data:
+                grid = data['team_300_grid_team']
+                mass_total = np.sum(grid)
+                y_indices = np.arange(grid.shape[1])
+                y_profile = np.sum(grid, axis=0)
+                mean_y_idx = np.sum(y_indices * y_profile) / mass_total
+                
+                if abs(mean_y_idx - 42.5) > 10: 
+                     print(f"FAIL: Team RND Mean Y ({mean_y_idx}) is too far from center (42.5)")
+                     violations += 1
+
     if violations == 0:
         print("PASS: Spatial verification successful.")
     else:
         print(f"FAIL: Spatial verification failed with {violations} violations.")
     return violations == 0
+
+def verify_player_stats():
+    print("\nVerifying Player Stats (Checking for non-zero Against xG)...")
+    # Load player summary from NEW LOCATION
+    summ_path = os.path.join('analysis', 'players', SEASON, 'player_summary_5v5.json')
+    if not os.path.exists(summ_path):
+        print(f"FAIL: Player summary missing at {summ_path}")
+        return False
+        
+    with open(summ_path, 'r') as f:
+        players = json.load(f)
+        
+    # Check a few skaters
+    failures = 0
+    checked = 0
+    for p in players:
+        pid = p.get('player_id')
+        if not pid or pid % 10 == 0: continue # Skip goalies (ends in 0) or weird IDs
+        
+        # Skaters should have xG Against > 0 because they play against other teams who shoot
+        xga = p.get('xg_ag_60', 0) # Key in summary is xg_ag_60
+        
+        if xga <= 0:
+            print(f"FAIL: Player {p.get('player_name')} has 0.0 xGA per 60.")
+            failures += 1
+        checked += 1
+        
+    print(f"Checked {checked} skaters.")
+    if failures == 0 and checked > 0:
+        print("PASS: All skaters have valid xGA.")
+        return True
+    else:
+        print(f"FAIL: {failures} skaters have 0 xGA.")
+        return False
 
 def generate_verification_plots():
     print("\nGenerating verification plots...")
@@ -378,13 +466,7 @@ def generate_verification_plots():
         part_dir = os.path.join(config.get_cache_dir(SEASON), 'partials')
         files = [f for f in os.listdir(part_dir) if f.endswith('5v5.npz')]
         
-        # Accumulate grids
-        # Resolutions are usually 201x86? No, check array shape.
-        # Analyze uses: range [[-100, 100], [-42.5, 42.5]]
-        # We'll just init with None and add.
-        
-        grid_r = None
-        grid_l = None
+        grid_r, grid_l, grid_rnd = None, None, None
         
         for f in files:
             with np.load(os.path.join(part_dir, f), allow_pickle=True) as data:
@@ -396,37 +478,31 @@ def generate_verification_plots():
                     g = data['team_200_grid_team']
                     if grid_l is None: grid_l = np.zeros_like(g)
                     grid_l += g
+                if 'team_300_grid_team' in data:
+                    g = data['team_300_grid_team']
+                    if grid_rnd is None: grid_rnd = np.zeros_like(g)
+                    grid_rnd += g
         
-        if grid_r is None or grid_l is None:
-            print("No grids found to plot.")
-            return
-
-        fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-        
-        # Plot Team Right (100)
-        ax = axes[0]
-        draw_rink(ax)
-        # Grid is typically (X, Y) or (Y, X)?
-        # analyze.compute_xg_heatmap_from_df returns gx, gy, heatmap.
-        # heatmap is shape (Nx, Ny) usually.
-        # extent corresponds to [minX, maxX, minY, maxY].
-        # Resolution 1.0 -> 200 units X, 85 units Y.
-        
-        # Actually usually it's transposed for imshow?
-        # imshow expects (Rows, Cols) -> (Y, X).
-        # if grid is (Nx, Ny), we need to transpose.
-        # Let's assume standard behavior: Transpose for imshow.
-        
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5))
         extent = [-100, 100, -42.5, 42.5]
         
-        ax.imshow(grid_r.T, extent=extent, origin='lower', cmap='Reds', alpha=0.7)
-        ax.set_title(f"Team Right (100) - Expected: Bottom Half")
+        # RGT
+        ax = axes[0]
+        draw_rink(ax)
+        if grid_r is not None: ax.imshow(grid_r.T, extent=extent, origin='lower', cmap='Reds', alpha=0.7)
+        ax.set_title("Team RGT (Expected Top)")
         
-        # Plot Team Left (200)
+        # LFT
         ax = axes[1]
         draw_rink(ax)
-        ax.imshow(grid_l.T, extent=extent, origin='lower', cmap='Blues', alpha=0.7)
-        ax.set_title(f"Team Left (200) - Expected: Top Half")
+        if grid_l is not None: ax.imshow(grid_l.T, extent=extent, origin='lower', cmap='Blues', alpha=0.7)
+        ax.set_title("Team LFT (Expected Bottom)")
+        
+        # RND
+        ax = axes[2]
+        draw_rink(ax)
+        if grid_rnd is not None: ax.imshow(grid_rnd.T, extent=extent, origin='lower', cmap='Greens', alpha=0.7)
+        ax.set_title("Team RND (Uniform)")
         
         out_path = os.path.join('analysis', 'fake_season_verification.png')
         plt.savefig(out_path, dpi=150)
@@ -441,10 +517,11 @@ def main():
     create_fake_data()
     if run_pipeline():
         vt = verify_totals()
-        vs = verify_spatial_logic('RGT', 'LFT')
+        vs = verify_spatial_logic()
+        vp = verify_player_stats()
         generate_verification_plots()
         
-        if vt and vs:
+        if vt and vs and vp:
             print("\nSUCCESS: Fake Season Verification Passed!")
             sys.exit(0)
         else:

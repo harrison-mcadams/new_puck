@@ -320,6 +320,32 @@ def run_analysis():
     # Map back to dict for generic lookup
     pct_map = df_sum.set_index('player_id')[['off_pctile', 'def_pctile']].to_dict('index')
 
+    # SAVE SUMMARY (New Feature for Verification)
+    summary_out_path = os.path.join(out_dir_base, season, 'player_summary_5v5.json')
+    try:
+        # DF to records
+        # df_sum contains 'stats' which is a dict, so plain to_json might be messy if not careful,
+        # but to_dict('records') is safe for json.dump
+        # df_sum has columns: player_id, xg_for_60, xg_ag_60, stats, seconds, off_pctile, def_pctile
+        # We might want to flatten 'stats' or just dump as is.
+        # Let's dump the list of dicts that we built + adding pctiles
+        
+        # Merge pctiles into summary_data list
+        for item in summary_data:
+            pid = item['player_id']
+            if pid in pct_map:
+                item['off_pctile'] = pct_map[pid]['off_pctile']
+                item['def_pctile'] = pct_map[pid]['def_pctile']
+                # Add player name/team for easier debug
+                item['player_name'] = pid_name_map.get(pid, f"P{pid}")
+                
+        with open(summary_out_path, 'w') as f:
+            json.dump(summary_data, f, indent=2)
+        print(f"Saved player summary to {summary_out_path}")
+        
+    except Exception as e:
+        print(f"Warning: Failed to save player summary json: {e}")
+
     # 3. Plotting Loop
     print(f"Generating Plots for {len(df_sum)} players...")
     
