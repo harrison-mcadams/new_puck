@@ -365,7 +365,11 @@ def run_league_analysis():
                 'team_xg_per60': s['team_xg_per60'],
                 'other_xg_per60': s['other_xg_per60'],
                 'gf_pct': 100 * s['team_goals'] / (s['team_goals'] + s['other_goals']) if (s['team_goals'] + s['other_goals']) > 0 else 0,
-                'xgf_pct': 100 * s['team_xgs'] / (s['team_xgs'] + s['other_xgs']) if (s['team_xgs'] + s['other_xgs']) > 0 else 0
+                'xgf_pct': 100 * s['team_xgs'] / (s['team_xgs'] + s['other_xgs']) if (s['team_xgs'] + s['other_xgs']) > 0 else 0,
+                'team_xgs': s.get('team_xgs', 0.0),
+                'other_xgs': s.get('other_xgs', 0.0),
+                'team_goals': s.get('team_goals', 0),
+                'other_goals': s.get('other_goals', 0)
             })
             
             # 1. Raw Plot (Hybrid)

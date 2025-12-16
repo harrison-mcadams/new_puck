@@ -30,58 +30,73 @@ def main():
     parser = argparse.ArgumentParser(description="Daily NHL Analysis Update")
     parser.add_argument('--season', type=str, default='20252026', help='Season string (e.g., 20252026)')
     parser.add_argument('--force', action='store_true', help='Force full re-download/re-calc')
+    parser.add_argument('--skip-fetch', action='store_true', help='Skip data fetching (use existing CSV)')
     args = parser.parse_args()
     
     season = args.season
     print(f"--- Starting Daily Update for Season {season} ---")
     
     # 1. Update Data
-    # If force is true, clear the nhl_api cache to ensure fresh schedule
-    if args.force:
-        print("Force flag set: Clearing caches...")
-        import shutil
-        cache_root = '.cache/nhl_api'
-        if os.path.exists(cache_root):
+    df_season = pd.DataFrame()
+    if args.skip_fetch:
+        print("Skipping data fetch as requested.")
+        csv_path = os.path.join('data', f"{season}.csv")
+        if os.path.exists(csv_path):
             try:
-                shutil.rmtree(cache_root)
-                print(f"Cleared {cache_root}")
+                df_season = pd.read_csv(csv_path)
+                print(f"Loaded existing data from {csv_path}. Shape: {df_season.shape}")
             except Exception as e:
-                print(f"Warning: Failed to clear cache: {e}")
-        
-        # Also remove potential shadowing CSVs that timing.load_season_df might prefer
-        # We need to be aggressive here because load_season_df looks for _df.csv too
-        files_to_nuke = [
-            os.path.join('data', season, f'{season}.csv'),
-            os.path.join('data', season, f'{season}_df.csv'),
-            os.path.join('data', season, f'{season}_game_feeds.csv'),
-            os.path.join('data', season, f'{season}_game_feeds.json'),
-            os.path.join('data', f'{season}.csv'),
-            os.path.join('data', f'{season}_df.csv')
-        ]
-        
-        for f in files_to_nuke:
-            if os.path.exists(f):
+                print(f"Failed to load existing CSV: {e}")
+        else:
+             print(f"Error: {csv_path} not found.")
+    if df_season.empty:
+        # Standard Update Path
+        # If force is true, clear the nhl_api cache to ensure fresh schedule
+        if args.force:
+            print("Force flag set: Clearing caches...")
+            import shutil
+            cache_root = '.cache/nhl_api'
+            if os.path.exists(cache_root):
                 try:
-                    os.remove(f)
-                    print(f"Removed stale file: {f}")
+                    shutil.rmtree(cache_root)
+                    print(f"Cleared {cache_root}")
                 except Exception as e:
-                    print(f"Warning: Failed to remove {f}: {e}")
-                
-    # parse._season with use_cache=True will check static/cache/game_ID.json
-    # We disable cache if force is True
-    df_season = parse._season(
-        season=season, 
-        out_path='data', 
-        use_cache=not args.force
-    )
+                    print(f"Warning: Failed to clear cache: {e}")
+            
+            # Also remove potential shadowing CSVs that timing.load_season_df might prefer
+            files_to_nuke = [
+                os.path.join('data', season, f'{season}.csv'),
+                os.path.join('data', season, f'{season}_df.csv'),
+                os.path.join('data', season, f'{season}_game_feeds.csv'),
+                os.path.join('data', season, f'{season}_game_feeds.json'),
+                os.path.join('data', f'{season}.csv'),
+                os.path.join('data', f'{season}_df.csv')
+            ]
+            
+            for f in files_to_nuke:
+                if os.path.exists(f):
+                    try:
+                        os.remove(f)
+                        print(f"Removed stale file: {f}")
+                    except Exception as e:
+                        print(f"Warning: Failed to remove {f}: {e}")
+                    
+        # parse._season with use_cache=True will check static/cache/game_ID.json
+        # We disable cache if force is True
+        df_season = parse._season(
+            season=season, 
+            out_path='data', 
+            use_cache=not args.force
+        )
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
     # 1b. Update Teams List (Ensure analysis/teams.json is fresh)
-    print("Updating teams list...")
-    try:
-        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'generate_teams.py')], check=False)
-    except Exception as e:
-        print(f"Warning: generate_teams.py failed: {e}")
+    if not args.skip_fetch:
+        print("Updating teams list...")
+        try:
+            subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'generate_teams.py')], check=False)
+        except Exception as e:
+            print(f"Warning: generate_teams.py failed: {e}")
 
     
     if df_season.empty:

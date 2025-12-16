@@ -26,6 +26,7 @@ import pickle
 import shutil
 import subprocess
 import json
+import hashlib
 
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -46,6 +47,16 @@ def setup_dirs():
     if os.path.exists(DATA_DIR):
         print(f"Cleaning existing {DATA_DIR}...")
         shutil.rmtree(DATA_DIR)
+        
+    if os.path.exists(SHIFTS_DIR):
+        shutil.rmtree(SHIFTS_DIR)
+        
+    # Also clean the partials cache to force re-computation
+    cache_root = os.path.join('data', 'cache', SEASON)
+    if os.path.exists(cache_root):
+        shutil.rmtree(cache_root)
+        print(f"Cleaned stale cache at {cache_root}")
+
     os.makedirs(SHIFTS_DIR, exist_ok=True)
 
 def create_fake_data(n_games=4):
@@ -145,6 +156,19 @@ def create_fake_data(n_games=4):
         df_shifts = pd.DataFrame(shift_rows)
         pkl_path = os.path.join(SHIFTS_DIR, f'shifts_{gid}.pkl')
         df_shifts.to_pickle(pkl_path)
+        
+        # Inject Fake Feed Cache (for timing.py)
+        cache_fake_feed(gid, home_id, away_id)
+        
+    # Generate Fake Teams JSON
+    fake_teams = [
+        {"id": TEAM_R_ID, "abbr": TEAM_R_ABB, "name": "Team Right"},
+        {"id": TEAM_L_ID, "abbr": TEAM_L_ABB, "name": "Team Left"}
+    ]
+    teams_json_path = os.path.join('analysis', 'teams.json')
+    with open(teams_json_path, 'w') as f:
+        json.dump(fake_teams, f, indent=2)
+    print(f"Generated fake teams JSON at {teams_json_path}")
     
     # Save CSV
     df_events = pd.DataFrame(events)
@@ -157,7 +181,27 @@ def create_fake_data(n_games=4):
     
     return TEAM_R_ABB, TEAM_L_ABB
 
-def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def, is_r_team):
+def cache_fake_feed(gid, home_id, away_id):
+    cache_dir = os.path.join('.cache', 'nhl_api')
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    feed = {
+        'id': gid,
+        'gameState': 'FINAL',
+        'homeTeam': {'id': home_id, 'abbrev': 'Home', 'score': 1},
+        'awayTeam': {'id': away_id, 'abbrev': 'Away', 'score': 1},
+        'plays': [] 
+    }
+    
+    key = str(gid)
+    safe = hashlib.sha1(key.encode('utf-8')).hexdigest()
+    path = os.path.join(cache_dir, f"game_feed_{safe}.json")
+    
+    with open(path, 'w') as f:
+        json.dump(feed, f)
+
+
+def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb, home_def, is_r_team, xg=1.0):
     period = 1 if sec < 1200 else (2 if sec < 2400 else 3)
     p_time = sec % 1200
     p_time_str = f"{int(p_time//60):02d}:{int(p_time%60):02d}"
@@ -176,7 +220,7 @@ def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb
     else:
         x = np.random.uniform(-80, -30)
     
-    xg_val = 0.05
+    xg_val = xg
     
     events.append({
         'game_id': gid,
@@ -197,8 +241,8 @@ def add_event(events, gid, sec, state, tid, home_id, away_id, home_abb, away_abb
         'player_id': tid * 10 + 1,
         'player_name': f"P{tid}",
         'shot_type': 'Wrist Shot',
-        'xg': xg_val,
-        'xgs': xg_val,
+        'xg': xg_val, # Keep old key just in case some logic uses it (e.g. process_daily_cache check)
+        'xgs': xg_val, # Pural key for model
         'period_type': 'REGULAR'
     })
     
@@ -218,7 +262,8 @@ def add_shift(rows, gid, tid, number, type_code, start, end):
         'period': 1,
         'detail_code': 0,
         'duration': float(end - start),
-        'type_code': 0 # doesn't matter much for internal logic if we use explicit classification
+        'type_code': 0, # doesn't matter much for internal logic if we use explicit classification
+        'raw': {'primaryPosition': 'G' if type_code == 'G' else 'C'}
     })
 
 def run_pipeline():
@@ -230,9 +275,16 @@ def run_pipeline():
     except: pass
 
     # Do NOT pass --force because daily.py deletes the season CSV if force=True!
-    cmd = [sys.executable, 'scripts/daily.py', '--season', SEASON]
+    # Pass --skip-fetch to force use of the local CSV we just created
+    cmd = [sys.executable, 'scripts/daily.py', '--season', SEASON, '--skip-fetch']
     print(f"Executing: {' '.join(cmd)}")
     res = subprocess.run(cmd, capture_output=True, text=True)
+    
+    with open('analysis/pipeline.log', 'w') as f:
+        f.write(res.stdout)
+        f.write("\n=== STDERR ===\n")
+        f.write(res.stderr)
+        
     if res.returncode != 0:
         print("Pipeline failed!")
         print("STDOUT:", res.stdout[-2000:])

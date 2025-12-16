@@ -282,7 +282,7 @@ def players(season: str = '20252026',
             p_out_path = os.path.join(out_dir, f"{pid}_map.png")
             
             # Calculate robust timing
-            timing_res = timing.compute_game_timing(p_df, p_cond)
+            timing_res = timing.compute_game_timing(p_df, p_cond, season=season)
             t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
             
             _, ret_heat, _, p_stats = xgs_map(
@@ -547,7 +547,7 @@ def players(season: str = '20252026',
             p_out_path = os.path.join(out_dir, f"{pid}_map.png")
             
             # Calculate robust timing for player
-            timing_res = timing.compute_game_timing(p_df, p_cond)
+            timing_res = timing.compute_game_timing(p_df, p_cond, season=season)
             t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
             
             if t_seconds is None:
@@ -929,7 +929,7 @@ def league(season: str = '20252026',
         
         try:
             # Calculate robust timing first
-            timing_res = timing.compute_game_timing(df_season, team_cond)
+            timing_res = timing.compute_game_timing(df_season, team_cond, season=season)
             t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
             
             # Call xgs_map with heatmap_only=True for efficiency
@@ -2628,7 +2628,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
     if timing is not None:
         try:
-            timing_full = timing.compute_game_timing(df_all, condition, force_refresh=force_refresh)
+            timing_full = timing.compute_game_timing(df_all, condition, force_refresh=force_refresh, season=season)
         except Exception as e:
             print(f'Warning: timing.compute_game_timing failed: {e}; using empty timing structure')
 
@@ -2650,6 +2650,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                  print("xgs_map: condition does not require shift data; skipping interval filtering to include all events")
 
     if should_use_intervals:
+        print(f"DEBUG: intervals_input keys: {list(intervals_input.get('per_game', {}).keys())} types={[type(k) for k in intervals_input.get('per_game', {}).keys()]}", flush=True)
         intervals = intervals_input if intervals_input is not None else timing_full
         team_param = None
         if isinstance(condition, dict):
@@ -3381,7 +3382,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
     # This gives a more accurate denominator for normalize_per60 than inferring from observed timestamp ranges.
     try:
         from . import timing
-        timing_res = timing.compute_game_timing(df_cond, condition)
+        timing_res = timing.compute_game_timing(df_cond, condition, season=season)
         agg = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
         # Try to get pooled seconds (team vs other), fallback to total intersection
         inter = agg.get('intersection_pooled_seconds')
@@ -3500,7 +3501,7 @@ def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigm
             # Ensure team is set so we get team-relative stats
             cond_for_timing['team'] = team
             
-            timing_res = timing.compute_game_timing(df_games, cond_for_timing, verbose=False)
+            timing_res = timing.compute_game_timing(df_games, cond_for_timing, verbose=False, season=season)
             agg_t = timing_res.get('aggregate', {}) if isinstance(timing_res, dict) else {}
             
             # Try to get pooled seconds, fallback to total intersection

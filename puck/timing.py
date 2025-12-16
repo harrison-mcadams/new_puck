@@ -172,7 +172,8 @@ def _intersect_multiple(list_of_lists: List[List[Interval]]) -> List[Interval]:
     return res
 
 
-def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: bool = False) -> pd.DataFrame:
+def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: bool = False, season: Optional[str] = None) -> pd.DataFrame:
+    print(f"DEBUG: _get_shifts_df game={game_id} season={season}")
     """Fetch and parse shift chart for a game into a DataFrame (using parse._shifts).
 
     Returns DataFrame with columns including 'start_total_seconds' and 'end_total_seconds'.
@@ -203,23 +204,26 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: boo
         gid_str = str(game_id)
         # Derive season: first 4 digits are start year. 
         # Heuristic: valid game IDs start with year.
-        if len(gid_str) >= 4 and gid_str.isdigit():
-            start_year = int(gid_str[:4])
-            # Basic validation to avoid creating weird directories for bad IDs
-            if 2000 < start_year < 2100:
-                season = f"{start_year}{start_year + 1}"
-                cache_dir = Path(f'data/{season}/shifts')
-                cache_dir.mkdir(parents=True, exist_ok=True)
-                cache_file = cache_dir / f'shifts_{game_id}.pkl'
+        if season is None:
+            if len(gid_str) >= 4 and gid_str.isdigit():
+                start_year = int(gid_str[:4])
+                # Basic validation to avoid creating weird directories for bad IDs
+                if 2000 < start_year < 2100:
+                    season = f"{start_year}{start_year + 1}"
+        
+        if season:
+            cache_dir = Path(f'data/{season}/shifts')
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            cache_file = cache_dir / f'shifts_{game_id}.pkl'
                 
-                if cache_file.exists() and not force_refresh:
-                    try:
-                        df = pd.read_pickle(cache_file)
-                        logging.info(f"Loaded cached shifts for game {game_id} from {cache_file}")
-                        _SHIFTS_CACHE[int(game_id)] = df.copy()
-                        return df
-                    except Exception as e:
-                        logging.warning(f"Failed to load cached shifts for {game_id}: {e}")
+            if cache_file.exists() and not force_refresh:
+                try:
+                    df = pd.read_pickle(cache_file)
+                    logging.info(f"Loaded cached shifts for game {game_id} from {cache_file}")
+                    _SHIFTS_CACHE[int(game_id)] = df.copy()
+                    return df
+                except Exception as e:
+                    logging.warning(f"Failed to load cached shifts for {game_id}: {e}")
     except Exception as e:
         logging.warning(f"Error in cache retrieval for {game_id}: {e}")
     # --- Caching Logic End ---
@@ -855,7 +859,7 @@ def select_team_game(df: pd.DataFrame, team: str) -> Optional[Any]:
 
 
 def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
- verbose: bool = False, net_empty_mode: str = 'either', force_refresh: bool = False) -> Dict[str, Any]:
+ verbose: bool = False, net_empty_mode: str = 'either', force_refresh: bool = False, season: Optional[str] = None) -> Dict[str, Any]:
     """Compute per-condition intervals for a single game using shifts as source.
 
     condition: dict of keys -> values where values are scalars or lists.
@@ -881,7 +885,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
             cond_norm[k] = [v]
 
     # get shifts df
-    df_shifts = _get_shifts_df(int(game_id), force_refresh=force_refresh)
+    df_shifts = _get_shifts_df(int(game_id), force_refresh=force_refresh, season=season)
 
     # obtain game metadata from play-by-play to map home/away ids
     feed = nhl_api.get_game_feed(int(game_id)) or {}
@@ -903,8 +907,10 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
 
     # Precompute some helpers
     # 1) game_state timeline via get_game_state if available (preferred)
+    # 1) game_state timeline via get_game_state if available (preferred)
+    # BUT skip for fake seasons to force shift-based calculation
     gs_timeline: List[Dict[str, Any]] = []
-    if get_game_state is not None:
+    if get_game_state is not None and (season is None or not str(season).startswith('fake')):
         try:
             gs_df, _ = get_game_state(game_id, condition=None, return_df=True, df_shifts=df_shifts)[:2]
             # get_game_state returns (df_intervals, filtered) when return_df=True
@@ -985,6 +991,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
             }
 
     # For each condition key compute intervals
+    print(f"DEBUG: gs_timeline len={len(gs_timeline)}", flush=True)
     for key, vals in cond_norm.items():
         key_intervals_all: List[Interval] = []
         if key == 'game_state':
@@ -1045,6 +1052,10 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
                                     away_count = count_skaters_for_team(away_id)
                                 else:
                                     away_count = 0
+                                
+                                # DEBUG
+                                if key == 'game_state':
+                                    print(f"DEBUG: game_state {game_id} t={prev_t}->{t0} home={home_count} away={away_count} active_h={len(active.get(str(home_id), set()))} active_a={len(active.get(str(away_id), set()))}", flush=True)
 
                                 # evaluate requested states against this interval
                                 for state in vals:
@@ -1162,6 +1173,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
         'intersection_seconds': float(intersection_seconds),
         'total_observed_seconds': float(total_observed),
     }
+    print(f"DEBUG: timing_result game={game_id} inter_sec={intersection_seconds} conditions={list(intervals_per_condition.keys())} pooled={[pooled_seconds_per_condition[k] for k in intervals_per_condition.keys()]}", flush=True)
 
     # if verbose, print a tidy debug summary
     if verbose:
@@ -1174,21 +1186,16 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
     return result
 
 
-def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool = False, net_empty_mode: str = 'either', force_refresh: bool = False) -> Dict[str, Any]:
-    """Compute per-game timing information for all games referenced in `df`.
-
-    df: a DataFrame that contains a 'game_id' column (events-level or season-level).
-    condition: same shape as timing.intervals_for_conditions (dict of key->values).
-
-    Returns a dict with 'per_game' mapping game_id -> compute_intervals_for_game(...) output.
+def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bool = False, net_empty_mode: str = 'either', force_refresh: bool = False, season: Optional[str] = None) -> Dict[str, Any]:
+    """Compute timing/intervals for a set of games (provided in df) for a given condition.
+    
+    This function determines unique games in df, computes intervals for each, and aggregates results.
     """
-    if df is None or df.empty:
+    if df.empty:
         return {'per_game': {}, 'aggregate': {}}
 
     if 'game_id' not in df.columns:
         return {'per_game': {}, 'aggregate': {}}
-
-    gids = pd.unique(df['game_id'].dropna().astype(int)).tolist()
 
     # If caller provided a team in the condition, filter the input df so we only
     # process games where that team played. Accept either numeric team id or
@@ -1258,7 +1265,7 @@ def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bo
     # when called repeatedly in a loop (e.g. for every player).
     for gid, cond in tasks:
         try:
-            res = compute_intervals_for_game(gid, cond, verbose, net_empty_mode, force_refresh=force_refresh)
+            res = compute_intervals_for_game(gid, cond, verbose, net_empty_mode, force_refresh=force_refresh, season=season)
             per_game[gid] = res
         except Exception as e:
             print(f"compute_game_timing: failed for game {gid}: {e}")
@@ -1553,7 +1560,7 @@ def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> lis
                 
     # 2. If not cacheable, just compute
     if not cache_key:
-        res = compute_intervals_for_game(game_id, condition)
+        res = compute_intervals_for_game(game_id, condition, season=season)
         return res.get('intersection_intervals', [])
         
     # 3. Check Cache
@@ -1570,11 +1577,12 @@ def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> lis
         
     if cache_key in cached_data:
         # Return cached
+        print(f"DEBUG: get_game_intervals_cached HIT {game_id} key={cache_key} len={len(cached_data[cache_key])}", flush=True)
         return cached_data[cache_key]
         
     # 4. Compute and Cache
-    # We need to compute specifically for this condition
-    res = compute_intervals_for_game(game_id, condition)
+    print(f"DEBUG: get_game_intervals_cached MISS {game_id} key={cache_key} -> Computing", flush=True)
+    res = compute_intervals_for_game(game_id, condition, season=season)
     intervals = res.get('intersection_intervals', [])
     
     # Update cache

@@ -16,6 +16,17 @@ from puck import timing
 from puck import analyze
 
 
+
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super(NumpyEncoder, self).default(obj)
+
 def ensure_dirs(season):
     base = config.get_cache_dir(season)
     partials = os.path.join(base, 'partials')
@@ -33,12 +44,13 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
     3. Save to .npz.
     """
     try:
+
         out_path = get_game_partials_path(partials_dir, game_id, condition_name)
         if not force and os.path.exists(out_path):
             return True
 
         # Load Shifts
-        df_shifts = timing._get_shifts_df(int(game_id))
+        df_shifts = timing._get_shifts_df(int(game_id), season=season)
         if df_shifts.empty:
             np.savez_compressed(out_path, processed=True, empty=True)
             return True
@@ -62,11 +74,19 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
         # Home Team "5v4" (PP) -> Game State 5v4
         # Away Team "5v4" (PP) -> Game State 4v5 (Home 4, Away 5)
         
-        cond_home = condition
-        cond_away = flip_condition(condition)
+        # Compute Intervals for Home and Away
+        # Validation Condition (val_cond): The Relative State we want to measure (e.g. '4v5' for PK)
+        val_cond_home = condition
+        val_cond_away = condition
+
+        # Global Condition (global_cond): The Global State that produces the Relative State
+        # Home is aligned with Global (Global 4v5 -> Home 4v5)
+        # Away is anti-aligned (Global 5v4 -> Away 4v5)
+        global_cond_home = condition
+        global_cond_away = flip_condition(condition)
         
-        intervals_home = timing.get_game_intervals_cached(game_id, season, cond_home)
-        intervals_away = timing.get_game_intervals_cached(game_id, season, cond_away)
+        intervals_home = timing.get_game_intervals_cached(game_id, season, global_cond_home)
+        intervals_away = timing.get_game_intervals_cached(game_id, season, global_cond_away)
 
         # Optimization: If both empty, skip game
         if not intervals_home and not intervals_away:
@@ -82,6 +102,7 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
         
         # Helper to run xgs_map
         def run_analysis(cond_local, entity_id, prefix, intervals_base, cond_base):
+
             if not intervals_base:
                 return
 
@@ -139,13 +160,18 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                 else:
                     analysis_condition['team'] = entity_id
 
+                # Use existing xG for fake seasons (skip prediction)
+                xg_behavior = 'skip' if str(season).startswith('fake') else 'overwrite'
+
+
                 _, grid_raw, _, stats = analyze.xgs_map(
                     season=season,
                     data_df=df_game,
                     intervals_input=intervals_input,
                     condition=analysis_condition,
                     heatmap_only=True,
-                    total_seconds=toi
+                    total_seconds=toi,
+                    behavior=xg_behavior
                 )
                 
                 if grid_raw is not None:
@@ -157,11 +183,12 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                     data_to_save[f"{prefix}_grid_team"] = grid_final
                 
                 if stats:
-                    data_to_save[f"{prefix}_stats"] = json.dumps(stats)
+                    data_to_save[f"{prefix}_stats"] = json.dumps(stats, cls=NumpyEncoder)
                     
             except Exception as e:
-                # print(f"Analysis failed for {prefix}: {e}")
-                pass
+                import traceback
+                traceback.print_exc()
+                print(f"Analysis failed for {prefix}: {e}", flush=True)
 
         # Helper for intersection
         def _intersect(int_a, int_b):
@@ -185,8 +212,8 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
             return result
 
         # 1. Teams
-        run_analysis({}, home_id, f"team_{home_id}", intervals_home, cond_home)
-        run_analysis({}, away_id, f"team_{away_id}", intervals_away, cond_away)
+        run_analysis({}, home_id, f"team_{home_id}", intervals_home, val_cond_home)
+        run_analysis({}, away_id, f"team_{away_id}", intervals_away, val_cond_away)
         
         # 2. Players
         # Assign players to Home/Away interval sets based on their Team ID
@@ -198,14 +225,11 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                  if p_team_rows.empty: continue
                  p_tid = p_team_rows.iloc[0]
                  
-                 # Compare Int to Int or Str to Str?
-                 # IDs in df are usually ints or float-ints.
-                 # home_id/away_id are ints from outside.
-                 
+                 # Compare Int to Int
                  if int(p_tid) == int(home_id):
-                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_home, cond_home)
+                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_home, val_cond_home)
                  elif int(p_tid) == int(away_id):
-                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_away, cond_away)
+                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_away, val_cond_away)
              except Exception:
                  continue
              
@@ -256,7 +280,8 @@ def main():
         return
         
     # Ensure xGs
-    df_data, _, _ = analyze._predict_xgs(df_data)
+    xg_behavior = 'skip' if str(season).startswith('fake') else 'overwrite'
+    df_data, _, _ = analyze._predict_xgs(df_data, behavior=xg_behavior)
     
     partials_dir = ensure_dirs(season)
     
