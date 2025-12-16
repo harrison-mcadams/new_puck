@@ -55,9 +55,28 @@ else:
 
 # Directory Paths (Absolute)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-DATA_DIR = os.path.join(BASE_DIR, 'data')
+
+# External Drive Path Recommendation
+EXTERNAL_MOUNT_POINT = '/mnt/puck_data'
+
+if IS_PI and os.path.exists(EXTERNAL_MOUNT_POINT):
+    # Use external drive and ensure subdirectories exist
+    # We use join to create /mnt/puck_data/data and /mnt/puck_data/analysis
+    DATA_DIR = os.path.join(EXTERNAL_MOUNT_POINT, 'data')
+    ANALYSIS_DIR = os.path.join(EXTERNAL_MOUNT_POINT, 'analysis')
+    # Print a visible confirmation in logs
+    if not os.path.exists(DATA_DIR):
+        try:
+            os.makedirs(DATA_DIR, exist_ok=True)
+            os.makedirs(ANALYSIS_DIR, exist_ok=True)
+        except OSError:
+            pass # Permission issues might prevent this, but we try.
+else:
+    # Default to local project directory
+    DATA_DIR = os.path.join(BASE_DIR, 'data')
+    ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis')
+
 CACHE_DIR = os.path.join(DATA_DIR, 'cache')
-ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis')
 
 def get_cache_dir(season):
     return os.path.join(CACHE_DIR, season)

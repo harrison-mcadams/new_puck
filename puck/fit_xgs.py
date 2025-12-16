@@ -257,6 +257,8 @@ def compare_models(configs: List[ModelConfig],
     return models, pd.DataFrame(results).sort_values('Log Loss')
 
 
+_CLF_MEM_CACHE = {}
+
 def get_clf(out_path: str = None, behavior: str = 'load', *,
             model_type: str = 'single',
             csv_path: str = 'data/20252026/20252026_df.csv',
@@ -285,6 +287,11 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
             out_path = 'analysis/xgs/xg_model_nested.joblib'
         else:
             out_path = 'analysis/xgs/xg_model_single.joblib'
+
+    # Check cache for 'load'
+    cache_key = (out_path, model_type)
+    if b == 'load' and cache_key in _CLF_MEM_CACHE:
+        return _CLF_MEM_CACHE[cache_key]
 
     meta_path = out_path + '.meta.json'
 
@@ -317,7 +324,9 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
                  print("Warning: Single Layer model loaded without metadata features. Wrapper may fail on DataFrames.")
                  # Try to infer? No.
                  pass
-                 
+        
+        # Update Cache
+        _CLF_MEM_CACHE[cache_key] = (clf, final_features, categorical_levels_map)
         return clf, final_features, categorical_levels_map
 
     # else: train

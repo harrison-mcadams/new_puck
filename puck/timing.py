@@ -757,7 +757,7 @@ def load_season_df(season: str = '20252026', data_dir: str = 'data') -> pd.DataF
     for p in candidates:
         if p.exists():
             try:
-                df = pd.read_csv(p)
+                df = pd.read_csv(str(p)) # Force string
                 print(f"Loaded season dataframe from {p} -> shape={df.shape}", flush=True)
                 return df
             except Exception as e:
@@ -769,7 +769,7 @@ def load_season_df(season: str = '20252026', data_dir: str = 'data') -> pd.DataF
         found = list(data_dir_p.rglob(f'*{season}*.csv'))
         if found:
             try:
-                df = pd.read_csv(found[0])
+                df = pd.read_csv(str(found[0])) # Force string
                 print(f"Loaded season dataframe from {found[0]} -> shape={df.shape}", flush=True)
                 return df
             except Exception:

@@ -1264,18 +1264,26 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_ne
     if df.shape[0] == 0:
         return df, None, None
 
-    need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all())
+    need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all()) or (behavior == 'overwrite')
     if not need_predict:
         return df, None, None
 
     # get classifier (respect behavior, fallback to train on failure)
+    # Map 'overwrite' to 'load' for the model loader
+    clf_behavior = 'load' if behavior == 'overwrite' else behavior
+    
     try:
         # prefer explicit csv_path if provided; otherwise pass None when using data_df
         # Use csv_path passed in
-        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, behavior, csv_path=csv_path, model_type='nested')
+        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, clf_behavior, csv_path=csv_path, model_type='nested')
     except Exception as e:
-        print(f"xgs_map: get_clf failed with {e} — trying to train a new model")
-        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path)
+        print(f"xgs_map: get_clf failed with {e}")
+        if csv_path:
+             print("...trying to train a new model")
+             clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, 'train', csv_path=csv_path)
+        else:
+             print("...cannot train new model without csv_path. Returning empty.")
+             return df, None, None
 
     # Check if this is the Nested Model
     # We can check type safely
