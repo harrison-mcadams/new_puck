@@ -52,7 +52,7 @@ echo "Detected UUID:       $UUID"
 echo ""
 
 # Suggest mount point
-DEFAULT_MOUNT="/mnt/puck_data"
+DEFAULT_MOUNT="/ssd/new_puck"
 read -p "Enter mount point (default: $DEFAULT_MOUNT): " MOUNT_POINT
 MOUNT_POINT=${MOUNT_POINT:-$DEFAULT_MOUNT}
 

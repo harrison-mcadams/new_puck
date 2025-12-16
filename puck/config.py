@@ -57,7 +57,7 @@ else:
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 # External Drive Path Recommendation
-EXTERNAL_MOUNT_POINT = '/mnt/puck_data'
+EXTERNAL_MOUNT_POINT = '/ssd/new_puck'
 
 if IS_PI and os.path.exists(EXTERNAL_MOUNT_POINT):
     # Use external drive and ensure subdirectories exist

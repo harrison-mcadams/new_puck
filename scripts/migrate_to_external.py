@@ -23,7 +23,7 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 LOCAL_DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
 LOCAL_ANALYSIS_DIR = os.path.join(PROJECT_ROOT, 'analysis')
 
-EXTERNAL_MOUNT = '/mnt/puck_data'
+EXTERNAL_MOUNT = '/ssd/new_puck'
 EXTERNAL_DATA_DIR = os.path.join(EXTERNAL_MOUNT, 'data')
 EXTERNAL_ANALYSIS_DIR = os.path.join(EXTERNAL_MOUNT, 'analysis')
 
