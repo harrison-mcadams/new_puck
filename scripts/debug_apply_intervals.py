@@ -8,6 +8,7 @@ import numpy as np
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from puck import analyze
+from puck.analyze import _apply_intervals
 from puck import timing
 
 def test_apply_intervals():
@@ -49,7 +50,7 @@ def test_apply_intervals():
     
     # Run
     # team_val=None implies use selected_team from intervals checks
-    res_df = analyze._apply_intervals(df, intervals_obj, condition=cond)
+    res_df = _apply_intervals(df, intervals_obj, condition=cond)
     
     print("\nResult DF:")
     print(res_df)

@@ -36,7 +36,7 @@ def main():
                 print(f"👉 Testing: Proto={proto} | Pulse={pulse} ...", end='\r')
                 
                 # Send with hefty repeat to ensure it catches
-                rfdevice.tx_repeat = 10
+                rfdevice.tx_repeat = 25
                 rfdevice.tx_code(args.code, proto, pulse)
                 
                 # Small delay
