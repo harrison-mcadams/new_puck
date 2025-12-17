@@ -187,10 +187,10 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                     data_to_save[f"{prefix}_grid_team"] = grid_final
                         
                     if grid_other is not None:
-                        # Rotate "Other" (Opponent Offense/Left) to "Defense" (Right)
+                        # Save "Other" (Opponent Offense) directly. 
+                        # It is already Right-oriented (Defense) if df was oriented Team-Left.
                         grid_other_arr = np.nan_to_num(np.asarray(grid_other, dtype=np.float32), nan=0.0)
-                        grid_other_rot = np.rot90(grid_other_arr, 2)
-                        data_to_save[f"{prefix}_grid_other"] = grid_other_rot
+                        data_to_save[f"{prefix}_grid_other"] = grid_other_arr
                 
                 if stats:
                     data_to_save[f"{prefix}_stats"] = json.dumps(stats, cls=NumpyEncoder)

@@ -73,9 +73,74 @@ def verify_player(game_id, player_id, season='20252026'):
 
             k_grid_ot = f"p_{player_id}_grid_other"
             if k_grid_ot in data:
-                print(f"Grid Other Sum: {np.sum(data[k_grid_ot]):.4f}")
+                g = data[k_grid_ot]
+                sum_g = np.sum(g)
+                print(f"Grid Other Sum: {sum_g:.4f}")
             else:
                 print("Grid Other NOT FOUND")
+    
+    # MANUAL RE-VERIFICATION OF EVENTS
+    print("\n--- Manual Event Inspection ---")
+    df_epoch = pd.read_csv(f'data/{season}.csv')
+    df_game = df_epoch[df_epoch['game_id'] == int(game_id)].copy()
+    
+    # Get Intervals for Player
+    # Re-fetch shifts to be sure
+    df_shifts = timing._get_shifts_df(int(game_id), season=season)
+    p_shifts = df_shifts[df_shifts['player_id'] == int(player_id)]
+    p_intervals = list(zip(p_shifts['start_total_seconds'], p_shifts['end_total_seconds']))
+    
+    # Get Game Intervals (5v5)
+    # We need to know if Home or Away.
+    # Check Team ID
+    tid = p_shifts.iloc[0]['team_id']
+    is_home = (tid == df_game.iloc[0]['home_id'])
+    
+    # For now, just load Global 5v5 intervals (approx)
+    # Or rely on what we know:
+    # process_daily_cache intersects [Global 5v5] with [Player Shifts]
+    
+    global_5v5 = timing.get_game_intervals_cached(game_id, season, {'game_state': ['5v5'], 'is_net_empty': [0]})
+    # It returns a dict structure.
+    # Flatten it.
+    g5v5_list = []
+    if global_5v5 and 'per_game' in global_5v5:
+        gd = global_5v5['per_game'][int(game_id)]
+        g5v5_list = gd.get('intersection_intervals', [])
+        
+    # Intersect
+    final_intervals = analyze.xgs_map.__globals__.get('_intersect_two_local', None)
+    # We can't access inner function. Use crude one.
+    def intersect(a, b):
+        res = []
+        i=j=0
+        a=sorted(a); b=sorted(b)
+        while i < len(a) and j < len(b):
+            s1,e1=a[i]; s2,e2=b[j]
+            s=max(s1,s2); e=min(e1,e2)
+            if e > s: res.append((s,e))
+            if e1 < e2: i+=1
+            else: j+=1
+        return res
+        
+    intervals_to_use = intersect(g5v5_list, p_intervals)
+    print(f"Player 5v5 Intervals: {len(intervals_to_use)} segments covering {sum(e-s for s,e in intervals_to_use):.1f}s")
+    
+    # Filter DF
+    matched = []
+    times = df_game['total_time_elapsed_seconds'].values
+    for s,e in intervals_to_use:
+        mask = (times >= s) & (times <= e)
+        matched.append(df_game[mask])
+        
+    if matched:
+        df_filtered = pd.concat(matched).drop_duplicates()
+        goals = df_filtered[df_filtered['event'].str.lower() == 'goal']
+        print(f"\nFound {len(goals)} GOALS in manual filter:")
+        for idx, row in goals.iterrows():
+            print(f" - {row['period_time']} P{row['period']} ({row['total_time_elapsed_seconds']}s): {row['event_description']} [Team: {row['team_id']}]")
+            
+    
     else:
         print("Cache file not found.")
 
