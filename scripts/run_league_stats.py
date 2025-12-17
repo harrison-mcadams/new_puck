@@ -26,6 +26,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.colors
 import json
+import gc
 from scipy.stats import percentileofscore
 
 # Add project root to path
