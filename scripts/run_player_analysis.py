@@ -210,8 +210,8 @@ def run_analysis():
     # Iterate all available partial files (Games)
     total_files = len(game_path_map)
     for idx, (gid, path) in enumerate(game_path_map.items()):
-        if idx % 100 == 0:
-            print(f"Loading game {idx}/{total_files}...")
+        if idx % 20 == 0:
+            print(f"Loading game {idx}/{total_files}...", end='\r')
             
         try:
             with np.load(path) as data:
@@ -368,7 +368,9 @@ def run_analysis():
     gc_counter = 0
     gc_freq = config.GC_FREQUENCY if hasattr(config, 'GC_FREQUENCY') else 50
     
-    for idx, row in df_sum.iterrows():
+    for idx, (index, row) in enumerate(df_sum.iterrows()):
+        if idx % 50 == 0:
+             print(f"Generating Plots: Player {idx}/{len(df_sum)}...", end='\r')
         pid = int(row['player_id'])
         pid_int = pid
         

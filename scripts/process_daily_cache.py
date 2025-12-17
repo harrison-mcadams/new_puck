@@ -313,7 +313,7 @@ def main():
         
         if success:
             count += 1
-            if count % 10 == 0:
+            if count % 1 == 0:
                 elapsed = time.time() - start_time
                 rate = count / elapsed
                 print(f"Processed {count}/{len(games_to_process)} ({rate:.2f} games/s)")

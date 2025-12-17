@@ -161,7 +161,9 @@ def run_league_analysis():
         # Standard Grid Shape check
         # We assume all cached grids are same shape
         
-        for fname in files:
+        for idx, fname in enumerate(files):
+            if idx % 50 == 0:
+                print(f"  Aggregating file {idx}/{len(files)}...", end='\r')
             try:
                 path = os.path.join(cache_dir, fname)
                 with np.load(path, allow_pickle=True) as data:
@@ -329,7 +331,9 @@ def run_league_analysis():
         summary_list = []
         
         # --- PHASE 3: PLOT ---
-        for tid, grid in team_grids.items():
+        for idx, (tid, grid) in enumerate(team_grids.items()):
+            if idx % 5 == 0:
+                 print(f"  Plotting Team {idx}/{len(team_grids)}...", end='\r')
             tname = t_map.get(tid, str(tid))
             s = team_stats.get(tid)
             if not s or s['team_seconds'] <= 0: continue

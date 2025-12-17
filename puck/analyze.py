@@ -2414,7 +2414,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 rows_in_game = 0
                 if 'game_id' in df_in.columns:
                     rows_in_game = int((df_in['game_id'].astype(str) == gid_str).sum())
-                print(f"_apply_intervals: game {gid_str} rows_in_game={rows_in_game} parsed_intervals={len(team_intervals)} team_for_game={team_for_game}")
+                # print(f"_apply_intervals: game {gid_str} rows_in_game={rows_in_game} parsed_intervals={len(team_intervals)} team_for_game={team_for_game}")
             except Exception:
                 pass
 
@@ -2434,7 +2434,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 df_game = df_in[df_in.get('game_id') == game_id]
 
             try:
-                print(f"_apply_intervals: game {gid_str} df_game_rows={0 if df_game is None else int(df_game.shape[0])}")
+                # print(f"_apply_intervals: game {gid_str} df_game_rows={0 if df_game is None else int(df_game.shape[0])}")
+                pass
             except Exception:
                 pass
 
