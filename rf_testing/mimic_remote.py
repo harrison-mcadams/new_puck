@@ -52,29 +52,37 @@ def main():
     protocol = data['protocol']
     code = data['code']
 
-    # Smart Code Blasting
-    # The sniffer might capture a "noisy" variant (e.g. 225 vs 259).
-    # Instead of guessing, we send the "Neighborhood" of probable valid codes.
-    # Pattern seen: +/- 32, +/- 34, +/- 1
+    # Smart Code Blasting (Wide Mode)
+    # 1 ON is 259. 1 OFF (file) is 244. Target OFF is likely 246.
+    # The drift is larger than +/- 1. We need a wider net.
+    # Major Offsets (The "Shift"): 0, 32, 34, -32, -34
+    # Minor Jitter (The "Drift"): +/- 5 around each Shift
     
-    codes_to_try = [code]
-    offsets = [32, -32, 34, -34, 1, -1]
+    codes_to_try = []
+    major_offsets = [0, 32, 34, -32, -34]
     
-    for off in offsets:
-        codes_to_try.append(code + off)
+    for major in major_offsets:
+        # Create a spread around each probable center
+        for jitter in range(-5, 6): # -5 to +5 inclusive
+            codes_to_try.append(code + major + jitter)
         
-    # Remove duplicates
+    # Remove duplicates and sort
     codes_to_try = sorted(list(set(codes_to_try)))
     
-    print(f"📡 Sending neighborhood blast ({len(codes_to_try)} codes) for [{btn_key}]...")
+    # Safety Check: Did we accidentally include the OPPOSITE command?
+    # ON (259) and OFF (246) are separated by ~13.
+    # Our spread is +/- 5. So we are safe (5 < 13/2).
+    # But just in case, let's keep it fast.
+    
+    print(f"📡 Sending wide blast ({len(codes_to_try)} codes) for [{btn_key}]...")
     
     # Send the burst
+    rfdevice.tx_repeat = 8 # Fast bursts
     for c in codes_to_try:
         # Verified Settings: Protocol 1, Pulse 150
-        rfdevice.tx_repeat = 10 # Shorter repeat per code to keep total time low
         rfdevice.tx_code(c, 1, 150)
         
-    # If blast mode is ON, we do it even harder (pulse variations + code variations)
+    # If blast mode is ON, we do it even harder (pulse variations)
     if args.blast:
         print(f"💥 SUPER BLASTING (Pulse Variations)...")
         pulse_offsets = [-4, 4, -8, 8]
