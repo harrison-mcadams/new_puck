@@ -35,16 +35,23 @@ def capture_button(rfdevice, button_name):
             # Reset timestamp to avoid re-reading same packet
             rfdevice.rx_code_timestamp = None
             
-            # FILTER: We strictly want Protocol 1 or very short pulses
+            # FILTER: Relaxed to accept what the remote ACTUALLY sends (Proto 5) 
+            # or what it SHOULD send (Proto 1)
+            
+            # Case A: Ideal Etekcity (Proto 1, Short Pulse)
             if proto == 1 and 100 < pulse < 250:
-                print(f"  ✅ Accepted: Code={code} Pulse={pulse} Proto={proto}")
+                print(f"  ✅ Accepted (Ideal): Code={code} Pulse={pulse} Proto={proto}")
                 valid_samples.append(code)
-            elif 100 < pulse < 250:
-                 # Sometimes Proto 2 sneaks in with short pulse, acceptable as backup
-                 print(f"  ⚠️  Maybe:    Code={code} Pulse={pulse} Proto={proto}")
-            else:
-                # Ignore noise (Pulse > 300, or Proto 5)
-                pass
+                
+            # Case B: What your remote actually looks like to rpi-rf (Proto 5, Medium Pulse)
+            elif proto == 5 and 350 < pulse < 550:
+                print(f"  ✅ Accepted (Raw):   Code={code} Pulse={pulse} Proto={proto}")
+                valid_samples.append(code)
+
+            elif 100 < pulse < 600:
+                 # Debug info for other things
+                 # print(f"  ⚠️  Ignored:        Code={code} Pulse={pulse} Proto={proto}")
+                 pass
         
         time.sleep(0.01)
     
