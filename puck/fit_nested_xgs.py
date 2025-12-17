@@ -37,6 +37,7 @@ import json
 import sys
 import math
 import logging
+import os
 from pathlib import Path
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Tuple, Any
@@ -602,7 +603,7 @@ def main():
     clf_eval.fit(df_train)
     
     # 4. Generate Diagnostics
-    visuals_dir = Path('analysis/nested_xgs')
+    visuals_dir = Path(puck_config.ANALYSIS_DIR) / 'nested_xgs'
     visuals_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Generating diagnostic plots in {visuals_dir}...")
     
@@ -684,7 +685,7 @@ def main():
     clf.fit(df_imputed)
     
     # 6. Save
-    out_dir = Path('analysis/xgs')
+    out_dir = Path(puck_config.ANALYSIS_DIR) / 'xgs'
     out_dir.mkdir(parents=True, exist_ok=True)
     out_path = out_dir / 'xg_model_nested.joblib'
     

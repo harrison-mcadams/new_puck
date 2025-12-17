@@ -9,7 +9,7 @@ Usage (from project root):
 
 The script will read 'data/processed/20252026/20252026.csv' by default, train a Random Forest on
 `dist_center` -> `is_goal`, print evaluation metrics, and save a calibration
-plot to 'analysis/xgs/xg_likelihood.png'.
+plot to `os.path.join(ANALYSIS_DIR, 'xgs/xg_likelihood.png')`.
 """
 
 # Keep the implementation intentionally simple and readable.
@@ -313,9 +313,9 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     # Resolve default path based on type
     if out_path is None:
         if model_type == 'nested':
-            out_path = 'analysis/xgs/xg_model_nested.joblib'
+            out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
         else:
-            out_path = 'analysis/xgs/xg_model_single.joblib'
+            out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_single.joblib')
 
     # Check cache for 'load'
     cache_key = (out_path, model_type)
@@ -670,7 +670,7 @@ def evaluate_model(clf, X_test, y_test):
 
     brier = _safe_call(brier_score_loss, y_test, y_prob) if brier_score_loss is not None else float('nan')
 
-    plot_calibration(y_test, y_prob, path='analysis/xgs/xg_likelihood.png',
+    plot_calibration(y_test, y_prob, path=os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_likelihood.png'),
                      n_bins= 10)
 
     metrics = {
@@ -686,12 +686,14 @@ def evaluate_model(clf, X_test, y_test):
 
 
 
-def plot_calibration(y_test, y_prob, path: str = 'analysis/xgs/xg_likelihood.png', n_bins: int = 10):
+def plot_calibration(y_test, y_prob, path: str = None, n_bins: int = 10):
     """Generate and save a simple calibration/reliability plot.
 
     The plot shows observed frequency vs predicted probability in bins, and a
     diagonal reference line.
     """
+    if path is None:
+        path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_likelihood.png')
     if calibration_curve is None:
         raise RuntimeError('scikit-learn is required to create calibration plots.')
 
@@ -714,7 +716,7 @@ def plot_calibration(y_test, y_prob, path: str = 'analysis/xgs/xg_likelihood.png
 
 def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
                 x_res: float = 2.0, y_res: float = 2.0,
-                out_path: str = 'analysis/xgs/xg_heatmap.png', cmap='viridis',
+                out_path: str = None, cmap='viridis',
                 alpha: float = 0.8, verbose: bool = True,
                 game_state_values=None, is_net_empty_values=None,
                 categorical_levels_map: dict = None,
@@ -749,6 +751,9 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
         models = {'Default': clf_or_models}
 
     # If configs not provided, infer minimal config for valid models
+    if out_path is None:
+        out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_heatmap.png')
+
     if model_configs is None:
         model_configs = {}
         for name in models:

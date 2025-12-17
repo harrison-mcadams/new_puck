@@ -5,7 +5,7 @@ Visualizes and verifies the performance differences between:
 2. With Shot Type (Dist/Angle + Shot Type) -> SUSPECTED LEAKAGE
 3. Nested xG (Block->Accuracy->Finish)
 
-Generates: analysis/xgs/model_comparison_dashboard.png
+Generates: `os.path.join(ANALYSIS_DIR, 'xgs', 'model_comparison_dashboard.png')`
 """
 
 import matplotlib.pyplot as plt
@@ -13,11 +13,25 @@ import pandas as pd
 import numpy as np
 import joblib
 import json
+import os
 import sys
 from pathlib import Path
-from sklearn.metrics import roc_curve, auc, brier_score_loss, log_loss
+from sklearn.metrics import roc_curve, auc, brier_score_loss
 from sklearn.calibration import calibration_curve
 from sklearn.base import BaseEstimator
+
+# Import Config for valid Data Directory
+try:
+    from . import config as puck_config
+except ImportError:
+    try:
+        import config as puck_config
+    except ImportError:
+        # Provide a dummy config if strictly standalone and config missing (rare)
+        class DummyConfig:
+            DATA_DIR = 'data'
+            ANALYSIS_DIR = 'analysis'
+        puck_config = DummyConfig()
 
 # Attempt to import relevant modules (for Nested class)
 try:
@@ -181,9 +195,9 @@ def main():
     
     # 2. Def Models
     models_to_load = [
-        ('Baseline', 'analysis/xgs/xg_model.joblib', 'blue'),
-        ('With Shot Type', 'analysis/xgs/xg_model_shot_type.joblib', 'green'),
-        ('Nested xG', 'analysis/nested_xgs/nested_xg_model.joblib', 'purple')
+        ('Baseline', os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model.joblib'), 'blue'),
+        ('With Shot Type', os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_shot_type.joblib'), 'green'),
+        ('Nested xG', os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'nested_xg_model.joblib'), 'purple')
     ]
     
     # Setup Plots: 1 Row, 2 Cols
@@ -243,7 +257,7 @@ def main():
     ax_roc.legend(loc='lower right')
     ax_cal.legend(loc='upper left')
     
-    out_path = 'analysis/xgs/model_comparison_dashboard.png'
+    out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'model_comparison_dashboard.png')
     plt.tight_layout()
     plt.savefig(out_path)
     print(f"\nSaved dashboard to {out_path}")

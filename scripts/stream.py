@@ -38,9 +38,9 @@ STREAMED_HEADERS = [
 # --vo=gpu: Uses the GPU for video output
 # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4 (V4L2 Memory-to-Memory)
 # --framedrop=vo: Drops video frames instead of freezing if synchronization is lost
-# --ao=alsa: Uses ALSA directly for audio to reduce latency/lag vs PulseAudio
-# --osd-level=1: Ensures basic status info can be toggled
-PLAYER_ARGS = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --osd-level=1 --osd-msg1='FPS: ${estimated-vf-fps} / Dropped: ${vo-drop-frame-count}'"
+# --ao=alsa: REMOVED (Let mpv auto-detect)
+# --osd-level=1: REMOVED (Clean output)
+
 
 # ----------------- functions ----------------- #
 
@@ -62,11 +62,19 @@ def play_stream(stream_url):
          return
     
     # 1. Select Quality
-    # Prioritize 720p (smoother on Pi) before falling back to source/best.
-    # 1080p60 on Pi 4 is "possible" but often stutters without perfect cooling/overclock.
-    quality = "720p,best" 
+    # Prioritize "best" to get 1080p60 if available.
+    quality = "best" 
     
     # 2. Build Command
+    # PLAYER_ARGS:
+    # --profile=fast: Disables high-quality scalers (spline36) which are too heavy for Pi
+    # --vo=gpu: Uses the GPU for video output
+    # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4
+    # --framedrop=vo: Drops video frames instead of freezing
+    # Removed --ao=alsa (let auto-detect work, fixes no-audio issues often)
+    # Removed --osd-* (clean output)
+    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo"
+    
     cmd = [
         "streamlink",
         f"hls://{stream_url}" if "hls://" not in stream_url else stream_url,
@@ -74,7 +82,7 @@ def play_stream(stream_url):
         "--hls-live-edge", "5",         # Buffer stability: stay 5 segments behind live
         "--ringbuffer-size", "32M",     # Network buffer: 32MB to handle Wi-Fi dips
         "--player", "mpv",
-        "--player-args", PLAYER_ARGS
+        "--player-args", PLAYER_ARGS_CLEAN
     ]
 
     # 3. Add Headers

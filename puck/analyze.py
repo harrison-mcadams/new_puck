@@ -11,12 +11,18 @@ try:
 except ImportError:
     def view_df(df, title=""): print(f"view_df not available: {title}")
 
-# Import timing module
-import sys
+# Import Config for valid Data Directory
 try:
-    from . import timing
+    from . import config as puck_config
 except ImportError:
-    timing = None
+    try:
+        import config as puck_config
+    except ImportError:
+        # Provide a dummy config if strictly standalone and config missing (rare)
+        class DummyConfig:
+            DATA_DIR = 'data'
+            ANALYSIS_DIR = 'analysis'
+        puck_config = DummyConfig()
 
 def _resolve_baseline_path(season: str, condition: Optional[dict]) -> str:
     """
@@ -32,8 +38,9 @@ def _resolve_baseline_path(season: str, condition: Optional[dict]) -> str:
     import os
     
     # Default to 5v5 if no condition
+    # Default to 5v5 if no condition
     if condition is None:
-        return os.path.join('analysis', 'league', season, '5v5')
+        return os.path.join(puck_config.ANALYSIS_DIR, 'league', season, '5v5')
         
     # Check for standard game states
     game_state = condition.get('game_state')
@@ -57,7 +64,7 @@ def _resolve_baseline_path(season: str, condition: Optional[dict]) -> str:
         
     # Construct path: analysis/league/{season}/{cond_name}
     # This matches run_league_stats.py structure
-    return os.path.join('analysis', 'league', season, cond_name)
+    return os.path.join(puck_config.ANALYSIS_DIR, 'league', season, cond_name)
 
 def locate_season_csv(season: str, csv_path: str = None) -> str:
     """Find a CSV for the given season using a prioritized list of
@@ -1702,7 +1709,12 @@ def season(season: str = '20252026',
     import matplotlib.pyplot as plt
     from .plot import add_summary_text, rink_goal_xs
     from .rink import draw_rink
-    from . import timing
+    # Import timing module
+    import sys
+    try:
+        from . import timing
+    except ImportError:
+        timing = None
     import json
 
     if team is None:
