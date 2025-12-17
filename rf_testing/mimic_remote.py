@@ -48,37 +48,23 @@ def main():
     rfdevice = RFDevice(args.gpio)
     rfdevice.enable_tx()
     
-    base_pulse = data['pulselength']
-    # MEGA BLAST STRATEGY
-    # We found that valid codes can be +8, +34, or other offsets from the sniffed value.
-    # Sniffed OFF was 244. Valid was 267. (Diff +23).
-    # Valid ON was +8 from valid OFF.
-    # Instead of guessing the math, we just flood the entire neighborhood.
-    # A sweep of +/- 60 codes takes < 1 second and GUARANTEES hitting the target.
+    code = data['code']
+    # PRECISE TRANSMISSION MODE
+    # The user has calibrated the codes using calibrate_codes.py.
+    # We trust the JSON file contains the exact integer needed.
+    # No blasts. No sweeps. Just the sniper shot.
     
-    print(f"📡 MEGA BLASTING [{btn_key}] (Range +/- 60)...")
-    
-    # Range covering all known variants (+8, +34, +23, noise)
-    start_code = code - 60
-    end_code = code + 60
-    
-    # We send duplicates? No, just the range.
-    codes_to_send = list(range(start_code, end_code + 1))
-    
-    # Send the burst
-    # We use a very low repeat (5) because we are sending 120 codes.
-    # 120 codes * 5 repeats is too slow.
-    # Actually, sending each code ONCE or TWICE is enough if we are sweeping consecutive integers.
-    # The receiver will see "266, 267, 268" and trigger on 267.
-    
-    rfdevice.tx_repeat = 3
-    
-    for c in codes_to_send:
-        # Verified Settings: Protocol 1, Pulse 150
-        rfdevice.tx_code(c, 1, 150)
+    if args.blast:
+        print(f"⚠️  Note: Blast mode requested, but we are using PRECISE CALIBRATED CODE.")
+        rfdevice.tx_repeat = 30 # Extra repeats just for reliability
+    else:
+        rfdevice.tx_repeat = 15 # Standard
         
-    # If blast mode is ON, we assume the user is really desperate, so we widen the pulse too?
-    # No, Pulse 150 is verified. We just stick to it.
+    logging.info(f"Sending [{btn_key}]...")
+    print(f"📡 Transmitting: Code={code}, Pulse=150, Proto=1, Repeat={rfdevice.tx_repeat}")
+    
+    # Verified: Protocol 1, Pulse 150
+    rfdevice.tx_code(code, 1, 150)
     
     rfdevice.cleanup()
     print("Done.")
