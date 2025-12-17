@@ -21,6 +21,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from puck import parse
 from puck import timing
 from puck import analyze
+from puck import config
 
 # Scripts in the same directory
 import run_player_analysis
