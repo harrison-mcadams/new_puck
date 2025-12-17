@@ -163,8 +163,23 @@ def main():
             print(f"Cache processing failed for {cond}: {e}")
 
 
-    # 3. Run Player Analysis
-    print("\n[3/4] Running Player Analysis (Incremental)...")
+    # 3. Run Team Analysis (Generates Baseline)
+    print("\n[3/4] Running Team Analysis (Incremental)...")
+    try:
+        # Similarly for run_league_stats.py
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
+        
+        cmd = [sys.executable, league_stats_script, '--season', season]
+        if args.only_5v5:
+            cmd.extend(['--condition', '5v5'])
+        
+        subprocess.run(cmd, check=True)
+    except Exception as e:
+        print(f"Team Analysis failed: {e}")
+
+    # 4. Run Player Analysis (Uses Baseline)
+    print("\n[4/4] Running Player Analysis (Incremental)...")
     try:
         # We can import and run the main logic. 
         # run_player_analysis doesn't have a main() function exposed cleanly that accepts args,
@@ -179,21 +194,6 @@ def main():
         subprocess.run([sys.executable, player_analysis_script, '--season', season], check=True)
     except Exception as e:
         print(f"Player Analysis failed: {e}")
-
-    # 4. Run Team Analysis
-    print("\n[4/4] Running Team Analysis (Incremental)...")
-    try:
-        # Similarly for run_league_stats.py
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
-        
-        cmd = [sys.executable, league_stats_script, '--season', season]
-        if args.only_5v5:
-            cmd.extend(['--condition', '5v5'])
-        
-        subprocess.run(cmd, check=True)
-    except Exception as e:
-        print(f"Team Analysis failed: {e}")
 
     print("\n--- Daily Update Complete ---")
 
