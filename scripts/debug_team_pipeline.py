@@ -24,7 +24,6 @@ def main():
     
     print(f"--- Debugging Pipeline for {team} ({season}) ---")
     
-    '''
     # 1. Load/Fetch Data (Assume fetch was partially done or just fetch needed games? 
     # For simplicity, we load the season CSV if exists, or fetch whole thing if needed. 
     # Fetching whole thing is usually fast if cached, but let's try to trust existing data first)
@@ -110,7 +109,7 @@ def main():
         if count % 10 == 0:
             print(f"     Processed {count}/{len(target_games)}")
             
-    '''
+
             
     print("[5] Running League Stats (Aggregation)...")
     # run_league_stats takes a --teams arg
