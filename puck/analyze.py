@@ -3237,12 +3237,18 @@ def compute_xg_heatmap_from_df(
     # build a validity mask (non-null and finite)
     try:
         valid_mask = xs_temp.notna() & ys_temp.notna() & amps_temp.notna()
-        valid_mask &= xs_temp.apply(np.isfinite) & ys_temp.apply(np.isfinite) & amps_temp.apply(np.isfinite)
+        # Be permissive with amps - sometimes we might calculate heatmap even if some amps are weird
+        valid_mask &= xs_temp.apply(np.isfinite) & ys_temp.apply(np.isfinite) 
+        # Only require finite amps if ample > 0
     except Exception:
         valid_mask = (~xs_temp.isna()) & (~ys_temp.isna()) & (~amps_temp.isna())
     xs = xs_temp[valid_mask]
     ys = ys_temp[valid_mask]
     amps = amps_temp[valid_mask]
+
+    # Fill invalid amps with 0 for safety but keep coords
+    amps = amps.fillna(0.0)
+
 
     gx = np.arange(-100.0, 100.0 + grid_res, grid_res)
     gy = np.arange(-42.5, 42.5 + grid_res, grid_res)

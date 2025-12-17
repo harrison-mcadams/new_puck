@@ -9,8 +9,16 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 import puck.config as puck_config
 from puck import analyze
 
+# Simulate app.py's ANALYSIS_DIR
+# app.py: ANALYSIS_DIR = os.path.abspath("analysis")
+# debug_web_map.py is in scripts/, so cwd might be different when running.
+# But let's assume we run from project root.
+APP_ANALYSIS_DIR = os.path.abspath("analysis")
+
 def debug_xgs_map():
     print(f"DEBUG: puck_config.ANALYSIS_DIR = {puck_config.ANALYSIS_DIR}")
+    print(f"DEBUG: app.py ANALYSIS_DIR = {APP_ANALYSIS_DIR}")
+
     print(f"DEBUG: puck_config.DATA_DIR = {puck_config.DATA_DIR}")
     
     # Simulate params from app.py
@@ -25,12 +33,12 @@ def debug_xgs_map():
     #         force_refresh=True
     #     )
     
-    game_id = '2025010077' # From head -n 5 data/20252026.csv
+    game_id = 2025010077 # app.py passes int if it's all digits
     # The first line has 2025020703
     
     condition = {'game_state': ['5v5']} # Simulate 5v5 replot
 
-    out_path = os.path.join(puck_config.ANALYSIS_DIR, 'debug_test_map.png')
+    out_path = os.path.join(APP_ANALYSIS_DIR, 'debug_test_map.png')
     
     print(f"DEBUG: calling xgs_map with game_id={game_id}, out_path={out_path}")
     
@@ -40,7 +48,7 @@ def debug_xgs_map():
             condition=condition,
             out_path=out_path,
             show=False,
-            return_heatmaps=False,
+            return_heatmaps=True,
             events_to_plot=['shot-on-goal', 'goal', 'xgs'],
             return_filtered_df=True,
             force_refresh=True,
@@ -48,7 +56,21 @@ def debug_xgs_map():
         )
         print("DEBUG: xgs_map returned successfully.")
         
-        # Check if output file exists
+        # Check heatmaps
+        import numpy as np
+        heatmaps = ret[1]
+        print(f"DEBUG: Heatmaps keys: {heatmaps.keys() if heatmaps else 'None'}")
+        if heatmaps:
+            for k, v in heatmaps.items():
+                if v is not None:
+                    print(f"DEBUG: Heatmap '{k}' max: {np.nanmax(v)}, sum: {np.nansum(v)}")
+                else:
+                    print(f"DEBUG: Heatmap '{k}' is None")
+
+        # Check Summary Stats
+        stats = ret[3]
+        print(f"DEBUG: Summary Stats: {stats}")
+
         if os.path.exists(out_path):
              print(f"DEBUG: Output file created at {out_path}")
         else:
