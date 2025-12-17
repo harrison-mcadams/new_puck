@@ -174,13 +174,22 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                     behavior=xg_behavior
                 )
                 
-                if grid_raw is not None:
                     if isinstance(grid_raw, dict):
                         grid_final = grid_raw.get('team')
+                        grid_other = grid_raw.get('other')
                     else:
                         grid_final = grid_raw
-                    grid_final = np.nan_to_num(np.asarray(grid_final, dtype=np.float32), nan=0.0)
-                    data_to_save[f"{prefix}_grid_team"] = grid_final
+                        grid_other = None
+
+                    if grid_final is not None:
+                        grid_final = np.nan_to_num(np.asarray(grid_final, dtype=np.float32), nan=0.0)
+                        data_to_save[f"{prefix}_grid_team"] = grid_final
+                        
+                    if grid_other is not None:
+                        # Rotate "Other" (Opponent Offense/Left) to "Defense" (Right)
+                        grid_other_arr = np.nan_to_num(np.asarray(grid_other, dtype=np.float32), nan=0.0)
+                        grid_other_rot = np.rot90(grid_other_arr, 2)
+                        data_to_save[f"{prefix}_grid_other"] = grid_other_rot
                 
                 if stats:
                     data_to_save[f"{prefix}_stats"] = json.dumps(stats, cls=NumpyEncoder)
