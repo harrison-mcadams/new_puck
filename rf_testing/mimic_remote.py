@@ -53,27 +53,21 @@ def main():
     code = data['code']
 
     if args.blast:
-        print(f"💥 BLASTING [{btn_key}] with VALIDATED settings (Proto 5, Pulse ~455)...")
+        print(f"💥 BLASTING [{btn_key}] with VERIFIED settings (Proto 2, Pulse 150)...")
         
-        # Based on raw capture: Proto 5, Pulse ~455.
-        # Codes saw jitter between 4478225 and 4478259. We'll try both.
-        codes_to_try = [code]
-        if code == 4478225: codes_to_try.append(4478259)
-        elif code == 4478259: codes_to_try.append(4478225)
+        # VERIFIED WORKING: Protocol 2, Pulse 150
+        target_pulse = 150
+        offsets = [0, -4, 4, -8, 8, -12, 12]
         
-        target_pulse = 455
-        offsets = [0, -3, 3, -6, 6, -10, 10]
-        
-        for c in codes_to_try:
-            for offset in offsets:
-                pulse = target_pulse + offset
-                rfdevice.tx_repeat = 15
-                rfdevice.tx_code(c, 5, pulse) # Force Protocol 5
+        for offset in offsets:
+            pulse = target_pulse + offset
+            rfdevice.tx_repeat = 15
+            rfdevice.tx_code(code, 2, pulse) # Force Verified Protocol 2
 
     else:
-        # Standard send (Updated to default to Observed settings)
-        final_proto = 5
-        final_pulse = 455
+        # Standard send (Verified settings)
+        final_proto = 2
+        final_pulse = 150
             
         logging.info(f"Sending [{btn_key}]...")
         print(f"Transmitting: Code={code}, Pulse={final_pulse}, Proto={final_proto}, Repeat={args.repeat}")
