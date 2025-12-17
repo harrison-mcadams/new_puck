@@ -28,7 +28,8 @@ def debug_xgs_map():
     game_id = '2025010077' # From head -n 5 data/20252026.csv
     # The first line has 2025020703
     
-    condition = {} # defaults
+    condition = {'game_state': ['5v5']} # Simulate 5v5 replot
+
     out_path = os.path.join(puck_config.ANALYSIS_DIR, 'debug_test_map.png')
     
     print(f"DEBUG: calling xgs_map with game_id={game_id}, out_path={out_path}")

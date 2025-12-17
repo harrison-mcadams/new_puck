@@ -69,14 +69,7 @@ def play_stream(stream_url, quality="720p,best"):
     # --framedrop=vo: Drops video frames instead of freezing
     # --ao=alsa --audio-device=...: Use explicit HDMI device from `mpv --audio-device=help`
     # --x11-bypass-compositor=yes: Vital for smooth 60fps on Pi OS Desktop
-    # --vd-lavc-dr=yes: Enable direct rendering (zero-copy)
-    # --scale=bilinear / --cscale=bilinear: Cheapest scaling to save GPU cycles
-    PLAYER_ARGS_CLEAN = (
-        r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo "
-        r"--ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0 "
-        r"--x11-bypass-compositor=yes "
-        r"--vd-lavc-dr=yes --scale=bilinear --cscale=bilinear --dscale=bilinear --sws-allower=yes"
-    )
+    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0 --x11-bypass-compositor=yes"
     
     cmd = [
         "streamlink",

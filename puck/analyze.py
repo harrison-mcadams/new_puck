@@ -2679,7 +2679,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
                  print("xgs_map: condition does not require shift data; skipping interval filtering to include all events")
 
     if should_use_intervals:
-        print(f"DEBUG: intervals_input keys: {list(intervals_input.get('per_game', {}).keys())} types={[type(k) for k in intervals_input.get('per_game', {}).keys()]}", flush=True)
+
+
         intervals = intervals_input if intervals_input is not None else timing_full
         team_param = None
         if isinstance(condition, dict):
