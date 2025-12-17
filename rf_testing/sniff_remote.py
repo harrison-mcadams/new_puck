@@ -16,70 +16,82 @@ BUTTONS = [
     "4 ON", "4 OFF", 
     "5 ON", "5 OFF"
 ]
-SAMPLES_NEEDED = 5
 OUTPUT_FILE = os.path.join(os.path.dirname(__file__), "remote_codes.json")
 
 def capture_button(rfdevice, button_name):
-    timestamp = None
-    samples = []
+    # We want to capture until we have a CONSISTENT set of data for Protocol 1
+    valid_samples = []
     
     print(f"\n--- RECORDING: [{button_name}] ---")
-    print(f"Please press and HOLD the '{button_name}' button on your remote...")
+    print(f"Please press the '{button_name}' button repeatedly (short presses)...")
     
-    while len(samples) < SAMPLES_NEEDED:
-        if rfdevice.rx_code_timestamp != timestamp:
-            timestamp = rfdevice.rx_code_timestamp
+    # Listen until we get 5 Good samples
+    while len(valid_samples) < 5:
+        if rfdevice.rx_code_timestamp:
             code = rfdevice.rx_code
             pulse = rfdevice.rx_pulselength
             proto = rfdevice.rx_proto
             
-            # Simple noise filter: ignore extremely short/long pulses if needed, 
-            # but usually rpi-rf handles this. 
-            # We will just collect raw valid data for now.
+            # Reset timestamp to avoid re-reading same packet
+            rfdevice.rx_code_timestamp = None
             
-            samples.append({
-                "code": code,
-                "pulselength": pulse,
-                "protocol": proto
-            })
-            print(f"  Captured signal {len(samples)}/{SAMPLES_NEEDED}: Code={code} Pulse={pulse}")
+            # FILTER: We strictly want Protocol 1 or very short pulses
+            if proto == 1 and 100 < pulse < 250:
+                print(f"  ✅ Accepted: Code={code} Pulse={pulse} Proto={proto}")
+                valid_samples.append(code)
+            elif 100 < pulse < 250:
+                 # Sometimes Proto 2 sneaks in with short pulse, acceptable as backup
+                 print(f"  ⚠️  Maybe:    Code={code} Pulse={pulse} Proto={proto}")
+            else:
+                # Ignore noise (Pulse > 300, or Proto 5)
+                pass
         
         time.sleep(0.01)
     
-    # Process samples to find the most common code (mode)
-    codes = [s['code'] for s in samples]
-    most_common_code = max(set(codes), key=codes.count)
+    # Analyze - Find the MAX code (usually the most stable one in the +34 pair)
+    # E.g. 225 vs 259. 259 is max.
+    best_code = max(set(valid_samples), key=valid_samples.count)
     
-    # Average the pulse length for the correct code
-    valid_pulses = [s['pulselength'] for s in samples if s['code'] == most_common_code]
-    avg_pulse = int(sum(valid_pulses) / len(valid_pulses))
+    # Actually, let's take the NUMERICALLY higher one if there is a split, 
+    # because typically the higher code (ending in 9 or 6) was the winner in our tests.
+    unique_codes = list(set(valid_samples))
+    unique_codes.sort()
     
-    # Use the protocol from the first match
-    protocol = next(s['protocol'] for s in samples if s['code'] == most_common_code)
-    
+    if len(unique_codes) > 1:
+        print(f"  ℹ️  Saw multiple codes: {unique_codes}. Using highest: {unique_codes[-1]}")
+        final_code = unique_codes[-1]
+    else:
+        final_code = unique_codes[0]
+
     result = {
-        "code": most_common_code,
-        "pulselength": avg_pulse,
-        "protocol": protocol
+        "code": final_code,
+        "pulselength": 150, # FORCE 150 based on our findings
+        "protocol": 1       # FORCE 1 based on our findings
     }
-    print(f"✅ Success! Saved '{button_name}': {result}")
-    time.sleep(1) # Short pause before next button
+    print(f"💾 Locked in '{button_name}': {result}")
+    time.sleep(1) 
     return result
 
 def main():
-    rfdevice = RFDevice(GPIO_RX)
+    parser = argparse.ArgumentParser(description='Smart Sniffer for Etekcity.')
+    parser.add_argument('-g', '--gpio', dest='gpio', type=int, default=GPIO_RX, help="GPIO pin (Default: 27)")
+    args = parser.parse_args()
+
+    rfdevice = RFDevice(args.gpio)
     rfdevice.enable_rx()
     
     codes_db = {}
     
-    print("Welcome to the RF Remote Sniffer!")
-    print(f"We will cycle through {len(BUTTONS)} buttons.")
-    print("For each button, press and hold it until we confirm capture.")
-    print("---------------------------------------------------------")
-    
     try:
+        print("🚀 Etekcity Smart Sniffer Initialized.")
+        print("We will ignore noise and focus on Protocol 1 / Pulse ~150.")
+        
         for btn in BUTTONS:
-            input(f"\nPress ENTER when ready to record [{btn}] (or Ctrl+C to stop)...")
+            input(f"\nPress ENTER when ready to record [{btn}]...")
+            # Clear buffer
+            rfdevice.rx_code_timestamp = None 
+            time.sleep(0.5)
+            
             codes_db[btn] = capture_button(rfdevice, btn)
             
     except KeyboardInterrupt:
@@ -88,12 +100,10 @@ def main():
         rfdevice.cleanup()
     
     if codes_db:
-        print(f"\nSaving {len(codes_db)} codes to {OUTPUT_FILE}...")
+        print(f"\nSaving codes to {OUTPUT_FILE}...")
         with open(OUTPUT_FILE, 'w') as f:
             json.dump(codes_db, f, indent=2)
-        print("Done!")
-    else:
-        print("No codes saved.")
+        print("Done! You can now run mimic_remote.py straight away.")
 
 if __name__ == "__main__":
     main()
