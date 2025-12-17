@@ -55,12 +55,16 @@ def main():
     if args.blast:
         print(f"💥 BLASTING [{btn_key}]...")
         # Try a range of pulse lengths around the captured value
-        offsets = [0, -5, 5, -10, 10, -15, 15, -20, 20]
-        for offset in offsets:
-            pulse = base_pulse + offset
-            rfdevice.tx_repeat = 15 # Shorter repeat per variant, but many variants
-            rfdevice.tx_code(code, protocol, pulse)
-            # time.sleep(0.01) 
+        base_offsets = [0, -5, 5, -10, 10, -15, 15, -20, 20]
+        # Protocol 5 is often a messy read of Protocol 1. Try both.
+        protocols_to_try = {protocol, 1} 
+        
+        for proto in protocols_to_try:
+            for offset in base_offsets:
+                pulse = base_pulse + offset
+                # print(f"  -> Proto {proto}, Pulse {pulse}")
+                rfdevice.tx_repeat = 15 
+                rfdevice.tx_code(code, proto, pulse)
     else:
         # Standard send
         rfdevice.tx_repeat = args.repeat
