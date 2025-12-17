@@ -161,7 +161,7 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                     analysis_condition['team'] = entity_id
 
                 # Use existing xG for fake seasons (skip prediction)
-                xg_behavior = 'skip' if str(season).startswith('fake') else 'overwrite'
+                xg_behavior = 'skip' # We already computed xG for the whole season at start. Do NOT overwrite.
 
 
                 _, grid_raw, _, stats = analyze.xgs_map(
