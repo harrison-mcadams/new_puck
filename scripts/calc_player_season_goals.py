@@ -63,7 +63,12 @@ def calc_player_goals(season='20252026', player_id=8484762, player_name="Beckett
             
         p_shifts = df_shifts[df_shifts['player_id'] == int(player_id)]
         # List of (start, end)
-        shift_intervals = list(zip(p_shifts['start_total_seconds'], p_shifts['end_total_seconds']))
+        # EDGE CASE FIX: Players coming ON for a goal (e.g. after it is scored) start at T=GoalTime.
+        # We must exclude the event at T=Start.
+        # We MUST include the event at T=End (e.g. goal scored while on ice, shift ends).
+        # Solution: Add small epsilon to Start Time.
+        epsilon = 0.05
+        shift_intervals = list(zip(p_shifts['start_total_seconds'] + epsilon, p_shifts['end_total_seconds']))
         
         if not shift_intervals:
             continue

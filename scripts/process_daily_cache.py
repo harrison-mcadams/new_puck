@@ -113,7 +113,10 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                 p_shifts = df_shifts[df_shifts['player_id'] == pid]
                 if p_shifts.empty:
                     return
-                p_intervals = list(zip(p_shifts['start_total_seconds'], p_shifts['end_total_seconds']))
+                # EDGE CASE FIX: Exclude events at exact start of shift.
+                # Just like in verification script, add epsilon to Start Time.
+                epsilon = 0.05
+                p_intervals = list(zip(p_shifts['start_total_seconds'] + epsilon, p_shifts['end_total_seconds']))
                 intervals_to_use = timing._intersect_two(intervals_base, p_intervals)
             
             if not intervals_to_use:
