@@ -2066,11 +2066,15 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
             csv_path: Optional[str] = None,
               model_path: str = None,
+              # behavior: str = 'load', # Deprecated/Unused?
               out_path: str = None,
-              return_filtered_df: bool = False,
+              orient_all_left: bool = False,
+              events_to_plot: Optional[list] = None,
               show: bool = True,
               return_heatmaps: bool = False,
               # when True, return the filtered dataframe used to create the map
+              return_filtered_df: bool = False,
+              condition: Optional[object] = None,
               # heatmap-only mode: compute and return heatmap arrays instead of plotting
               heatmap_only: bool = False,
               # stats-only mode: compute summary stats only, skip heatmap and plotting
@@ -2078,14 +2082,16 @@ def xgs_map(season: Optional[str] = '20252026', *,
               grid_res: float = 1.0,
               sigma: float = 6.0,
               normalize_per60: bool = False,
-              selected_role: str = 'team', data_df: Optional['pd.DataFrame'] = None,
+              selected_role: str = 'team', 
+              data_df: Optional['pd.DataFrame'] = None,
               total_seconds: Optional[float] = None,
               # new interval filtering behavior
               use_intervals: bool = True,
               intervals_input: Optional[dict] = None,
               title: Optional[str] = None,
               interval_time_col: str = 'total_time_elapsed_seconds',
-              force_refresh: bool = False):
+              force_refresh: bool = False,
+              debug: bool = False):
     
     if total_seconds is None:
         # Default to 0.0 if not provided, to avoid None propagation

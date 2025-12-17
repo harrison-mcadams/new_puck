@@ -71,8 +71,8 @@ def play_stream(stream_url):
     # --vo=gpu: Uses the GPU for video output
     # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4
     # --framedrop=vo: Drops video frames instead of freezing
-    # --ao=pulse: Force PulseAudio (standard on RPi OS Desktop) since ALSA/Auto failed
-    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=pulse"
+    # --ao=alsa --audio-device=...: Use explicit HDMI device from `mpv --audio-device=help`
+    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0"
     
     cmd = [
         "streamlink",
