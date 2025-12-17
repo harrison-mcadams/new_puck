@@ -7,6 +7,7 @@ import logging
 # Add project root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+from puck import config
 from puck import analyze
 from puck import fit_xgs
 
@@ -38,7 +39,7 @@ def main():
     print("Loading ALL historical data + current season...")
     
     # 1. Load All Data Manually (to ensure 'season' column exists)
-    data_dir = os.path.join(os.path.dirname(__file__), '..', 'data')
+    data_dir = config.DATA_DIR
     dfs = []
     
     # Iterate over 20XX20YY directories
