@@ -460,6 +460,12 @@ def run_league_analysis():
                 print(f"Failed to generate scatter plot: {e}")
         
         print(f"  Processed {len(summary_list)} teams for {cond}.")
+        
+        # Explicit GC after each condition
+        del team_grids
+        del team_stats
+        del league_grid_sum
+        gc.collect()
 
 if __name__ == '__main__':
     run_league_analysis()

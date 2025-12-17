@@ -69,11 +69,23 @@ def run_analysis():
         except Exception: pass
 
     # Drop heavy columns to save RAM
-    drop_cols = ['event_description', 'game_date']
+    # We only need coordinates, IDs, and event metadata for plotting/filtering.
+    drop_cols = [
+        'event_description', 'game_date', 'venue', 'venue_id', 
+        'period_time', 'period_time_remaining', 'original_event_type',
+        'strength_state', 'strength_code', 'event_idx'
+    ]
     for c in drop_cols:
         if c in df_data.columns:
-            # removing event_description is fine, but keep game_date if needed for verify? no.
             df_data.drop(columns=[c], inplace=True)
+            
+    # Convert string columns to category if helpful (high cardinality strings like 'event_type' are fine, but 'game_state' is low cardinality)
+    # This can save significant RAM
+    cat_cols = ['game_state', 'event_type', 'home_abb', 'away_abb', 'period_type']
+    for c in cat_cols:
+        if c in df_data.columns:
+            df_data[c] = df_data[c].astype('category')
+
     # df_data now held in memory for raw plotting
     gc.collect()
 
@@ -240,14 +252,14 @@ def run_analysis():
                     # handle team
                     k_tm = f"p_{pid}_grid_team"
                     if k_tm in data:
-                        g = data[k_tm].astype(np.float64)
+                        g = data[k_tm].astype(np.float32)
                         if entry['grid_team'] is None: entry['grid_team'] = g
                         else: entry['grid_team'] += g
                     
                     # handle other
                     k_ot = f"p_{pid}_grid_other"
                     if k_ot in data:
-                        g = data[k_ot].astype(np.float64)
+                        g = data[k_ot].astype(np.float32)
                         if entry['grid_other'] is None: entry['grid_other'] = g
                         else: entry['grid_other'] += g
                         
@@ -351,6 +363,10 @@ def run_analysis():
     
     processed_pids = set()
     manifest_updates = {}
+    
+    # Config for GC
+    gc_counter = 0
+    gc_freq = config.GC_FREQUENCY if hasattr(config, 'GC_FREQUENCY') else 50
     
     for idx, row in df_sum.iterrows():
         pid = int(row['player_id'])
@@ -493,9 +509,18 @@ def run_analysis():
             except Exception as e:
                 print(f"Error processing {pname}: {e}")
                 
-        # Clear specific player data from memory to be safe?
-        # global_agg[pid] = None 
-        # But we iterate row by row, memory is stable.
+        # --- MEMORY OPTIMIZATION ---
+        # Clear specific player data from accumulators instantly
+        global_agg[pid] = None 
+        del agg_entry
+        del p_df
+        
+        # Periodic GC
+        gc_counter += 1
+        if gc_counter >= gc_freq:
+            gc.collect()
+            gc_counter = 0
+            # print(f"DEBUG: GC Collected at player {idx}")
         
     # Update Manifest
     manifest.update(manifest_updates)
