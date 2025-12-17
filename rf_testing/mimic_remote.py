@@ -53,15 +53,19 @@ def main():
     code = data['code']
 
     if args.blast:
-        print(f"💥 BLASTING [{btn_key}] with VERIFIED settings (Proto 2, Pulse 150)...")
+        print(f"💥 BLASTING [{btn_key}] with FINAL VERIFIED settings (Proto 1, Pulse 150)...")
         
-        # VERIFIED WORKING: Protocol 2, Pulse 150
+        # VERIFIED WORKING: Protocol 1, Pulse 150
         target_pulse = 150
         
-        # Restore the code swapping logic because JSON might have 225 but we need 259
+        # Restore the code swapping logic because JSON might have the 'unstable' code
         codes_to_try = [code]
+        # ON Pair
         if code == 4478225: codes_to_try.append(4478259)
         elif code == 4478259: codes_to_try.append(4478225)
+        # OFF Pair (Observed pattern: Raw + 34)
+        elif code == 4478212: codes_to_try.append(4478246)
+        elif code == 4478246: codes_to_try.append(4478212)
         
         offsets = [0, -4, 4, -8, 8, -12, 12]
         
@@ -69,16 +73,17 @@ def main():
             for offset in offsets:
                 pulse = target_pulse + offset
                 rfdevice.tx_repeat = 15
-                rfdevice.tx_code(c, 2, pulse) # Force Verified Protocol 2
+                rfdevice.tx_code(c, 1, pulse) # Force Verified Protocol 1
 
     else:
         # Standard send (Verified settings)
-        final_proto = 2
+        final_proto = 1
         final_pulse = 150
         
-        # If we know the better code is 259, use it.
+        # Swap valid codes if known
         final_code = code
         if code == 4478225: final_code = 4478259
+        elif code == 4478212: final_code = 4478246
             
         logging.info(f"Sending [{btn_key}]...")
         print(f"Transmitting: Code={final_code} (swapped from {code}), Pulse={final_pulse}, Proto={final_proto}, Repeat={args.repeat}")
