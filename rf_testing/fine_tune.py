@@ -7,18 +7,14 @@ from rpi_rf import RFDevice
 # PREFERRED PIN: GPIO 17 (Physical Pin 11)
 GPIO_TX = 17
 
-# Candidates
-CODE_A_ON = 4478225
-CODE_B_ON = 4478259
+# Using both codes again just to be safe
+CODES = [4478225, 4478259]
+OFF_CODE = 4478212
 
-# Using verified OFF code from file
-CODE_OFF = 4478212 
-
-VERIFIED_PROTO = 2
 VERIFIED_PULSE = 150
 
 def main():
-    parser = argparse.ArgumentParser(description='Validate exactly which code works.')
+    parser = argparse.ArgumentParser(description='Validate Protocol 1 vs 2.')
     parser.add_argument('-g', '--gpio', dest='gpio', type=int, default=GPIO_TX, help="GPIO pin (Default: 17)")
     args = parser.parse_args()
 
@@ -26,28 +22,29 @@ def main():
     rfdevice.enable_tx()
     rfdevice.tx_repeat = 20
 
-    print(f"🎯 Validating Codes at Pulse {VERIFIED_PULSE}, Proto {VERIFIED_PROTO}...")
+    print(f"🎯 Validating PROTOCOL at Pulse {VERIFIED_PULSE}...")
+    print("One of these sets should make it blink.")
     print("------------------------------------------------")
 
     try:
         while True:
-            print(f"👉 Trying Code A: {CODE_A_ON} ...", end='\r')
-            rfdevice.tx_code(CODE_A_ON, VERIFIED_PROTO, VERIFIED_PULSE)
-            time.sleep(1)
+            # TRY PROTOCOL 1
+            print(f"👉 Testing PROTOCOL 1 ...", end='\r')
+            for c in CODES:
+                rfdevice.tx_code(c, 1, VERIFIED_PULSE) # Proto 1
             
-            print(f"   Sending OFF ({CODE_OFF}) ...       ", end='\r')
-            rfdevice.tx_code(CODE_OFF, VERIFIED_PROTO, VERIFIED_PULSE)
+            time.sleep(1)
+            rfdevice.tx_code(OFF_CODE, 1, VERIFIED_PULSE) # Off Proto 1
             time.sleep(1)
 
-            print(f"👉 Trying Code B: {CODE_B_ON} ...", end='\r')
-            rfdevice.tx_code(CODE_B_ON, VERIFIED_PROTO, VERIFIED_PULSE)
-            time.sleep(1)
+            # TRY PROTOCOL 2
+            print(f"👉 Testing PROTOCOL 2 ...", end='\r')
+            for c in CODES:
+                rfdevice.tx_code(c, 2, VERIFIED_PULSE) # Proto 2
             
-            print(f"   Sending OFF ({CODE_OFF}) ...       ", end='\r')
-            rfdevice.tx_code(CODE_OFF, VERIFIED_PROTO, VERIFIED_PULSE)
             time.sleep(1)
-            
-            print("   (Looping...)                         ", end='\r')
+            rfdevice.tx_code(OFF_CODE, 2, VERIFIED_PULSE) # Off Proto 2
+            time.sleep(1)
             
     except KeyboardInterrupt:
         print("\n\n🛑 STOPPED!")
