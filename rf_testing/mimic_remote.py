@@ -57,21 +57,32 @@ def main():
         
         # VERIFIED WORKING: Protocol 2, Pulse 150
         target_pulse = 150
+        
+        # Restore the code swapping logic because JSON might have 225 but we need 259
+        codes_to_try = [code]
+        if code == 4478225: codes_to_try.append(4478259)
+        elif code == 4478259: codes_to_try.append(4478225)
+        
         offsets = [0, -4, 4, -8, 8, -12, 12]
         
-        for offset in offsets:
-            pulse = target_pulse + offset
-            rfdevice.tx_repeat = 15
-            rfdevice.tx_code(code, 2, pulse) # Force Verified Protocol 2
+        for c in codes_to_try:
+            for offset in offsets:
+                pulse = target_pulse + offset
+                rfdevice.tx_repeat = 15
+                rfdevice.tx_code(c, 2, pulse) # Force Verified Protocol 2
 
     else:
         # Standard send (Verified settings)
         final_proto = 2
         final_pulse = 150
+        
+        # If we know the better code is 259, use it.
+        final_code = code
+        if code == 4478225: final_code = 4478259
             
         logging.info(f"Sending [{btn_key}]...")
-        print(f"Transmitting: Code={code}, Pulse={final_pulse}, Proto={final_proto}, Repeat={args.repeat}")
-        rfdevice.tx_code(code, final_proto, final_pulse)
+        print(f"Transmitting: Code={final_code} (swapped from {code}), Pulse={final_pulse}, Proto={final_proto}, Repeat={args.repeat}")
+        rfdevice.tx_code(final_code, final_proto, final_pulse)
     
     rfdevice.cleanup()
     print("Done.")
