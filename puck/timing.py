@@ -173,7 +173,7 @@ def _intersect_multiple(list_of_lists: List[List[Interval]]) -> List[Interval]:
 
 
 def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: bool = False, season: Optional[str] = None) -> pd.DataFrame:
-    print(f"DEBUG: _get_shifts_df game={game_id} season={season}")
+    pass # print(f"DEBUG: _get_shifts_df game={game_id} season={season}")
     """Fetch and parse shift chart for a game into a DataFrame (using parse._shifts).
 
     Returns DataFrame with columns including 'start_total_seconds' and 'end_total_seconds'.
@@ -1055,7 +1055,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
                                 
                                 # DEBUG
                                 if key == 'game_state':
-                                    print(f"DEBUG: game_state {game_id} t={prev_t}->{t0} home={home_count} away={away_count} active_h={len(active.get(str(home_id), set()))} active_a={len(active.get(str(away_id), set()))}", flush=True)
+                                    pass # print(f"DEBUG: game_state {game_id} t={prev_t}->{t0} home={home_count} away={away_count} active_h={len(active.get(str(home_id), set()))} active_a={len(active.get(str(away_id), set()))}", flush=True)
 
                                 # evaluate requested states against this interval
                                 for state in vals:
@@ -1173,7 +1173,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
         'intersection_seconds': float(intersection_seconds),
         'total_observed_seconds': float(total_observed),
     }
-    print(f"DEBUG: timing_result game={game_id} inter_sec={intersection_seconds} conditions={list(intervals_per_condition.keys())} pooled={[pooled_seconds_per_condition[k] for k in intervals_per_condition.keys()]}", flush=True)
+    pass # print(f"DEBUG: timing_result game={game_id} inter_sec={intersection_seconds} conditions={list(intervals_per_condition.keys())} pooled={[pooled_seconds_per_condition[k] for k in intervals_per_condition.keys()]}", flush=True)
 
     # if verbose, print a tidy debug summary
     if verbose:
@@ -1577,11 +1577,11 @@ def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> lis
         
     if cache_key in cached_data:
         # Return cached
-        print(f"DEBUG: get_game_intervals_cached HIT {game_id} key={cache_key} len={len(cached_data[cache_key])}", flush=True)
+        pass # print(f"DEBUG: get_game_intervals_cached HIT {game_id} key={cache_key} len={len(cached_data[cache_key])}", flush=True)
         return cached_data[cache_key]
         
     # 4. Compute and Cache
-    print(f"DEBUG: get_game_intervals_cached MISS {game_id} key={cache_key} -> Computing", flush=True)
+    pass # print(f"DEBUG: get_game_intervals_cached MISS {game_id} key={cache_key} -> Computing", flush=True)
     res = compute_intervals_for_game(game_id, condition, season=season)
     intervals = res.get('intersection_intervals', [])
     

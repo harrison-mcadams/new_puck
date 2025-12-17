@@ -2711,7 +2711,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     if df_all is None:
         if data_df is not None:
             df_all = data_df.copy()
-            print('xgs_map: using provided DataFrame (in-memory) -> rows=', len(df_all))
+            pass # print('xgs_map: using provided DataFrame (in-memory) -> rows=', len(df_all))
         else:
             # If we didn't find a CSV above, we can't proceed here
             if chosen_csv is None:
@@ -2792,7 +2792,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                         per_games_count = len(intervals.get('per_game', {}))
                     else:
                         per_games_count = len(intervals) if hasattr(intervals, '__len__') else 0
-                    print(f"_apply_intervals: intervals per_game count={per_games_count}")
+                    pass # print(f"_apply_intervals: intervals per_game count={per_games_count}")
                 except Exception:
                     pass
 
@@ -2811,7 +2811,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     if df_filtered.shape[0] == 0:
         print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")
     else:
-        print(f"Filtered season dataframe to {len(df_filtered)} events by condition {condition!r} team={team_val!r}")
+        pass # print(f"Filtered season dataframe to {len(df_filtered)} events by condition {condition!r} team={team_val!r}")
 
     # Predict xgs only when needed and possible
     df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered, model_path=model_path, behavior=behavior, csv_path=chosen_csv)
