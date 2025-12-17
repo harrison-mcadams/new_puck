@@ -52,43 +52,36 @@ def main():
     protocol = data['protocol']
     code = data['code']
 
-    if args.blast:
-        print(f"💥 BLASTING [{btn_key}] with FINAL VERIFIED settings (Proto 1, Pulse 150)...")
-        
-        # VERIFIED WORKING: Protocol 1, Pulse 150
-        target_pulse = 150
-        
-        # Restore the code swapping logic because JSON might have the 'unstable' code
-        codes_to_try = [code]
-        # ON Pair
-        if code == 4478225: codes_to_try.append(4478259)
-        elif code == 4478259: codes_to_try.append(4478225)
-        # OFF Pair (Observed pattern: Raw + 34)
-        elif code == 4478212: codes_to_try.append(4478246)
-        elif code == 4478246: codes_to_try.append(4478212)
-        
-        offsets = [0, -4, 4, -8, 8, -12, 12]
-        
-        for c in codes_to_try:
-            for offset in offsets:
-                pulse = target_pulse + offset
-                rfdevice.tx_repeat = 15
-                rfdevice.tx_code(c, 1, pulse) # Force Verified Protocol 1
-
-    else:
-        # Standard send (Verified settings)
-        final_proto = 1
-        final_pulse = 150
-        
-        # Swap valid codes if known
-        final_code = code
-        if code == 4478225: final_code = 4478259
-        elif code == 4478212: final_code = 4478246
-            
-        logging.info(f"Sending [{btn_key}]...")
-        print(f"Transmitting: Code={final_code} (swapped from {code}), Pulse={final_pulse}, Proto={final_proto}, Repeat={args.repeat}")
-        rfdevice.tx_code(final_code, final_proto, final_pulse)
+    # Smart Code Blasting
+    # The sniffer might capture a "noisy" variant (e.g. 225 vs 259).
+    # Instead of guessing, we send the "Neighborhood" of probable valid codes.
+    # Pattern seen: +/- 32, +/- 34, +/- 1
     
+    codes_to_try = [code]
+    offsets = [32, -32, 34, -34, 1, -1]
+    
+    for off in offsets:
+        codes_to_try.append(code + off)
+        
+    # Remove duplicates
+    codes_to_try = sorted(list(set(codes_to_try)))
+    
+    print(f"📡 Sending neighborhood blast ({len(codes_to_try)} codes) for [{btn_key}]...")
+    
+    # Send the burst
+    for c in codes_to_try:
+        # Verified Settings: Protocol 1, Pulse 150
+        rfdevice.tx_repeat = 10 # Shorter repeat per code to keep total time low
+        rfdevice.tx_code(c, 1, 150)
+        
+    # If blast mode is ON, we do it even harder (pulse variations + code variations)
+    if args.blast:
+        print(f"💥 SUPER BLASTING (Pulse Variations)...")
+        pulse_offsets = [-4, 4, -8, 8]
+        for c in codes_to_try:
+            for p_off in pulse_offsets:
+                rfdevice.tx_code(c, 1, 150 + p_off)
+            
     rfdevice.cleanup()
     print("Done.")
 
