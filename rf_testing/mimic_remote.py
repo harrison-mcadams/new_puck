@@ -53,24 +53,35 @@ def main():
     code = data['code']
 
     if args.blast:
-        print(f"💥 BLASTING [{btn_key}]...")
-        # Try a range of pulse lengths around the captured value
-        base_offsets = [0, -5, 5, -10, 10, -15, 15, -20, 20]
-        # Protocol 5 is often a messy read of Protocol 1. Try both.
-        protocols_to_try = {protocol, 1} 
+        print(f"💥 BLASTING [{btn_key}] for Etekcity...")
+        # Etekcity standard is Protocol 1, Pulse ~185-195
+        # We will ignore the captured 'protocol' and 'pulselength' from the file
+        # and force known-good Etekcity parameters.
         
-        for proto in protocols_to_try:
-            for offset in base_offsets:
-                pulse = base_pulse + offset
-                # print(f"  -> Proto {proto}, Pulse {pulse}")
-                rfdevice.tx_repeat = 15 
-                rfdevice.tx_code(code, proto, pulse)
+        target_pulse = 189
+        offsets = [0, -4, 4, -8, 8, -12, 12]
+        
+        for offset in offsets:
+            pulse = target_pulse + offset
+            rfdevice.tx_repeat = 15
+            rfdevice.tx_code(code, 1, pulse) # Force Protocol 1
+            # print(f"  -> Sent Proto 1, Pulse {pulse}")
+
     else:
-        # Standard send
-        rfdevice.tx_repeat = args.repeat
+        # Standard send (Updated to default to Etekcity settings if not specified)
+        # Verify if the captured data looks crazy (like 427) and override it
+        final_proto = protocol
+        final_pulse = base_pulse
+        
+        if protocol != 1 or base_pulse > 250:
+            print(f"⚠️  Notice: Captured data (Proto {protocol}, Pulse {base_pulse}) looks wrong for Etekcity.")
+            print("    Overriding to Protocol 1, Pulse 189.")
+            final_proto = 1
+            final_pulse = 189
+            
         logging.info(f"Sending [{btn_key}]...")
-        print(f"Transmitting: Code={code}, Pulse={base_pulse}, Proto={protocol}, Repeat={args.repeat}")
-        rfdevice.tx_code(code, protocol, base_pulse)
+        print(f"Transmitting: Code={code}, Pulse={final_pulse}, Proto={final_proto}, Repeat={args.repeat}")
+        rfdevice.tx_code(code, final_proto, final_pulse)
     
     rfdevice.cleanup()
     print("Done.")
