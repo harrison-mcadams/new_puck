@@ -16,29 +16,34 @@ CODES_FILE = os.path.join(FILES_DIR, "remote_codes.json")
 PROTO = 1
 PULSE = 150
 
-# The Gold Standard Address from Button 1 (0x445533)
-# We assume all buttons share the 0x4455 prefix.
-BASE_PREFIX = 0x445500
-RANGE_SIZE = 256 # Sweep 00 to FF
-
-def main():
-    parser = argparse.ArgumentParser(description='Smart Pattern Search for Etekcity.')
-    parser.add_argument('button', type=str, help="Button to search/save (e.g. '3 ON')")
-    parser.add_argument('-g', '--gpio', dest='gpio', type=int, default=GPIO_TX, help="GPIO pin")
-    args = parser.parse_args()
-    
-    rfdevice = RFDevice(args.gpio)
-    rfdevice.enable_tx()
-    
     key = args.button.upper()
-    print(f"🧠 SMART SEARCH for [{key}]")
-    print(f"Hypothesis: Button 1 is 0x445533. Other buttons are 0x4455xx.")
-    print(f"Sweeping calculated range: {BASE_PREFIX} to {BASE_PREFIX + 255}")
+    if key not in data:
+        # Fallback if key not found but user wants to run it: allow creating new entry
+        print(f"Key '{key}' not in file. Using default or manual entry logic?")
+        # Actually better to just ask for the seed code if not in file?
+        # For now, let's assume if it's not in file, we can't seed it.
+        # OR better: allow command line arg for seed?
+        # Let's keep it simple: We use the value from the file if exists.
+        print(f"Error: Button '{key}' not found in remote_codes.json. Please run sniff or add manually.")
+        sys.exit(1)
+
+    seed_code = data[key]['code']
+    # Calculate the "Hex Page"
+    # e.g. 4477185 = 0x445101
+    # Page = 0x445100
+    
+    # Mask out the last byte (0xFF)
+    base_prefix = seed_code & 0xFFFFFF00
+    
+    print(f"🧠 DYNAMIC SMART SEARCH for [{key}]")
+    print(f"Seed Code: {seed_code} ({seed_code:#x})")
+    print(f"Sweeping Hex Page: {base_prefix:#x} to {base_prefix + 0xFF:#x}")
+    print(f"Range: {base_prefix} to {base_prefix + 255}")
     print("Press Ctrl+C IMMEDIATELY when the outlet reacts!")
     print("------------------------------------------------")
     
-    start_code = BASE_PREFIX
-    end_code = BASE_PREFIX + 255
+    start_code = base_prefix
+    end_code = base_prefix + 255
     
     last_sent = 0
     
