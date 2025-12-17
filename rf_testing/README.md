@@ -4,35 +4,42 @@ This folder contains scripts to test your SMAKN 433MHz RF Transmitter and Receiv
 
 ## Wiring (Fan-Safe Version)
 
-Since your fan occupies Pin 4 and Pin 6, we will use alternative power and ground pins.
-
-### Transmitter (Square Board - 3 Pins)
-- **VCC** -> **Pin 2** (5V) - *The other 5V pin, top right corner.*
-- **GND** -> **Pin 14** (GND) - *Or Pin 20, 25, 30, 34, 39.*
+### Transmitter (Square Board)
+- **VCC** -> **Pin 2** (5V)
+- **GND** -> **Pin 14** (GND)
 - **DATA** -> **Pin 11** (GPIO 17)
 
-### Receiver (Rectangular Board - 4 Pins)
-- **VCC** (Left-most) -> **Pin 1** (3.3V)
-- **DATA** (Middle) -> **Pin 13** (GPIO 27)
-- **GND** (Right-most) -> **Pin 9** (GND)
+### Receiver (Rectangular Board)
+- **VCC** -> **Pin 1** (3.3V)
+- **DATA** -> **Pin 13** (GPIO 27)
+- **GND** -> **Pin 9** (GND)
 
 ## Usage
 
-1. **Install Dependencies** (on the Pi):
-   ```bash
-   sudo pip3 install rpi-rf
-   ```
+### 1. Verification
+Test basic sending and receiving:
+- Terminal 1: `python3 receive.py`
+- Terminal 2: `python3 send.py`
 
-2. **Run Receiver**:
-   Open a terminal and run:
-   ```bash
-   python3 receive.py
-   ```
+### 2. Learn Remote Codes
+Run the sniffer to capture your physical remote's signals:
+```bash
+python3 sniff_remote.py
+```
+This saves codes to `remote_codes.json`.
 
-3. **Run Sender**:
-   Open a second terminal window and run:
-   ```bash
-   python3 send.py
-   ```
+### 3. Mimic Remote
+Replay a specific button press:
+```bash
+# Quote the button name if it has spaces
+python3 mimic_remote.py "1 ON"
+python3 mimic_remote.py "1 OFF"
+```
 
-You should see numbers generated in the sender window appear in the receiver window!
+## Troubleshooting
+If you get `RuntimeError: Failed to add edge detection`, you need the newer GPIO library:
+```bash
+pip3 uninstall RPi.GPIO
+sudo apt install liblgpio-dev swig -y
+pip3 install rpi-lgpio
+```
