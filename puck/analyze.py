@@ -1347,26 +1347,33 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
              df_imputed = impute.impute_blocked_shot_origins(df_shots, method='mean_6')
         except Exception as e:
             print(f"Warning: Imputation failed in _predict_xgs: {e}")
-            df_imputed = df_shots
+        if 'shot_type' in df_imputed.columns:
+            df_imputed['shot_type'] = df_imputed['shot_type'].fillna('Unknown')
+        else:
+            df_imputed['shot_type'] = 'Unknown'
 
-        # 2. Clean and Identify Features
-        input_features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        # BYPASS clean_df_for_model FOR NESTED MODEL
+        # fit_xgs.clean_df_for_model performs Integer Encoding (shot_type_code).
+        # NestedXGClassifier expects either Raw 'shot_type' (to perform OHE) or existing OHE columns.
+        # Passing integer-encoded data causes the model to see all shot types as missing, 
+        # forcing marginalization on every shot and distorting xG.
+        # We pass df_imputed directly (it has raw 'shot_type').
         
-        # clean_df_for_model handles OHE, coercing to numeric, etc.
-        # It also filters by event type again, which is fine (no-op since we filtered).
-        # IMPORTANT: clean_df_for_model returns a dataframe with ONLY feature columns + is_goal.
-        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(
-            df_imputed, input_features, fixed_categorical_levels=cat_levels
-        )
+        # Ensure other required cols exist
+        if 'game_state' not in df_imputed.columns:
+             df_imputed['game_state'] = '5v5'
+        df_imputed['game_state'] = df_imputed['game_state'].fillna('5v5')
         
-        # 3. Ensure all features exist (fillna logic)
-        features = input_features # Standard Nested Features (but OHE'd ones are in final_feature_cols_game?)
+        if 'is_net_empty' not in df_imputed.columns:
+             df_imputed['is_net_empty'] = 0
+             
+        # Use simple copy as model input
+        df_model = df_imputed.copy()
         
-        # clean_df_for_model returns the *transformed* dataframe with OHE columns if applicable.
-        # With the nested model using OHE, 'shot_type' and 'game_state' in input_features
-        # are replaced by 'shot_type_...' and 'game_state_...' columns in df_model.
-        # The 'features' variable here seems to act as the *list of input keys* for checking?
-        # While 'final_feature_cols_game' are the actual columns in df_model.
+        # Mock returns to satisfy unpacking if needed, though we don't use them for Nested logic validation
+        final_feature_cols_game = list(df_model.columns)
+        cat_map_game = {}
+
         
         # The code previously iterated over 'features' (input_features) and filled them.
         # But 'clean_df_for_model' effectively drops the raw categorical cols after encoding

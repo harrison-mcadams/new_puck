@@ -673,7 +673,10 @@ def main():
     
     auc_xg = roc_auc_score(df_test['is_goal_final'], p_xg)
     ll_xg = log_loss(df_test['is_goal_final'], p_xg)
+    sum_xg = p_xg.sum()
+    sum_goals = df_test['is_goal_final'].sum()
     logger.info(f"Total xG Model Eval: AUC={auc_xg:.4f}, LogLoss={ll_xg:.4f}")
+    logger.info(f"CALIBRATION CHECK: Sum(xG)={sum_xg:.2f} vs Sum(Goals)={sum_goals} -> Ratio: {sum_xg/sum_goals:.3f}")
     
     # 5. Train Final Model
     logger.info("Retraining final model on FULL data (all years)...")
