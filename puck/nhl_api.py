@@ -20,6 +20,7 @@ from typing import Any, Dict, List, Optional
 import email.utils as email_utils
 import os
 import json
+from puck.config import CACHE_DIR
 import hashlib
 from collections import deque
 
@@ -28,7 +29,7 @@ _PUNCTUATION_PATTERN = re.compile(r"[,.'\"]")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
 
 # Simple on-disk and in-memory cache to reduce repeated API calls
-_CACHE_DIR = os.path.join('.cache', 'nhl_api')
+_CACHE_DIR = os.path.join(CACHE_DIR, 'nhl_api')
 os.makedirs(_CACHE_DIR, exist_ok=True)
 _GAME_FEED_CACHE: Dict[str, Dict[str, Any]] = {}
 _SHIFTS_CACHE: Dict[str, Dict[str, Any]] = {}

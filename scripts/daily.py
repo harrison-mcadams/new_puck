@@ -55,7 +55,7 @@ def main():
         if args.force:
             print("Force flag set: Clearing caches...")
             import shutil
-            cache_root = '.cache/nhl_api'
+            cache_root = os.path.join(config.CACHE_DIR, 'nhl_api')
             if os.path.exists(cache_root):
                 try:
                     shutil.rmtree(cache_root)
