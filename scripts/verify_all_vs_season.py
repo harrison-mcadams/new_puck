@@ -44,9 +44,15 @@ def main():
     # Iterate over 20XX20YY directories
     for d in sorted(os.listdir(data_dir)):
         if d.isdigit() and len(d) == 8:
+            # Check standard path
             season_path = os.path.join(data_dir, d, f"{d}_df.csv")
+            if not os.path.exists(season_path):
+                # Check root data dir fallback
+                season_path = os.path.join(data_dir, f"{d}.csv")
+            
             if os.path.exists(season_path):
-                print(f"Loading {d}...")
+                print(f"Loading {d} from {season_path}...")
+
                 try:
                     df_s = pd.read_csv(season_path)
                     df_s['season'] = int(d) # Add season column

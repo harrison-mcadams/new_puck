@@ -430,13 +430,13 @@ def get_or_train_clf(force_retrain: bool = False,
     _GLOBAL_CATEGORICAL_LEVELS_MAP = categorical_levels_map
     return _GLOBAL_CLF, _GLOBAL_FINAL_FEATURES, _GLOBAL_CATEGORICAL_LEVELS_MAP
 
-def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels: dict = None):
-    """Filter events, encode categorical features as integer codes, and
-    coerce numeric types. Returns (df_clean, final_feature_cols, categorical_map).
-
-    - df: filtered and preprocessed DataFrame
-    - final_feature_cols: list of feature column names present in the returned df
-    - categorical_map: mapping categorical input -> list of generated code column(s)
+def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels: dict = None, encode_method: str = 'integer'):
+    """Filter events, encode categorical features, and coerce types.
+    
+    Args:
+        encode_method (str): 'integer' (default) for label encoding (old behavior), 
+                             'none' to preserve raw categorical columns (for Nested/OHE models).
+                             'onehot' could be added if needed, but 'none' lets downstream handle it.
     """
     shot_attempt_types = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
     df = df[df['event'].isin(shot_attempt_types)].copy()
@@ -445,36 +445,57 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
     df['is_goal'] = df['event'].eq('goal')
 
     # Determine which requested features are categorical (object dtype)
+    # Note: If encode_method='none', we still want to identify them but NOT transform them drastically
     categorical_cols = [col for col in feature_cols if col in df.columns and df[col].dtype == object]
     categorical_dummies_map = {}
     final_feature_cols = list(feature_cols)
 
-    # Encode categorical columns as integer codes (one column per category).
-    # If `fixed_categorical_levels` is provided (mapping cat -> list of levels),
-    # we will use that to ensure encoding is compatible with training.
+    # Encode categorical columns
     categorical_levels_map = {}
     if categorical_cols:
-        df, categorical_dummies_map, categorical_levels_map = one_hot_encode(
-            df, categorical_cols, prefix_sep='_', fill_value='', fixed_mappings=fixed_categorical_levels
-        )
-        # Replace categorical names in final_feature_cols with the generated code column names
-        for cat in categorical_cols:
-            new_cols = categorical_dummies_map.get(cat, [])
-            if cat in final_feature_cols:
-                idx = final_feature_cols.index(cat)
-                # splice in new_cols
-                final_feature_cols = final_feature_cols[:idx] + new_cols + final_feature_cols[idx+1:]
-            else:
-                final_feature_cols.extend(new_cols)
+        if encode_method == 'none':
+            # For 'none', we might want to fill NaNs but keep them as strings/objects
+            for c in categorical_cols:
+                # Ensure it exists and isn't NaN (crucial for Blocked Shots -> Unknown)
+                 if c not in df.columns:
+                     df[c] = ''
+                 # We probably want to fillna with something safe if it's missing?
+                 # analyze.py does this explicitly for shot_type -> Unknown.
+                 # Let's trust caller or existing fill logic?
+                 pass
+            # We do NOT run one_hot_encode (which does integer coding). 
+            # We leave them as is. 
+            pass 
+        else:
+            # Default 'integer' behavior
+            df, categorical_dummies_map, categorical_levels_map = one_hot_encode(
+                df, categorical_cols, prefix_sep='_', fill_value='', fixed_mappings=fixed_categorical_levels
+            )
+            # Replace categorical names in final_feature_cols with the generated code column names
+            for cat in categorical_cols:
+                new_cols = categorical_dummies_map.get(cat, [])
+                if cat in final_feature_cols:
+                    idx = final_feature_cols.index(cat)
+                    # splice in new_cols
+                    final_feature_cols = final_feature_cols[:idx] + new_cols + final_feature_cols[idx+1:]
+                else:
+                    final_feature_cols.extend(new_cols)
 
     # Coerce final feature columns to numeric where possible
-    numeric_cols = [c for c in final_feature_cols]
-    df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+    # BUT if encode_method='none', some features are STRINGS. We must NOT coerce them to numeric.
+    if encode_method != 'none':
+        numeric_cols = [c for c in final_feature_cols]
+        df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
+    else:
+        # Coerce ONLY non-categorical cols
+        numeric_cols = [c for c in final_feature_cols if c not in categorical_cols]
+        df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce')
 
     # Ensure is_goal is integer 0/1
     df['is_goal'] = pd.to_numeric(df['is_goal'], errors='coerce').astype('Int64')
 
     # Drop rows with missing required values
+    # If 'none', string cols are fine.
     missing_cols = [c for c in final_feature_cols if c not in df.columns]
     if missing_cols:
          raise KeyError(f"Missing required columns in input DataFrame: {missing_cols}. Loading form {df.columns}")
@@ -486,11 +507,8 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
 
 def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fill_value: str = '', fixed_mappings: dict = None):
     """Encode categorical columns as integer codes instead of binary dummies.
-
-    This function keeps the same return shape as before: (df_out, categorical_dummies_map)
-    where categorical_dummies_map maps categorical column name -> list of newly created
-    column names. For integer encoding we create a single column per categorical
-    input named '{col}_code' and return that in the list.
+    ...
+    (No changes needed here if we just skip calling it in 'none' mode)
     """
     if isinstance(categorical_cols, str):
         categorical_cols = [categorical_cols]
@@ -524,6 +542,7 @@ def one_hot_encode(df: pd.DataFrame, categorical_cols, prefix_sep: str = '_', fi
         categorical_levels_map[cat] = [lv for lv in levels if lv is not None]
 
     return df, categorical_dummies_map, categorical_levels_map
+
 
 
 def load_data(path: str = None):

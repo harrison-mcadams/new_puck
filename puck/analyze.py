@@ -1352,27 +1352,15 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         else:
             df_imputed['shot_type'] = 'Unknown'
 
-        # BYPASS clean_df_for_model FOR NESTED MODEL
-        # fit_xgs.clean_df_for_model performs Integer Encoding (shot_type_code).
-        # NestedXGClassifier expects either Raw 'shot_type' (to perform OHE) or existing OHE columns.
-        # Passing integer-encoded data causes the model to see all shot types as missing, 
-        # forcing marginalization on every shot and distorting xG.
-        # We pass df_imputed directly (it has raw 'shot_type').
+        # 2. Clean and Identify Features
+        input_features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
         
-        # Ensure other required cols exist
-        if 'game_state' not in df_imputed.columns:
-             df_imputed['game_state'] = '5v5'
-        df_imputed['game_state'] = df_imputed['game_state'].fillna('5v5')
-        
-        if 'is_net_empty' not in df_imputed.columns:
-             df_imputed['is_net_empty'] = 0
-             
-        # Use simple copy as model input
-        df_model = df_imputed.copy()
-        
-        # Mock returns to satisfy unpacking if needed, though we don't use them for Nested logic validation
-        final_feature_cols_game = list(df_model.columns)
-        cat_map_game = {}
+        # Use clean_df_for_model with encode_method='none' to preserve raw columns for Nested Model (OHE)
+        # This standardizes preprocessing (filtering, is_goal creation) while maintaining compatibility.
+        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(
+            df_imputed, input_features, fixed_categorical_levels=cat_levels, encode_method='none'
+        )
+
 
         
         # The code previously iterated over 'features' (input_features) and filled them.
