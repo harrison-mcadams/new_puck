@@ -7,49 +7,47 @@ from rpi_rf import RFDevice
 # PREFERRED PIN: GPIO 17 (Physical Pin 11)
 GPIO_TX = 17
 
-# ON Codes (We know 259 works)
-CODE_ON = 4478259
+# Candidates
+CODE_A_ON = 4478225
+CODE_B_ON = 4478259
 
-# OFF Codes (In file: 4478212. Jitter variant likely +34 = 4478246)
-# We will use the 'variant' 4478246 to match the logic of the ON code
-CODE_OFF = 4478246 
+# Using verified OFF code from file
+CODE_OFF = 4478212 
 
-TARGET_PROTO = 2
+VERIFIED_PROTO = 2
+VERIFIED_PULSE = 150
 
 def main():
-    parser = argparse.ArgumentParser(description='Fine tune RF pulse length via Blinking.')
+    parser = argparse.ArgumentParser(description='Validate exactly which code works.')
     parser.add_argument('-g', '--gpio', dest='gpio', type=int, default=GPIO_TX, help="GPIO pin (Default: 17)")
     args = parser.parse_args()
 
     rfdevice = RFDevice(args.gpio)
     rfdevice.enable_tx()
-    
-    # Needs a few repeats to reliably safeguard against noise
-    rfdevice.tx_repeat = 15
+    rfdevice.tx_repeat = 20
 
-    print(f"🎯 Fine Tuning Blink Test (Proto {TARGET_PROTO})...")
-    print("Sweeping Pulse Length from 120 to 180.")
-    print("If it BLINKS (On then Off), that pulse is GOOD.")
+    print(f"🎯 Validating Codes at Pulse {VERIFIED_PULSE}, Proto {VERIFIED_PROTO}...")
     print("------------------------------------------------")
 
     try:
-        # Sweep around the 150 area
-        for pulse in range(120, 182, 2):
-            msg = f"👉 Testing Pulse: {pulse} | "
-            print(msg + "Sending ON ...", end='\r')
+        while True:
+            print(f"👉 Trying Code A: {CODE_A_ON} ...", end='\r')
+            rfdevice.tx_code(CODE_A_ON, VERIFIED_PROTO, VERIFIED_PULSE)
+            time.sleep(1)
             
-            # Send ON
-            rfdevice.tx_code(CODE_ON, TARGET_PROTO, pulse)
-            time.sleep(1.0) # Time to see it turn ON
+            print(f"   Sending OFF ({CODE_OFF}) ...       ", end='\r')
+            rfdevice.tx_code(CODE_OFF, VERIFIED_PROTO, VERIFIED_PULSE)
+            time.sleep(1)
+
+            print(f"👉 Trying Code B: {CODE_B_ON} ...", end='\r')
+            rfdevice.tx_code(CODE_B_ON, VERIFIED_PROTO, VERIFIED_PULSE)
+            time.sleep(1)
             
-            print(msg + "Sending OFF...", end='\r')
+            print(f"   Sending OFF ({CODE_OFF}) ...       ", end='\r')
+            rfdevice.tx_code(CODE_OFF, VERIFIED_PROTO, VERIFIED_PULSE)
+            time.sleep(1)
             
-            # Send OFF
-            rfdevice.tx_code(CODE_OFF, TARGET_PROTO, pulse)
-            time.sleep(1.0) # Time to see it turn OFF
-            
-            # Clear line
-            print(f"   Done Pulse:    {pulse}              ")
+            print("   (Looping...)                         ", end='\r')
             
     except KeyboardInterrupt:
         print("\n\n🛑 STOPPED!")
