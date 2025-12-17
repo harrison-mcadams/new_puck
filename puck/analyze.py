@@ -1258,7 +1258,9 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
 
 
-def _predict_xgs(df_filtered: pd.DataFrame, model_path='analysis/xgs/xg_model_nested.joblib', behavior='load', csv_path=None):
+def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None):
+    if model_path is None:
+        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
     Meta is (final_feature_names, categorical_levels_map) to be reused by callers.
@@ -2063,20 +2065,16 @@ def xgs_map(season: Optional[str] = '20252026', *,
             game_id: Optional[str] = None,
 
             csv_path: Optional[str] = None,
-              model_path: str = 'analysis/xgs/xg_model_nested.joblib',
-              behavior: str = 'load',
-              out_path: str = 'analysis/xgs/xg_map.png',
-              orient_all_left: bool = False,
-              events_to_plot: Optional[list] = None,
-              show: bool = False,
-              return_heatmaps: bool = True,
+              model_path: str = None,
+              out_path: str = None,
+              return_filtered_df: bool = False,
+              show: bool = True,
+              return_heatmaps: bool = False,
               # when True, return the filtered dataframe used to create the map
-              return_filtered_df: bool = True,
-              condition: Optional[object] = None,
               # heatmap-only mode: compute and return heatmap arrays instead of plotting
               heatmap_only: bool = False,
               # stats-only mode: compute summary stats only, skip heatmap and plotting
-              stats_only: bool = False,
+              stats_only: bool = False, # Optimization: Compute xG sums but skip heatmap generation
               grid_res: float = 1.0,
               sigma: float = 6.0,
               normalize_per60: bool = False,
@@ -3309,7 +3307,11 @@ def compute_xg_heatmap_from_df(
     return gx, gy, heat, float(total_xg), float(total_seconds_used or 0.0)
 
 
-def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigma: float = 6.0, out_dir: str = 'analysis/league', min_events: int = 5, model_path: str = 'analysis/xgs/xg_model.joblib', behavior: str = 'load', csv_path: str = None):
+def xg_maps_for_season(season_or_df, condition=None, grid_res: float = 1.0, sigma: float = 6.0, out_dir: str = None, min_events: int = 5, model_path: str = None, behavior: str = 'load', csv_path: str = None):
+    if out_dir is None:
+        out_dir = os.path.join(puck_config.ANALYSIS_DIR, 'league')
+    if model_path is None:
+        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model.joblib')
     """Compute league and per-team xG maps for a season (or events DataFrame).
 
     Saves PNG and JSON summary per team into out_dir/{season}/

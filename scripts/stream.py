@@ -71,9 +71,8 @@ def play_stream(stream_url):
     # --vo=gpu: Uses the GPU for video output
     # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4
     # --framedrop=vo: Drops video frames instead of freezing
-    # Removed --ao=alsa (let auto-detect work, fixes no-audio issues often)
-    # Removed --osd-* (clean output)
-    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo"
+    # --ao=pulse: Force PulseAudio (standard on RPi OS Desktop) since ALSA/Auto failed
+    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=pulse"
     
     cmd = [
         "streamlink",

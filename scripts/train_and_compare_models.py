@@ -9,6 +9,16 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from puck import fit_xgs, fit_nested_xgs, compare_models
 from puck import nhl_api # for any shared util if needed
+# Import Config for valid Data Directory
+try:
+    from puck import config as puck_config
+except ImportError:
+    try:
+        import config as puck_config
+    except ImportError:
+        class DummyConfig:
+            ANALYSIS_DIR = 'analysis'
+        puck_config = DummyConfig()
 
 def main():
     print("==================================================")
@@ -69,7 +79,7 @@ def main():
     clf_single.fit(df_single[final_feats_single], y_single)
     
     # Save
-    out_dir = Path('analysis/xgs')
+    out_dir = Path(puck_config.ANALYSIS_DIR) / 'xgs'
     out_dir.mkdir(parents=True, exist_ok=True)
     path_single = out_dir / 'xg_model_single.joblib'
     joblib.dump(clf_single, path_single)
@@ -232,7 +242,7 @@ def main():
     ax_roc.legend()
     ax_cal.legend()
     
-    out_img = 'analysis/xgs/model_comparison_optimized.png'
+    out_img = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'model_comparison_optimized.png')
     plt.savefig(out_img)
     print(f"Saved comparison to {out_img}")
     
