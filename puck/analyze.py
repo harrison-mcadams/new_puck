@@ -4,6 +4,7 @@
 from typing import Optional, Dict, Any, List, Tuple
 import pandas as pd
 import pickle
+import os
 
 # Import our custom viewer
 try:
@@ -23,6 +24,9 @@ except ImportError:
             DATA_DIR = 'data'
             ANALYSIS_DIR = 'analysis'
         puck_config = DummyConfig()
+
+from . import timing
+
 
 def _resolve_baseline_path(season: str, condition: Optional[dict]) -> str:
     """
@@ -1261,6 +1265,7 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
 def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None):
     if model_path is None:
         model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
+
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
     Meta is (final_feature_names, categorical_levels_map) to be reused by callers.
@@ -1293,7 +1298,7 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         else:
              print("...cannot train new model without csv_path. Returning empty.")
              return df, None, None
-
+    
     # Check if this is the Nested Model
     # We can check type safely
     is_nested = False
@@ -2066,7 +2071,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
             csv_path: Optional[str] = None,
               model_path: str = None,
-              # behavior: str = 'load', # Deprecated/Unused?
+              behavior: str = 'load',
               out_path: str = None,
               orient_all_left: bool = False,
               events_to_plot: Optional[list] = None,

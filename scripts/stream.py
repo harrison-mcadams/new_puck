@@ -52,7 +52,7 @@ def get_headers_for_url(url):
         # Default to the mobile headers as they are generally more permissive
         return DEFAULT_HEADERS
 
-def play_stream(stream_url):
+def play_stream(stream_url, quality="720p,best"):
     """
     Constructs and runs the optimized streamlink command.
     """
@@ -60,11 +60,6 @@ def play_stream(stream_url):
     if not stream_url.startswith("hls://") and not stream_url.startswith("http"):
          print(f"❌ Invalid URL format: {stream_url}")
          return
-    
-    # 1. Select Quality
-    # 720p60 is the "sweet spot" for Pi 4. 1080p60 often stutters.
-    # We prioritize 720p, then fall back to best/source if not found.
-    quality = "720p,best" 
     
     # 2. Build Command
     # PLAYER_ARGS:
@@ -74,7 +69,14 @@ def play_stream(stream_url):
     # --framedrop=vo: Drops video frames instead of freezing
     # --ao=alsa --audio-device=...: Use explicit HDMI device from `mpv --audio-device=help`
     # --x11-bypass-compositor=yes: Vital for smooth 60fps on Pi OS Desktop
-    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0 --x11-bypass-compositor=yes"
+    # --vd-lavc-dr=yes: Enable direct rendering (zero-copy)
+    # --scale=bilinear / --cscale=bilinear: Cheapest scaling to save GPU cycles
+    PLAYER_ARGS_CLEAN = (
+        r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo "
+        r"--ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0 "
+        r"--x11-bypass-compositor=yes "
+        r"--vd-lavc-dr=yes --scale=bilinear --cscale=bilinear --dscale=bilinear --sws-allower=yes"
+    )
     
     cmd = [
         "streamlink",
@@ -98,7 +100,7 @@ def play_stream(stream_url):
 
     print(f"\n📺 Starting Stream on Display :0")
     print(f"🔗 URL: {stream_url}")
-    print(f"🚀 Optimization: Pi 4 Mode (v4l2m2m_copy, 720p pref)")
+    print(f"🚀 Optimization: Pi 4 Mode (v4l2m2m_copy, {quality} pref)")
     print(f"📡 Headers: Using {'EmbedSports/Mobile' if headers == DEFAULT_HEADERS else 'Standard'}")
     print("-" * 60)
     
@@ -115,15 +117,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Play sports streams on Raspberry Pi 4")
     parser.add_argument("url", nargs="?", help="The .m3u8 stream URL")
     parser.add_argument("--team", help="Team name to search for (Not yet implemented)")
+    parser.add_argument("--quality", default="720p,best", help="Stream quality (default: 720p,best). Use 'best' for 1080p.")
     
     args = parser.parse_args()
 
     if args.url:
-        play_stream(args.url)
+        play_stream(args.url, quality=args.quality)
     elif args.team:
         print(f"🔍 Auto-discovery for '{args.team}' is not yet implemented (Anti-bot protection).")
         print("   Please extract the .m3u8 link manually from the browser DevTools (Network tab).")
     else:
         # Fallback to the known good test stream if nothing provided
         print("⚠️ No URL provided. Playing default test stream (Guadalajara).")
-        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8")
+        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8", quality=args.quality)
