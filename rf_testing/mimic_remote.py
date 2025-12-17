@@ -17,8 +17,10 @@ def main():
     parser.add_argument('button', type=str, help="Button name (e.g., '1 ON', '3 OFF')")
     parser.add_argument('-g', '--gpio', dest='gpio', type=int, default=GPIO_TX,
                         help="GPIO pin (Default: 17)")
-    parser.add_argument('-r', '--repeat', dest='repeat', type=int, default=10,
-                        help="Repeat count (Default: 10)")
+    parser.add_argument('-r', '--repeat', dest='repeat', type=int, default=20,
+                        help="Repeat count (Default: 20)")
+    parser.add_argument('--blast', dest='blast', action='store_true',
+                        help="Send a blast of signals with varying pulse lengths to ensure reception.")
     args = parser.parse_args()
 
     # Load codes
@@ -31,11 +33,8 @@ def main():
         codes_db = json.load(f)
 
     # Normalize input
-    btn_key = args.button.upper() # Case insensitive match if possible? 
-    # Actually, let's keep it exact match but helpful error if case differs
-    
+    btn_key = args.button.upper() 
     if btn_key not in codes_db:
-        # Try to find case-insensitive match
         matches = [k for k in codes_db.keys() if k.upper() == btn_key]
         if matches:
             btn_key = matches[0]
@@ -48,13 +47,26 @@ def main():
     
     rfdevice = RFDevice(args.gpio)
     rfdevice.enable_tx()
-    rfdevice.tx_repeat = args.repeat
-
-    logging.info(f"Sending [{btn_key}]...")
-    print(f"Transmitting: Code={data['code']}, Pulse={data['pulselength']}, Proto={data['protocol']}")
     
-    # Send the signal
-    rfdevice.tx_code(data['code'], data['protocol'], data['pulselength'])
+    base_pulse = data['pulselength']
+    protocol = data['protocol']
+    code = data['code']
+
+    if args.blast:
+        print(f"💥 BLASTING [{btn_key}]...")
+        # Try a range of pulse lengths around the captured value
+        offsets = [0, -5, 5, -10, 10, -15, 15, -20, 20]
+        for offset in offsets:
+            pulse = base_pulse + offset
+            rfdevice.tx_repeat = 15 # Shorter repeat per variant, but many variants
+            rfdevice.tx_code(code, protocol, pulse)
+            # time.sleep(0.01) 
+    else:
+        # Standard send
+        rfdevice.tx_repeat = args.repeat
+        logging.info(f"Sending [{btn_key}]...")
+        print(f"Transmitting: Code={code}, Pulse={base_pulse}, Proto={protocol}, Repeat={args.repeat}")
+        rfdevice.tx_code(code, protocol, base_pulse)
     
     rfdevice.cleanup()
     print("Done.")
