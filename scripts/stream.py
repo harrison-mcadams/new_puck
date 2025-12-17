@@ -62,8 +62,9 @@ def play_stream(stream_url):
          return
     
     # 1. Select Quality
-    # Prioritize "best" to get 1080p60 if available.
-    quality = "best" 
+    # 720p60 is the "sweet spot" for Pi 4. 1080p60 often stutters.
+    # We prioritize 720p, then fall back to best/source if not found.
+    quality = "720p,best" 
     
     # 2. Build Command
     # PLAYER_ARGS:
@@ -72,7 +73,8 @@ def play_stream(stream_url):
     # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4
     # --framedrop=vo: Drops video frames instead of freezing
     # --ao=alsa --audio-device=...: Use explicit HDMI device from `mpv --audio-device=help`
-    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0"
+    # --x11-bypass-compositor=yes: Vital for smooth 60fps on Pi OS Desktop
+    PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0 --x11-bypass-compositor=yes"
     
     cmd = [
         "streamlink",
