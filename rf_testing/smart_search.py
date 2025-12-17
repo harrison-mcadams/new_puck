@@ -16,21 +16,31 @@ CODES_FILE = os.path.join(FILES_DIR, "remote_codes.json")
 PROTO = 1
 PULSE = 150
 
+def main():
+    parser = argparse.ArgumentParser(description='Smart Pattern Search for Etekcity.')
+    parser.add_argument('button', type=str, help="Button to search/save (e.g. '3 ON')")
+    parser.add_argument('-g', '--gpio', dest='gpio', type=int, default=GPIO_TX, help="GPIO pin")
+    args = parser.parse_args()
+    
+    rfdevice = RFDevice(args.gpio)
+    rfdevice.enable_tx()
+    
+    # Load JSON data
+    if not os.path.exists(CODES_FILE):
+        print("Error: remote_codes.json not found.")
+        sys.exit(1)
+        
+    with open(CODES_FILE, 'r') as f:
+        data = json.load(f)
+
     key = args.button.upper()
     if key not in data:
-        # Fallback if key not found but user wants to run it: allow creating new entry
-        print(f"Key '{key}' not in file. Using default or manual entry logic?")
-        # Actually better to just ask for the seed code if not in file?
-        # For now, let's assume if it's not in file, we can't seed it.
-        # OR better: allow command line arg for seed?
-        # Let's keep it simple: We use the value from the file if exists.
         print(f"Error: Button '{key}' not found in remote_codes.json. Please run sniff or add manually.")
         sys.exit(1)
 
     seed_code = data[key]['code']
     # Calculate the "Hex Page"
-    # e.g. 4477185 = 0x445101
-    # Page = 0x445100
+    # e.g. 4477185 = 0x445101 => Page = 0x445100
     
     # Mask out the last byte (0xFF)
     base_prefix = seed_code & 0xFFFFFF00
@@ -82,18 +92,8 @@ PULSE = 150
                 rfdevice.tx_code(current_code, PROTO, PULSE)
                 print(" Fired.")
             elif cmd == 'y' or cmd == 'save':
-                if not os.path.exists(CODES_FILE):
-                     data = {}
-                else:
-                    with open(CODES_FILE, 'r') as f:
-                        data = json.load(f)
-                        
                 print(f"💾 Saving {current_code} for [{key}]...")
-                data[key] = {
-                    "code": current_code,
-                    "protocol": PROTO,
-                    "pulselength": PULSE
-                }
+                data[key]['code'] = current_code
                 with open(CODES_FILE, 'w') as f:
                     json.dump(data, f, indent=2)
                 return
