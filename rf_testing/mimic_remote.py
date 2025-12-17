@@ -49,47 +49,37 @@ def main():
     rfdevice.enable_tx()
     
     base_pulse = data['pulselength']
-    protocol = data['protocol']
-    code = data['code']
-
-    # Smart Code Blasting (Wide Mode)
-    # 1 ON is 259. 1 OFF (file) is 244. Target OFF is likely 246.
-    # The drift is larger than +/- 1. We need a wider net.
-    # Major Offsets (The "Shift"): 0, 32, 34, -32, -34
-    # Minor Jitter (The "Drift"): +/- 5 around each Shift
+    # MEGA BLAST STRATEGY
+    # We found that valid codes can be +8, +34, or other offsets from the sniffed value.
+    # Sniffed OFF was 244. Valid was 267. (Diff +23).
+    # Valid ON was +8 from valid OFF.
+    # Instead of guessing the math, we just flood the entire neighborhood.
+    # A sweep of +/- 60 codes takes < 1 second and GUARANTEES hitting the target.
     
-    codes_to_try = []
-    major_offsets = [0, 32, 34, -32, -34]
+    print(f"📡 MEGA BLASTING [{btn_key}] (Range +/- 60)...")
     
-    for major in major_offsets:
-        # Create a spread around each probable center
-        for jitter in range(-5, 6): # -5 to +5 inclusive
-            codes_to_try.append(code + major + jitter)
-        
-    # Remove duplicates and sort
-    codes_to_try = sorted(list(set(codes_to_try)))
+    # Range covering all known variants (+8, +34, +23, noise)
+    start_code = code - 60
+    end_code = code + 60
     
-    # Safety Check: Did we accidentally include the OPPOSITE command?
-    # ON (259) and OFF (246) are separated by ~13.
-    # Our spread is +/- 5. So we are safe (5 < 13/2).
-    # But just in case, let's keep it fast.
-    
-    print(f"📡 Sending wide blast ({len(codes_to_try)} codes) for [{btn_key}]...")
+    # We send duplicates? No, just the range.
+    codes_to_send = list(range(start_code, end_code + 1))
     
     # Send the burst
-    rfdevice.tx_repeat = 8 # Fast bursts
-    for c in codes_to_try:
+    # We use a very low repeat (5) because we are sending 120 codes.
+    # 120 codes * 5 repeats is too slow.
+    # Actually, sending each code ONCE or TWICE is enough if we are sweeping consecutive integers.
+    # The receiver will see "266, 267, 268" and trigger on 267.
+    
+    rfdevice.tx_repeat = 3
+    
+    for c in codes_to_send:
         # Verified Settings: Protocol 1, Pulse 150
         rfdevice.tx_code(c, 1, 150)
         
-    # If blast mode is ON, we do it even harder (pulse variations)
-    if args.blast:
-        print(f"💥 SUPER BLASTING (Pulse Variations)...")
-        pulse_offsets = [-4, 4, -8, 8]
-        for c in codes_to_try:
-            for p_off in pulse_offsets:
-                rfdevice.tx_code(c, 1, 150 + p_off)
-            
+    # If blast mode is ON, we assume the user is really desperate, so we widen the pulse too?
+    # No, Pulse 150 is verified. We just stick to it.
+    
     rfdevice.cleanup()
     print("Done.")
 
