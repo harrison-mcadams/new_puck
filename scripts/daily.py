@@ -31,6 +31,7 @@ def main():
     parser.add_argument('--season', type=str, default='20252026', help='Season string (e.g., 20252026)')
     parser.add_argument('--force', action='store_true', help='Force full re-download/re-calc')
     parser.add_argument('--skip-fetch', action='store_true', help='Skip data fetching (use existing CSV)')
+    parser.add_argument('--only-5v5', action='store_true', help='Only process 5v5 data')
     args = parser.parse_args()
     
     season = args.season
@@ -115,6 +116,10 @@ def main():
         {'game_state': ['4v5'], 'is_net_empty': [0]}
     ]
     
+    if args.only_5v5:
+        print("Filtering to 5v5 only for interval cache.")
+        conditions_to_cache = [c for c in conditions_to_cache if c['game_state'] == ['5v5']]
+    
     # We can just call get_game_intervals_cached for each game/condition
     # It handles the check/compute/save logic.
     count = 0
@@ -141,6 +146,10 @@ def main():
     cache_script = os.path.join(script_dir, 'process_daily_cache.py')
     
     conditions_to_process = ['5v5', '5v4', '4v5']
+    if args.only_5v5:
+        print("Filtering to 5v5 only for cache processing.")
+        conditions_to_process = ['5v5']
+
     for cond in conditions_to_process:
         print(f"  -> Processing {cond} cache...")
         try:
@@ -177,7 +186,11 @@ def main():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
         
-        subprocess.run([sys.executable, league_stats_script, '--season', season], check=True)
+        cmd = [sys.executable, league_stats_script, '--season', season]
+        if args.only_5v5:
+            cmd.extend(['--condition', '5v5'])
+        
+        subprocess.run(cmd, check=True)
     except Exception as e:
         print(f"Team Analysis failed: {e}")
 

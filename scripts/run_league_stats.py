@@ -41,6 +41,7 @@ from puck.analyze import generate_scatter_plot
 def run_league_analysis():
     parser = argparse.ArgumentParser()
     parser.add_argument('--season', type=str, default='20252026')
+    parser.add_argument('--condition', type=str, help='Specific condition to process (e.g., 5v5). If not set, runs all.')
     args = parser.parse_args()
     
     season = args.season
@@ -81,6 +82,12 @@ def run_league_analysis():
 
     # Process Conditions
     conditions = ['5v5', '5v4', '4v5']
+    if args.condition:
+        if args.condition in conditions:
+            conditions = [args.condition]
+            print(f"Condition filtered to: {conditions}")
+        else:
+            print(f"Warning: Unknown condition '{args.condition}'. Running all default conditions.")
     
     # Team Mapping
     # Ideally load from API or existing map. Construct from season DF if possible
