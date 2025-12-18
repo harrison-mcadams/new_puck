@@ -1242,6 +1242,11 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
         valid_r = mask_right & has_signal_r
         combined_rel_map[valid_r] = rel_r[valid_r]
 
+    # Scale map to 'per 100 sq ft' for display readability (only for diff metric)
+    if metric == 'diff':
+        with np.errstate(invalid='ignore'):
+            combined_rel_map *= 100.0
+
     # Calculate aggregate relative stats (always xG/60 diff and %)
     team_xg_per60 = np.nansum(team_map_norm)
     other_xg_per60 = np.nansum(other_map_norm)

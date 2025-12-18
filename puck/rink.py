@@ -42,7 +42,7 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
     rect = patches.Rectangle((left_center_x, -R),  # lower-left corner
                              width=(right_center_x - left_center_x),
                              height=2 * R,
-                             facecolor="#f0f8ff",
+                             facecolor="white",  # Changed from #f0f8ff
                              edgecolor="none",
                              zorder=0)
     ax.add_patch(rect)
@@ -53,8 +53,8 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
     left_theta = (90, 270) if left_center_x < 0 else (-90, 90)
     right_theta = (90, 270) if right_center_x < 0 else (-90, 90)
 
-    left_wedge = patches.Wedge((left_center_x, 0), R, theta1=left_theta[0], theta2=left_theta[1], facecolor="#f0f8ff", edgecolor="none", zorder=0)
-    right_wedge = patches.Wedge((right_center_x, 0), R, theta1=right_theta[0], theta2=right_theta[1], facecolor="#f0f8ff", edgecolor="none", zorder=0)
+    left_wedge = patches.Wedge((left_center_x, 0), R, theta1=left_theta[0], theta2=left_theta[1], facecolor="white", edgecolor="none", zorder=0)
+    right_wedge = patches.Wedge((right_center_x, 0), R, theta1=right_theta[0], theta2=right_theta[1], facecolor="white", edgecolor="none", zorder=0)
     ax.add_patch(left_wedge)
     ax.add_patch(right_wedge)
 

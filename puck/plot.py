@@ -1487,8 +1487,20 @@ def plot_relative_map(
     norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
     
     # 3. Plot
+    # 3. Plot
     if isinstance(cmap, str):
-        cmap = plt.get_cmap(cmap)
+        if cmap == 'RdBu_r':
+            # Reconstruct RdBu_r with Pure White center to match background
+            # Standard ColorBrewer RdBu colors (Blue to Red), but center changed to #ffffff
+            colors = [
+                '#053061', '#2166ac', '#4393c3', '#92c5de', '#d1e5f0',
+                '#ffffff', # PURE WHITE (was #f7f7f7)
+                '#fddbc7', '#f4a582', '#d6604d', '#b2182b', '#67001f'
+            ]
+            # Create smooth colormap (defaults to N=256)
+            cmap = mcolors.LinearSegmentedColormap.from_list('RdBu_White', colors)
+        else:
+            cmap = plt.get_cmap(cmap)
     try:
         cmap.set_bad(color='none')
     except:

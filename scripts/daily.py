@@ -166,10 +166,10 @@ def main():
     # --- Helper to parse max ---
     import re
     def parse_max(output):
-        match = re.search(r"Max 95th Percentile:\s+([0-9\.]+)", output)
+        # Match floats including scientific notation (e.g., 1.23e-05 or 0.0001)
+        match = re.search(r"Max 80th Percentile \(Saturated\):\s+([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)", output)
         if match:
             return float(match.group(1))
-        # Fallback for old output if strict match fails? No, we just updated the scripts.
         return 0.0
         
     def run_cmd_capture(cmd):
@@ -216,11 +216,8 @@ def main():
         else:
             return math.ceil(x * 100) / 100.0
             
-    vmax_l = smart_ceil(max_l)
-    if vmax_l < 0.0005: vmax_l = 0.0005
-    
-    vmax_p = smart_ceil(max_p)
-    if vmax_p < 0.0005: vmax_p = 0.0005
+    vmax_l = 0.02
+    vmax_p = 0.02
     
     print(f"   League 5v5 VMAX: {vmax_l} (Raw: {max_l})")
     print(f"   Player 5v5 VMAX: {vmax_p} (Raw: {max_p})")

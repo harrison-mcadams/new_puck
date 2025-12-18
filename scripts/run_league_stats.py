@@ -350,8 +350,8 @@ def run_league_analysis():
             
             # Team Norm Grid
             team_norm_grid = grid / s['team_seconds']
-            # Convert to Per 60
-            rel_grid = (team_norm_grid - league_norm_grid) * 3600.0
+            # Convert to Per 60 per 100 sq ft
+            rel_grid = (team_norm_grid - league_norm_grid) * 3600.0 * 100.0
             
             # CALCULATE PERCENTILE FOR LIMITS
             # Mimic plot_relative_map's masking logic (neutral zone)
@@ -361,10 +361,11 @@ def run_league_analysis():
             mask = np.tile(mask_x, (rel_grid.shape[0], 1))
             processed_grid_ma = np.ma.masked_where(mask, rel_grid)
             
-            p95 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 95.0)
-            if not np.ma.is_masked(p95) and p95 > 0:
-                 if p95 > global_scan_max:
-                      global_scan_max = p95
+            # Aggressive saturation requested (Option 3)
+            p80 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 80.0)
+            if not np.ma.is_masked(p80) and p80 > 0:
+                 if p80 > global_scan_max:
+                      global_scan_max = p80
                      
             if scan_limit:
                  continue
@@ -473,12 +474,26 @@ def run_league_analysis():
                     vmax=global_vmax
                 )
                   
-                # Colorbar
+                # Background Fix
+                fig.patch.set_facecolor('white')
+                ax.set_facecolor('white')
+                
+                # Colorbar Sizing Fix
+                from mpl_toolkits.axes_grid1 import make_axes_locatable
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="3%", pad=0.05)
+                
                 import matplotlib.ticker as ticker
-                cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-                cbar.locator = ticker.MaxNLocator(nbins=5)
+                cbar = fig.colorbar(im, cax=cax)
+                
+                # Hardcoded ticks
+                cbar.locator = ticker.FixedLocator([-0.02, -0.01, 0, 0.01, 0.02])
                 cbar.update_ticks()
-                cbar.set_label('Excess xG/60', rotation=270, labelpad=15)
+                cbar.set_label('Excess xG/60 (per 100 sq ft)', rotation=270, labelpad=15)
+
+                # Force Axis OFF to remove box outline
+                ax.axis('off')
+                ax.set_frame_on(False)
                 
                 fig.savefig(out_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
@@ -488,7 +503,7 @@ def run_league_analysis():
                 except: pass
                 
         if scan_limit:
-             print(f"SCAN COMPLETE for {cond}. Max 95th Percentile: {global_scan_max}")
+             print(f"SCAN COMPLETE for {cond}. Max 80th Percentile (Saturated): {global_scan_max}")
              
         # 3. Scatter Plot (only if not scanning)
         if not scan_limit and summary_list:

@@ -444,10 +444,11 @@ def run_analysis():
                 mask = np.tile(mask_x, (combined_rel.shape[0], 1))
                 processed_grid_ma = np.ma.masked_where(mask, combined_rel)
                 
-                p95 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 95.0)
-                if not np.ma.is_masked(p95) and p95 > 0:
-                     if p95 > global_scan_max:
-                          global_scan_max = p95
+                # Aggressive saturation
+                p80 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 80.0)
+                if not np.ma.is_masked(p80) and p80 > 0:
+                     if p80 > global_scan_max:
+                          global_scan_max = p80
                 
                 if scan_limit:
                      # Skip plotting
@@ -497,12 +498,24 @@ def run_analysis():
                     mask_neutral_zone=True,
                     vmax=global_vmax
                 )
-                # Colorbar
+                # Background Fix
+                fig.patch.set_facecolor('white')
+                ax.set_facecolor('white')
+                
+                # Colorbar Sizing
+                from mpl_toolkits.axes_grid1 import make_axes_locatable
+                divider = make_axes_locatable(ax)
+                cax = divider.append_axes("right", size="3%", pad=0.05)
+                
                 import matplotlib.ticker as ticker
-                cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-                cbar.locator = ticker.MaxNLocator(nbins=5)
+                cbar = fig.colorbar(im, cax=cax)
+                cbar.locator = ticker.FixedLocator([-0.02, -0.01, 0, 0.01, 0.02])
                 cbar.update_ticks()
-                cbar.set_label('Excess xG/60', rotation=270, labelpad=15)
+                cbar.set_label('Excess xG/60 (per 100 sq ft)', rotation=270, labelpad=15)
+                
+                # Force Axis OFF
+                ax.axis('off')
+                ax.set_frame_on(False)
                 
                 fig.savefig(rel_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
@@ -564,7 +577,7 @@ def run_analysis():
         
     print("Done.")
     if scan_limit:
-        print(f"SCAN COMPLETE. Max 95th Percentile: {global_scan_max}")
+        print(f"SCAN COMPLETE. Max 80th Percentile (Saturated): {global_scan_max}")
 
 if __name__ == "__main__":
     run_analysis()
