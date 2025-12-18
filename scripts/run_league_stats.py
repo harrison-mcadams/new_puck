@@ -361,10 +361,10 @@ def run_league_analysis():
             mask = np.tile(mask_x, (rel_grid.shape[0], 1))
             processed_grid_ma = np.ma.masked_where(mask, rel_grid)
             
-            p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
-            if not np.ma.is_masked(p995) and p995 > 0:
-                 if p995 > global_scan_max:
-                      global_scan_max = p995
+            p95 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 95.0)
+            if not np.ma.is_masked(p95) and p95 > 0:
+                 if p95 > global_scan_max:
+                      global_scan_max = p95
                      
             if scan_limit:
                  continue
@@ -488,7 +488,7 @@ def run_league_analysis():
                 except: pass
                 
         if scan_limit:
-             print(f"SCAN COMPLETE for {cond}. Max 99.5th Percentile: {global_scan_max}")
+             print(f"SCAN COMPLETE for {cond}. Max 95th Percentile: {global_scan_max}")
              
         # 3. Scatter Plot (only if not scanning)
         if not scan_limit and summary_list:

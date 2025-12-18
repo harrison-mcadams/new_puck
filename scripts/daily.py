@@ -166,9 +166,10 @@ def main():
     # --- Helper to parse max ---
     import re
     def parse_max(output):
-        match = re.search(r"Max 99.5th Percentile:\s+([0-9\.]+)", output)
+        match = re.search(r"Max 95th Percentile:\s+([0-9\.]+)", output)
         if match:
             return float(match.group(1))
+        # Fallback for old output if strict match fails? No, we just updated the scripts.
         return 0.0
         
     def run_cmd_capture(cmd):

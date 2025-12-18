@@ -444,10 +444,10 @@ def run_analysis():
                 mask = np.tile(mask_x, (combined_rel.shape[0], 1))
                 processed_grid_ma = np.ma.masked_where(mask, combined_rel)
                 
-                p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
-                if not np.ma.is_masked(p995) and p995 > 0:
-                     if p995 > global_scan_max:
-                          global_scan_max = p995
+                p95 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 95.0)
+                if not np.ma.is_masked(p95) and p95 > 0:
+                     if p95 > global_scan_max:
+                          global_scan_max = p95
                 
                 if scan_limit:
                      # Skip plotting
@@ -564,7 +564,7 @@ def run_analysis():
         
     print("Done.")
     if scan_limit:
-        print(f"SCAN COMPLETE. Max 99.5th Percentile: {global_scan_max}")
+        print(f"SCAN COMPLETE. Max 95th Percentile: {global_scan_max}")
 
 if __name__ == "__main__":
     run_analysis()
