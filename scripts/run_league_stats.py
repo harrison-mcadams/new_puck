@@ -43,10 +43,19 @@ def run_league_analysis():
     parser = argparse.ArgumentParser()
     parser.add_argument('--season', type=str, default='20252026')
     parser.add_argument('--condition', type=str, help='Specific condition to process (e.g., 5v5). If not set, runs all.')
+    parser.add_argument('--vmax', type=float, default=None, help='Global colorbar limit')
+    parser.add_argument('--scan-limit', action='store_true', help='Scan for global max limit instead of plotting')
     args = parser.parse_args()
     
     season = args.season
+    global_vmax = args.vmax
+    scan_limit = args.scan_limit
+    
     print(f"--- Cached League Analysis for {season} ---")
+    if global_vmax:
+        print(f"Using Global VMAX: {global_vmax}")
+    if scan_limit:
+        print("Running in SCAN LIMIT mode (no plots).")
     
     # Paths
     cache_dir = os.path.join(config.get_cache_dir(season), 'partials')
@@ -120,6 +129,8 @@ def run_league_analysis():
                 t_map[tid] = row['abb']
 
     
+    global_scan_max = 0.0
+
     for cond in conditions:
         print(f"Processing {cond}...")
         
@@ -333,13 +344,35 @@ def run_league_analysis():
         
         # --- PHASE 3: PLOT ---
         for idx, (tid, grid) in enumerate(team_grids.items()):
-            if idx % 5 == 0:
-                 print(f"  Plotting Team {idx}/{len(team_grids)}...", end='\r')
             tname = t_map.get(tid, str(tid))
             s = team_stats.get(tid)
             if not s or s['team_seconds'] <= 0: continue
             
-            # Percentiles
+            # Team Norm Grid
+            team_norm_grid = grid / s['team_seconds']
+            # Convert to Per 60
+            rel_grid = (team_norm_grid - league_norm_grid) * 3600.0
+            
+            # CALCULATE PERCENTILE FOR LIMITS
+            # Mimic plot_relative_map's masking logic (neutral zone)
+            cols = rel_grid.shape[1]
+            xs = np.linspace(-100, 100, cols)
+            mask_x = np.abs(xs) < 25
+            mask = np.tile(mask_x, (rel_grid.shape[0], 1))
+            processed_grid_ma = np.ma.masked_where(mask, rel_grid)
+            
+            p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
+            if not np.ma.is_masked(p995) and p995 > 0:
+                 if p995 > global_scan_max:
+                      global_scan_max = p995
+                     
+            if scan_limit:
+                 continue
+            
+            if idx % 5 == 0:
+                 print(f"  Plotting Team {idx}/{len(team_grids)}...", end='\r')
+            
+            # Percentiles (Stats)
             off_pct = percentileofscore(all_xgf60, s['team_xg_per60'])
             def_pct = 100 - percentileofscore(all_xga60, s['other_xg_per60']) # Lower GA is better (higher percentile rank usually means "better")
             
@@ -415,9 +448,7 @@ def run_league_analysis():
                 
             # 2. Relative xG Map
             # Team Norm Grid = Team Sum Grid / Team Seconds
-            team_norm_grid = grid / s['team_seconds']
-            # Convert to Per 60
-            rel_grid = (team_norm_grid - league_norm_grid) * 3600.0
+            # (already computed 'rel_grid' above)
             
             # Masking and Plotting handled by plot_relative_map
             out_path = os.path.join(out_root, f"{tname}_relative.png")
@@ -427,13 +458,7 @@ def run_league_analysis():
                 
                 if tname == 'CHI':
                     print(f"DEBUG: Plotting CHI.")
-                    print(f"  Team Seconds: {s['team_seconds']}")
-                    print(f"  Team Grid: Min={np.min(grid)}, Max={np.max(grid)}, Mean={np.mean(grid)}, HasNan={np.isnan(grid).any()}")
-                    print(f"  League Norm: Min={np.min(league_norm_grid)}, Max={np.max(league_norm_grid)}")
-                    print(f"  Team Norm: Min={np.min(team_norm_grid)}, Max={np.max(team_norm_grid)}")
-                    print(f"  Rel Grid: Min={np.min(rel_grid)}, Max={np.max(rel_grid)}")
-                    # Save debug dump
-                    np.savez('debug_chi_live.npz', grid=grid, team_norm=team_norm_grid, rel_grid=rel_grid, league_norm=league_norm_grid)
+                    # ... [Debug Print removed for brevity if needed]
 
                 # Use plot_relative_map
                 im = plot_relative_map(
@@ -444,12 +469,16 @@ def run_league_analysis():
                     team_name=tname,
                     full_team_name=tname,
                     cond=f"{cond}",
-                    mask_neutral_zone=True
+                    mask_neutral_zone=True,
+                    vmax=global_vmax
                 )
                   
                 # Colorbar
+                import matplotlib.ticker as ticker
                 cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-                cbar.set_label('Excess xG per 60', rotation=270, labelpad=15)
+                cbar.locator = ticker.MaxNLocator(nbins=5)
+                cbar.update_ticks()
+                cbar.set_label('Excess xG/60', rotation=270, labelpad=15)
                 
                 fig.savefig(out_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
@@ -458,9 +487,11 @@ def run_league_analysis():
                 try: plt.close(fig)
                 except: pass
                 
-        # 3. Scatter Plot
-        # Save JSON/CSV first
-        if summary_list:
+        if scan_limit:
+             print(f"SCAN COMPLETE for {cond}. Max 99.5th Percentile: {global_scan_max}")
+             
+        # 3. Scatter Plot (only if not scanning)
+        if not scan_limit and summary_list:
             df_sum = pd.DataFrame(summary_list)
             df_sum.to_csv(os.path.join(out_root, 'team_summary.csv'), index=False)
             with open(os.path.join(out_root, 'team_summary.json'), 'w') as f:

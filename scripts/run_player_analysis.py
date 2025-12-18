@@ -22,8 +22,12 @@ from puck.analyze import compute_relative_map, league
 def run_analysis():
     parser = argparse.ArgumentParser()
     parser.add_argument('--season', type=str, default='20252026')
+    parser.add_argument('--vmax', type=float, default=None, help='Global colorbar limit')
+    parser.add_argument('--scan-limit', action='store_true', help='Scan for global max limit instead of plotting')
     args = parser.parse_args()
     season = args.season
+    global_vmax = args.vmax
+    scan_limit = args.scan_limit
     
     out_dir_base = 'analysis/players'
     league_out_dir = os.path.join(out_dir_base, f'{season}/league')
@@ -364,13 +368,18 @@ def run_analysis():
     processed_pids = set()
     manifest_updates = {}
     
+    global_scan_max = 0.0
+    
     # Config for GC
     gc_counter = 0
     gc_freq = config.GC_FREQUENCY if hasattr(config, 'GC_FREQUENCY') else 50
     
     for idx, (index, row) in enumerate(df_sum.iterrows()):
         if idx % 50 == 0:
-             print(f"Generating Plots: Player {idx}/{len(df_sum)}...", end='\r')
+             if scan_limit:
+                 print(f"Scanning Player {idx}/{len(df_sum)}... (Max: {global_scan_max:.4f})", end='\r')
+             else:
+                 print(f"Generating Plots: Player {idx}/{len(df_sum)}...", end='\r')
         pid = int(row['player_id'])
         pid_int = pid
         
@@ -424,6 +433,26 @@ def run_analysis():
                     league_baseline_right=league_map_right
                 )
                 
+                # Check 99.5th Percentile for Limits
+                # Use same masking as plotting
+                # Neutral zone mask (approx)
+                # combined_rel shape is typically (85, 200) or similar
+                # Assuming standard grid
+                cols = combined_rel.shape[1]
+                xs = np.linspace(-100, 100, cols)
+                mask_x = np.abs(xs) < 25
+                mask = np.tile(mask_x, (combined_rel.shape[0], 1))
+                processed_grid_ma = np.ma.masked_where(mask, combined_rel)
+                
+                p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
+                if not np.ma.is_masked(p995) and p995 > 0:
+                     if p995 > global_scan_max:
+                          global_scan_max = p995
+                
+                if scan_limit:
+                     # Skip plotting
+                     continue
+                
                 # Plot using Shared Routine
                 # Debug map integrity
                 # v_min = np.nanmin(combined_rel)
@@ -465,11 +494,15 @@ def run_analysis():
                     team_name=p_team,
                     full_team_name=pname, 
                     cond=display_cond,
-                    mask_neutral_zone=True
+                    mask_neutral_zone=True,
+                    vmax=global_vmax
                 )
                 # Colorbar
+                import matplotlib.ticker as ticker
                 cbar = fig.colorbar(im, ax=ax, fraction=0.03, pad=0.01)
-                cbar.set_label('Excess xG per 60', rotation=270, labelpad=15)
+                cbar.locator = ticker.MaxNLocator(nbins=5)
+                cbar.update_ticks()
+                cbar.set_label('Excess xG/60', rotation=270, labelpad=15)
                 
                 fig.savefig(rel_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
@@ -530,6 +563,8 @@ def run_analysis():
         json.dump(manifest, f)
         
     print("Done.")
+    if scan_limit:
+        print(f"SCAN COMPLETE. Max 99.5th Percentile: {global_scan_max}")
 
 if __name__ == "__main__":
     run_analysis()

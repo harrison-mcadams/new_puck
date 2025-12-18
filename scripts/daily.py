@@ -163,37 +163,92 @@ def main():
             print(f"Cache processing failed for {cond}: {e}")
 
 
-    # 3. Run Team Analysis (Generates Baseline)
-    print("\n[3/4] Running Team Analysis (Incremental)...")
-    try:
-        # Similarly for run_league_stats.py
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        league_stats_script = os.path.join(script_dir, 'run_league_stats.py')
+    # --- Helper to parse max ---
+    import re
+    def parse_max(output):
+        match = re.search(r"Max 99.5th Percentile:\s+([0-9\.]+)", output)
+        if match:
+            return float(match.group(1))
+        return 0.0
         
-        cmd = [sys.executable, league_stats_script, '--season', season]
-        if args.only_5v5:
-            cmd.extend(['--condition', '5v5'])
-        
-        subprocess.run(cmd, check=True)
-    except Exception as e:
-        print(f"Team Analysis failed: {e}")
+    def run_cmd_capture(cmd):
+        print(f"Running (Scan): {' '.join(cmd)}")
+        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if res.returncode != 0:
+            print(f"Error in scan: {res.stderr}")
+        return res.stdout
 
-    # 4. Run Player Analysis (Uses Baseline)
-    print("\n[4/4] Running Player Analysis (Incremental)...")
-    try:
-        # We can import and run the main logic. 
-        # run_player_analysis doesn't have a main() function exposed cleanly that accepts args,
-        # but we can call the code block if we wrap it or just import and run if it was structured that way.
-        # Looking at run_player_analysis.py, it runs on import if __name__ == "__main__".
-        # We should probably refactor it slightly or just use subprocess to be safe and clean.
-        # Subprocess is safer to avoid global state pollution between scripts.
-        # Determine paths to sibling scripts
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        player_analysis_script = os.path.join(script_dir, 'run_player_analysis.py')
-        
-        subprocess.run([sys.executable, player_analysis_script, '--season', season], check=True)
-    except Exception as e:
-        print(f"Player Analysis failed: {e}")
+    # 3. & 4. Run Analysis with Consistent Limits
+    print("\n[3/4] Running Analysis (Scanning & Plotting)...")
+    
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    league_script = os.path.join(script_dir, 'run_league_stats.py')
+    player_script = os.path.join(script_dir, 'run_player_analysis.py')
+    
+    # Process 5v5 (Global Consistency: Team + Player)
+    import math
+    
+    print("-> Processing 5v5...")
+    
+    # Scan League 5v5
+    cmd_l_scan = [sys.executable, league_script, '--season', season, '--condition', '5v5', '--scan-limit']
+    out_l = run_cmd_capture(cmd_l_scan)
+    max_l = parse_max(out_l)
+    print(f"   League 5v5 Max: {max_l}")
+    
+    # Scan Players 5v5
+    # Note: run_player_analysis currently defaults to 5v5.
+    cmd_p_scan = [sys.executable, player_script, '--season', season, '--scan-limit']
+    out_p = run_cmd_capture(cmd_p_scan)
+    max_p = parse_max(out_p)
+    print(f"   Player 5v5 Max: {max_p}")
+    
+    # Determine Independent Max Limits
+    # We decouple League (Team) and Player limits because Player variance is much higher (approx 20x).
+    # Using a single global limit washes out the Team maps effectively to blank.
+    
+    import math
+    def smart_ceil(x):
+        if x == 0: return 0.001
+        if x < 0.01:
+            return math.ceil(x * 10000) / 10000.0
+        else:
+            return math.ceil(x * 100) / 100.0
+            
+    vmax_l = smart_ceil(max_l)
+    if vmax_l < 0.0005: vmax_l = 0.0005
+    
+    vmax_p = smart_ceil(max_p)
+    if vmax_p < 0.0005: vmax_p = 0.0005
+    
+    print(f"   League 5v5 VMAX: {vmax_l} (Raw: {max_l})")
+    print(f"   Player 5v5 VMAX: {vmax_p} (Raw: {max_p})")
+    
+    # Plot League 5v5
+    subprocess.run([sys.executable, league_script, '--season', season, 
+                    '--condition', '5v5', '--vmax', str(vmax_l)], check=True)
+                    
+    # Plot Players 5v5
+    subprocess.run([sys.executable, player_script, '--season', season, 
+                    '--vmax', str(vmax_p)], check=True)
+
+    # Process Other Conditions (League Only)
+    if not args.only_5v5:
+        for cond in ['5v4', '4v5']:
+            print(f"-> Processing {cond}...")
+            # Scan
+            cmd_scan = [sys.executable, league_script, '--season', season, '--condition', cond, '--scan-limit']
+            out_scan = run_cmd_capture(cmd_scan)
+            raw_max_c = parse_max(out_scan)
+            
+            # Round
+            vmax_c = smart_ceil(raw_max_c)
+            if vmax_c < 0.0005: vmax_c = 0.0005
+            print(f"   {cond} VMAX: {vmax_c} (Raw: {raw_max_c})")
+            
+            # Plot
+            subprocess.run([sys.executable, league_script, '--season', season, 
+                           '--condition', cond, '--vmax', str(vmax_c)], check=True)
 
     print("\n--- Daily Update Complete ---")
 

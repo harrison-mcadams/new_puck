@@ -1403,7 +1403,6 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
         header_y += gap
 
     # Title
-
     fig.text(0.5, header_y, final_title, fontsize=12, fontweight='bold', ha='center', color='black')
 
 def plot_relative_map(
@@ -1415,7 +1414,9 @@ def plot_relative_map(
     full_team_name: str,
     cond: str = "5v5",
     cmap: str = 'RdBu_r',
-    mask_neutral_zone: bool = True
+    mask_neutral_zone: bool = True,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None
 ):
     """
     Shared plotting routine for relative xG maps (Team and Player).
@@ -1466,19 +1467,24 @@ def plot_relative_map(
     # This fixes "blank map" issues where one pixel is 10x the rest.
     # Convert MaskedArray to simple Numpy array with NaNs to avoid "read-only" issues
     # and partition warnings.
-    p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
     
-    # If percentile is valid and non-zero, use it. But clamp to absolute max just in case.
-    if np.ma.is_masked(p995) or p995 == 0:
-         vmax = 1.0
-    else:
-         vmax = p995
-    
-    # Ensure minimum dynamic range to avoid blank plots for low xG diffs
-    if vmax < 1e-4:
-        vmax = 1e-4
+    if vmax is None:
+        p995 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 99.5)
         
-    norm = matplotlib.colors.Normalize(vmin=-vmax, vmax=vmax)
+        # If percentile is valid and non-zero, use it. But clamp to absolute max just in case.
+        if np.ma.is_masked(p995) or p995 == 0:
+             vmax = 1.0
+        else:
+             vmax = p995
+        
+        # Ensure minimum dynamic range to avoid blank plots for low xG diffs
+        if vmax < 1e-4:
+            vmax = 1e-4
+            
+    if vmin is None:
+        vmin = -vmax
+        
+    norm = matplotlib.colors.Normalize(vmin=vmin, vmax=vmax)
     
     # 3. Plot
     if isinstance(cmap, str):

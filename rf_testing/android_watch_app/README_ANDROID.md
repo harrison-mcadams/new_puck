@@ -63,4 +63,4 @@ I have provided three files for you in this directory. You can copy-paste them i
 
 1.  Connect your Pixel Watch via Wireless Debugging (or use the Emulator).
 2.  Press the Green "Play" button in Android Studio.
-3.  Tap "ON". Watch the logs on your Pi!
+3.  Tap "ON". Watch the logs on your Pi! 
