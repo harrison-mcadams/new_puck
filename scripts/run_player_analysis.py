@@ -17,7 +17,7 @@ from puck import analyze
 from puck import timing
 from puck.rink import draw_rink
 from puck.plot import add_summary_text, plot_events, plot_relative_map
-from puck.analyze import compute_relative_map, league
+from puck.analyze import compute_relative_map, league, generate_player_scatter_plots
 
 def run_analysis():
     parser = argparse.ArgumentParser()
@@ -54,10 +54,25 @@ def run_analysis():
     pid_name_map = p_info['player_name'].to_dict()
     
     # Team Map (ID -> Abb)
-    # Team Map (ID -> Abb)
     t1 = df_data[['home_id', 'home_abb']].rename(columns={'home_id': 'id', 'home_abb': 'abb'})
     t2 = df_data[['away_id', 'away_abb']].rename(columns={'away_id': 'id', 'away_abb': 'abb'})
     t_map = pd.concat([t1, t2]).drop_duplicates('id').set_index('id')['abb'].to_dict()
+    
+    # Player -> Team ID Map (Mode)
+    # Determine primary team for each player for summary
+    print("Building Player-Team Map...")
+    try:
+        # Optimization: Only needed columns
+        pdf = df_data[['player_id', 'team_id']].dropna()
+        # Mode is expensive on large group. Just taking last? 
+        # Or take max count.
+        # ptp = pdf.groupby('player_id')['team_id'].agg(lambda x: x.value_counts().index[0])
+        # Faster:
+        ptp = pdf.groupby('player_id')['team_id'].apply(lambda x: x.value_counts().index[0])
+        pid_tid_map = ptp.to_dict()
+    except Exception as e:
+        print(f"Warning: Failed to build player-team map: {e}")
+        pid_tid_map = {}
     
     # Augment with analysis/teams.json
     teams_json_path = os.path.join(config.ANALYSIS_DIR, 'teams.json')
@@ -304,9 +319,24 @@ def run_analysis():
         xg_for_60 = (xg_for / seconds) * 3600
         xg_ag_60 = (xg_ag / seconds) * 3600
         
+        # Determine Team (Mode of team_id in stats)
+        # Use pid_tid_map built earlier
+        tid = pid_tid_map.get(pid, -1)
+        team_abbr = t_map.get(tid, 'UNK')
+        
+        # Fallback to stats if needed (unlikely if df_data covered it)
+        if team_abbr == 'UNK':
+             tids = [s.get('team_id') for s in data['stats'] if 'team_id' in s]
+             if tids:
+                 tid = max(set(tids), key=tids.count)
+                 team_abbr = t_map.get(tid, 'UNK')
+             
         # Store for DataFrame
         summary_data.append({
             'player_id': pid,
+            'player_name': pid_name_map.get(pid, f"Player {pid}"), # Added early
+            'team': team_abbr, # Added
+            'games_played': len(data['stats']), # Added for filtering
             'xg_for_60': xg_for_60,
             'xg_ag_60': xg_ag_60,
             'stats': total_stats,
@@ -358,6 +388,15 @@ def run_analysis():
         with open(summary_out_path, 'w') as f:
             json.dump(summary_data, f, indent=2)
         print(f"Saved player summary to {summary_out_path}")
+        
+        # Generate Player Scatter Plots
+        try:
+            scatter_out_dir = os.path.join(out_dir_base, season)
+            os.makedirs(scatter_out_dir, exist_ok=True)
+            print("Generating Player Scatter Plots...")
+            generate_player_scatter_plots(summary_data, scatter_out_dir)
+        except Exception as e:
+            print(f"Failed to generate player scatter plots: {e}")
         
     except Exception as e:
         print(f"Warning: Failed to save player summary json: {e}")

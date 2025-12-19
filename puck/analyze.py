@@ -1735,6 +1735,12 @@ def generate_scatter_plot(summary_list, out_dir, condition_name=""):
     # Unity line (x=y)
     ax.plot([limit_min, limit_max], [limit_min, limit_max], color='gray', linestyle='--', alpha=0.5, label='xGF = xGA')
 
+    # Add League Average lines (Team Plot)
+    avg_x = df['xGF/60'].mean()
+    avg_y = df['xGA/60'].mean()
+    ax.axvline(avg_x, color='red', linestyle=':', alpha=0.5, label='Lg Avg')
+    ax.axhline(avg_y, color='red', linestyle=':', alpha=0.5)
+
     # Plot logos
     for i, row in df.iterrows():
         team = row['Team']
@@ -1767,6 +1773,148 @@ def generate_scatter_plot(summary_list, out_dir, condition_name=""):
     fig.savefig(out_path, dpi=150, bbox_inches='tight')
     plt.close(fig)
     print(f"Saved scatter plot to {out_path}")
+
+
+def generate_player_scatter_plots(summary_list, out_dir):
+    """Generate player scatter plots (League-wide and Per-Team)."""
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import os
+    
+    if not summary_list:
+        return
+        
+    df = pd.DataFrame(summary_list)
+    # Ensure required columns exist
+    # 'player_name' and 'team' might default to something if missing
+    if 'player_name' not in df.columns: df['player_name'] = df['player_id'].astype(str)
+    if 'team' not in df.columns: 
+        print("generate_player_scatter_plots: Missing 'team' column. Skipping per-team plots.")
+        df['team'] = 'UNK'
+        
+    required = ['xg_for_60', 'xg_ag_60']
+    for r in required:
+        if r not in df.columns:
+            print(f"generate_player_scatter_plots: Missing column {r}")
+            return
+
+    def _plot(sub_df, title, filename):
+        if sub_df.empty: return
+        
+        # Filter out extreme outliers or low minutes if needed?
+        # Assuming summary_list is already filtered for min TOI.
+        
+    # Calculate TRUE League Mean (Weighted) using full dataset
+    try:
+        if 'seconds' in df.columns and 'xg_for_60' in df.columns:
+            total_sec = df['seconds'].sum()
+            # If seconds missing, use estimate?
+            # Reconstruct raw xG
+            total_xg = (df['xg_for_60'] * df['seconds'] / 3600.0).sum()
+            league_mean_rate = (total_xg / total_sec) * 3600.0 if total_sec > 0 else 0.0
+            print(f"Calculated League Weighted Mean: {league_mean_rate:.3f}")
+        else:
+            league_mean_rate = df['xg_for_60'].mean()
+    except Exception as e:
+        print(f"Error calculating weighted mean: {e}")
+        league_mean_rate = df['xg_for_60'].mean()
+
+    # Filter > 5 games if data available
+    if 'games_played' in df.columns:
+        print(f"Filtering players with <= 5 games. Before: {len(df)}")
+        df = df[df['games_played'] > 5]
+        print(f"After: {len(df)}")
+
+    def _plot(sub_df, title, filename):
+        if sub_df.empty: return
+        
+        fig, ax = plt.subplots(figsize=(10, 10))
+        
+        x = sub_df['xg_for_60']
+        y = sub_df['xg_ag_60']
+        
+        ax.scatter(x, y, alpha=0.7, s=40)
+        
+        # Outlier Detection Stats
+        import numpy as np
+        mean_x, std_x = x.mean(), x.std()
+        mean_y, std_y = y.mean(), y.std()
+        
+        is_league = (len(sub_df) > 50)
+        
+        for i, row in sub_df.iterrows():
+            should_label = True
+            if is_league:
+                # Only label outliers (> 2.0 std dev)
+                z_x = abs(row['xg_for_60'] - mean_x) / (std_x + 1e-9)
+                z_y = abs(row['xg_ag_60'] - mean_y) / (std_y + 1e-9)
+                if z_x < 2.0 and z_y < 2.0:
+                    should_label = False
+            
+            if should_label:
+                name = row['player_name']
+                # Shorten name
+                parts = name.split(' ')
+                short = parts[-1] if len(parts) > 1 else name
+                
+                # Highlight labels slightly?
+                ax.annotate(short, (row['xg_for_60'], row['xg_ag_60']), 
+                            xytext=(3, 3), textcoords='offset points', fontsize=8, alpha=0.9)
+        
+        # Invert Y (Defense: Lower is Better)
+        # Invert Y was here, moved to end to respect set_ylim logic
+        
+        ax.set_xlabel('xGF/60')
+        ax.set_ylabel('xGA/60 (Inverted)')
+        ax.set_title(title)
+        ax.set_aspect('equal') # Ensure 45 deg unity line
+        ax.grid(True, linestyle='--', alpha=0.3)
+        
+        # Add average lines (Players)
+        # Use Weighted Mean calculated from full dataset (Outer Scope)
+        grand_mean = league_mean_rate
+        
+        ax.axvline(grand_mean, color='red', linestyle=':', alpha=0.5, label='Lg Avg')
+        ax.axhline(grand_mean, color='red', linestyle=':', alpha=0.5)
+        
+        # Add Unity Line (x=y)
+        # Calculate limits to ensure line covers plot
+        lim_min = min(x.min(), y.min())
+        lim_max = max(x.max(), y.max())
+        padding = (lim_max - lim_min) * 0.1
+        lim_min -= padding
+        lim_max += padding
+        ax.plot([lim_min, lim_max], [lim_min, lim_max], color='gray', linestyle='--', alpha=0.5, label='xGF = xGA')
+        ax.set_xlim(lim_min, lim_max)
+        ax.set_ylim(lim_min, lim_max)
+        ax.invert_yaxis() # Re-invert after setting limits (Note: ylim set overrides invert, so we call invert last or set correctly)
+        # Correctly set limits respecting invert? 
+        # Actually set_ylim(bottom, top). If bottom > top, it is inverted.
+        # But here we used lim_min, lim_max which are numeric. 
+        # So we call invert_yaxis() *after* set_ylim? Or use set_ylim(max, min).
+        # Standard matplotlib: set_ylim(min, max) then invert_yaxis().
+        # BUT I set ylim to (min, max) above.
+        # So invert_yaxis() call should happen AFTER this block.
+        # The original code called invert_yaxis() before.
+        # I should remove the earlier invert_yaxis() call in _plot and do it here.
+        # Or just call invert_yaxis() at the end.
+
+        
+        out_path = os.path.join(out_dir, filename)
+        fig.savefig(out_path, dpi=120, bbox_inches='tight')
+        plt.close(fig)
+        # print(f"Saved {filename}")
+
+    # 1. League Wide
+    _plot(df, "League Wide 5v5 Player Rates", "scatter_players_league.png")
+    
+    # 2. Per Team
+    teams = df['team'].dropna().unique()
+    for t in teams:
+        if t == 'UNK': continue
+        _plot(df[df['team'] == t], f"{t} 5v5 Player Rates", f"scatter_players_{t}.png")
+    
+    print(f"Generated player scatter plots in {out_dir}")
 
 
 def season(season: str = '20252026',
@@ -4266,16 +4414,25 @@ def generate_special_teams_plot(season, teams, out_dir):
     stats_4v5 = []
     
     try:
-        with open(os.path.join(dir_5v4, f'{season}_team_summary.json'), 'r') as f:
+        with open(os.path.join(dir_5v4, 'team_summary.json'), 'r') as f:
             stats_5v4 = json.load(f)
     except Exception:
-        print("Warning: Could not load 5v4 summary stats")
+        print("Warning: Could not load 5v4 summary stats (team_summary.json)")
+        # Fallback to season prefixed?
+        try:
+             with open(os.path.join(dir_5v4, f'{season}_team_summary.json'), 'r') as f:
+                 stats_5v4 = json.load(f)
+        except: pass
 
     try:
-        with open(os.path.join(dir_4v5, f'{season}_team_summary.json'), 'r') as f:
+        with open(os.path.join(dir_4v5, 'team_summary.json'), 'r') as f:
             stats_4v5 = json.load(f)
     except Exception:
-        print("Warning: Could not load 4v5 summary stats")
+        print("Warning: Could not load 4v5 summary stats (team_summary.json)")
+        try:
+             with open(os.path.join(dir_4v5, f'{season}_team_summary.json'), 'r') as f:
+                 stats_4v5 = json.load(f)
+        except: pass
 
     # Helper to find team stats in list
     def get_team_stats(stats_list, team_abbr):
@@ -4295,6 +4452,15 @@ def generate_special_teams_plot(season, teams, out_dir):
         # Get stats even if map doesn't exist (for table)
         t_stats_5v4 = get_team_stats(stats_5v4, team)
         t_stats_4v5 = get_team_stats(stats_4v5, team)
+        
+        if not t_stats_5v4 and stats_5v4:
+             print(f"Warning: No 5v4 stats found for {team} in summary list (len={len(stats_5v4)})")
+             # Debug keys
+             # keys = [s.get('team') for s in stats_5v4[:5]]
+             # print(f"Sample keys: {keys}")
+             
+        if not t_stats_4v5 and stats_4v5:
+             print(f"Warning: No 4v5 stats found for {team}")
         
         # Create combined stats entry
         # We want PP Offense (team_xg_per60 from 5v4) vs PK Defense (other_xg_per60 from 4v5)
@@ -4376,9 +4542,11 @@ def generate_special_teams_plot(season, teams, out_dir):
             extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
             
             # Use SymLogNorm for diff metric to enhance contrast (same as 5v5)
+            # Data is scaled 100x (per 100 sq ft)
             from matplotlib.colors import SymLogNorm
-            vmax = 0.0006
-            norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-vmax, vmax=vmax, base=10)
+            vmax = 0.02
+            # linthresh: around 0.001?
+            norm = SymLogNorm(linthresh=0.001, linscale=1.0, vmin=-vmax, vmax=vmax, base=10)
             
             cmap = plt.get_cmap('RdBu_r')
             try:
@@ -4390,8 +4558,8 @@ def generate_special_teams_plot(season, teams, out_dir):
             im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
             
             # Colorbar with human readable labels
-            cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
-            cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
+            cbar_ticks = [-0.02, -0.01, 0, 0.01, 0.02]
+            cbar_ticklabels = ['-0.02', '-0.01', 'Avg', '0.01', '0.02']
             
             cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
             cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)

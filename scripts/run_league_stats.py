@@ -453,6 +453,14 @@ def run_league_analysis():
             
             # Masking and Plotting handled by plot_relative_map
             out_path = os.path.join(out_root, f"{tname}_relative.png")
+            
+            # Save Combined Relative Map (Important for Special Teams stitching)
+            rel_npy_path = os.path.join(out_root, f"{tname}_relative_combined.npy")
+            try:
+                np.save(rel_npy_path, rel_grid)
+            except Exception as e:
+                print(f"Failed to save npy for {tname}: {e}")
+
             try:
                 fig, ax = plt.subplots(figsize=(10, 6))
                 
@@ -524,6 +532,17 @@ def run_league_analysis():
         del team_stats
         del league_grid_sum
         gc.collect()
+
+    # --- SPECIAL TEAMS SUMMARY ---
+    # Combine 5v4 and 4v5 into consolidated view if possible
+    if not scan_limit:
+        print("Generating Combined Special Teams Analysis...")
+        try:
+             # Ensure we have list of team abbrs
+             all_teams = sorted(list(set(t_map.values())))
+             analyze.generate_special_teams_plot(season, all_teams, os.path.join(config.ANALYSIS_DIR, 'league', season))
+        except Exception as e:
+             print(f"Error generating Special Teams plots: {e}")
 
 if __name__ == '__main__':
     run_league_analysis()
