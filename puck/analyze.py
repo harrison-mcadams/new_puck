@@ -1806,15 +1806,24 @@ def generate_player_scatter_plots(summary_list, out_dir):
         
     # Calculate TRUE League Mean (Weighted) using full dataset
     try:
-        if 'seconds' in df.columns and 'xg_for_60' in df.columns:
+        # Prioirty 1: Use raw sums if available (Weighted Average: Total xG / Total Time)
+        if 'toi_sec' in df.columns and 'xg_for' in df.columns:
+            total_sec = df['toi_sec'].sum()
+            total_xg = df['xg_for'].sum()
+            league_mean_rate = (total_xg / total_sec) * 3600.0 if total_sec > 0 else 0.0
+            # print(f"Calculated League Weighted Mean (from toi_sec): {league_mean_rate:.3f}")
+            
+        # Priority 2: Fallback to reconstructing from rate if seconds available
+        elif 'seconds' in df.columns and 'xg_for_60' in df.columns:
             total_sec = df['seconds'].sum()
-            # If seconds missing, use estimate?
-            # Reconstruct raw xG
             total_xg = (df['xg_for_60'] * df['seconds'] / 3600.0).sum()
             league_mean_rate = (total_xg / total_sec) * 3600.0 if total_sec > 0 else 0.0
-            print(f"Calculated League Weighted Mean: {league_mean_rate:.3f}")
+            
+        # Priority 3: Unweighted mean (Last resort, known to be biased)
         else:
             league_mean_rate = df['xg_for_60'].mean()
+            print("Warning: Using unweighted mean for player scatter plot (missing time data)")
+            
     except Exception as e:
         print(f"Error calculating weighted mean: {e}")
         league_mean_rate = df['xg_for_60'].mean()
@@ -4442,150 +4451,126 @@ def generate_special_teams_plot(season, teams, out_dir):
                     return s
         return {}
 
+    # --- 1. Build Combined Summary & Calculate Stats ---
+    # Need to process all teams first to get distributions for percentiles
+    
+    # Store minimal info needed for plotting loop later
+    # (We could cache maps here but might be OOM, so just store paths or load twice)
+    
     combined_summary = []
-
+    
     for team in teams:
-        # Load maps
-        map_5v4_path = os.path.join(dir_5v4, f'{team}_relative_combined.npy')
-        map_4v5_path = os.path.join(dir_4v5, f'{team}_relative_combined.npy')
-        
-        # Get stats even if map doesn't exist (for table)
+        # Load stats (even if map doesn't exist)
         t_stats_5v4 = get_team_stats(stats_5v4, team)
         t_stats_4v5 = get_team_stats(stats_4v5, team)
-        
-        if not t_stats_5v4 and stats_5v4:
-             print(f"Warning: No 5v4 stats found for {team} in summary list (len={len(stats_5v4)})")
-             # Debug keys
-             # keys = [s.get('team') for s in stats_5v4[:5]]
-             # print(f"Sample keys: {keys}")
-             
-        if not t_stats_4v5 and stats_4v5:
-             print(f"Warning: No 4v5 stats found for {team}")
-        
-        # Create combined stats entry
-        # We want PP Offense (team_xg_per60 from 5v4) vs PK Defense (other_xg_per60 from 4v5)
-        # Note: 4v5 'other_xg_per60' is xGA/60 (shots against team while team is PK)
         
         pp_xg_per60 = t_stats_5v4.get('team_xg_per60', 0.0)
         pk_xga_per60 = t_stats_4v5.get('other_xg_per60', 0.0)
         
-        # Also sum raw counts for table
-        pp_goals = t_stats_5v4.get('team_goals', 0)
-        pk_goals_against = t_stats_4v5.get('other_goals', 0)
-        
-        pp_xgs = t_stats_5v4.get('team_xgs', 0.0)
-        pk_xgs_against = t_stats_4v5.get('other_xgs', 0.0)
-        
-        pp_attempts = t_stats_5v4.get('team_attempts', 0)
-        pk_attempts_against = t_stats_4v5.get('other_attempts', 0)
-        
-        pp_toi = t_stats_5v4.get('team_seconds', 0.0)
-        pk_toi = t_stats_4v5.get('team_seconds', 0.0) # PK TOI
-        
-        # Net Special Teams xG? (PP xGF - PK xGA) - crude metric but maybe useful
-        net_st_xg = pp_xgs - pk_xgs_against
-        
         combined_entry = {
             'team': team,
-            'Team': team, # For consistency with other summaries
-            'n_games': t_stats_5v4.get('n_games', 0), # Assume same games
+            'Team': team,
+            'team_name': team, # for plotter
             
-            # PP Stats (Offense)
-            'team_goals': pp_goals,
-            'team_xgs': pp_xgs,
-            'team_attempts': pp_attempts,
-            'team_seconds': pp_toi,
-            'team_xg_per60': pp_xg_per60, # This will be xGF/60 in scatter
+            # PP (Offense)
+            'team_xg_per60': pp_xg_per60,
+            'team_xgs': t_stats_5v4.get('team_xgs', 0.0),
+            'team_goals': t_stats_5v4.get('team_goals', 0),
+            'team_attempts': t_stats_5v4.get('team_attempts', 0),
             
-            # PK Stats (Defense) - mapped to 'other' fields for scatter compatibility
-            'other_goals': pk_goals_against,
-            'other_xgs': pk_xgs_against,
-            'other_attempts': pk_attempts_against,
-            'other_seconds': pk_toi,
-            'other_xg_per60': pk_xga_per60, # This will be xGA/60 in scatter
+            # PK (Defense) -> Mapped to 'other' / 'away' fields
+            'other_xg_per60': pk_xga_per60,
+            'other_xgs': t_stats_4v5.get('other_xgs', 0.0),
+            'other_goals': t_stats_4v5.get('other_goals', 0),
+            'other_attempts': t_stats_4v5.get('other_attempts', 0),
             
-            # Extra
-            'net_st_xg': net_st_xg
+            # For summary text mapping
+            'home_goals': t_stats_5v4.get('team_goals', 0),
+            'away_goals': t_stats_4v5.get('other_goals', 0),
+            'home_xg': t_stats_5v4.get('team_xgs', 0.0),
+            'away_xg': t_stats_4v5.get('other_xgs', 0.0),
+            'home_attempts': t_stats_5v4.get('team_attempts', 0),
+            'away_attempts': t_stats_4v5.get('other_attempts', 0),
+            'have_xg': True
         }
         combined_summary.append(combined_entry)
 
-        if not os.path.exists(map_5v4_path) or not os.path.exists(map_4v5_path):
-            # print(f"Skipping {team}: missing 5v4 or 4v5 map")
-            continue
+    # Calculate Percentiles & Rel Stats
+    if combined_summary:
+        from scipy.stats import percentileofscore
+        all_pp = [x['team_xg_per60'] for x in combined_summary]
+        all_pk = [x['other_xg_per60'] for x in combined_summary]
+        
+        pp_mean = np.mean(all_pp) if all_pp else 1.0
+        pk_mean = np.mean(all_pk) if all_pk else 1.0
+        
+        for entry in combined_summary:
+            # Percentiles
+            entry['off_percentile'] = percentileofscore(all_pp, entry['team_xg_per60'])
+            entry['def_percentile'] = 100 - percentileofscore(all_pk, entry['other_xg_per60']) # Lower GA is better
             
+            # Relative % (for text text)
+            entry['rel_off_pct'] = 100 * (entry['team_xg_per60'] - pp_mean) / pp_mean if pp_mean > 0 else 0
+            entry['rel_def_pct'] = 100 * (entry['other_xg_per60'] - pk_mean) / pk_mean if pk_mean > 0 else 0
+
+    # --- 2. Plotting Loop ---
+    from .plot import plot_relative_map
+    
+    for entry in combined_summary:
+        team = entry['team']
+        
+        map_5v4_path = os.path.join(dir_5v4, f'{team}_relative_combined.npy')
+        map_4v5_path = os.path.join(dir_4v5, f'{team}_relative_combined.npy')
+        
+        if not os.path.exists(map_5v4_path) or not os.path.exists(map_4v5_path):
+             continue
+             
         try:
             map_5v4 = np.load(map_5v4_path)
             map_4v5 = np.load(map_4v5_path)
             
-            # Stitch maps
-            # Grid assumptions: 200 x 85 (from histogram2d)
-            # x indices: 0 to 199.
-            # Midpoint is 100.
-            
+            # Stitch: Left=PP(5v4), Right=PK(4v5)
             combined_st = np.full_like(map_5v4, np.nan)
+            mid = map_5v4.shape[1] // 2
             
-            mid = map_5v4.shape[1] // 2 # 100
-            
-            # Left half from 5v4 (Offense)
+            # Left half usually indices 0..mid. x from -100 to 0.
+            # 5v4 map is full rink relative. But we only care about Offense (Left).
+            # Wait. 5v4 map: Team is Offense (Left). Other is Defense (Right).
+            # We want Team Offense (Left).
             combined_st[:, :mid] = map_5v4[:, :mid]
             
-            # Right half from 4v5 (Defense)
+            # Right half: 4v5 map. Team is Defense (Right, because oriented).
+            # Wait. 4v5: Team is PK (Defense).
+            # In run_league_stats: "Left Side = FOR (Offense)... Right Side = AGAINST (Defense)".
+            # So for 4v5, Team is Defending. Team is on Right?
+            # No. League stats logic: "Left Side = FOR".
+            # For 4v5, "FOR" is Short-Handed Goals For?
+            # Or is 4v5 logic flipped?
+            # 4v5 analysis: Team is PK. Opponent is PP.
+            # If we want PK Performance (Defense), we want "Against".
+            # "Against" is Right Side.
+            # So we take Right Half of 4v5 map.
             combined_st[:, mid:] = map_4v5[:, mid:]
             
-            # Plot
-            fig, ax = plt.subplots(figsize=(10, 5))
-            draw_rink(ax=ax)
+            fig, ax = plt.subplots(figsize=(10, 6))
             
-            # Extent
-            gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
-            gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
-            extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
+            # Use shared plotter
+            # Title: "Team Special Teams (PP Off / PK Def)"
+            # Cond: "Special Teams"
             
-            # Use SymLogNorm for diff metric to enhance contrast (same as 5v5)
-            # Data is scaled 100x (per 100 sq ft)
-            from matplotlib.colors import SymLogNorm
-            vmax = 0.02
-            # linthresh: around 0.001?
-            norm = SymLogNorm(linthresh=0.001, linscale=1.0, vmin=-vmax, vmax=vmax, base=10)
-            
-            cmap = plt.get_cmap('RdBu_r')
-            try:
-                cmap.set_bad(color=(1.0, 1.0, 1.0, 0.0))
-            except:
-                pass
-                
-            m = np.ma.masked_invalid(combined_st)
-            im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
-            
-            # Colorbar with human readable labels
-            cbar_ticks = [-0.02, -0.01, 0, 0.01, 0.02]
-            cbar_ticklabels = ['-0.02', '-0.01', 'Avg', '0.01', '0.02']
-            
-            cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-            cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
-            cbar.set_ticks(cbar_ticks)
-            cbar.ax.set_yticklabels(cbar_ticklabels)
-            
-            # Summary Text
-            # Use the combined stats we just built
-            text_stats = combined_entry.copy()
-            text_stats['home_xg'] = text_stats['team_xgs']
-            text_stats['away_xg'] = text_stats['other_xgs']
-            text_stats['have_xg'] = True
-            text_stats['home_goals'] = text_stats['team_goals']
-            text_stats['away_goals'] = text_stats['other_goals']
-            text_stats['home_attempts'] = text_stats['team_attempts']
-            text_stats['away_attempts'] = text_stats['other_attempts']
-            
-            # Add summary text
-            add_summary_text(
+            plot_relative_map(
                 ax=ax,
-                stats=text_stats,
-                main_title=f"{team} Special Teams (PP Off / PK Def)",
-                is_season_summary=True,
+                rel_grid=combined_st, # Already scaled? npy is scaled 100x.
+                title=f"{team} Special Teams",
+                stats=entry,
                 team_name=team,
-                filter_str="Special Teams"
+                full_team_name=team,
+                cond="Special Teams",
+                vmax=0.02 # Match 5v5
             )
+            
+            # Fix Background (if needed explicitly)
+            fig.patch.set_facecolor('white')
             
             out_path = os.path.join(st_out_dir, f'{team}_special_teams_map.png')
             fig.savefig(out_path, dpi=150, bbox_inches='tight')

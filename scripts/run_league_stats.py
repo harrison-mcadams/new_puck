@@ -415,7 +415,8 @@ def run_league_analysis():
                 'team_xgs': s.get('team_xgs', 0.0),
                 'other_xgs': s.get('other_xgs', 0.0),
                 'team_goals': s.get('team_goals', 0),
-                'other_goals': s.get('other_goals', 0)
+                'other_goals': s.get('other_goals', 0),
+                'team_seconds': s.get('team_seconds', 0.0)
             })
             
             # 1. Raw Plot (Hybrid)
