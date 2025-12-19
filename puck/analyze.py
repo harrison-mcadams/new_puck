@@ -4572,7 +4572,7 @@ def generate_special_teams_plot(season, teams, out_dir):
             # Fix Background (if needed explicitly)
             fig.patch.set_facecolor('white')
             
-            out_path = os.path.join(st_out_dir, f'{team}_special_teams_map.png')
+            out_path = os.path.join(st_out_dir, f'{team}_relative.png')
             fig.savefig(out_path, dpi=150, bbox_inches='tight')
             plt.close(fig)
             

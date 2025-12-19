@@ -29,7 +29,7 @@ def run_analysis():
     global_vmax = args.vmax
     scan_limit = args.scan_limit
     
-    out_dir_base = 'analysis/players'
+    out_dir_base = os.path.join(config.ANALYSIS_DIR, 'players')
     league_out_dir = os.path.join(out_dir_base, f'{season}/league')
     os.makedirs(league_out_dir, exist_ok=True)
     

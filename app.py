@@ -354,10 +354,7 @@ def team_maps():
                     # Map filename: {team}_relative_map.png
                     # OR for SpecialTeams: {team}_special_teams_map.png
                     
-                    if game_state == 'SpecialTeams':
-                        map_filename = f"{team}_special_teams_map.png"
-                    else:
-                        map_filename = f"{team}_relative.png"
+                    map_filename = f"{team}_relative.png"
                         
                     map_path = os.path.join(maps_dir, map_filename)
                     
@@ -371,13 +368,13 @@ def team_maps():
             
     # Fallback for SpecialTeams if summary doesn't exist to provide team list
     if not teams_data and game_state == 'SpecialTeams':
-        # Glob for files
-        search_path = os.path.join(maps_dir, "*_special_teams_map.png")
+        # Glob for files (Unified naming)
+        search_path = os.path.join(maps_dir, "*_relative.png")
         files = glob.glob(search_path)
         for fpath in files:
             fname = os.path.basename(fpath)
-            # Extract team name: {team}_special_teams_map.png
-            team_name = fname.replace("_special_teams_map.png", "")
+            # Extract team name: {team}_relative.png
+            team_name = fname.replace("_relative.png", "")
             teams_data.append({
                 'name': team_name,
                 'map_url': f"league/{season}/{game_state}/{fname}"
@@ -393,13 +390,10 @@ def team_stats(season, game_state, team):
     
     # Construct paths
     # Construct paths
-    # Map is at static/league/{season}/{game_state}/{team}_relative_map.png
-    # OR {team}_special_teams_map.png for SpecialTeams
+    # Map is at static/league/{season}/{game_state}/{team}_relative.png
+    # OR {team}_special_teams_map.png for SpecialTeams -> NOW UNIFIED to relative.png
     
-    if game_state == 'SpecialTeams':
-        map_filename = f"{team}_special_teams_map.png"
-    else:
-        map_filename = f"{team}_relative.png"
+    map_filename = f"{team}_relative.png"
         
     relative_map = f"league/{season}/{game_state}/{map_filename}"
     
