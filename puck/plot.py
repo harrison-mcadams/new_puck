@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 from .rink import draw_rink, rink_goal_xs, rink_half_height_at_x
 import matplotlib.colors as mcolors
+import matplotlib.colors as mcolors
 
 
 def _events(events: pd.DataFrame, events_to_plot: Optional[List[str]] = None) -> pd.DataFrame:

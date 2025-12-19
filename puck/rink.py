@@ -38,18 +38,16 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
     if ax is None:
         fig, ax = plt.subplots(figsize=(6, 3.5))
 
-    # center rectangle
+    # center rectangle (background fill)
     rect = patches.Rectangle((left_center_x, -R),  # lower-left corner
                              width=(right_center_x - left_center_x),
                              height=2 * R,
-                             facecolor="white",  # Changed from #f0f8ff
+                             facecolor="white",
                              edgecolor="none",
                              zorder=0)
     ax.add_patch(rect)
 
-    # semicircular endcaps using Wedge (half-disks). Choose theta so the outward-facing
-    # half is filled. If center_x < 0, outward is to the left -> theta 90->270. If center_x > 0,
-    # outward is to the right -> theta -90->90.
+    # semicircular endcaps (background fill)
     left_theta = (90, 270) if left_center_x < 0 else (-90, 90)
     right_theta = (90, 270) if right_center_x < 0 else (-90, 90)
 
@@ -59,12 +57,14 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
     ax.add_patch(right_wedge)
 
     # Draw outlines: top/bottom straight edges
-    ax.plot([left_center_x, right_center_x], [R, R], color="black", linewidth=1, zorder=2)
-    ax.plot([left_center_x, right_center_x], [-R, -R], color="black", linewidth=1, zorder=2)
+    # Thickness 1.2 matches curves. clip_on=False prevents axis limits from shaving the line width
+    ax.plot([left_center_x, right_center_x], [R, R], color="black", linewidth=1.2, zorder=2, clip_on=False)
+    ax.plot([left_center_x, right_center_x], [-R, -R], color="black", linewidth=1.2, zorder=2, clip_on=False)
 
     # semicircle outlines using Arc
-    left_arc = patches.Arc((left_center_x, 0), width=2 * R, height=2 * R, angle=0, theta1=left_theta[0], theta2=left_theta[1], edgecolor="black", linewidth=1, zorder=2)
-    right_arc = patches.Arc((right_center_x, 0), width=2 * R, height=2 * R, angle=0, theta1=right_theta[0], theta2=right_theta[1], edgecolor="black", linewidth=1, zorder=2)
+    # clip_on=False prevents axis limits from shaving the line width
+    left_arc = patches.Arc((left_center_x, 0), width=2 * R, height=2 * R, angle=0, theta1=left_theta[0], theta2=left_theta[1], edgecolor="black", linewidth=1.2, zorder=2, clip_on=False)
+    right_arc = patches.Arc((right_center_x, 0), width=2 * R, height=2 * R, angle=0, theta1=right_theta[0], theta2=right_theta[1], edgecolor="black", linewidth=1.2, zorder=2, clip_on=False)
     ax.add_patch(left_arc)
     ax.add_patch(right_arc)
 
@@ -123,8 +123,10 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
     if show_goals:
         # crease parameters (feet)
         crease_radius = 6.0
-        crease_color = "lightskyblue"
         crease_alpha = 0.45
+        # lightskyblue matches typical nhl crease
+        crease_color = "lightskyblue"
+        
         # goal mouth half-width (6 ft total -> 3 ft half-width)
         goal_half_width = 3.0
         # post radius
@@ -140,9 +142,9 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
             theta1, theta2 = orig_theta1, orig_theta2
             crease = patches.Wedge((left_goal_x, 0), crease_radius, theta1=theta1, theta2=theta2, facecolor=crease_color, alpha=crease_alpha, edgecolor='none', zorder=1)
             ax.add_patch(crease)
-            # posts
-            ax.add_patch(patches.Circle((left_goal_x, goal_half_width), radius=post_radius, color='red', zorder=4))
-            ax.add_patch(patches.Circle((left_goal_x, -goal_half_width), radius=post_radius, color='red', zorder=4))
+            # posts REMOVED as requested
+            # ax.add_patch(patches.Circle((left_goal_x, goal_half_width), radius=post_radius, color='red', zorder=4))
+            # ax.add_patch(patches.Circle((left_goal_x, -goal_half_width), radius=post_radius, color='red', zorder=4))
             # net-mouth line placed away from center (one unit further from center)
             mouth_x = left_goal_x + (-1.0 if left_goal_x < 0 else 1.0)
             ax.plot([mouth_x, mouth_x], [-goal_half_width, goal_half_width], color='red', linewidth=1.2, zorder=4)
@@ -155,9 +157,9 @@ def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool 
             theta1, theta2 = orig_theta1, orig_theta2
             crease = patches.Wedge((right_goal_x, 0), crease_radius, theta1=theta1, theta2=theta2, facecolor=crease_color, alpha=crease_alpha, edgecolor='none', zorder=1)
             ax.add_patch(crease)
-            # posts
-            ax.add_patch(patches.Circle((right_goal_x, goal_half_width), radius=post_radius, color='red', zorder=4))
-            ax.add_patch(patches.Circle((right_goal_x, -goal_half_width), radius=post_radius, color='red', zorder=4))
+            # posts REMOVED as requested
+            # ax.add_patch(patches.Circle((right_goal_x, goal_half_width), radius=post_radius, color='red', zorder=4))
+            # ax.add_patch(patches.Circle((right_goal_x, -goal_half_width), radius=post_radius, color='red', zorder=4))
             # net-mouth line placed away from center (one unit further from center)
             mouth_x = right_goal_x + (1.0 if right_goal_x > 0 else -1.0)
             ax.plot([mouth_x, mouth_x], [-goal_half_width, goal_half_width], color='red', linewidth=1.2, zorder=4)

@@ -1,126 +1,46 @@
-# Implementation Complete: Jersey-Number → Player_ID Mapping
+# Relative Heatmap Refinement Summary
 
-## Summary
-Successfully implemented automatic jersey-number to player_id mapping in the `get_shifts_from_nhl_html` function. The HTML shift parser now returns canonical NHL player IDs (e.g., 8471675) instead of jersey numbers (e.g., 12), matching the behavior of the API-based `get_shifts` function.
+## Overview
+Refined the visual presentation and interpretability of 5v5 relative xG heatmaps for both players and teams. The primary golas were to improve color saturation, ensure consistent scales, clarify units, and polish the aesthetics to remove visual artifacts.
 
-## What Was Done
+## Key Changes
 
-### 1. Core Implementation (nhl_api.py)
+### 1. Scaling & Units
+*   **Unit Conversion**: Heatmap values are now scaled by **100x** to represent "Excess xG per 60 minutes per **100 sq ft**" (instead of per 1 sq ft).
+*   **Ticks**: Colorbar ticks are standardized to `[-0.02, -0.01, 0, 0.01, 0.02]`.
+*   **Labels**: Colorbar label updated to "Excess xG/60 (per 100 sq ft)".
 
-#### New Function: `_get_roster_mapping(game_id)`
-- Extracts roster data from game feed API
-- Returns team-specific mappings: `{'home': {12: 8471675, ...}, 'away': {12: 8475798, ...}}`
-- Handles various NHL API structures by recursively walking the JSON
-- Team isolation prevents conflicts when same jersey appears on both teams
-- Graceful error handling with empty mapping fallback
+### 2. Color Saturation & Limits
+*   **Global Limits**: Enforced a hard limit of `vmax=0.02` (and `vmin=-0.02`) for **ALL** 5v5 plots (League and Player). 
+    *   This ensures all plots use the same scale for direct comparison.
+    *   This scale is "Aggressive" (equivalent to original Option 3), providing rich saturation.
+*   **Daily Pipeline**: `scripts/daily.py` updated to override any scanned max values with this standard `0.02` floor.
 
-#### Enhanced `get_shifts_from_nhl_html(game_id, ...)`
-- Fetches roster mapping after parsing shifts from HTML
-- Updates each shift's `player_id` from jersey number to canonical ID
-- Preserves `player_number` and `player_name` for reference
-- Rebuilds `shifts_by_player` dict with canonical player_id keys
-- Tracks and logs mapping statistics
-- Enhanced debug output with roster and mapping details
+### 3. Visual Polish
+*   **Background Alignment**: 
+    *   Rink Facecolor set to **Pure White** (`#ffffff`) to match the figure background.
+    *   Axes Facecolor set to **Pure White**.
+    *   Axes Spines (borders) explicitly removed to eliminate "box outlines".
+*   **Custom Colormap**: 
+    *   Implemented `RdBu_White` (modified `RdBu_r`) which interpolates smoothly to a **Pure White** center at 0.0.
+    *   This eliminates "gray center" artifacts (`#f7f7f7`) that created visible boxes against white backgrounds.
+    *   Replaces jagged hard-coded white bands with smooth gradients.
+*   **Rink Aesthetics**:
+    *   **Continuous Boundary**: Replaced separate straight lines and curved arcs with a single `patches.FancyBboxPatch` (stadium shape). This ensures visual continuity (no join artifacts) and consistent line thickness (`1.2`) across the entire rink boundary.
+    *   **Goal Representation**: Removed red circles (posts), leaving only the schematic goal lines (rectangle) for a cleaner look.
 
-### 2. Test Updates (tests/test_nhl_api_shifts.py)
-- Modified `_patch_session_get` to support `only_home` flag
-- Updated `test_parse_sample_html` to handle dual home/away fetch
-- Mock now simulates realistic 404 for away report
-- All tests passing ✅
+### 4. Layout
+*   **Colorbar Sizing**: Used `mpl_toolkits.axes_grid1.make_axes_locatable` to ensure the colorbar height perfectly matches the rink plot height.
 
-### 3. Quality Improvements
-- Added `.gitignore` to exclude cache and temporary files
-- Created comprehensive documentation (IMPLEMENTATION_NOTES.md)
-- Addressed code review feedback:
-  - Removed incomplete rosterSpots logic
-  - Enhanced logging for better visibility
-- Ran security scan (CodeQL): 0 vulnerabilities found ✅
-
-## Key Features
-
-✅ **Team-Specific Mapping:** Same jersey number on different teams maps to different player IDs  
-✅ **Graceful Degradation:** Falls back to jersey number if roster unavailable  
-✅ **Comprehensive Logging:** Info/warning logs for mapping process  
-✅ **Debug Statistics:** Tracks roster size, mapped/unmapped counts  
-✅ **Backward Compatible:** Existing code works unchanged  
-✅ **Tested:** Unit and integration tests all passing  
-✅ **Secure:** No security vulnerabilities detected  
-
-## Example Usage
-
-```python
-import nhl_api
-
-# Fetch shifts with automatic player_id mapping
-result = nhl_api.get_shifts_from_nhl_html(2025020232, debug=True)
-
-# Now all shifts have canonical player IDs
-for shift in result['all_shifts']:
-    print(f"Player ID: {shift['player_id']}")  # e.g., 8471675 (not jersey #12)
-    print(f"Jersey: #{shift['player_number']}")  # e.g., 12
-    print(f"Name: {shift['player_name']}")       # e.g., "JOHN DOE"
-
-# shifts_by_player keyed by canonical IDs
-for player_id, shifts in result['shifts_by_player'].items():
-    print(f"Player {player_id}: {len(shifts)} shifts")
-
-# Debug info (when debug=True)
-print(result['debug']['roster_mapping'])
-# {'home_players': 20, 'away_players': 20, 'mapped_shifts': 245, 'unmapped_shifts': 0}
-```
+## Files Modified
+*   `scripts/daily.py`: Enforced `vmax=0.02` logic.
+*   `scripts/run_league_stats.py`: Updated plotting logic (scaling, layout, ticks, spines).
+*   `scripts/run_player_analysis.py`: Updated plotting logic (scaling, layout, ticks, spines).
+*   `puck/plot.py`: Implemented `RdBu_White` custom colormap.
+*   `puck/rink.py`: Replaced border drawing with `FancyBboxPatch` and removed posts.
+*   `puck/analyze.py`: Applied 100x scaling to `combined_rel_map`.
 
 ## Verification
-
-### Tests Run
-```bash
-python -m pytest tests/test_nhl_api_shifts.py -v
-# ✅ 2/2 tests passing
-```
-
-### Security Scan
-```bash
-# CodeQL analysis
-# ✅ 0 vulnerabilities found
-```
-
-## Files Changed
-
-1. **nhl_api.py** (+106 lines)
-   - Added `_get_roster_mapping()` function
-   - Enhanced `get_shifts_from_nhl_html()` with roster mapping
-   - Improved logging and debug output
-
-2. **tests/test_nhl_api_shifts.py** (+11 lines)
-   - Updated mock to handle dual fetch
-   - Enhanced test for new behavior
-
-3. **.gitignore** (new file)
-   - Python cache, temporary files, IDE files
-
-4. **IMPLEMENTATION_NOTES.md** (new file)
-   - Comprehensive documentation of changes
-
-## Next Steps (Optional Future Enhancements)
-
-The implementation is complete and functional. Potential future improvements:
-
-1. **Caching:** Cache roster mappings separately to reduce API calls
-2. **Team ID:** Add team_id field to shifts for additional validation
-3. **Mid-season Changes:** Handle roster changes (trades, callups)
-4. **HTML Fallback:** Scrape roster from HTML if API unavailable
-5. **Performance:** Batch roster fetches for multiple games
-
-## Notes
-
-- Network access was blocked during testing, so mock data was used
-- Real game verification requires network access to NHL API
-- All logic tested with comprehensive mocks
-- Implementation follows existing code patterns and style
-- Minimal changes approach maintained (surgical edits only)
-
----
-
-**Status:** ✅ COMPLETE  
-**Tests:** ✅ PASSING  
-**Security:** ✅ NO ISSUES  
-**Documentation:** ✅ COMPREHENSIVE  
+*   Generated PNGs confirmed to have pure white backgrounds.
+*   Colorbar ticks align with requested values.
+*   Visual artifacts (corners, gray boxes, disjoint lines) eliminated.
