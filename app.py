@@ -260,7 +260,22 @@ def teams():
     # Currently run_league_stats.py generates special teams plots but maybe not a summary table?
     # It calls analyze.generate_special_teams_plot.
     
-    summary_path = os.path.join(ANALYSIS_DIR, "league", season, game_state, f"{season}_team_summary.json")
+    # Try to find the summary file, handling potential case sensitivity issues on Linux
+    possible_states = [game_state, game_state.lower(), game_state.upper()]
+    summary_path = None
+    
+    for state in possible_states:
+        path = os.path.join(ANALYSIS_DIR, "league", season, state, f"{season}_team_summary.json")
+        if os.path.exists(path):
+            summary_path = path
+            game_state = state # Update game_state to match actual folder
+            break
+            
+    if not summary_path:
+        # Fallback to default constructed path for error reporting
+        summary_path = os.path.join(ANALYSIS_DIR, "league", season, game_state, f"{season}_team_summary.json")
+        logger.warning(f"Summary file not found at: {summary_path} (checked variants: {possible_states})")
+        
     scatter_path = f"league/{season}/{game_state}/scatter.png"
     
     # Special Teams override for scatter path (it might not exist, or be different)
@@ -299,7 +314,7 @@ def teams():
                 toi_min = int(toi_sec / 60)
                 
                 stats.append({
-                    'Team': row.get('team'),
+                    'Team': row.get('team') or row.get('Team'),
                     'GP': row.get('n_games'),
                     'TOI': toi_min,
                     'GF': gf,
@@ -368,6 +383,13 @@ def players():
     
     base_dir = os.path.join(ANALYSIS_DIR, "players", season)
     json_path = os.path.join(base_dir, "player_summary_5v5.json")
+    
+    # Fallback for case sensitivity or naming variations
+    if not os.path.exists(json_path):
+        alt_path = os.path.join(base_dir, "player_summary_5V5.json")
+        if os.path.exists(alt_path):
+            json_path = alt_path
+    
     scatter_path = f"players/{season}/scatter_players_league.png"
     
     players_data = []
