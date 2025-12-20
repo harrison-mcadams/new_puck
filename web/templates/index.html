@@ -506,17 +506,41 @@
       }
 
       async function loadStaticTeams() {
+        console.log("Starting loadStaticTeams...");
         try {
           // 1. Ensure games map is loaded FIRST so we can filter teams
-          try { await ensureGamesMap(); } catch (e) { console.error(e); }
+          console.log("Loading games map...");
+          try { await ensureGamesMap(); } catch (e) { console.error("ensureGamesMap failed:", e); }
 
-          const res = await fetch('/analysis/teams.json?_=' + Date.now());
+          const url = '/analysis/teams.json?_=' + Date.now();
+          console.log("Fetching teams from:", url);
+          const res = await fetch(url);
+          console.log("Fetch status:", res.status);
+
           if (!res.ok) {
+            console.error("Teams fetch failed with status:", res.status, res.statusText);
+            // Try to read body text to see if it's an error page
+            try {
+              const text = await res.text();
+              console.error("Response body:", text);
+            } catch (e) { /* ignore */ }
             populateTeamSelect(FALLBACK_TEAMS);
             return;
           }
-          let teams = await res.json();
+
+          let teams;
+          try {
+            teams = await res.json();
+          } catch (e) {
+            console.error("Failed to parse teams.json:", e);
+            populateTeamSelect(FALLBACK_TEAMS);
+            return;
+          }
+
+          console.log("Loaded teams count:", teams ? teams.length : 0);
+
           if (!teams || !Array.isArray(teams) || teams.length === 0) {
+            console.warn("Teams array is empty or invalid");
             populateTeamSelect(FALLBACK_TEAMS);
             return;
           }
