@@ -5,116 +5,105 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ filename }} - Log Viewer</title>
-    <!-- Auto-refresh every 5 seconds if requested via query param, but doing it via JS is better for control -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        :root {
-            --primary-color: #F74902;
-            --bg-color: #f8f9fa;
-            --surface-color: #ffffff;
-            --text-color: #000000;
-            --border-color: #e0e0e0;
-            --radius: 8px;
-        }
-
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
             height: 100vh;
             display: flex;
             flex-direction: column;
+            overflow: hidden;
+            /* Prevent body scroll */
+            background-color: var(--bg-color);
         }
 
         .header-bar {
-            background: #000;
-            color: #fff;
-            padding: 0.8rem 1rem;
+            background: var(--header-bg);
+            color: white;
+            padding: 0.75rem 1.5rem;
             flex-shrink: 0;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 3px solid var(--primary-color);
+            box-shadow: var(--shadow-md);
         }
 
         .log-title {
             font-weight: 600;
             font-size: 1rem;
-        }
-
-        .controls {
             display: flex;
-            gap: 0.5rem;
-        }
-
-        .btn {
-            background: #333;
-            color: #fff;
-            border: 1px solid #555;
-            padding: 0.3rem 0.8rem;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 0.9rem;
-            cursor: pointer;
-        }
-
-        .btn:hover {
-            background: #444;
-        }
-
-        .btn-primary {
-            background: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-
-        .btn-primary:hover {
-            background: #d63e02;
+            align-items: center;
+            gap: 1rem;
         }
 
         .log-container {
             flex-grow: 1;
-            background: #1e1e1e;
-            color: #d4d4d4;
+            background: #18181B;
+            /* Darker zinc for terminal feel */
+            color: #E4E4E7;
             padding: 1rem;
             overflow: auto;
-            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, Courier, monospace;
-            font-size: 0.9rem;
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 0.85rem;
             white-space: pre-wrap;
-            /* Wrap lines */
+        }
+
+        /* Custom scrollbar for dark mode log */
+        .log-container::-webkit-scrollbar {
+            width: 10px;
+        }
+
+        .log-container::-webkit-scrollbar-track {
+            background: #27272A;
+        }
+
+        .log-container::-webkit-scrollbar-thumb {
+            background: #52525B;
+            border-radius: 5px;
+        }
+
+        .log-container::-webkit-scrollbar-thumb:hover {
+            background: #71717A;
         }
     </style>
 </head>
 
 <body>
-
     <div class="header-bar">
         <div class="log-title">
-            <a href="{{ url_for('monitor') }}" style="color: #bbb; text-decoration: none;">&larr; Back</a>
-            &nbsp;&nbsp;|&nbsp;&nbsp;
-            {{ filename }}
+            <a href="{{ url_for('monitor') }}"
+                style="color: #A1A1AA; text-decoration: none; font-size: 0.9em; transition: color 0.2s;">&larr; Back</a>
+            <span>{{ filename }}</span>
         </div>
-        <div class="controls">
-            <a href="{{ url_for('monitor_view', filename=filename, tail=1000) }}" class="btn">Tail 1000</a>
-            <a href="{{ url_for('monitor_view', filename=filename, full=1) }}" class="btn">Full File</a>
-            <button id="refreshBtn" class="btn btn-primary">Auto-Refresh: OFF</button>
+        <div class="controls action-group" style="margin-top:0; gap:0.5rem;">
+            <a href="{{ url_for('monitor_view', filename=filename, tail=1000) }}" class="btn btn-secondary btn-sm"
+                style="background:#27272A; border-color:#3F3F46; color:#E4E4E7;">Tail 1000</a>
+            <a href="{{ url_for('monitor_view', filename=filename, full=1) }}" class="btn btn-secondary btn-sm"
+                style="background:#27272A; border-color:#3F3F46; color:#E4E4E7;">Full File</a>
+            <button id="refreshBtn" class="btn btn-primary btn-sm">Auto-Refresh: OFF</button>
         </div>
     </div>
 
     <div class="log-container" id="logContent">{{ content }}</div>
 
     <script>
-        // Simple auto-refresh implementation
         let autoRefresh = localStorage.getItem('logAutoRefresh') === 'true';
         const refreshBtn = document.getElementById('refreshBtn');
 
         function updateBtn() {
             if (autoRefresh) {
                 refreshBtn.textContent = "Auto-Refresh: ON";
-                refreshBtn.style.backgroundColor = "#28a745"; // Green
+                refreshBtn.style.backgroundColor = "#10B981"; // Emerald 500
+                refreshBtn.style.borderColor = "#10B981";
+                refreshBtn.style.color = "white";
             } else {
                 refreshBtn.textContent = "Auto-Refresh: OFF";
-                refreshBtn.style.backgroundColor = "var(--primary-color)";
+                refreshBtn.style.backgroundColor = ""; // Reset to CSS class default
+                refreshBtn.style.borderColor = "";
+                refreshBtn.style.color = "";
             }
         }
 
@@ -135,7 +124,9 @@
 
         // Scroll to bottom on load
         const container = document.getElementById('logContent');
-        container.scrollTop = container.scrollHeight;
+        if (container) {
+            container.scrollTop = container.scrollHeight;
+        }
     </script>
 
 </body>

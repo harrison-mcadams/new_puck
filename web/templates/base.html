@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}New Puck Analysis{% endblock %}</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=2">
+    {% block head %}{% endblock %}
+</head>
+
+<body>
+    <header class="app-header">
+        <div class="header-content">
+            <a href="{{ url_for('index') }}" class="app-branding">
+                <img src="{{ url_for('static', filename='logo.png') }}" class="app-logo" alt="Logo">
+                <span class="app-title">New Puck Analysis</span>
+            </a>
+            <nav class="nav-menu">
+                <a href="{{ url_for('index') }}" class="nav-link {% block nav_games %}{% endblock %}">Games</a>
+                <a href="{{ url_for('teams') }}" class="nav-link {% block nav_teams %}{% endblock %}">Teams</a>
+                <a href="{{ url_for('players') }}" class="nav-link {% block nav_players %}{% endblock %}">Players</a>
+                <a href="{{ url_for('monitor') }}" class="nav-link {% block nav_monitor %}{% endblock %}">Monitor</a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="app-container">
+        {% block content %}{% endblock %}
+    </main>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>
