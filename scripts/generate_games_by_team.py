@@ -27,9 +27,10 @@ from datetime import datetime
 
 ROOT = Path(__file__).resolve().parents[1]
 ROOT = Path(__file__).resolve().parents[1]
-ANALYSIS = ROOT / 'analysis'
-TEAMS_PATH = ANALYSIS / 'teams.json'
-OUT_PATH = ANALYSIS / 'games_by_team.json'
+ROOT = Path(__file__).resolve().parents[1]
+STATIC_DIR = ROOT / 'web' / 'static'
+TEAMS_PATH = STATIC_DIR / 'teams.json'
+OUT_PATH = STATIC_DIR / 'games_by_team.json'
 
 
 def normalize_game_entry(g: Dict[str, Any], team_abbr: str):
@@ -405,7 +406,7 @@ def main(argv: List[str]):
         print(f'\nTeams with zero games: {", ".join(zero_game_teams)}')
 
     try:
-        ANALYSIS.mkdir(parents=True, exist_ok=True)
+        STATIC_DIR.mkdir(parents=True, exist_ok=True)
         with OUT_PATH.open('w', encoding='utf-8') as fh:
             json.dump(results, fh, indent=2, sort_keys=True)
         print(f'Wrote {OUT_PATH} with {len(results)} teams')

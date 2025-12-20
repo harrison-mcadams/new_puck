@@ -512,9 +512,9 @@
           console.log("Loading games map...");
           try { await ensureGamesMap(); } catch (e) { console.error("ensureGamesMap failed:", e); }
 
-          const url = '/analysis/teams.json?_=' + Date.now();
+          const url = "{{ url_for('static', filename='teams.json') }}";
           console.log("Fetching teams from:", url);
-          const res = await fetch(url);
+          const res = await fetch(url + '?_=' + Date.now());
           console.log("Fetch status:", res.status);
 
           if (!res.ok) {
@@ -577,7 +577,8 @@
       async function ensureGamesMap() {
         if (gamesByTeam) return gamesByTeam;
         try {
-          const res = await fetch('/analysis/games_by_team.json?_=' + Date.now());
+          const url = "{{ url_for('static', filename='games_by_team.json') }}";
+          const res = await fetch(url + '?_=' + Date.now());
           if (!res.ok) {
             // don't spam logs on minor fetch issues; only show error
             console.error('Could not load games_by_team.json; status=' + res.status);

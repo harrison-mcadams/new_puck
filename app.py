@@ -44,6 +44,12 @@ except Exception as e:
 
 @app.route('/analysis/<path:filename>')
 def analysis_file(filename):
+    full_path = os.path.join(ANALYSIS_DIR, filename)
+    logger.info(f"Serving analysis file: {filename} from {ANALYSIS_DIR}")
+    logger.info(f"Full path resolved to: {full_path}")
+    if not os.path.exists(full_path):
+        logger.error(f"File NOT FOUND: {full_path}")
+        return f"File not found: {filename}", 404
     return send_from_directory(ANALYSIS_DIR, filename)
 
 # Small default team list fallback (abbr,name). This is used when the NHL

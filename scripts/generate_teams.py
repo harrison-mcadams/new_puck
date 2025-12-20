@@ -16,9 +16,10 @@ from pathlib import Path
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
-# Analysis output directory
-ANALYSIS = ROOT / 'analysis'
-TEAMS_PATH = ANALYSIS / 'teams.json'
+ROOT = Path(__file__).resolve().parents[1]
+# Output directory (web/static)
+STATIC_DIR = ROOT / 'web' / 'static'
+TEAMS_PATH = STATIC_DIR / 'teams.json'
 
 
 def fetch_teams():
@@ -69,7 +70,7 @@ def main(argv):
     teams.sort(key=lambda x: x['id'])
 
     try:
-        ANALYSIS.mkdir(parents=True, exist_ok=True)
+        STATIC_DIR.mkdir(parents=True, exist_ok=True)
         with TEAMS_PATH.open('w', encoding='utf-8') as fh:
             json.dump(teams, fh, indent=2, sort_keys=False)
         print(f'Wrote {TEAMS_PATH} with {len(teams)} entries')
