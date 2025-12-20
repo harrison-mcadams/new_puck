@@ -654,6 +654,10 @@ def control_outlet():
 
 
 if __name__ == '__main__':
+    print("\n🚀 STARTING PUCK SERVER...", flush=True)
+    print("🌍 ATTEMPTING TO BIND TO: http://0.0.0.0:5001", flush=True)
+    print("------------------------------------------", flush=True)
+    
     logger.info('Starting Flask development server on http://0.0.0.0:5001')
     import sys
     sys.stdout.flush()
