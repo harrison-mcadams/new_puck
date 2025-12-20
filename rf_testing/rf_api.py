@@ -7,17 +7,18 @@ app = Flask(__name__)
 # CONFIGURATION
 # The path to your python executable (in the virtual environment)
 PYTHON_EXEC = "/home/spoon/new_puck/.venv/bin/python"
-# The path to the mimic script
-SCRIPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mimic_remote.py")
+# The path to the pico mimic script
+SCRIPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "mimic_pico.py")
 
 @app.route('/')
 def home():
-    return "RF Remote API is running! 📡"
+    return "RF Pico API is running! 📡⚡️"
 
 @app.route('/api/control', methods=['POST'])
 def control_outlet():
     """
     Expects JSON data: { "button": "1 ON" }
+    Sends command to Pi Pico Bridge.
     """
     data = request.json
     button_name = data.get('button')
