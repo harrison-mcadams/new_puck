@@ -507,24 +507,39 @@
 
       async function loadStaticTeams() {
         try {
+          // 1. Ensure games map is loaded FIRST so we can filter teams
+          try { await ensureGamesMap(); } catch (e) { console.error(e); }
+
           const res = await fetch('/analysis/teams.json?_=' + Date.now());
           if (!res.ok) {
             populateTeamSelect(FALLBACK_TEAMS);
             return;
           }
-          const teams = await res.json();
+          let teams = await res.json();
           if (!teams || !Array.isArray(teams) || teams.length === 0) {
             populateTeamSelect(FALLBACK_TEAMS);
             return;
           }
+
+          // 2. Filter out teams with zero games
+          if (gamesByTeam) {
+            const originalCount = teams.length;
+            teams = teams.filter(t => {
+              const k = (t.abbr || t.abbreviation || t.code || '').toString();
+              const games = gamesByTeam[k] || gamesByTeam[k.toUpperCase()];
+              return Array.isArray(games) && games.length > 0;
+            });
+            console.log(`Filtered teams from ${originalCount} to ${teams.length} based on game availability.`);
+          }
+
           teamsList = teams; // store for fuzzy name matching later
           populateTeamSelect(teams);
-          // ensure games map is loaded so we can safely auto-select a default team
-          try { await ensureGamesMap(); } catch (e) { /* ignore */ }
+
           // now auto-select the default (PHI) and load its games if present
           try {
             const defaultTeam = 'PHI';
-            if (Array.from(teamSelect.options).some(o => o.value === defaultTeam)) {
+            // Only auto-select if PHI is still in the list
+            if (teams.some(t => (t.abbr || t.abbreviation) === defaultTeam)) {
               teamSelect.value = defaultTeam;
               loadGamesForTeam(defaultTeam, true);
             }
