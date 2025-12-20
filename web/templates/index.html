@@ -512,7 +512,7 @@
           console.log("Loading games map...");
           try { await ensureGamesMap(); } catch (e) { console.error("ensureGamesMap failed:", e); }
 
-          const url = "{{ url_for('static', filename='teams.json') }}";
+          const url = "/static/teams.json"; // Force static path
           console.log("Fetching teams from:", url);
           const res = await fetch(url + '?_=' + Date.now());
           console.log("Fetch status:", res.status);
@@ -577,11 +577,10 @@
       async function ensureGamesMap() {
         if (gamesByTeam) return gamesByTeam;
         try {
-          const url = "{{ url_for('static', filename='games_by_team.json') }}";
+          const url = "/static/games_by_team.json"; // Force static path
           const res = await fetch(url + '?_=' + Date.now());
           if (!res.ok) {
-            // don't spam logs on minor fetch issues; only show error
-            console.error('Could not load games_by_team.json; status=' + res.status);
+            console.error('Could not load games_by_team.json from ' + url + '; status=' + res.status);
             gamesByTeam = {};
             return gamesByTeam;
           }
