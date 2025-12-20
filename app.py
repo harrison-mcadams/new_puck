@@ -27,8 +27,9 @@ if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
 
+from puck import config
 app = Flask(__name__, static_folder="web/static", template_folder="web/templates")
-ANALYSIS_DIR = os.path.abspath("analysis")
+ANALYSIS_DIR = config.ANALYSIS_DIR
 LOG_DIR = os.path.abspath("logs")
 
 @app.route('/analysis/<path:filename>')
@@ -243,9 +244,9 @@ def replot():
     return redirect(url_for('index'))
 
 
-@app.route("/league_stats")
-def league_stats():
-    """Render the league statistics page."""
+@app.route("/teams")
+def teams():
+    """Render the teams (league stats) page."""
     import json
     
     # Get query parameters
@@ -323,135 +324,103 @@ def league_stats():
     return render_template("league_stats.html", stats=stats, season=season, game_state=game_state, scatter_img=scatter_path)
 
 
-@app.route("/team_maps")
-def team_maps():
-    """Render the gallery of team relative maps."""
-    import glob
-    import json
-    
-    # Get query parameters
+@app.route("/team/<team>")
+def team(team):
+    """Render the individual team dashboard."""
     season = request.args.get('season', '20252026')
-    game_state = request.args.get('game_state', '5v5')
     
-    # Directory where maps are stored
-    maps_dir = os.path.join(ANALYSIS_DIR, "league", season, game_state)
-    
-    teams_data = []
-    
-    # We can use the summary json to get the list of teams, or just glob the files.
-    # Summary json is safer to get the list of valid teams.
-    summary_path = os.path.join(maps_dir, f"{season}_team_summary.json")
-    
-    if os.path.exists(summary_path):
-        try:
-            with open(summary_path, 'r') as f:
-                summary = json.load(f)
-                # Filter out 'League' entry if present
-                teams = sorted([row['team'] for row in summary if row.get('team') != 'League'])
-                
-                for team in teams:
-                    # Check if map exists
-                    # Map filename: {team}_relative_map.png
-                    # OR for SpecialTeams: {team}_special_teams_map.png
-                    
-                    map_filename = f"{team}_relative.png"
-                        
-                    map_path = os.path.join(maps_dir, map_filename)
-                    
-                    if os.path.exists(map_path):
-                        teams_data.append({
-                            'name': team,
-                            'map_url': f"league/{season}/{game_state}/{map_filename}"
-                        })
-        except Exception as e:
-            logger.error(f"Failed to load teams for maps: {e}")
-            
-    # Fallback for SpecialTeams if summary doesn't exist to provide team list
-    if not teams_data and game_state == 'SpecialTeams':
-        # Glob for files (Unified naming)
-        search_path = os.path.join(maps_dir, "*_relative.png")
-        files = glob.glob(search_path)
-        for fpath in files:
-            fname = os.path.basename(fpath)
-            # Extract team name: {team}_relative.png
-            team_name = fname.replace("_relative.png", "")
-            teams_data.append({
-                'name': team_name,
-                'map_url': f"league/{season}/{game_state}/{fname}"
-            })
-        teams_data.sort(key=lambda x: x['name'])
-    
-    return render_template("team_maps.html", teams=teams_data, season=season, game_state=game_state)
-
-
-@app.route("/team_stats/<season>/<game_state>/<team>")
-def team_stats(season, game_state, team):
-    """Render the team statistics page with relative map."""
-    
-    # Construct paths
-    # Construct paths
-    # Map is at static/league/{season}/{game_state}/{team}_relative.png
-    # OR {team}_special_teams_map.png for SpecialTeams -> NOW UNIFIED to relative.png
-    
-    map_filename = f"{team}_relative.png"
+    # 1. 5v5 Map
+    map_5v5_rel = f"league/{season}/5v5/{team}_relative.png"
+    if not os.path.exists(os.path.join(ANALYSIS_DIR, map_5v5_rel)):
+        map_5v5_rel = None
         
-    relative_map = f"league/{season}/{game_state}/{map_filename}"
-    
-    # We might want to pass some stats too, but for now just the map
-    # We could load the summary.json to get stats for this team if needed
-    
-    return render_template("team_stats.html", 
-                         season=season, 
-                         game_state=game_state, 
+    # 2. Special Teams Map
+    # Try relative first (new naming), then special_teams_map (old naming)
+    map_st_rel = f"league/{season}/SpecialTeams/{team}_relative.png"
+    if not os.path.exists(os.path.join(ANALYSIS_DIR, map_st_rel)):
+        map_st_rel = f"league/{season}/SpecialTeams/{team}_special_teams_map.png"
+        if not os.path.exists(os.path.join(ANALYSIS_DIR, map_st_rel)):
+            map_st_rel = None
+            
+    # 3. Scatter Plot
+    scatter_rel = f"players/{season}/{team}/scatter_players_{team}.png"
+    if not os.path.exists(os.path.join(ANALYSIS_DIR, scatter_rel)):
+        scatter_rel = None
+        
+    return render_template("team.html", 
                          team=team, 
-                         relative_map=relative_map)
+                         season=season,
+                         map_5v5=map_5v5_rel,
+                         map_st=map_st_rel,
+                         plot_scatter=scatter_rel)
+
 
 @app.route("/players")
 def players():
     """Render the players statistics page."""
-    import pandas as pd
+    import json
     
     season = request.args.get('season', '20252026')
     
     # Paths
-    # CSV: static/players/{season}/league/league_player_stats.csv
-    # Scatter: static/players/{season}/league/league_scatter.png
+    # JSON: analysis/players/{season}/player_summary_5v5.json
+    # Scatter: analysis/players/{season}/scatter_players_league.png
     
-    base_dir = os.path.join(ANALYSIS_DIR, "players", season, "league")
-    csv_path = os.path.join(base_dir, "league_player_stats.csv")
-    scatter_path = f"players/{season}/league/league_scatter.png"
+    base_dir = os.path.join(ANALYSIS_DIR, "players", season)
+    json_path = os.path.join(base_dir, "player_summary_5v5.json")
+    scatter_path = f"players/{season}/scatter_players_league.png"
     
     players_data = []
-    if os.path.exists(csv_path):
+    if os.path.exists(json_path):
         try:
-            df = pd.read_csv(csv_path)
-            # Filter for min games?
-            # df = df[df['games_played'] >= 5]
-            
-            # Convert to list of dicts
-            # Round floats
-            if 'xg_for_60' in df.columns:
-                df['xg_for_60'] = df['xg_for_60'].round(2)
-            if 'xg_against_60' in df.columns:
-                df['xg_against_60'] = df['xg_against_60'].round(2)
-            if 'toi_sec' in df.columns:
-                df['toi_min'] = (df['toi_sec'] / 60).astype(int)
+            with open(json_path, 'r') as f:
+                data = json.load(f)
                 
-            # Handle new columns (GF, GA, CF, CA, etc.)
-            # If they don't exist (yet), fill with None or 0
-            new_cols = ['goals_for', 'goals_against', 'attempts_for', 'attempts_against', 'xgf_pct', 'gf_pct', 'cf_pct']
-            for col in new_cols:
-                if col not in df.columns:
-                    df[col] = None # Or 0 if preferred, but None indicates missing data
-                else:
-                    # Round percentages
-                    if 'pct' in col:
-                         df[col] = df[col].round(1)
-            
-            players_data = df.to_dict('records')
-            
+            for p in data:
+                # Extract stats
+                stats = p.get('stats', {})
+                gf = stats.get('team_goals', 0)
+                ga = stats.get('other_goals', 0)
+                xgf = stats.get('team_xgs', 0)
+                xga = stats.get('other_xgs', 0)
+                cf = stats.get('team_attempts', 0)
+                ca = stats.get('other_attempts', 0)
+                secs = p.get('seconds', 0)
+                
+                # Calculate metrics
+                toi_min = int(secs / 60)
+                
+                # Percentages
+                g_total = gf + ga
+                gf_pct = (gf / g_total * 100) if g_total > 0 else 0.0
+                
+                xg_total = xgf + xga
+                xgf_pct = (xgf / xg_total * 100) if xg_total > 0 else 0.0
+                
+                c_total = cf + ca
+                cf_pct = (cf / c_total * 100) if c_total > 0 else 0.0
+                
+                players_data.append({
+                    'player_id': p.get('player_id'),
+                    'name': p.get('player_name'),
+                    'team': p.get('team'),
+                    'games_played': p.get('games_played'),
+                    'toi_min': toi_min,
+                    'goals_for': int(gf),
+                    'goals_against': int(ga),
+                    'gf_pct': round(gf_pct, 1),
+                    'xg_for': round(xgf, 1),
+                    'xg_against': round(xga, 1),
+                    'xgf_pct': round(xgf_pct, 1),
+                    'attempts_for': int(cf),
+                    'attempts_against': int(ca),
+                    'cf_pct': round(cf_pct, 1),
+                    'xg_for_60': round(p.get('xg_for_60', 0), 2),
+                    'xg_against_60': round(p.get('xg_ag_60', 0), 2)
+                })
+                
         except Exception as e:
-            logger.error(f"Failed to load player stats: {e}")
+            logger.exception(f"Failed to load player stats: {e}")
             
     return render_template("players.html", players=players_data, season=season, scatter_img=scatter_path)
 

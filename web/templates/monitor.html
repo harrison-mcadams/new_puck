@@ -202,9 +202,8 @@
                 <a href="{{ url_for('index') }}" class="app-title">New Puck Analysis</a>
             </div>
             <nav>
-                <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
-                <a href="{{ url_for('league_stats') }}" class="nav-link">League</a>
-                <a href="{{ url_for('team_maps') }}" class="nav-link">Team Maps</a>
+                <a href="{{ url_for('index') }}" class="nav-link">Games</a>
+                <a href="{{ url_for('teams') }}" class="nav-link">Teams</a>
                 <a href="{{ url_for('players') }}" class="nav-link">Players</a>
                 <a href="{{ url_for('monitor') }}" class="nav-link active">Monitor</a>
             </nav>
@@ -251,14 +250,16 @@
                             <td>{{ log.size }}</td>
                             <td>
                                 <a href="{{ url_for('monitor_view', filename=log.name) }}" class="btn-sm">View</a>
-                                <a href="{{ url_for('monitor_download', filename=log.name) }}" class="btn-sm" style="margin-left: 5px;">Download</a>
+                                <a href="{{ url_for('monitor_download', filename=log.name) }}" class="btn-sm"
+                                    style="margin-left: 5px;">Download</a>
                             </td>
                         </tr>
                         {% endfor %}
                         {% else %}
                         <tr>
                             <td colspan="5" style="text-align:center; padding: 2rem; color: #999;">No log files found in
-                                <code>logs/</code></td>
+                                <code>logs/</code>
+                            </td>
                         </tr>
                         {% endif %}
                     </tbody>

@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>League - New Puck Analysis</title>
+  <title>Teams - New Puck Analysis</title>
   <style>
     :root {
       --primary-color: #F74902;
@@ -289,9 +289,8 @@
         <h1 class="app-title">New Puck Analysis</h1>
       </div>
       <nav>
-        <a href="{{ url_for('index') }}" class="nav-link">Game Plot</a>
-        <a href="{{ url_for('league_stats') }}" class="nav-link active">League</a>
-        <a href="{{ url_for('team_maps') }}" class="nav-link">Team Maps</a>
+        <a href="{{ url_for('index') }}" class="nav-link">Games</a>
+        <a href="{{ url_for('teams') }}" class="nav-link active">Teams</a>
         <a href="{{ url_for('players') }}" class="nav-link">Players</a>
         <a href="{{ url_for('monitor') }}" class="nav-link">Monitor</a>
       </nav>
@@ -301,22 +300,15 @@
   <main class="app-container">
 
     <!-- Tabs -->
-    <div
-      style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; border-bottom:1px solid var(--border-color);">
-      <div class="tabs" style="margin-bottom:0; border-bottom:none;">
-        <a href="{{ url_for('league_stats', season=season, game_state='5v5') }}"
-          class="tab {% if game_state == '5v5' %}active{% endif %}">5v5</a>
-        <a href="{{ url_for('league_stats', season=season, game_state='5v4') }}"
-          class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
-        <a href="{{ url_for('league_stats', season=season, game_state='4v5') }}"
-          class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
-        <a href="{{ url_for('league_stats', season=season, game_state='SpecialTeams') }}"
-          class="tab {% if game_state == 'SpecialTeams' %}active{% endif %}">Special Teams</a>
-      </div>
-      <div>
-        <a href="{{ url_for('team_maps', season=season, game_state=game_state) }}" class="btn btn-primary"
-          style="text-decoration:none; display:inline-block; line-height:1.5;">View Team Maps</a>
-      </div>
+    <div class="tabs" style="margin-bottom:0; border-bottom:none;">
+      <a href="{{ url_for('teams', season=season, game_state='5v5') }}"
+        class="tab {% if game_state == '5v5' %}active{% endif %}">5v5</a>
+      <a href="{{ url_for('teams', season=season, game_state='5v4') }}"
+        class="tab {% if game_state == '5v4' %}active{% endif %}">5v4</a>
+      <a href="{{ url_for('teams', season=season, game_state='4v5') }}"
+        class="tab {% if game_state == '4v5' %}active{% endif %}">4v5</a>
+      <a href="{{ url_for('teams', season=season, game_state='SpecialTeams') }}"
+        class="tab {% if game_state == 'SpecialTeams' %}active{% endif %}">Special Teams</a>
     </div>
 
     <!-- Summary Table -->
@@ -349,7 +341,7 @@
             {% for row in stats %}
             <tr>
               <td>
-                <a href="{{ url_for('team_stats', season=season, game_state=game_state, team=row.Team) }}"
+                <a href="{{ url_for('team', team=row.Team) }}"
                   style="color:var(--primary-color); text-decoration:none; font-weight:bold;">
                   {{ row.Team }}
                 </a>
