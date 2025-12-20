@@ -1,6 +1,11 @@
-package com.example.puckremote
+package com.example.puckremote.presentation
 
+import android.content.Context
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -9,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.wear.compose.material.*
 import kotlinx.coroutines.launch
@@ -17,7 +23,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            // MaterialTheme provides the standard Wear OS look
             MaterialTheme {
                 PuckApp()
             }
@@ -27,69 +32,86 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun PuckApp() {
-    // "CoroutineScope" allows us to run network tasks off the main thread
     val scope = rememberCoroutineScope()
-    
-    // "State" to show user feedback (e.g. "Sent!", "Error")
     var statusText by remember { mutableStateOf("Ready") }
+    val context = LocalContext.current
 
-    // Column: Stacks items vertically
-    Column(
+    // ScalingLazyColumn is the "standard" for Wear OS lists
+    ScalingLazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color.Black), // Watch apps are usually black bg
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
+            .background(Color.Black),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        contentPadding = PaddingValues(top = 20.dp, bottom = 20.dp)
     ) {
-        
-        Text(text = "Outlet 1", color = Color.Gray, style = MaterialTheme.typography.caption1)
-        
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Row: Places the ON and OFF buttons side by side
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // ON BUTTON
-            BigButton(text = "ON", color = Color(0xFF4CAF50)) {
-                statusText = "Sending ON..."
-                scope.launch {
-                    sendSignal("1 ON", onSuccess = { statusText = "ON Sent!" }, onError = { statusText = "Error!" })
-                }
-            }
-            
-            // OFF BUTTON
-            BigButton(text = "OFF", color = Color(0xFFF44336)) {
-                statusText = "Sending OFF..."
-                scope.launch {
-                    sendSignal("1 OFF", onSuccess = { statusText = "OFF Sent!" }, onError = { statusText = "Error!" })
-                }
-            }
+        item {
+            Text(
+                "Puck Remote", 
+                style = MaterialTheme.typography.caption1, 
+                color = Color.Cyan
+            )
         }
-        
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        Text(text = statusText, color = Color.White)
+
+        // Generate rows for Outlets 1 through 5
+        items(5) { index ->
+            val outletNum = index + 1
+            Spacer(modifier = Modifier.height(12.dp))
+            OutletRow(
+                num = outletNum,
+                onControl = { state ->
+                    vibrate(context)
+                    statusText = "Channel $outletNum $state..."
+                    scope.launch {
+                        sendSignal("$outletNum $state", 
+                            onSuccess = { statusText = "Sent!" }, 
+                            onError = { statusText = "Failed!" }
+                        )
+                    }
+                }
+            )
+        }
+
+        item {
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(statusText, style = MaterialTheme.typography.body2, color = Color.Gray)
+        }
     }
 }
 
-// Helper function to keep our UI code clean
 @Composable
-fun BigButton(text: String, color: Color, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        colors = ButtonDefaults.buttonColors(backgroundColor = color),
-        modifier = Modifier.size(60.dp) // Big circular touch target
-    ) {
-        Text(text = text, style = MaterialTheme.typography.button)
+fun OutletRow(num: Int, onControl: (String) -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("OUTLET $num", style = MaterialTheme.typography.display3)
+        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            // ON Button
+            CompactButton(
+                onClick = { onControl("ON") },
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFF2E7D32)),
+            ) { Text("ON") }
+            
+            // OFF Button
+            CompactButton(
+                onClick = { onControl("OFF") },
+                colors = ButtonDefaults.buttonColors(backgroundColor = Color(0xFFC62828)),
+            ) { Text("OFF") }
+        }
     }
 }
 
-// The actual network logic
+fun vibrate(context: Context) {
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+        vibratorManager.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+    vibrator.vibrate(VibrationEffect.createOneShot(50, VibrationEffect.DEFAULT_AMPLITUDE))
+}
+
 suspend fun sendSignal(btnName: String, onSuccess: () -> Unit, onError: () -> Unit) {
     try {
-        val response = RetrofitClient.api.triggerButton(ControlRequest(btnName))
-        // If code reaches here, it succeeded (200 OK)
+        RetrofitClient.api.triggerButton(ControlRequest(btnName))
         onSuccess()
     } catch (e: Exception) {
         e.printStackTrace()

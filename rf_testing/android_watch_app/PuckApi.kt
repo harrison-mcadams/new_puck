@@ -1,4 +1,4 @@
-package com.example.puckremote
+package com.example.puckremote.presentation
 
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory

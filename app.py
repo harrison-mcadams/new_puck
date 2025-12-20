@@ -14,10 +14,12 @@ Notes:
   client instead.
 """
 
-from flask import Flask, render_template, redirect, url_for, request, send_from_directory
+from flask import Flask, render_template, redirect, url_for, request, send_from_directory, jsonify
 import os
 import pandas as pd
 import logging
+import subprocess
+import sys
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
@@ -41,6 +43,12 @@ try:
     logger.addHandler(file_handler)
 except Exception as e:
     logger.warning(f"Failed to setup file logging: {e}")
+
+# --- RF CONTROL CONFIGURATION ---
+# Path to the virtualenv python and the pico bridge script
+RF_PYTHON_EXEC = "/home/spoon/new_puck/.venv/bin/python"
+RF_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rf_testing", "mimic_pico.py")
+# --------------------------------
 
 @app.route('/analysis/<path:filename>')
 def analysis_file(filename):
@@ -602,6 +610,47 @@ def admin_flush_cache():
     except Exception as e:
         logger.exception('failed to flush cache: %s', e)
         return (f'failed to flush cache: {e}', 500)
+
+
+@app.route('/api/control', methods=['POST'])
+def control_outlet():
+    """
+    RF Control Endpoint for Android Watch.
+    Expects JSON: { "button": "1 ON" }
+    """
+    data = request.json
+    button_name = data.get('button')
+    
+    if not button_name:
+        return jsonify({"status": "error", "message": "No button specified"}), 400
+    
+    logger.info(f"📡 WATCH REQUEST: {button_name}")
+    
+    # Run the mimic script via subprocess
+    # Note: mimic_pico.py handles the serial comms to the Pico hardware
+    cmd = [RF_PYTHON_EXEC, RF_SCRIPT_PATH, button_name]
+    
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=8)
+        
+        if result.returncode == 0:
+            logger.info(f"✅ RF Success: {result.stdout.strip()}")
+            return jsonify({
+                "status": "success", 
+                "message": f"Sent {button_name}", 
+                "output": result.stdout.strip()
+            })
+        else:
+            logger.error(f"❌ RF Script Error: {result.stderr.strip()}")
+            return jsonify({
+                "status": "error", 
+                "message": "RF Script failed", 
+                "detail": result.stderr.strip()
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"❌ RF Exception: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == '__main__':
