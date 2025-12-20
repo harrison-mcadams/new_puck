@@ -32,6 +32,16 @@ app = Flask(__name__, static_folder="web/static", template_folder="web/templates
 ANALYSIS_DIR = config.ANALYSIS_DIR
 LOG_DIR = os.path.abspath("logs")
 
+# Configure logging to file so it appears in Monitor
+try:
+    if not os.path.exists(LOG_DIR):
+        os.makedirs(LOG_DIR)
+    file_handler = logging.FileHandler(os.path.join(LOG_DIR, "app.log"))
+    file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+    logger.addHandler(file_handler)
+except Exception as e:
+    logger.warning(f"Failed to setup file logging: {e}")
+
 @app.route('/analysis/<path:filename>')
 def analysis_file(filename):
     return send_from_directory(ANALYSIS_DIR, filename)
@@ -260,21 +270,27 @@ def teams():
     # Currently run_league_stats.py generates special teams plots but maybe not a summary table?
     # It calls analyze.generate_special_teams_plot.
     
-    # Try to find the summary file, handling potential case sensitivity issues on Linux
+
+    
+    # Try to find the summary file, handling potential case sensitivity issues on Linux and naming conventions
     possible_states = [game_state, game_state.lower(), game_state.upper()]
+    possible_filenames = [f"{season}_team_summary.json", "team_summary.json"]
     summary_path = None
     
     for state in possible_states:
-        path = os.path.join(ANALYSIS_DIR, "league", season, state, f"{season}_team_summary.json")
-        if os.path.exists(path):
-            summary_path = path
-            game_state = state # Update game_state to match actual folder
+        for fname in possible_filenames:
+            path = os.path.join(ANALYSIS_DIR, "league", season, state, fname)
+            if os.path.exists(path):
+                summary_path = path
+                game_state = state # Update game_state to match actual folder
+                break
+        if summary_path:
             break
             
     if not summary_path:
         # Fallback to default constructed path for error reporting
         summary_path = os.path.join(ANALYSIS_DIR, "league", season, game_state, f"{season}_team_summary.json")
-        logger.warning(f"Summary file not found at: {summary_path} (checked variants: {possible_states})")
+        logger.warning(f"Summary file not found. Checked variants in {os.path.join(ANALYSIS_DIR, 'league', season)} for states {possible_states} and filenames {possible_filenames}")
         
     scatter_path = f"league/{season}/{game_state}/scatter.png"
     

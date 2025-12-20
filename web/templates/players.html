@@ -237,22 +237,6 @@
 
   <main class="app-container">
 
-    <!-- Scatter Plot -->
-    <div class="card">
-      <div class="card-header">
-        <h2>League Player Scatter (5v5)</h2>
-      </div>
-      <div class="card-body scatter-container">
-        {% if scatter_img %}
-        <img src="{{ url_for('analysis_file', filename=scatter_img) }}" alt="Player Scatter Plot" loading="lazy">
-        {% else %}
-        <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
-          No scatter plot available.
-        </p>
-        {% endif %}
-      </div>
-    </div>
-
     <!-- Summary Table -->
     <div class="card">
       <div class="card-header">
@@ -332,6 +316,22 @@
         {% else %}
         <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
           No player statistics available.
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Scatter Plot -->
+    <div class="card">
+      <div class="card-header">
+        <h2>League Player Scatter (5v5)</h2>
+      </div>
+      <div class="card-body scatter-container">
+        {% if scatter_img %}
+        <img src="{{ url_for('analysis_file', filename=scatter_img) }}" alt="Player Scatter Plot" loading="lazy">
+        {% else %}
+        <p class="empty-state" style="text-align:center; padding:2rem; color:var(--text-secondary);">
+          No scatter plot available.
         </p>
         {% endif %}
       </div>
