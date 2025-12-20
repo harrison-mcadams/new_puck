@@ -374,7 +374,7 @@ def team(team):
             map_st_rel = None
             
     # 3. Scatter Plot
-    scatter_rel = f"players/{season}/{team}/scatter_players_{team}.png"
+    scatter_rel = f"players/{season}/scatter_players_{team}.png"
     if not os.path.exists(os.path.join(ANALYSIS_DIR, scatter_rel)):
         scatter_rel = None
         
