@@ -655,11 +655,11 @@ def control_outlet():
 
 if __name__ == '__main__':
     print("\n🚀 STARTING PUCK SERVER...", flush=True)
-    print("🌍 ATTEMPTING TO BIND TO: http://0.0.0.0:5001", flush=True)
+    print("🌍 ATTEMPTING TO BIND TO: http://0.0.0.0:8000", flush=True)
     print("------------------------------------------", flush=True)
     
-    logger.info('Starting Flask development server on http://0.0.0.0:5001')
+    logger.info('Starting Flask development server on http://0.0.0.0:8000')
     import sys
     sys.stdout.flush()
     # Disable reloader and debug mode to avoid "No space left on device" (ENOSPC/SemLock)
-    app.run(host='0.0.0.0', port=5001, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=8000, debug=False, use_reloader=False)
