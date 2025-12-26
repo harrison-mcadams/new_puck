@@ -53,28 +53,27 @@ else:
     MEMORY_MODE = 'standard'
 
 
+
 # Directory Paths (Absolute)
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+CONFIG_FILE = os.path.join(BASE_DIR, 'puck.config.json')
 
-# External Drive Path Recommendation
-EXTERNAL_MOUNT_POINT = '/ssd/new_puck'
+# Defaults
+MAX_WORKERS = 4 if not IS_PI else 1
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis')
 
-if IS_PI and os.path.exists(EXTERNAL_MOUNT_POINT):
-    # Use external drive and ensure subdirectories exist
-    # We use join to create /mnt/puck_data/data and /mnt/puck_data/analysis
-    DATA_DIR = os.path.join(EXTERNAL_MOUNT_POINT, 'data')
-    ANALYSIS_DIR = os.path.join(EXTERNAL_MOUNT_POINT, 'analysis')
-    # Print a visible confirmation in logs
-    if not os.path.exists(DATA_DIR):
-        try:
-            os.makedirs(DATA_DIR, exist_ok=True)
-            os.makedirs(ANALYSIS_DIR, exist_ok=True)
-        except OSError:
-            pass # Permission issues might prevent this, but we try.
-else:
-    # Default to local project directory
-    DATA_DIR = os.path.join(BASE_DIR, 'data')
-    ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis')
+# Load overrides from config file if present
+if os.path.exists(CONFIG_FILE):
+    try:
+        import json
+        with open(CONFIG_FILE, 'r') as f:
+            config = json.load(f)
+            DATA_DIR = config.get('data_dir', DATA_DIR)
+            ANALYSIS_DIR = config.get('analysis_dir', ANALYSIS_DIR)
+            MAX_WORKERS = config.get('max_workers', MAX_WORKERS)
+    except Exception as e:
+        print(f"Warning: Failed to load config file: {e}")
 
 CACHE_DIR = os.path.join(DATA_DIR, 'cache')
 
@@ -84,4 +83,6 @@ def get_cache_dir(season):
 def get_analysis_dir(season):
     return os.path.join(ANALYSIS_DIR, season)
 
-print(f"Config: Mode={MEMORY_MODE}, Workers={MAX_WORKERS}, Platform={'Pi' if IS_PI else 'Mac/Other'}")
+print(f"Config: Platform={'Pi' if IS_PI else 'Mac/PC'}, Workers={MAX_WORKERS}")
+print(f"Data Dir: {DATA_DIR}")
+

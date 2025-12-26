@@ -15,7 +15,7 @@ htmlcov/
 .coverage.*
 
 # IDE
-.vscode/
+#.vscode/
 .idea/
 *.swp
 *.swo
@@ -47,3 +47,9 @@ run_analysis_log_*.txt
 # (Generated content is now in analysis/)
 logs/*
 !logs/.keep
+puck.config.json
+*_output.log
+debug_*.txt
+streamed_*.html
+matches_today.json
+*.md
