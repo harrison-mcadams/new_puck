@@ -1358,7 +1358,7 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             df_imputed['shot_type'] = 'Unknown'
 
         # 2. Clean and Identify Features
-        input_features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        input_features = ['distance', 'angle_deg', 'game_state', 'shot_type']
         
         # Use clean_df_for_model with encode_method='none' to preserve raw columns for Nested Model (OHE)
         # This standardizes preprocessing (filtering, is_goal creation) while maintaining compatibility.

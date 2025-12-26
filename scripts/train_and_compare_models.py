@@ -64,7 +64,7 @@ def main():
     # --- MODEL 1: SINGLE (Reference/Robust) ---
     print("Training Single Model (Dist, Angle, State, Net)...")
     # Features
-    feats_single = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+    feats_single = ['distance', 'angle_deg', 'game_state']
     
     # Clean/Prep
     # df_single will contain 'is_goal' automatically from clean_df_for_model
@@ -128,7 +128,7 @@ def main():
     meta_nested = {
         'model_type': 'nested',
         'imputation': 'mean_6',
-        'final_features': ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        'final_features': ['distance', 'angle_deg', 'game_state', 'shot_type']
     }
     with open(str(path_nested) + '.meta.json', 'w') as f:
         json.dump(meta_nested, f)

@@ -115,7 +115,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         # We will populate these after fit
         self.shot_type_cols = []
         self.game_state_cols = []
-        self.base_features = ['distance', 'angle_deg', 'is_net_empty']
+        self.base_features = ['distance', 'angle_deg']
         
         self.config_block = None
         self.config_accuracy = None

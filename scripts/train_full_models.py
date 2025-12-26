@@ -56,7 +56,7 @@ def main():
     df_single = full_df[full_df['event'] != 'blocked-shot'].copy()
     logger.info(f"Single Layer Training Rows: {len(df_single)}")
     
-    features_single = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+    features_single = ['distance', 'angle_deg', 'game_state', 'shot_type']
     
     # Clean/Preprocess
     df_single_mod, final_feats_s, cat_map_s = fit_xgs.clean_df_for_model(df_single, features_single)

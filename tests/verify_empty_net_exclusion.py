@@ -28,14 +28,21 @@ def test_exclusion():
 
     # Test fit_xgs.clean_df_for_model
     print("\n--- Testing fit_xgs.clean_df_for_model ---")
-    df_clean, _, _ = clean_df_for_model(df, feature_cols=['distance', 'angle_deg', 'is_net_empty'])
+    
+    # We purposefully exclude 'is_net_empty' from requested features now
+    # But it must be in the input DF for filtering to work.
+    req_features = ['distance', 'angle_deg'] 
+    
+    df_clean, cols, _ = clean_df_for_model(df, feature_cols=req_features)
     print(f"Cleaned Row Count: {len(df_clean)}")
+    print(f"Cleaned Columns: {df_clean.columns.tolist()}")
     
     # Assert
     assert len(df_clean) == 4, f"Expected 4 rows, got {len(df_clean)}"
-    if 'is_net_empty' in df_clean.columns:
-         assert df_clean['is_net_empty'].sum() == 0, "Found empty net shots in cleaned data!"
-    print("PASS: fit_xgs.clean_df_for_model filtered correctly.")
+    assert 'is_net_empty' not in df_clean.columns, "is_net_empty should NOT be in output columns!"
+    assert 'is_net_empty' not in cols, "is_net_empty should NOT be in returned feature list!"
+    
+    print("PASS: fit_xgs.clean_df_for_model filtered correctly and excluded feature.")
 
     # Test fit_nested_xgs logic (manually invoking preprocess_features logic logic since it's internal to fit but we can check the class)
     # Actually, we can just instantiate the class and call fit?

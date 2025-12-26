@@ -361,7 +361,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     # else: train
     # default features
     if features is None:
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        features = ['distance', 'angle_deg', 'game_state', 'shot_type']
 
     # load data and prepare
     season_df = load_data(csv_path)
@@ -416,7 +416,7 @@ def get_or_train_clf(force_retrain: bool = False,
 
     # Default features if none provided
     if features is None:
-        features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        features = ['distance', 'angle_deg', 'game_state', 'shot_type']
 
     # Train a fresh model and cache metadata
     season_df = load_data(csv_path)
@@ -598,7 +598,7 @@ def fit_model(
 
     # default feature set if not provided
     if feature_cols is None:
-        feature_cols = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
+        feature_cols = ['distance', 'angle_deg', 'game_state']
     if isinstance(feature_cols, str):
         feature_cols = [feature_cols]
 
