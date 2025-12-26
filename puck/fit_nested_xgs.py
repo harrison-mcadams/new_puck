@@ -462,6 +462,13 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     if 'shot_type' not in df.columns:
         logger.warning("'shot_type' column missing from data. Filling with 'Unknown'.")
         df['shot_type'] = 'Unknown'
+
+    # EXCLUDE EMPTY NET SHOTS from Training
+    if 'is_net_empty' in df.columns:
+        mask_empty = (df['is_net_empty'] == 1) | (df['is_net_empty'] == True)
+        if mask_empty.any():
+            logger.info(f"Filtering {mask_empty.sum()} empty net shots from training data.")
+            df = df[~mask_empty].copy()
     
     # Blocked shots usually have shot_type = NaN.
     # For the Block Model, this 'Missingness' is actually a signal (or at least, we need a value).

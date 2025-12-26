@@ -440,6 +440,18 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
     """
     shot_attempt_types = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
     df = df[df['event'].isin(shot_attempt_types)].copy()
+    
+    # EXCLUDE EMPTY NET SHOTS
+    # We do not want to calculate xG for shots on an empty net.
+    if 'is_net_empty' in df.columns:
+        # Check against 1, True, or '1'
+        # Safest way is to convert to numeric, fill 0, check != 1
+        # But usually it's integer 0/1. 
+        # Let's filter out where is_net_empty is thruthy
+        mask_empty = (df['is_net_empty'] == 1) | (df['is_net_empty'] == True)
+        if mask_empty.any():
+            # print(f"clean_df_for_model: Filtering {mask_empty.sum()} empty net shots.")
+            df = df[~mask_empty].copy()
 
     # define is_goal as a boolean: True when event equals 'goal'
     df['is_goal'] = df['event'].eq('goal')
