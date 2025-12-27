@@ -44,6 +44,13 @@ def main():
     print("   OPTIMAL xG MODEL TRAINING & COMPARISON SUITE   ")
     print("==================================================")
     
+    # Load Optimization results if they exist
+    opt_results = {}
+    if os.path.exists('optimization_results.json'):
+        print("Loading optimization results from optimization_results.json...")
+        with open('optimization_results.json', 'r') as f:
+            opt_results = json.load(f)
+    
     from puck import features as puck_features
 
     # 1. Define Experiments
@@ -80,13 +87,17 @@ def main():
         if mtype == 'single':
             # Train Single model
             # Use get_clf with 'train' behavior to standardize
+            # Load optimized params if available
+            hp = opt_results.get('Single_All', {}) if fset == 'all_inclusive' else {}
+            
             clf, final_feats, cat_map, meta = fit_xgs.get_clf(
                 out_path=str(model_path),
                 behavior='train',
                 model_type='single',
                 features=features,
                 feature_set_name=fset,
-                data_df=df_raw
+                data_df=df_raw,
+                **hp
             )
             exp['clf'] = clf
             exp['final_features'] = final_feats
@@ -114,11 +125,20 @@ def main():
             df_nested_imputed = impute.impute_blocked_shot_origins(df_nested_input, method='mean_6')
             
             # Initialize & Fit
+            # Initialize & Fit with optimized params if available
+            hp_block = opt_results.get('Nested_Block', {}) if fset == 'all_inclusive' else {}
+            hp_acc = opt_results.get('Nested_Accuracy', {}) if fset == 'all_inclusive' else {}
+            hp_fin = opt_results.get('Nested_Finish', {}) if fset == 'all_inclusive' else {}
+            
             clf_nested = fit_nested_xgs.NestedXGClassifier(
-                n_estimators=200, 
-                max_depth=10, 
                 features=features,
-                feature_set_name=fset
+                feature_set_name=fset,
+                block_params=hp_block,
+                accuracy_params=hp_acc,
+                finish_params=hp_fin,
+                # Shared defaults if not overridden
+                n_estimators=200, 
+                max_depth=10
             )
             clf_nested.fit(df_nested_imputed)
             

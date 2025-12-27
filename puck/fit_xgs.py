@@ -356,10 +356,13 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
             model_type: str = 'single',
             csv_path: str = None,
             n_estimators: int = 200,
+            max_depth: int = None,
+            min_samples_leaf: int = 1,
             features: list = None,
             feature_set_name: str = None,
             random_state: int = 42,
-            data_df: pd.DataFrame = None):
+            data_df: pd.DataFrame = None,
+            **kwargs):
     """Train or load a RandomForest classifier for xG.
 
     Parameters
@@ -368,6 +371,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     - model_type: 'single' (default) or 'nested'. Used to determine default path.
     - csv_path/features/random_state/n_estimators: training params used when behavior='train'
     - data_df: Optional pre-loaded DataFrame to use if behavior='train'
+    - kwargs: Additional params for RandomForestClassifier (e.g. max_features)
     """
     # normalize behavior
     b = (behavior or '').strip().lower()
@@ -448,7 +452,8 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
 
     # fit model
     clf, X_test, y_test = fit_model(season_model_df, feature_cols=final_features,
-                                    random_state=random_state, n_estimators=n_estimators)
+                                    random_state=random_state, n_estimators=n_estimators,
+                                    max_depth=max_depth, min_samples_leaf=min_samples_leaf, **kwargs)
 
     # evaluate model and produce calibration plot (keeps previous behavior)
     try:
@@ -693,9 +698,11 @@ def fit_model(
     test_size: float = 0.2,
     random_state: int = 42,
     n_estimators: int = 200,
-    max_depth: int = None,  # Added max_depth control
+    max_depth: int = None,
+    min_samples_leaf: int = 1,
     progress: bool = False,
     progress_steps: int = 20,
+    **kwargs
 ):
     """Fit a RandomForest on the specified feature and return the trained
     model along with the held-out test split.
@@ -730,9 +737,11 @@ def fit_model(
     if not progress:
         clf = RandomForestClassifier(
             n_estimators=n_estimators, 
-            max_depth=max_depth,  # Use max_depth
+            max_depth=max_depth,
+            min_samples_leaf=min_samples_leaf,
             random_state=random_state, 
-            n_jobs=1
+            n_jobs=1,
+            **kwargs
         )
         clf.fit(X_train, y_train)
         return clf, X_test, y_test

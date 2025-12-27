@@ -82,6 +82,9 @@ class LayerConfig:
     feature_cols: List[str]
     n_estimators: int = 200
     max_depth: Optional[int] = 10
+    min_samples_split: int = 2
+    min_samples_leaf: int = 1
+    max_features: Any = 'sqrt'
 
 from sklearn.base import BaseEstimator, ClassifierMixin
 
@@ -98,46 +101,60 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
     
     UPDATED: Now uses dynamic features.
     """
-    def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val='Unknown', 
-                 max_depth=10, prevent_overfitting=True, features=None, feature_set_name=None):
-        self.random_state = random_state
-        self.n_estimators = n_estimators
-        self.unknown_shot_type_val = unknown_shot_type_val
-        self.max_depth = max_depth if prevent_overfitting else None
-        self.prevent_overfitting = prevent_overfitting
-        
-        # Features
-        self.feature_set_name = feature_set_name
-        if features is None and feature_set_name:
-             try:
-                 from . import features as puck_features
-                 features = puck_features.get_features(feature_set_name)
-             except (ImportError, ValueError):
-                 import features as puck_features
-                 features = puck_features.get_features(feature_set_name)
-        
-        if features is None:
-             features = ['distance', 'angle_deg', 'game_state', 'shot_type']
-             self.feature_set_name = self.feature_set_name or 'standard'
-
+    def __init__(self, features: List[str] = None,
+                 feature_set_name: str = None,
+                 n_estimators: int = 200, 
+                 max_depth: Optional[int] = 10,
+                 min_samples_split: int = 2,
+                 min_samples_leaf: int = 1,
+                 max_features: Any = 'sqrt',
+                 random_state: int = 42,
+                 imputation_method: str = 'mean_6',
+                 unknown_shot_type_val: str = 'Unknown',
+                 block_params: Dict = None,
+                 accuracy_params: Dict = None,
+                 finish_params: Dict = None):
         self.features = features
+        self.feature_set_name = feature_set_name
+        self.n_estimators = n_estimators
+        self.max_depth = max_depth
+        self.min_samples_split = min_samples_split
+        self.min_samples_leaf = min_samples_leaf
+        self.max_features = max_features
+        self.random_state = random_state
+        self.imputation_method = imputation_method
+        self.unknown_shot_type_val = unknown_shot_type_val
         
-        self.shot_type_priors = None 
+        self.block_params = block_params or {}
+        self.accuracy_params = accuracy_params or {}
+        self.finish_params = finish_params or {}
         
-        # Training Metadata
-        self.final_features = [] # The actual columns after OHE
-        self.categorical_cols = []
-        self.numeric_cols = []
-        
+        # State initialized in fit
         self.model_block = None
         self.model_accuracy = None
         self.model_finish = None
-        
-        self.config_block = None
-        self.config_accuracy = None
-        self.config_finish = None
-        
+        self.final_features = []
+        self.categorical_cols = []
+        self.numeric_cols = []
+        self.shot_type_priors = None
         self.shot_type_cols = []
+
+        # Resolve features if name provided
+        if self.features is None and self.feature_set_name:
+             try:
+                 from . import features as puck_features
+                 self.features = puck_features.get_features(self.feature_set_name)
+             except (ImportError, ValueError):
+                 try:
+                     import features as puck_features
+                     self.features = puck_features.get_features(self.feature_set_name)
+                 except Exception:
+                     pass
+        
+        if self.features is None:
+             # Default to standard
+             self.features = ['distance', 'angle_deg', 'game_state', 'shot_type']
+             self.feature_set_name = self.feature_set_name or 'standard'
 
     def fit(self, X, y=None):
         """
@@ -179,20 +196,37 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
                 self.final_features.append(c)
 
         # 3. Define Layer Features
-        # Block Layer: everything EXCEPT shot_type related (since blocked shots don't have shot type)
-        # We assume 'shot_type' is the conventional name.
+        # Helper to merge base params with layer-specific overrides
+        def get_params(overrides):
+            base = {
+                'n_estimators': self.n_estimators,
+                'max_depth': self.max_depth,
+                'min_samples_split': self.min_samples_split,
+                'min_samples_leaf': self.min_samples_leaf,
+                'max_features': self.max_features
+            }
+            if overrides:
+                base.update(overrides)
+            return base
+
+        bp = get_params(self.block_params)
+        ap = get_params(self.accuracy_params)
+        fp = get_params(self.finish_params)
+
         self.config_block = LayerConfig(
             name="Block Model", target_col='is_blocked', positive_label=1,
             feature_cols=[c for c in self.final_features if not c.startswith('shot_type_')],
-            max_depth=self.max_depth, n_estimators=self.n_estimators
+            **bp
         )
         self.config_accuracy = LayerConfig(
             name="Accuracy Model", target_col='is_on_net', positive_label=1,
-            feature_cols=self.final_features, max_depth=self.max_depth, n_estimators=self.n_estimators
+            feature_cols=self.final_features,
+            **ap
         )
         self.config_finish = LayerConfig(
             name="Finish Model", target_col='is_goal_layer', positive_label=1,
-            feature_cols=self.final_features, max_depth=self.max_depth, n_estimators=self.n_estimators
+            feature_cols=self.final_features,
+            **fp
         )
 
         # Create Layer Targets
@@ -204,6 +238,9 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_block = RandomForestClassifier(
             n_estimators=self.config_block.n_estimators, 
             max_depth=self.config_block.max_depth, 
+            min_samples_split=self.config_block.min_samples_split,
+            min_samples_leaf=self.config_block.min_samples_leaf,
+            max_features=self.config_block.max_features,
             random_state=self.random_state, 
             n_jobs=-1
         )
@@ -214,6 +251,9 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_accuracy = RandomForestClassifier(
             n_estimators=self.config_accuracy.n_estimators, 
             max_depth=self.config_accuracy.max_depth, 
+            min_samples_split=self.config_accuracy.min_samples_split,
+            min_samples_leaf=self.config_accuracy.min_samples_leaf,
+            max_features=self.config_accuracy.max_features,
             random_state=self.random_state, 
             n_jobs=-1
         )
@@ -224,6 +264,9 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_finish = RandomForestClassifier(
             n_estimators=self.config_finish.n_estimators, 
             max_depth=self.config_finish.max_depth, 
+            min_samples_split=self.config_finish.min_samples_split,
+            min_samples_leaf=self.config_finish.min_samples_leaf,
+            max_features=self.config_finish.max_features,
             random_state=self.random_state, 
             n_jobs=-1
         )
