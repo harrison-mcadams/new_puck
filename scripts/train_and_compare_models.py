@@ -163,42 +163,37 @@ def main():
     df_eval_all['is_goal'] = (df_eval_all['event'] == 'goal').astype(int)
     _, df_test = train_test_split(df_eval_all, test_size=0.2, random_state=42, stratify=df_eval_all['is_goal'])
     
-    print(f"Evaluating on {len(df_test)} test rows...")
+    # --- EVALUATION ---
+    # --- EVALUATION ---
+    print(f"Evaluating on {len(df_test)} raw test rows...")
     
-    # 2. Predict Single
-    # Need to clean test data same way
-    # Single Preds (Test Set)
-    df_test_single, _, _ = fit_xgs.clean_df_for_model(df_test.copy(), feats_single, fixed_categorical_levels=single_map)
-    # Use final_feats_single (encoded names)
-    prob_single = clf_single.predict_proba(df_test_single[final_feats_single])[:, 1]
+    # 1. Filter out non-shots and empty nets manually for alignment base
+    valid_events = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
+    mask_eval = df_test['event'].isin(valid_events)
+    if 'is_net_empty' in df_test.columns:
+        # Filter is_net_empty is 0, False, or None
+        mask_eval &= (df_test['is_net_empty'] != 1) & (df_test['is_net_empty'] != True)
     
-    # 3. Predict Nested
-    # Nested handles its own OHE if we pass raw columns, but we need imputation first?
-    # NestedXGClassifier.predict_proba expects DataFrame.
-    # fit_nested_xgs.py: "If input is raw, encode it... Add missing columns..."
-    # Does Filter/Impute happen inside predict?
-    # NO. Imputation happens OUTSIDE.
-    # We must impute the test set!
-    df_test_nested_base = df_test[df_test['event'].isin(valid_events)].copy()
-    df_test_nested_imputed = impute.impute_blocked_shot_origins(df_test_nested_base, method='mean_6')
+    df_eval_base = df_test[mask_eval].copy()
     
-    prob_nested_subset = clf_nested.predict_proba(df_test_nested_imputed)[:, 1]
+    # 2. Prepare Single Model Eval
+    # clean_df_for_model will handle encoding correctly (integer mode)
+    df_single_eval, _, _ = fit_xgs.clean_df_for_model(df_eval_base.copy(), feats_single, fixed_categorical_levels=single_map)
+    # y_true comes from the cleaned subset (in case NaNs were dropped)
+    y_true = df_single_eval['is_goal'].values
+    # Predict using the features determined at training time
+    p_single = clf_single.predict_proba(df_single_eval[final_feats_single])[:, 1]
     
-    # To compare fairly, we must align indices.
-    # Single predicted on ALL events (including hits etc? No, standard clean_df usually filters).
-    # Let's align both to the intersection of valid events.
+    print(f"Evaluation subset size: {len(df_single_eval)}")
+
+    # 3. Prepare Nested Model Eval (on SAME indices)
+    df_nested_eval = df_eval_base.loc[df_single_eval.index].copy()
+    # Impute
+    df_nested_imputed = impute.impute_blocked_shot_origins(df_nested_eval, method='mean_6')
+    p_nested = clf_nested.predict_proba(df_nested_imputed)[:, 1]
     
-    mask_valid = df_test['event'].isin(valid_events)
-    df_test_valid = df_test[mask_valid].copy()
-    y_true = (df_test_valid['event'] == 'goal').astype(int)
-    
-    # Single Preds on Valid
-    df_test_single_valid, _, _ = fit_xgs.clean_df_for_model(df_test_valid.copy(), feats_single, fixed_categorical_levels=single_map)
-    p_single = clf_single.predict_proba(df_test_single_valid[final_feats_single])[:, 1]
-    
-    # Nested Preds on Valid
-    df_test_nested_valid = impute.impute_blocked_shot_origins(df_test_valid.copy(), method='mean_6')
-    p_nested = clf_nested.predict_proba(df_test_nested_valid)[:, 1]
+    # Unblocked mask (must be same length as y_true)
+    mask_unblocked = (df_nested_eval['event'] != 'blocked-shot').values
     
     # Plotting
     fig, axes = plt.subplots(1, 2, figsize=(16, 7))
@@ -221,9 +216,7 @@ def main():
     plot_perf(y_true, p_single, 'Single (Available)', 'blue')
     plot_perf(y_true, p_nested, 'Nested (Optimal)', 'purple')
     
-    # Unblocked Only subset (Solid vs Dotted?)
-    mask_unblocked = df_test_valid['event'] != 'blocked-shot'
-    if mask_unblocked.sum() > 0:
+    if mask_unblocked.any():
         y_ub = y_true[mask_unblocked]
         p_s_ub = p_single[mask_unblocked]
         p_n_ub = p_nested[mask_unblocked]
