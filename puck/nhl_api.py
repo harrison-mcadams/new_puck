@@ -278,12 +278,15 @@ SESSION.headers.update({
 })
 
 
-def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, Any]]:
-    """Return the season's games list for the given team.
+def get_season(team: str = 'PHI', season: str = '20252026', game_types: Optional[List[str]] = ['02']) -> List[Dict[str, Any]]:
+    """Return the season's games list for the given team, filtered by game types.
 
     Parameters
     - team: optional team abbreviation (e.g. 'PHI', 'NYR') or 'all'. Defaults to 'PHI'.
     - season: optional season string (e.g. '20252026'). Defaults to '20252026'.
+    - game_types: optional list of strings (e.g. ['01', '02']) for game type filtering.
+      '01' = Preseason, '02' = Regular Season, '03' = Playoffs.
+      Defaults to ['02'] (Regular Season). Set to None for all types.
 
     This function fetches the api-web schedule for the team and returns the
     top-level 'games' list from the response (or an empty list).
@@ -355,16 +358,20 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
                             if isinstance(g, dict):
                                 candidates_this_week.append(g)
 
-            # Filter candidates by Season ID prefix (Robust Fix)
-            # Standard game IDs start with the 4-digit season start year (e.g. 2024...)
-            # We strictly enforce this to prevent next-season games from leaking in.
+            # Filter candidates by Season ID prefix (Robust Fix) and Game Type
             expected_prefix = str(start_year)
             for g in candidates_this_week:
                 gid = str(g.get('id') or g.get('gamePk') or '')
-                if gid.startswith(expected_prefix):
-                    games.append(g)
-                # else:
-                #     print(f"DEBUG: Discarding next-season game {gid} in {season}")
+                if not gid.startswith(expected_prefix):
+                    continue
+                
+                # Filter by game type (chars 5-6)
+                if game_types is not None:
+                    gtype = gid[4:6]
+                    if gtype not in game_types:
+                        continue
+                        
+                games.append(g)
 
             # advance to the next week
             week_start_dt = week_start_dt + timedelta(days=7)
@@ -418,8 +425,19 @@ def get_season(team: str = 'PHI', season: str = '20252026') -> List[Dict[str, An
     if not isinstance(games_raw, list):
         return []
 
-    # ensure entries are dicts
-    games: List[Dict[str, Any]] = [g for g in games_raw if isinstance(g, dict)]
+    # Filter by game type and ensure entries are dicts
+    games: List[Dict[str, Any]] = []
+    for g in games_raw:
+        if not isinstance(g, dict):
+            continue
+        
+        gid = str(g.get('id') or g.get('gamePk') or g.get('gameID') or '')
+        if game_types is not None and gid:
+            gtype = gid[4:6]
+            if gtype not in game_types:
+                continue
+        
+        games.append(g)
 
     return games
 

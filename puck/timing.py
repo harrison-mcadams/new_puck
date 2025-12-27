@@ -1046,7 +1046,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
 
                                 if home_id is not None:
                                     home_count = count_skaters_for_team(home_id)
-                                else:
+    lists of (s,e)                             else:
                                     home_count = sum(count_skaters_for_team(k) for k in active.keys())
                                 if away_id is not None:
                                     away_count = count_skaters_for_team(away_id)
@@ -1080,7 +1080,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
                                 i += 1
         elif key == 'is_net_empty':
             # Simple, robust handling of goalie-presence -> net-empty logic.
-            # goalie_presence contains lists of (s,e) for 'home' and 'away'.
+            # goalie_presence contains for 'home' and 'away'.
             try:
                 # Determine focal side if team is specified
                 rel_side = None

@@ -505,7 +505,7 @@ def _period_time_to_seconds(t: Optional[str]) -> Optional[int]:
 def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str] = None,
             use_cache: bool = False, cache_limit_files: Optional[int] = 200,
             min_delay: float = 0.5, jitter: float = 0.2, max_workers: int = 4,
-            verbose: bool = True) -> pd.DataFrame:
+            verbose: bool = True, game_types: Optional[List[str]] = ['02']) -> pd.DataFrame:
     """Fetch a full season (or a team's season) and return a concatenated
     pandas.DataFrame of shot and goal events suitable for ML.
 
@@ -517,7 +517,7 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    games = nhl_api.get_season(team=team, season=season)
+    games = nhl_api.get_season(team=team, season=season, game_types=game_types)
     records: List[Dict[str, Any]] = []
 
     # Prepare cache directory only if requested
@@ -1008,7 +1008,8 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
              process_elaborated: bool = False,
              save_elaborated: bool = False,
              return_feeds: bool = False,
-             return_elaborated_df: bool = False
+             return_elaborated_df: bool = False,
+             game_types: Optional[List[str]] = ['02']
              ) -> Any:
     """Scrape and optionally persist and process raw game feeds for a season.
 
@@ -1115,7 +1116,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         # otherwise let the function continue and load the cached CSV/JSON as needed
 
     # Get season games list
-    games = nhl_api.get_season(team=team, season=season) or []
+    games = nhl_api.get_season(team=team, season=season, game_types=game_types) or []
     if max_games is not None and isinstance(max_games, int) and max_games > 0:
         games = games[:max_games]
 

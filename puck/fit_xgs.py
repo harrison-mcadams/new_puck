@@ -459,6 +459,18 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
         if mask_extreme.any():
             df = df[~mask_extreme].copy()
 
+    # EXCLUDE NON-REGULAR SEASON (02)
+    if 'game_id' in df.columns:
+        # Game IDs are YYYYTTNNNN, where TT=02 is regular season.
+        df['game_id_str'] = df['game_id'].astype(str)
+        # Handle cases where game_id might be malformed or too short
+        mask_regular = df['game_id_str'].str.len() >= 6
+        mask_regular &= df['game_id_str'].str[4:6] == '02'
+        if not mask_regular.all():
+            # print(f"clean_df_for_model: Filtering {len(df) - mask_regular.sum()} events from non-regular season games.")
+            df = df[mask_regular].copy()
+        df.drop(columns=['game_id_str'], inplace=True)
+
     # define is_goal as a boolean: True when event equals 'goal'
     df['is_goal'] = df['event'].eq('goal')
 
