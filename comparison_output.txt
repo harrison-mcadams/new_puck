@@ -1,0 +1,62 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loading all seasons data...
+Loading 20152016 from C:\Users\harri\Desktop\new_puck\data\20152016\20152016_df.csv...
+Loading 20162017 from C:\Users\harri\Desktop\new_puck\data\20162017\20162017_df.csv...
+Loading 20172018 from C:\Users\harri\Desktop\new_puck\data\20172018\20172018_df.csv...
+Loading 20182019 from C:\Users\harri\Desktop\new_puck\data\20182019\20182019_df.csv...
+Loading 20192020 from C:\Users\harri\Desktop\new_puck\data\20192020\20192020_df.csv...
+Loading 20202021 from C:\Users\harri\Desktop\new_puck\data\20202021\20202021_df.csv...
+Loading 20212022 from C:\Users\harri\Desktop\new_puck\data\20212022\20212022_df.csv...
+Loading 20222023 from C:\Users\harri\Desktop\new_puck\data\20222023\20222023_df.csv...
+Loading 20232024 from C:\Users\harri\Desktop\new_puck\data\20232024\20232024_df.csv...
+Loading 20242025 from C:\Users\harri\Desktop\new_puck\data\20242025\20242025_df.csv...
+Total loaded rows: 3603250
+
+--- Pre-season (TT=01) Analysis ---
+Sample size: 63527
+Empty Net Shots: 128 (0.5%)
+Empty Net Block Rate: 23.4%
+Total Block Rate: 24.0%
+Mini-Model AUC: 0.7225
+
+Correlations with is_blocked:
+is_blocked        1.000000
+game_state_5v5    0.019297
+angle_deg        -0.010140
+game_state_4v4   -0.021885
+game_state_3v3   -0.022020
+distance         -0.166898
+Name: is_blocked, dtype: float64
+
+--- Regular Season (TT=02) Analysis ---
+Sample size: 3255260
+Empty Net Shots: 8119 (0.6%)
+Empty Net Block Rate: 20.7%
+Total Block Rate: 25.4%
+Mini-Model AUC: 0.7171
+
+Correlations with is_blocked:
+is_blocked        1.000000
+game_state_5v5    0.029945
+game_state_4v4   -0.006668
+angle_deg        -0.011032
+game_state_3v3   -0.022371
+distance         -0.170080
+Name: is_blocked, dtype: float64
+
+--- Playoffs (TT=03) Analysis ---
+Sample size: 280345
+Empty Net Shots: 703 (0.6%)
+Empty Net Block Rate: 20.8%
+Total Block Rate: 27.9%
+Mini-Model AUC: 0.7315
+
+Correlations with is_blocked:
+is_blocked        1.000000
+game_state_5v5    0.024741
+game_state_3v3   -0.003526
+angle_deg        -0.014483
+game_state_4v4   -0.015443
+distance         -0.187430
+Name: is_blocked, dtype: float64

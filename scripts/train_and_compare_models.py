@@ -263,16 +263,26 @@ def main():
     print(f"Nested: {path_nested}")
 
     # --- EXTRA PLOTS: FEATURE IMPORTANCE ---
-    print("\n[Extra] Generating Feature Importance Comparison...")
-    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
-    plot_importance(clf_single, final_feats_single, 'Single Model Importance', axes[0])
-    # For nested, we'll show Finish Layer (most critical for goal prediction)
-    plot_importance(clf_nested.model_finish, clf_nested.config_finish.feature_cols, 'Nested Model (Finish Layer) Importance', axes[1])
+    print("\n[Extra] Generating Full Feature Importance Comparison...")
+    fig, axes = plt.subplots(2, 2, figsize=(16, 14))
+    
+    # 1. Single Model
+    plot_importance(clf_single, final_feats_single, 'Single Model Importance', axes[0, 0])
+    
+    # 2. Nested: Block
+    plot_importance(clf_nested.model_block, clf_nested.config_block.feature_cols, 'Nested: Block Layer Importance', axes[0, 1])
+    
+    # 3. Nested: Accuracy
+    plot_importance(clf_nested.model_accuracy, clf_nested.config_accuracy.feature_cols, 'Nested: Accuracy Layer Importance', axes[1, 0])
+    
+    # 4. Nested: Finish
+    plot_importance(clf_nested.model_finish, clf_nested.config_finish.feature_cols, 'Nested: Finish Layer Importance', axes[1, 1])
+    
     plt.tight_layout()
-    importance_img = out_dir / 'feature_importance_comparison.png'
+    importance_img = out_dir / 'full_feature_importance.png'
     plt.savefig(importance_img)
     plt.close()
-    print(f"Saved feature importance comparison to {importance_img}")
+    print(f"Saved full feature importance to {importance_img}")
 
     # --- EXTRA PLOTS: NESTED LAYER PERFORMANCE ---
     print("[Extra] Generating Nested Layer Performance Diagnostics...")
