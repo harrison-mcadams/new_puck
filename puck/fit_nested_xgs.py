@@ -96,30 +96,48 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
       
     Final Probability = P(Unblocked) * P(On Net) * P(Goal)
     
-    UPDATED: Now uses One-Hot Encoding for consistency with other models.
+    UPDATED: Now uses dynamic features.
     """
     def __init__(self, random_state=42, n_estimators=200, unknown_shot_type_val='Unknown', 
-                 max_depth=10, prevent_overfitting=True):
+                 max_depth=10, prevent_overfitting=True, features=None, feature_set_name=None):
         self.random_state = random_state
         self.n_estimators = n_estimators
-        self.unknown_shot_type_val = unknown_shot_type_val # Value in raw column (if present) or resulting OHE column logic
+        self.unknown_shot_type_val = unknown_shot_type_val
         self.max_depth = max_depth if prevent_overfitting else None
         self.prevent_overfitting = prevent_overfitting
+        
+        # Features
+        self.feature_set_name = feature_set_name
+        if features is None and feature_set_name:
+             try:
+                 from . import features as puck_features
+                 features = puck_features.get_features(feature_set_name)
+             except (ImportError, ValueError):
+                 import features as puck_features
+                 features = puck_features.get_features(feature_set_name)
+        
+        if features is None:
+             features = ['distance', 'angle_deg', 'game_state', 'shot_type']
+             self.feature_set_name = self.feature_set_name or 'standard'
+
+        self.features = features
+        
+        self.shot_type_priors = None 
+        
+        # Training Metadata
+        self.final_features = [] # The actual columns after OHE
+        self.categorical_cols = []
+        self.numeric_cols = []
         
         self.model_block = None
         self.model_accuracy = None
         self.model_finish = None
         
-        self.shot_type_priors = None # Dict[str_col_name, float] mapping OHE column -> probability
-        
-        # We will populate these after fit
-        self.shot_type_cols = []
-        self.game_state_cols = []
-        self.base_features = ['distance', 'angle_deg']
-        
         self.config_block = None
         self.config_accuracy = None
         self.config_finish = None
+        
+        self.shot_type_cols = []
 
     def fit(self, X, y=None):
         """
@@ -143,50 +161,38 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         if 'event' not in df.columns:
             raise ValueError("NestedXGClassifier requires 'event' column in X for training to determine layer targets.")
 
-        # 1. Handle Categorical / OHE
-        # We need to determine the features dynamically.
-        
-        # If raw columns exist, perform OHE (Training Mode from Raw)
-        if 'shot_type' in df.columns:
-            df['shot_type'] = df['shot_type'].fillna('Unknown')
-            # Get dummies
-            prefix_sep = '_'
-            cat_cols = ['shot_type']
-            if 'game_state' in df.columns:
-                df['game_state'] = df['game_state'].fillna('5v5')
-                cat_cols.append('game_state')
-            
-            df = pd.get_dummies(df, columns=cat_cols, prefix_sep=prefix_sep)
-            
-        # Identify columns dynamically
-        self.shot_type_cols = [c for c in df.columns if c.startswith('shot_type_')]
-        self.game_state_cols = [c for c in df.columns if c.startswith('game_state_')]
-        
-        if not self.shot_type_cols:
-             raise ValueError("No shot_type columns found or generated.")
+        # 1. Identify Numeric and Categorical Features from the requested list
+        self.categorical_cols = [c for c in self.features if df[c].dtype == object]
+        self.numeric_cols = [c for c in self.features if c not in self.categorical_cols]
 
-        # Define Feature Sets
-        # Block: distance, angle, net_empty, game_state_*
-        feats_block = self.base_features + self.game_state_cols
-        # Acc/Finish: + shot_type_*
-        feats_shot = self.base_features + self.game_state_cols + self.shot_type_cols
+        # 2. Perform OHE (if raw cols exist)
+        if self.categorical_cols:
+            df = pd.get_dummies(df, columns=self.categorical_cols, prefix_sep='_')
         
-        # Filter to ensure they exist
-        feats_block = [c for c in feats_block if c in df.columns]
-        feats_shot = [c for c in feats_shot if c in df.columns]
-        
-        # Configure Layers
+        # Identify columns after OHE
+        self.final_features = []
+        for c in self.features:
+            if c in self.categorical_cols:
+                # Add all resulting code columns
+                self.final_features.extend([col for col in df.columns if col.startswith(f"{c}_")])
+            else:
+                self.final_features.append(c)
+
+        # 3. Define Layer Features
+        # Block Layer: everything EXCEPT shot_type related (since blocked shots don't have shot type)
+        # We assume 'shot_type' is the conventional name.
         self.config_block = LayerConfig(
             name="Block Model", target_col='is_blocked', positive_label=1,
-            feature_cols=feats_block, max_depth=self.max_depth, n_estimators=self.n_estimators
+            feature_cols=[c for c in self.final_features if not c.startswith('shot_type_')],
+            max_depth=self.max_depth, n_estimators=self.n_estimators
         )
         self.config_accuracy = LayerConfig(
             name="Accuracy Model", target_col='is_on_net', positive_label=1,
-            feature_cols=feats_shot, max_depth=self.max_depth, n_estimators=self.n_estimators
+            feature_cols=self.final_features, max_depth=self.max_depth, n_estimators=self.n_estimators
         )
         self.config_finish = LayerConfig(
             name="Finish Model", target_col='is_goal_layer', positive_label=1,
-            feature_cols=feats_shot, max_depth=self.max_depth, n_estimators=self.n_estimators
+            feature_cols=self.final_features, max_depth=self.max_depth, n_estimators=self.n_estimators
         )
 
         # Create Layer Targets
@@ -225,20 +231,21 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         # 5. Learn Shot Type Priors (Calculated from UNBLOCKED shots only)
         # We sum the OHE columns to get counts
-        # We assume one-hot, so sum() gives count of that type
-        stats = df_unblocked[self.shot_type_cols].sum()
-        total = stats.sum()
-        self.shot_type_priors = (stats / total).to_dict()
-        
-        # Remove 'Unknown' from priors if it exists as a column, to avoid imputing 'Unknown'
-        unk_col = f'shot_type_{self.unknown_shot_type_val}'
-        if unk_col in self.shot_type_priors:
-             # re-normalize without unknown
-             del self.shot_type_priors[unk_col]
-             # Re-calc sum
-             new_sum = sum(self.shot_type_priors.values())
-             if new_sum > 0:
-                 self.shot_type_priors = {k: v/new_sum for k, v in self.shot_type_priors.items()}
+        self.shot_type_cols = [c for c in self.final_features if c.startswith('shot_type_')]
+        if self.shot_type_cols:
+            stats = df_unblocked[self.shot_type_cols].sum()
+            total = stats.sum()
+            self.shot_type_priors = (stats / total).to_dict()
+            
+            # Remove 'Unknown' from priors if it exists
+            unk_col = f'shot_type_{self.unknown_shot_type_val}'
+            if unk_col in self.shot_type_priors:
+                 del self.shot_type_priors[unk_col]
+                 new_sum = sum(self.shot_type_priors.values())
+                 if new_sum > 0:
+                     self.shot_type_priors = {k: v/new_sum for k, v in self.shot_type_priors.items()}
+        else:
+            self.shot_type_priors = None
         
         return self
 
@@ -253,17 +260,13 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = X.copy()
         
         # 0. Feature Alignment
-        # If input is raw, encode it. But typically input from analyze.py is already encoded.
-        # We just need to ensure ALL training columns exist.
-        
-        # Check if we need to do OHE ourselves (legacy support or raw input)
-        if 'shot_type' in df.columns and not any(c in df.columns for c in self.shot_type_cols):
-             df['shot_type'] = df['shot_type'].fillna('Unknown')
-             df = pd.get_dummies(df, columns=['shot_type', 'game_state'], prefix_sep='_')
+        # If input is raw, encode it. 
+        cat_cols = getattr(self, 'categorical_cols', [])
+        if cat_cols and not any(c in df.columns for c in self.final_features if c not in self.features):
+             df = pd.get_dummies(df, columns=cat_cols, prefix_sep='_')
         
         # Add missing columns with 0
-        all_feats = list(set(self.config_block.feature_cols + self.config_accuracy.feature_cols + self.config_finish.feature_cols))
-        for c in all_feats:
+        for c in self.final_features:
             if c not in df.columns:
                 df[c] = 0
                 
@@ -707,7 +710,7 @@ def main():
         'model_type': 'nested',
         'imputation': 'mean_6',
         'training_rows': len(df_imputed),
-        'final_features': clf.base_features + clf.game_state_cols + clf.shot_type_cols
+        'final_features': clf.final_features
     }
     with open(str(out_path) + '.meta.json', 'w') as f:
         json.dump(meta, f, indent=2)

@@ -1,0 +1,19 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Generating Nested Model Performance Report...
+Loading data from data/20252026.csv...
+Applying imputation for blocked shots...
+Running predictions...
+Saved performance metrics to analysis\nested_xgs_report\performance_metrics.png
+Saved feature importance to analysis\nested_xgs_report\feature_importance.png
+
+========================================
+NESTED MODEL PERFORMANCE SUMMARY
+========================================
+Overall AUC:    0.7914
+Overall Brier:  0.0471
+--------------------
+Block AUC:      0.9813
+Accuracy AUC:   0.5840
+Finish AUC:     0.7219
+========================================

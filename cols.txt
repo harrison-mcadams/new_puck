@@ -1,0 +1,1 @@
+event,x,y,game_state,is_net_empty,period,period_time,player_id,player_name,team_id,home_id,away_id,home_abb,away_abb,home_team_defending_side,game_id,shot_type,synthetic,predicted_penalty_duration_seconds,predicted_penalty_end_total_seconds,periodTime_seconds_elapsed,total_time_elapsed_seconds,distance,angle_deg

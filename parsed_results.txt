@@ -1,0 +1,5 @@
+Single_Minimal       | single   | 0.7977 | 0.0434
+Single_Standard      | single   | 0.8431 | 0.0396
+Single_All           | single   | 0.9263 | 0.0316
+Nested_Standard      | nested   | 0.8421 | 0.0414
+Nested_All           | nested   | 0.8511 | 0.0411

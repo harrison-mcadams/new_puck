@@ -87,9 +87,10 @@ class SingleXGClassifier:
     """Wrapper for standard RandomForest to align interface with NestedXGClassifier.
     Accepts DataFrame for prediction and enforces exclusion of blocked shots.
     """
-    def __init__(self, clf, features: List[str]):
+    def __init__(self, clf, features: List[str], raw_features: List[str] = None):
         self.clf = clf
-        self.features = features
+        self.features = features # Encoded features
+        self.raw_features = raw_features or ['distance', 'angle_deg', 'game_state', 'shot_type']
         
     def predict_proba(self, X):
         """
@@ -150,6 +151,7 @@ class ModelConfig:
     """Configuration for an xG model variant."""
     name: str
     features: List[str]
+    feature_set_name: Optional[str] = None
     n_estimators: int = 500  # Increased default for better baseline performance
     max_depth: Optional[int] = None
     min_samples_leaf: int = 1
@@ -183,9 +185,27 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
             
         raise FileNotFoundError(f"Data directory not found. Looked for '{base_dir}' in CWD ({Path.cwd()}) and Project Root ({project_root}).")        
     frames = []
-    # Look for {year}/{year}_df.csv structure
+    # 1. Look for files directly in base_path matching {year}.csv or {year}_df.csv
+    for item in base_path.iterdir():
+        if item.is_file() and (item.name.endswith('.csv')):
+            # check if starts with digit year
+            stem = item.stem
+            if stem.isdigit() or (stem.endswith('_df') and stem[:-3].isdigit()):
+                print(f"Loading season file: {item.name}...")
+                try:
+                    df = pd.read_csv(item)
+                    frames.append(df)
+                    continue # already handled
+                except Exception as e:
+                    print(f"Failed to load {item}: {e}")
+
+    # 2. Look for {year}/{year}_df.csv structure
     for year_dir in sorted(base_path.iterdir()):
         if year_dir.is_dir() and year_dir.name.isdigit():
+            # Already loaded from file? Avoid duplicates
+            if year_dir.name in [Path(f).stem for f in frames if isinstance(f, str)]: # Not perfect but okay
+                continue
+                
             # Standard naming: {year}_df.csv
             csv_path = year_dir / f"{year_dir.name}_df.csv"
             # Fallback naming: {year}.csv
@@ -198,6 +218,10 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
                 target_path = alt_path
                 
             if target_path:
+                # check if we already loaded it from Step 1
+                if any(str(target_path) == str(getattr(f, 'source_path', '')) for f in frames):
+                    continue
+
                 print(f"Loading {year_dir.name} from {target_path}...")
                 try:
                     df = pd.read_csv(target_path)
@@ -292,8 +316,9 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
             csv_path: str = None,
             n_estimators: int = 200,
             features: list = None,
-            random_state: int = 42):
-
+            feature_set_name: str = None,
+            random_state: int = 42,
+            data_df: pd.DataFrame = None):
     """Train or load a RandomForest classifier for xG.
 
     Parameters
@@ -301,9 +326,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     - behavior: 'train' to train & save, 'load' to load from disk
     - model_type: 'single' (default) or 'nested'. Used to determine default path.
     - csv_path/features/random_state/n_estimators: training params used when behavior='train'
-
-
-    Returns: (clf, final_features, categorical_levels_map)
+    - data_df: Optional pre-loaded DataFrame to use if behavior='train'
     """
     # normalize behavior
     b = (behavior or '').strip().lower()
@@ -333,6 +356,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
         # try to load metadata (features + categorical levels)
         final_features = None
         categorical_levels_map = None
+        meta = {}
         try:
             with open(meta_path, 'r', encoding='utf-8') as fh:
                 meta = json.load(fh)
@@ -345,26 +369,40 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
             
         # WRAPPER LOGIC
         if model_type == 'single' and not isinstance(clf, SingleXGClassifier):
-             # Ensure we have features to wrap
-             if final_features:
-                 clf = SingleXGClassifier(clf, final_features)
-             else:
-                 # Should we warn? Without features we can't wrap effectively for DF input
-                 print("Warning: Single Layer model loaded without metadata features. Wrapper may fail on DataFrames.")
-                 # Try to infer? No.
-                 pass
+             # Try to resolve raw features
+             raw_features = meta.get('raw_features')
+             if not raw_features and meta.get('feature_set_name'):
+                 try:
+                     from . import features as puck_features
+                     raw_features = puck_features.get_features(meta['feature_set_name'])
+                 except: pass
+             
+             clf = SingleXGClassifier(clf, final_features, raw_features=raw_features)
         
         # Update Cache
-        _CLF_MEM_CACHE[cache_key] = (clf, final_features, categorical_levels_map)
-        return clf, final_features, categorical_levels_map
+        _CLF_MEM_CACHE[cache_key] = (clf, final_features, categorical_levels_map, meta)
+        return clf, final_features, categorical_levels_map, meta
 
     # else: train
-    # default features
+    # resolve features
     if features is None:
-        features = ['distance', 'angle_deg', 'game_state', 'shot_type']
+        if feature_set_name:
+            try:
+                from . import features as puck_features
+                features = puck_features.get_features(feature_set_name)
+            except ImportError:
+                import features as puck_features
+                features = puck_features.get_features(feature_set_name)
+        else:
+            features = ['distance', 'angle_deg', 'game_state', 'shot_type']
+            feature_set_name = 'default'
 
     # load data and prepare
-    season_df = load_data(csv_path)
+    if data_df is not None:
+        season_df = data_df
+    else:
+        season_df = load_data(csv_path)
+
     season_model_df, final_features, categorical_levels_map = clean_df_for_model(season_df, features)
 
     # fit model
@@ -382,17 +420,25 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     try:
         Path(out_path).parent.mkdir(parents=True, exist_ok=True)
         joblib.dump(clf, out_path)
-        meta = {'final_features': final_features, 'categorical_levels_map': categorical_levels_map}
+        meta = {
+            'final_features': final_features, 
+            'categorical_levels_map': categorical_levels_map,
+            'feature_set_name': feature_set_name,
+            'model_type': model_type,
+            'raw_features': features
+        }
         with open(meta_path, 'w', encoding='utf-8') as fh:
             json.dump(meta, fh)
     except Exception as e:
-        # if saving fails, warn but return the in-memory clf
-        try:
-            print(f'Warning: failed to save classifier or metadata to {out_path}: {e}')
-        except Exception:
-            pass
+        print(f"Warning: failed to save model or metadata to {out_path}: {e}")
 
-    return clf, final_features, categorical_levels_map
+    # Re-wrap if training
+    if model_type == 'single' and not isinstance(clf, SingleXGClassifier):
+         clf = SingleXGClassifier(clf, final_features, raw_features=features)
+
+    # Update Cache
+    _CLF_MEM_CACHE[cache_key] = (clf, final_features, categorical_levels_map, meta)
+    return clf, final_features, categorical_levels_map, meta
 
 # --- end of module-level caching helpers ---
 
@@ -587,8 +633,12 @@ def load_data(path: str = None):
     Returns a DataFrame with at least the feature column and `is_goal` target.
     """
     if path is None:
-        # Default to the primary season file in DATA_DIR
-        path = os.path.join(puck_config.DATA_DIR, '20252026', '20252026_df.csv')
+        # try to find a default
+        try:
+            return load_all_seasons_data()
+        except:
+             # Default to the primary season file in DATA_DIR
+             path = os.path.join(puck_config.DATA_DIR, '20252026', '20252026_df.csv')
         
     df = pd.read_csv(path)
 

@@ -1294,7 +1294,12 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
     try:
         # prefer explicit csv_path if provided; otherwise pass None when using data_df
         # Use csv_path passed in
-        clf, feature_names, cat_levels = fit_xgs.get_clf(model_path, clf_behavior, csv_path=csv_path, model_type='nested')
+        # UPDATED: get_clf now has improved metadata handling
+        res = fit_xgs.get_clf(model_path, clf_behavior, csv_path=csv_path, model_type='nested')
+        clf, feature_names, cat_levels = res[0], res[1], res[2]
+        # Check if we have more meta (future proof)
+        meta = {}
+        if len(res) > 3: meta = res[3]
     except Exception as e:
         print(f"xgs_map: get_clf failed with {e}")
         if csv_path:
@@ -1358,7 +1363,8 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             df_imputed['shot_type'] = 'Unknown'
 
         # 2. Clean and Identify Features
-        input_features = ['distance', 'angle_deg', 'game_state', 'shot_type']
+        # Use features from clf if available, otherwise fallback
+        input_features = getattr(clf, 'features', ['distance', 'angle_deg', 'game_state', 'shot_type'])
         
         # Use clean_df_for_model with encode_method='none' to preserve raw columns for Nested Model (OHE)
         # This standardizes preprocessing (filtering, is_goal creation) while maintaining compatibility.
@@ -1433,7 +1439,8 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         # We must NOT use 'feature_names' (from meta) as input features, because meta features are 
         # usually transformed (e.g. game_state_code) while input DF has raw features (game_state).
         
-        input_features = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        # Try to resolve input features from model or metadata
+        input_features = getattr(clf, 'raw_features', ['distance', 'angle_deg', 'game_state', 'shot_type'])
         
         # We pass cat_levels to ensure consistent encoding
         df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(df.copy(), input_features, fixed_categorical_levels=cat_levels)

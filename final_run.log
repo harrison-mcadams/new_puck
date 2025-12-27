@@ -1,0 +1,76 @@
+10:49:19 - INFO - Filtering 9524 empty net shots from training data.
+10:49:19 - INFO - Filtering 7389 rows with extreme game states (1v0/0v1).
+10:49:20 - INFO - Filtering 138883 events from non-regular season games.
+10:49:58 - INFO - Filtering 9524 empty net shots from training data.
+10:49:59 - INFO - Filtering 7389 rows with extreme game states (1v0/0v1).
+10:49:59 - INFO - Filtering 138883 events from non-regular season games.
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+==================================================
+   OPTIMAL xG MODEL TRAINING & COMPARISON SUITE   
+==================================================
+
+Loading all seasons data...
+Loading season file: 20252026.csv...
+Loading 20152016 from C:\Users\harri\Desktop\new_puck\data\20152016\20152016_df.csv...
+Loading 20162017 from C:\Users\harri\Desktop\new_puck\data\20162017\20162017_df.csv...
+Loading 20172018 from C:\Users\harri\Desktop\new_puck\data\20172018\20172018_df.csv...
+Loading 20182019 from C:\Users\harri\Desktop\new_puck\data\20182019\20182019_df.csv...
+Loading 20192020 from C:\Users\harri\Desktop\new_puck\data\20192020\20192020_df.csv...
+Loading 20202021 from C:\Users\harri\Desktop\new_puck\data\20202021\20202021_df.csv...
+Loading 20212022 from C:\Users\harri\Desktop\new_puck\data\20212022\20212022_df.csv...
+Loading 20222023 from C:\Users\harri\Desktop\new_puck\data\20222023\20222023_df.csv...
+Loading 20232024 from C:\Users\harri\Desktop\new_puck\data\20232024\20232024_df.csv...
+Loading 20242025 from C:\Users\harri\Desktop\new_puck\data\20242025\20242025_df.csv...
+Total loaded rows: 3763667
+Loaded 3763667 rows.
+
+>>> Running Experiment: Single_Minimal (Type: single, Features: minimal)
+   [DEBUG] Top 5 Features for Single_Minimal:
+     - distance: 0.8034
+     - angle_deg: 0.1966
+
+
+>>> Running Experiment: Single_Standard (Type: single, Features: standard)
+   [DEBUG] Top 5 Features for Single_Standard:
+     - distance: 0.5825
+     - angle_deg: 0.3193
+     - game_state_code: 0.0981
+
+
+>>> Running Experiment: Single_All (Type: single, Features: all_inclusive)
+   [DEBUG] Top 5 Features for Single_All:
+     - distance: 0.4065
+     - angle_deg: 0.3126
+     - shot_type_code: 0.1922
+     - game_state_code: 0.0887
+
+
+>>> Running Experiment: Nested_Standard (Type: nested, Features: standard)
+
+>>> Running Experiment: Nested_All (Type: nested, Features: all_inclusive)
+
+[3/3] Generating Comparison Dashboard...
+Preparing evaluation data...
+Test set size: 321046
+Evaluating Single_Minimal...
+Evaluating Single_Standard...
+Evaluating Single_All...
+Evaluating Nested_Standard...
+Evaluating Nested_All...
+
+Saved comparison plot to C:\Users\harri\Desktop\new_puck\analysis\xgs\feature_set_comparison.png
+
+==================================================
+Model Name           | Type     | AUC      | Brier   
+--------------------------------------------------
+Single_Minimal       | single   | 0.7106 | 0.0449
+Single_Standard      | single   | 0.7460 | 0.0441
+Single_All           | single   | 0.8577 | 0.0404
+Nested_Standard      | nested   | 0.8030 | 0.0433
+Nested_All           | nested   | 0.8103 | 0.0432
+==================================================
+
+Generating importance plots...
+
+All experiments complete.
