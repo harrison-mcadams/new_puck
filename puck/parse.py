@@ -107,6 +107,10 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
     except Exception:
         pass
 
+    # Initialize running score
+    home_score = 0
+    away_score = 0
+
     for idx, p in enumerate(plays):
         if not isinstance(p, dict):
             continue
@@ -461,8 +465,23 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                     'home_team_defending_side': home_side,
                     'game_id': game_feed.get('id') or game_feed.get('gamePk'),
                     'shot_type': shot_type,
-                    'periodTimeType': period_time_type
+                    'periodTimeType': period_time_type,
+                    # New Features
+                    'score_diff': int(home_score - away_score),
+                    'home_score': int(home_score),
+                    'away_score': int(away_score),
+                    'period_number': per_num,
+                    'time_elapsed_in_period_s': per_secs,
+                    'total_time_elapsed_s': total_elapsed
                 })
+
+            # Score Update Logic (Pre-Event Principle: Update AFTER recording)
+            if ev_type == 'goal':
+                # Check which team scored
+                if team_id == home_id:
+                    home_score += 1
+                elif team_id == away_id:
+                    away_score += 1
             else:
                 # no coords: skip main event (but synthetic events may exist)
                 pass

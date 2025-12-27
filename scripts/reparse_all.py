@@ -31,7 +31,7 @@ def reparse_all():
                 save_elaborated=True,
                 save_raw=False,  # Don't re-save raw JSONs over themselves unnecessarily
                 save_json=False,
-                save_csv=False
+                save_csv=True
             )
             print(f"Completed {season}.")
             gc.collect()

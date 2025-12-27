@@ -10,13 +10,7 @@ from typing import List, Dict
 COORDINATES = ['distance', 'angle_deg']
 
 # Game situation
-SITUATION = ['game_state']
-# score_state
-# total_time_elapsed_s
-# time_elapsed_in_period_s
-# period_number
-
-# Shot context
+SITUATION = ['game_state', 'score_diff', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s']
 SHOT_TYPE = ['shot_type']
 HANDEDNESS = ['shoots_catches']
 
