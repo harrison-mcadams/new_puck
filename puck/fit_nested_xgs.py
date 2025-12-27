@@ -469,6 +469,13 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
         if mask_empty.any():
             logger.info(f"Filtering {mask_empty.sum()} empty net shots from training data.")
             df = df[~mask_empty].copy()
+
+    # EXCLUDE 1v0 and 0v1 from Training
+    if 'game_state' in df.columns:
+        mask_extreme = df['game_state'].isin(['1v0', '0v1'])
+        if mask_extreme.any():
+            logger.info(f"Filtering {mask_extreme.sum()} rows with extreme game states (1v0/0v1).")
+            df = df[~mask_extreme].copy()
     
     # Blocked shots usually have shot_type = NaN.
     # For the Block Model, this 'Missingness' is actually a signal (or at least, we need a value).
@@ -491,20 +498,6 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     # 1 = Goal, 0 = Saved
     df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
 
-    # 4. Feature Engineering: Basic Encodings
-    # Encode categorical features
-    le_shot = LabelEncoder()
-    df['shot_type_encoded'] = le_shot.fit_transform(df['shot_type'].astype(str))
-    
-    # Fill missing game_state with '5v5' (heuristic) before encoding
-    df['game_state'] = df['game_state'].fillna('5v5')
-    le_state = LabelEncoder()
-    df['game_state_encoded'] = le_state.fit_transform(df['game_state'].astype(str))
-    
-    # Log mappings for user education
-    logger.info(f"Shot Type Encoding: {dict(zip(le_shot.classes_, range(len(le_shot.classes_))))}")
-    logger.info(f"Game State Encoding: {dict(zip(le_state.classes_, range(len(le_state.classes_))))}")
-    
     return df
 
 
@@ -586,11 +579,8 @@ def main():
     # 1. Load & Preprocess
     df = load_data()
     
-    # FILTER: Keep only shot attempts
-    valid = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
-    logger.info(f"Filtering for valid events: {valid}")
-    df = df[df['event'].isin(valid)].copy()
-    logger.info(f"Rows after filtering: {len(df)}")
+    # 2. Basic Cleaning (Events, Empty Net, Game State)
+    df = preprocess_features(df)
     
     try:
         from . import impute
@@ -707,7 +697,7 @@ def main():
         'model_type': 'nested',
         'imputation': 'mean_6',
         'training_rows': len(df_imputed),
-        'final_features': ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+        'final_features': clf.base_features + clf.game_state_cols + clf.shot_type_cols
     }
     with open(str(out_path) + '.meta.json', 'w') as f:
         json.dump(meta, f, indent=2)

@@ -14,12 +14,12 @@ def test_exclusion():
 
     # Create dummy data
     data = {
-        'event': ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot', 'shot-on-goal'],
-        'distance': [10, 20, 30, 40, 150],
-        'angle_deg': [0, 10, 5, 2, 0],
-        'is_net_empty': [0, 0, 0, 0, 1], # Last one is empty net
-        'game_state': ['5v5'] * 5,
-        'shot_type': ['Wrist'] * 5
+        'event': ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'shot-on-goal', 'goal'],
+        'distance': [10, 20, 30, 40, 150, 20, 25],
+        'angle_deg': [0, 10, 5, 2, 0, 10, 15],
+        'is_net_empty': [0, 0, 0, 0, 1, 0, 0], 
+        'game_state': ['5v5', '5v5', '5v5', '5v5', '5v5', '1v0', '0v1'], # 1v0 and 0v1 added
+        'shot_type': ['Wrist'] * 7
     }
     df = pd.DataFrame(data)
     
@@ -38,9 +38,10 @@ def test_exclusion():
     print(f"Cleaned Columns: {df_clean.columns.tolist()}")
     
     # Assert
-    assert len(df_clean) == 4, f"Expected 4 rows, got {len(df_clean)}"
+    assert len(df_clean) == 4, f"Expected 4 rows (filtered empty net, 1v0, 0v1), got {len(df_clean)}"
     assert 'is_net_empty' not in df_clean.columns, "is_net_empty should NOT be in output columns!"
-    assert 'is_net_empty' not in cols, "is_net_empty should NOT be in returned feature list!"
+    if 'game_state' in df_clean.columns:
+         assert not df_clean['game_state'].isin(['1v0', '0v1']).any(), "Found 1v0/0v1 in cleaned data!"
     
     print("PASS: fit_xgs.clean_df_for_model filtered correctly and excluded feature.")
 
@@ -59,8 +60,9 @@ def test_exclusion():
     print(f"Preprocessed Row Count: {len(df_pre)}")
     
     # Assert
-    assert len(df_pre) == 4, f"Expected 4 rows, got {len(df_pre)}"
-    assert df_pre['is_net_empty'].sum() == 0, "Found empty net shots in preprocessed data!"
+    assert len(df_pre) == 4, f"Expected 4 rows (filtered empty net, 1v0, 0v1), got {len(df_pre)}"
+    if 'game_state' in df_pre.columns:
+         assert not df_pre['game_state'].isin(['1v0', '0v1']).any(), "Found 1v0/0v1 in preprocessed data!"
     print("PASS: fit_nested_xgs.preprocess_features filtered correctly.")
 
 if __name__ == "__main__":

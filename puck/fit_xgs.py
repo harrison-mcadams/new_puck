@@ -453,6 +453,12 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
             # print(f"clean_df_for_model: Filtering {mask_empty.sum()} empty net shots.")
             df = df[~mask_empty].copy()
 
+    # EXCLUDE 1v0 and 0v1
+    if 'game_state' in df.columns:
+        mask_extreme = df['game_state'].isin(['1v0', '0v1'])
+        if mask_extreme.any():
+            df = df[~mask_extreme].copy()
+
     # define is_goal as a boolean: True when event equals 'goal'
     df['is_goal'] = df['event'].eq('goal')
 

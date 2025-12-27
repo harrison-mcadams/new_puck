@@ -62,7 +62,7 @@ def main():
     print(f"Loaded {len(df)} rows.")
     
     # --- MODEL 1: SINGLE (Reference/Robust) ---
-    print("Training Single Model (Dist, Angle, State, Net)...")
+    print("Training Single Model (Dist, Angle, State)...")
     # Features
     feats_single = ['distance', 'angle_deg', 'game_state']
     
@@ -101,8 +101,8 @@ def main():
     # Or just instantiate and fit.
     
     # Filter valid events first (Nested expects only valid attempts)
-    valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
-    df_nested_input = df[df['event'].isin(valid_events)].copy()
+    # Use the common preprocessing logic to handle exclusions (Empty Net, 1v0/0v1)
+    df_nested_input = fit_nested_xgs.preprocess_features(df.copy())
     
     # Impute
     try:
