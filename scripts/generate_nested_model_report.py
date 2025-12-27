@@ -36,7 +36,7 @@ def main():
     print("Generating Nested Model Performance Report...")
     
     # 1. Load Model
-    model_path = 'analysis/xgs/xg_model_Nested_Standard.joblib'
+    model_path = 'analysis/xgs/xg_model_Nested_All.joblib'
     if not os.path.exists(model_path):
         # Fallback
         model_path = 'analysis/xgs/xg_model_nested.joblib'

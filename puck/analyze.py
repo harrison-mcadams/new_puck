@@ -1269,7 +1269,7 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
 
 def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None):
     if model_path is None:
-        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
+        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_Nested_All.joblib')
 
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
