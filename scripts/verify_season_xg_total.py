@@ -36,6 +36,16 @@ def main():
         
     print(f"Loaded {len(df)} rows.")
     
+    # 1b. Filter for regular season
+    if 'game_id' in df.columns:
+        df['game_id_str'] = df['game_id'].astype(str)
+        # Game IDs are YYYYTTNNNN, where TT=02 is regular season.
+        mask_regular = (df['game_id_str'].str.len() >= 6) & (df['game_id_str'].str[4:6] == '02')
+        if not mask_regular.all():
+            print(f"Filtering {len(df) - mask_regular.sum()} non-regular season rows.")
+            df = df[mask_regular].copy()
+        df.drop(columns=['game_id_str'], inplace=True)
+
     # 2. Predict
     print("Running Nested xG Prediction (this may take a minute)...")
     df_pred, _, _ = analyze._predict_xgs(df, behavior='overwrite')

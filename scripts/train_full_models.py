@@ -24,6 +24,11 @@ def main():
     data_dir = Path('data')
     season_files = list(data_dir.glob('**/*_df.csv'))
     
+    # Also look for the top-level 20252026.csv if it exists
+    current_season_csv = data_dir / "20252026.csv"
+    if current_season_csv.exists() and current_season_csv not in season_files:
+        season_files.append(current_season_csv)
+    
     if not season_files:
         logger.error("No season files found! Did backfill download fail?")
         return
@@ -34,6 +39,20 @@ def main():
         logger.info(f"Loading {f}...")
         try:
             df = pd.read_csv(f)
+            
+            # CRITICAL: Filter for regular season only
+            # Regular season game IDs are e.g. 2023020001 (middle part is 02)
+            if 'game_id' in df.columns:
+                initial_len = len(df)
+                # Ensure game_id is string for filtering
+                df['game_id_str'] = df['game_id'].astype(str)
+                # Regex for regular season (e.g., 2023020001)
+                df = df[df['game_id_str'].str.contains(r'^\d{4}02\d{4}$')]
+                df = df.drop(columns=['game_id_str'])
+                filtered_len = len(df)
+                if initial_len > filtered_len:
+                    logger.info(f"  Filtered out {initial_len - filtered_len} non-regular season events.")
+            
             dfs.append(df)
         except Exception as e:
             logger.error(f"Failed to load {f}: {e}")
@@ -42,7 +61,7 @@ def main():
         return
         
     full_df = pd.concat(dfs, ignore_index=True)
-    logger.info(f"Total rows: {len(full_df)}")
+    logger.info(f"Total rows (Regular Season Only): {len(full_df)}")
     
     # Check if 'event' column exists
     if 'event' not in full_df.columns:

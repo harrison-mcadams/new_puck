@@ -1046,7 +1046,7 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
 
                                 if home_id is not None:
                                     home_count = count_skaters_for_team(home_id)
-    lists of (s,e)                             else:
+                                else:
                                     home_count = sum(count_skaters_for_team(k) for k in active.keys())
                                 if away_id is not None:
                                     away_count = count_skaters_for_team(away_id)

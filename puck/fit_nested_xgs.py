@@ -482,6 +482,16 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     # We will fill NaN with 'Unknown'.
     df['shot_type'] = df['shot_type'].fillna('Unknown')
     
+    # EXCLUDE NON-REGULAR SEASON (02)
+    if 'game_id' in df.columns:
+        df['game_id_str'] = df['game_id'].astype(str)
+        # Game IDs are YYYYTTNNNN, where TT=02 is regular season.
+        mask_regular = (df['game_id_str'].str.len() >= 6) & (df['game_id_str'].str[4:6] == '02')
+        if not mask_regular.all():
+            logger.info(f"Filtering {len(df) - mask_regular.sum()} events from non-regular season games.")
+            df = df[mask_regular].copy()
+        df.drop(columns=['game_id_str'], inplace=True)
+
     # 3. Create Target Columns for Each Layer
     
     # LAYER 1 TARGET: is_blocked?

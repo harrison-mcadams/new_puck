@@ -1,0 +1,22 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Verifying Season Totals for 20252026 ---
+Loading data\20252026.csv...
+Loaded 160417 rows.
+Running Nested xG Prediction (this may take a minute)...
+
+========================================
+SEASON TOTALS (20252026)
+========================================
+Total Goals:      3660
+Total xG:         3475.48
+Difference:       -184.52
+Ratio (xG/Goals): 0.950
+
+--- Breakdown by Event Type ---
+              count     total_xg    avg_xg
+event                                     
+shot-on-goal  29598  1846.924558  0.062400
+missed-shot   17176  1020.404184  0.059409
+goal           3660   342.371205  0.093544
+blocked-shot  18948   265.779509  0.014027

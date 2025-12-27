@@ -9,6 +9,16 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from puck import fit_xgs, fit_nested_xgs, compare_models
 from puck import nhl_api # for any shared util if needed
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import roc_curve, auc, brier_score_loss
+from sklearn.calibration import calibration_curve
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+import joblib
+import json
+
 # Import Config for valid Data Directory
 try:
     from puck import config as puck_config
@@ -19,6 +29,15 @@ except ImportError:
         class DummyConfig:
             ANALYSIS_DIR = 'analysis'
         puck_config = DummyConfig()
+
+def plot_importance(model, feature_names, title, ax):
+    importances = model.feature_importances_
+    indices = np.argsort(importances)
+    ax.barh(range(len(indices)), importances[indices], align='center', color='skyblue')
+    ax.set_yticks(range(len(indices)))
+    ax.set_yticklabels([feature_names[i] for i in indices])
+    ax.set_title(title)
+    ax.set_xlabel('Importance')
 
 def main():
     print("==================================================")
@@ -50,11 +69,6 @@ def main():
     
     # We will call fit_xgs.get_clf logic or similar.
     # Actually, better to just reimplement the high-level orchestration here to ensure control.
-    
-    from sklearn.ensemble import RandomForestClassifier
-    import pandas as pd
-    import joblib
-    import json
     
     # Load Data Once
     print("Loading all seasons data...")
@@ -153,11 +167,6 @@ def main():
     # I'll perform the comparison logic here using the loaded models directly (in-memory)!
     # Fast and robust.
     
-    from sklearn.model_selection import train_test_split
-    from sklearn.metrics import roc_curve, auc
-    from sklearn.calibration import calibration_curve
-    import matplotlib.pyplot as plt
-    
     # 1. Split Eval Data (Stratified)
     df_eval_all = df.copy()
     df_eval_all['is_goal'] = (df_eval_all['event'] == 'goal').astype(int)
@@ -167,12 +176,22 @@ def main():
     # --- EVALUATION ---
     print(f"Evaluating on {len(df_test)} raw test rows...")
     
-    # 1. Filter out non-shots and empty nets manually for alignment base
+    # 1. Filter out non-shots, empty nets, and extreme game states manually for alignment base
     valid_events = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
     mask_eval = df_test['event'].isin(valid_events)
+    
+    # Empty Net Filter
     if 'is_net_empty' in df_test.columns:
-        # Filter is_net_empty is 0, False, or None
         mask_eval &= (df_test['is_net_empty'] != 1) & (df_test['is_net_empty'] != True)
+    
+    # 1v0/0v1 Filter
+    if 'game_state' in df_test.columns:
+        mask_eval &= ~df_test['game_state'].isin(['1v0', '0v1'])
+        
+    # Regular Season Filter
+    if 'game_id' in df_test.columns:
+        df_test['game_id_str'] = df_test['game_id'].astype(str)
+        mask_eval &= (df_test['game_id_str'].str.len() >= 6) & (df_test['game_id_str'].str[4:6] == '02')
     
     df_eval_base = df_test[mask_eval].copy()
     
@@ -242,6 +261,64 @@ def main():
     print("\nDone. Both models trained and saved.")
     print(f"Single: {path_single}")
     print(f"Nested: {path_nested}")
+
+    # --- EXTRA PLOTS: FEATURE IMPORTANCE ---
+    print("\n[Extra] Generating Feature Importance Comparison...")
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    plot_importance(clf_single, final_feats_single, 'Single Model Importance', axes[0])
+    # For nested, we'll show Finish Layer (most critical for goal prediction)
+    plot_importance(clf_nested.model_finish, clf_nested.config_finish.feature_cols, 'Nested Model (Finish Layer) Importance', axes[1])
+    plt.tight_layout()
+    importance_img = out_dir / 'feature_importance_comparison.png'
+    plt.savefig(importance_img)
+    plt.close()
+    print(f"Saved feature importance comparison to {importance_img}")
+
+    # --- EXTRA PLOTS: NESTED LAYER PERFORMANCE ---
+    print("[Extra] Generating Nested Layer Performance Diagnostics...")
+    # Get layer probabilities
+    p_block = clf_nested.predict_proba_layer(df_nested_eval, 'block')
+    
+    mask_unblocked_eval = (df_nested_eval['event'] != 'blocked-shot')
+    df_acc_eval = df_nested_eval[mask_unblocked_eval]
+    p_acc = clf_nested.predict_proba_layer(df_acc_eval, 'accuracy')
+    
+    mask_on_net_eval = df_nested_eval['event'].isin(['shot-on-goal', 'goal'])
+    df_fin_eval = df_nested_eval[mask_on_net_eval]
+    p_fin = clf_nested.predict_proba_layer(df_fin_eval, 'finish')
+
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+    
+    # Layer ROC
+    def plot_roc_layer(y, p, name, col, ax):
+        fpr, tpr, _ = roc_curve(y, p)
+        area = auc(fpr, tpr)
+        ax.plot(fpr, tpr, color=col, label=f'{name} (AUC={area:.3f})')
+
+    plot_roc_layer((df_nested_eval['event'] == 'blocked-shot').astype(int), p_block, 'Block Layer', 'red', axes[0])
+    plot_roc_layer(df_acc_eval['event'].isin(['shot-on-goal', 'goal']).astype(int), p_acc, 'Accuracy Layer', 'blue', axes[0])
+    plot_roc_layer((df_fin_eval['event'] == 'goal').astype(int), p_fin, 'Finish Layer', 'green', axes[0])
+    axes[0].plot([0, 1], [0, 1], 'k--', lw=1)
+    axes[0].set_title('Nested Model Layer ROCs')
+    axes[0].legend()
+
+    # Layer Calibration
+    def plot_cal_layer(y, p, name, col, ax):
+        prob_true, prob_pred = calibration_curve(y, p, n_bins=10)
+        ax.plot(prob_pred, prob_true, marker='.', color=col, label=name)
+
+    plot_cal_layer((df_nested_eval['event'] == 'blocked-shot').astype(int), p_block, 'Block Layer', 'red', axes[1])
+    plot_cal_layer(df_acc_eval['event'].isin(['shot-on-goal', 'goal']).astype(int), p_acc, 'Accuracy Layer', 'blue', axes[1])
+    plot_cal_layer((df_fin_eval['event'] == 'goal').astype(int), p_fin, 'Finish Layer', 'green', axes[1])
+    axes[1].plot([0, 1], [0, 1], 'k--', lw=1)
+    axes[1].set_title('Nested Model Layer Calibration')
+    axes[1].legend()
+
+    plt.tight_layout()
+    nested_diag_img = out_dir / 'nested_layer_performance.png'
+    plt.savefig(nested_diag_img)
+    plt.close()
+    print(f"Saved nested diagnostics to {nested_diag_img}")
 
 if __name__ == "__main__":
     main()
