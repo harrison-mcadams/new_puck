@@ -78,6 +78,14 @@ except ImportError:
             ANALYSIS_DIR = 'analysis'
         puck_config = DummyConfig()
 
+try:
+    from . import nhl_api
+except ImportError:
+    try:
+        import nhl_api
+    except ImportError:
+        nhl_api = None
+
 # --- Simple module-level caching for the trained classifier ---
 _GLOBAL_CLF = None
 _GLOBAL_FINAL_FEATURES = None
@@ -235,6 +243,39 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
 
     full_df = pd.concat(frames, ignore_index=True)
     print(f"Total loaded rows: {len(full_df)}")
+
+    # Enrich with Handedness
+    if nhl_api and 'player_id' in full_df.columns and 'game_id' in full_df.columns:
+        print("Enriching with player handedness...")
+        try:
+            # derive season start year from first 4 chars of game_id
+            full_df['temp_season_start'] = full_df['game_id'].astype(str).str[:4]
+            # filter out non-digit
+            full_df = full_df[full_df['temp_season_start'].str.isdigit()].copy()
+            full_df['temp_season_start'] = full_df['temp_season_start'].astype(int)
+            unique_starts = full_df['temp_season_start'].unique()
+            
+            master_map = {}
+            for start_year in unique_starts:
+                # Basic sanity check on year
+                if start_year < 1900 or start_year > 2100:
+                    continue
+                season_str = f"{start_year}{start_year + 1}"
+                print(f"Fetching bios for season {season_str}...")
+                bios = nhl_api.get_season_player_bios(season_str)
+                master_map.update(bios)
+            
+            # Map values
+            full_df['shoots_catches'] = full_df['player_id'].map(master_map)
+            # Default missing to 'L' (most common)
+            full_df['shoots_catches'] = full_df['shoots_catches'].fillna('L')
+            
+            full_df.drop(columns=['temp_season_start'], inplace=True)
+            print("Handedness enrichment complete.")
+            
+        except Exception as e:
+            print(f"Warning: Handedness enrichment failed: {e}")
+
     return full_df
 
 def compare_models(configs: List[ModelConfig], 

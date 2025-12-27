@@ -1297,6 +1297,45 @@ def get_player_details(game_id: Any) -> Dict[int, Dict[str, Any]]:
         return {}
 
 
+
+def get_roster_handedness(game_id: Any) -> Dict[int, str]:
+    """Extract player handedness ('L' or 'R') from game feed roster spots.
+    
+    Returns a dict mapping player_id to 'L' or 'R'.
+    """
+    try:
+        feed = get_game_feed(game_id)
+        if not feed or not isinstance(feed, dict):
+            return {}
+        
+        roster = feed.get('rosterSpots', [])
+        handedness_map = {}
+        
+        if not roster:
+             # Fallback: check gameData->players or similar old structures if needed
+             # But for now, just support the new style
+             pass
+        
+        for spot in roster:
+            if not isinstance(spot, dict):
+                continue
+            
+            pid = spot.get('playerId')
+            hand = spot.get('shootsCatches')
+            
+            if pid and hand:
+                try:
+                    handedness_map[int(pid)] = str(hand).upper()
+                except (ValueError, TypeError):
+                    pass
+                    
+        return handedness_map
+        
+    except Exception as e:
+        logging.warning('get_roster_handedness: failed for game %s: %s', game_id, e)
+        return {}
+
+
 def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: bool = False) -> Dict[str, Any]:
     """Fallback: obtain shift information by scraping NHL official HTML reports.
 
@@ -1345,9 +1384,10 @@ def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: b
                 except Exception:
                     continue
 
+
         if not venue_texts:
             if debug:
-                return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}, 'debug': {'error': 'no venue pages fetched', 'tried_urls': tried_urls}}
+                 return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}, 'debug': {'error': 'no venue pages fetched', 'tried_urls': tried_urls}}
             return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}}
 
         from bs4 import BeautifulSoup
@@ -2214,6 +2254,61 @@ def compare_shifts(game_id: Any, debug: bool = False) -> Dict[str, Any]:
     if debug:
         logging.debug('compare_shifts: %s', res['diff'])
     return res
+
+
+
+def get_season_player_bios(season: str) -> Dict[int, str]:
+    """Fetch all player bios for the given season to build a handedness map.
+    
+    Returns: Dict[player_id, 'L'|'R']
+    """
+    cache_key = f"bios_{season}"
+    cached = _cache_get('player_bios', cache_key)
+    if cached:
+        return cached
+
+    base_url = 'https://api.nhle.com/stats/rest/en/skater/bios'
+    handedness_map = {}
+    
+    # We need to page through results
+    start = 0
+    limit = 100
+    while True:
+        params = f"isAggregate=false&isGame=false&start={start}&limit={limit}&cayenneExp=seasonId={season}"
+        url = f"{base_url}?{params}"
+        
+        try:
+            _throttle()
+            _increment_api_call()
+            resp = SESSION.get(url, timeout=5)
+            resp.raise_for_status()
+            data = resp.json()
+            
+            rows = data.get('data', [])
+            if not rows:
+                break
+                
+            for row in rows:
+                pid = row.get('playerId')
+                hand = row.get('shootsCatches')
+                if pid and hand:
+                    handedness_map[int(pid)] = str(hand).upper()
+            
+            # check if we are done
+            total = data.get('total', 0)
+            start += len(rows)
+            if start >= total:
+                break
+                
+        except Exception as e:
+            logging.warning('get_season_player_bios: data fetch failed at start=%d: %s', start, e)
+            break
+            
+    # Save to cache
+    if handedness_map:
+        _cache_put('player_bios', cache_key, handedness_map)
+        
+    return handedness_map
 
 
 if __name__ == '__main__':
