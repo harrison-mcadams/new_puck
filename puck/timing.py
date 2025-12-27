@@ -1082,7 +1082,15 @@ def compute_intervals_for_game(game_id: int, condition: Dict[str, Any],
             # Simple, robust handling of goalie-presence -> net-empty logic.
             # goalie_presence contains lists of (s,e) for 'home' and 'away'.
             try:
-                intervals = _build_is_net_empty_intervals(goalie_presence, vals, net_empty_mode, verbose)
+                # Determine focal side if team is specified
+                rel_side = None
+                if 'team' in cond_norm:
+                    rel_side = 'away' if flip_states else 'home'
+                
+                intervals = _build_is_net_empty_intervals(
+                    goalie_presence, vals, net_empty_mode, verbose, 
+                    relative_side=rel_side
+                )
                 key_intervals_all.extend(intervals)
             except Exception:
                 key_intervals_all = []
@@ -1358,12 +1366,14 @@ def _compute_observed_bounds(combined_pres: List[Interval]) -> Tuple[float, floa
 def _build_is_net_empty_intervals(goalie_presence: Dict[str, List[Interval]],
                                   vals: List[Any],
                                   net_empty_mode: str = 'either',
-                                  verbose: bool = False) -> List[Interval]:
+                                  verbose: bool = False,
+                                  relative_side: Optional[str] = None) -> List[Interval]:
     """Build intervals for is_net_empty condition from goalie_presence.
 
     goalie_presence: {'home': [(s,e),...], 'away': [(s,e), ...]}
     vals: list of requested values (0 or 1)
     net_empty_mode: 'either' or 'both'
+    relative_side: 'home' or 'away' (if provided, is_net_empty refers to OPPONENT being empty)
     Returns a list of (s,e) intervals (unmerged); caller will merge later.
     """
     home_pres = goalie_presence.get('home', []) or []
@@ -1397,6 +1407,8 @@ def _build_is_net_empty_intervals(goalie_presence: Dict[str, List[Interval]],
             print(f"[debug][is_net_empty] away_pres count={len(away_pres)} sample={_sample(away_pres)}")
             print(f"[debug][is_net_empty] both_present count={len(both_present)} sample={_sample(both_present)}")
             print(f"[debug][is_net_empty] both_empty count={len(both_empty)} sample={_sample(both_empty)}")
+            if relative_side:
+                print(f"[debug][is_net_empty] relative_side={relative_side}")
         except Exception:
             pass
 
@@ -1406,6 +1418,21 @@ def _build_is_net_empty_intervals(goalie_presence: Dict[str, List[Interval]],
             vi = int(v)
         except Exception:
             continue
+            
+        if relative_side:
+            # RELATIVE LOGIC: is_net_empty refers to OPPONENT'S goalie
+            # If relative_side is 'home', we want 'away' state
+            # If relative_side is 'away', we want 'home' state
+            is_home_perspective = (relative_side == 'home')
+            target_empty = away_empty if is_home_perspective else home_empty
+            target_pres = away_pres if is_home_perspective else home_pres
+            
+            if vi == 1:
+                out_intervals.extend(target_empty)
+            else:
+                out_intervals.extend(target_pres)
+            continue
+
         if vi == 1:
             if net_empty_mode == 'either':
                 # either goalie absent -> union of per-side empties

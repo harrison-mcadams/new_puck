@@ -1521,6 +1521,16 @@ def build_mask(df, condition):
     # dict path: combine per-column masks with AND semantics
     if isinstance(condition, dict):
         mask = _pd.Series(True, index=df.index)
+        
+        # --- Implied Defaults ---
+        # If is_net_empty is not specified, default to goalie-present (0)
+        if 'is_net_empty' not in condition and 'is_net_empty' in df.columns:
+             mask &= (df['is_net_empty'] == 0) | (df['is_net_empty'] == False)
+             
+        # If game_state is not specified, exclude extreme situations (1v0, 0v1)
+        if 'game_state' not in condition and 'game_state' in df.columns:
+             mask &= ~df['game_state'].isin(['1v0', '0v1'])
+             
         for col, spec in condition.items():
             if col not in df.columns:
                 # missing column -> mask becomes all False for safety
