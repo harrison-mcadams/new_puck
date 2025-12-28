@@ -23,7 +23,7 @@ import json
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config
+from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config, features as feature_util
 
 def plot_calib(y_true, y_prob, name, ax):
     prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10, strategy='uniform')
@@ -76,10 +76,29 @@ df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
 # %%
 # 5. Train
 print(f"Training on {len(df_train)} rows...")
+
+# Define Features Explicitly
+# This ensures we match the "all_inclusive" set defined in puck.features
+feature_list = feature_util.get_features('all_inclusive')
+print(f"Using {len(feature_list)} features: {feature_list}")
+
+# Load optimized params if available
+params_path = Path('analysis/nested_xgs/best_params_xgboost.json')
+layer_params = {}
+if params_path.exists():
+    try:
+        with open(params_path, 'r') as f:
+            layer_params = json.load(f)
+        print(f"Loaded optimized parameters from {params_path}")
+    except Exception as e:
+        print(f"Warning: Could not load optimized params: {e}")
+
 clf = fit_xgboost_nested.XGBNestedXGClassifier(
-    n_estimators=200,
-    max_depth=6,
-    learning_rate=0.05
+    features=feature_list,
+    n_estimators=200, # Default (will be overridden if layer_params has them)
+    max_depth=6,      # Default
+    learning_rate=0.05, # Default
+    layer_params=layer_params
 )
 clf.fit(df_train)
 
@@ -183,9 +202,15 @@ with open(report_path, 'w') as f:
     f.write("Model Configuration:\n")
     f.write(f"  n_estimators: {clf.n_estimators}\n")
     f.write(f"  max_depth: {clf.max_depth}\n")
-    f.write(f"  learning_rate: {clf.learning_rate}\n")
+    f.write(f"  learning_rate: {clf.learning_rate} (Base/Default)\n")
     f.write(f"  nan_mask_rate: {getattr(clf, 'nan_mask_rate', 'N/A')}\n")
-    f.write(f"  enable_categorical: {clf.enable_categorical}\n\n")
+    f.write(f"  enable_categorical: {clf.enable_categorical}\n")
+    
+    if clf.layer_params:
+        f.write("\n  Optimized Layer Parameters:\n")
+        for layer, params in clf.layer_params.items():
+            f.write(f"    {layer.upper()}: {json.dumps(params, indent=None)}\n")
+    f.write("\n")
     
     # Overall Metrics
     f.write("Overall Performance (Test Set):\n")

@@ -24,6 +24,8 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, roc_auc_score
 
+from . import features as feature_util
+
 # --- LOGGING SETUP ---
 logging.basicConfig(
     level=logging.INFO,
@@ -86,8 +88,8 @@ def preprocess_data(df: pd.DataFrame, features: List[str] = None) -> pd.DataFram
 
     # 5. Handle Features & Categoricals
     if features is None:
-        # Default features if not provided
-        features = ['distance', 'angle_deg', 'game_state', 'shot_type', 'shoots_catches']
+        # Default features from central repo
+        features = feature_util.get_features('all_inclusive')
         
     known_cats = ['game_state', 'shot_type', 'shoots_catches']
     
@@ -150,11 +152,12 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  max_depth: int = 6,
                  learning_rate: float = 0.1,
                  random_state: int = 42,
-                 enable_categorical: bool = True):
+                 enable_categorical: bool = True,
+                 layer_params: Dict[str, Any] = None):
         
         # Default Features if None
         if features is None:
-            self.features = ['distance', 'angle_deg', 'game_state', 'shot_type', 'shoots_catches']
+            self.features = feature_util.get_features('all_inclusive')
         else:
             self.features = features
             
@@ -164,6 +167,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.enable_categorical = enable_categorical
         self.nan_mask_rate = 0.05 # Fraction of training examples to mask 'shot_type' to NaN
+        self.layer_params = layer_params or {}
         
         # Internal Models
         self.model_block: Optional[XGBClassifier] = None
@@ -189,6 +193,22 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             'eval_metric': 'logloss',
             'tree_method': 'hist' # usually needed for enable_categorical
         }
+
+    def _get_layer_params(self, layer_name: str) -> Dict[str, Any]:
+        """Get params for a specific layer, merging defaults with overrides."""
+        # Start with defaults
+        params = self._get_xgb_params()
+        
+        # Override with specific layer params if available
+        if layer_name in self.layer_params:
+            overrides = self.layer_params[layer_name]
+            # Remove 'score' if present (artifact from optimization script)
+            if 'score' in overrides:
+                overrides = {k: v for k, v in overrides.items() if k != 'score'}
+            
+            params.update(overrides)
+            
+        return params
 
     def _prepare_data(self, df: pd.DataFrame, is_training: bool = False) -> pd.DataFrame:
         """
@@ -245,8 +265,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  raise ValueError("Targets (is_blocked, etc.) or 'event' column required.")
 
         # --- 3. Train Block Model (All Data) ---
+        # --- 3. Train Block Model (All Data) ---
         logger.info(f"Training Block Model with features: {feat_block}")
-        self.model_block = XGBClassifier(**self._get_xgb_params())
+        self.model_block = XGBClassifier(**self._get_layer_params('block'))
         self.model_block.fit(df[feat_block], df['is_blocked'])
         
         # --- 4. Train Accuracy Model (Unblocked Only) ---
@@ -267,7 +288,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                 df_unblocked.loc[mask_idx, 'shot_type'] = np.nan
 
         logger.info(f"Training Accuracy Model (N={len(df_unblocked)}) with features: {feat_full}")
-        self.model_accuracy = XGBClassifier(**self._get_xgb_params())
+        self.model_accuracy = XGBClassifier(**self._get_layer_params('accuracy'))
         self.model_accuracy.fit(df_unblocked[feat_full], df_unblocked['is_on_net'])
         
         # --- 5. Train Finish Model (On Net Only) ---
@@ -283,7 +304,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                 df_on_net.loc[mask_idx, 'shot_type'] = np.nan
 
         logger.info(f"Training Finish Model (N={len(df_on_net)}) with features: {feat_full}")
-        self.model_finish = XGBClassifier(**self._get_xgb_params())
+        self.model_finish = XGBClassifier(**self._get_layer_params('finish'))
         self.model_finish.fit(df_on_net[feat_full], df_on_net['is_goal_layer'])
         
         # Store metadata
