@@ -78,8 +78,8 @@ df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
 print(f"Training on {len(df_train)} rows...")
 
 # Define Features Explicitly
-# This ensures we match the "all_inclusive" set defined in puck.features
-feature_list = feature_util.get_features('all_inclusive')
+# This ensures we match the "baseline" set defined in puck.features
+feature_list = feature_util.get_features('baseline')
 print(f"Using {len(feature_list)} features: {feature_list}")
 
 # Load optimized params if available

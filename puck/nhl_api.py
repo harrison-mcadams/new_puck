@@ -2292,7 +2292,8 @@ def get_season_player_bios(season: str) -> Dict[int, str]:
                 pid = row.get('playerId')
                 hand = row.get('shootsCatches')
                 if pid and hand:
-                    handedness_map[int(pid)] = str(hand).upper()
+                    # Use string keys for JSON consistency (cache vs live)
+                    handedness_map[str(pid)] = str(hand).upper()
             
             # check if we are done
             total = data.get('total', 0)

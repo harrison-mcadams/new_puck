@@ -22,7 +22,7 @@ HANDEDNESS = ['shoots_catches']
 # Named Feature Sets
 FEATURE_SETS = {
     'minimal': COORDINATES,
-    'baseline': COORDINATES + ['game_state'],
+    'baseline': COORDINATES + ['game_state'] + SHOT_TYPE + HANDEDNESS,
     'standard': COORDINATES + SITUATION,
     'all_inclusive': COORDINATES + SITUATION + SHOT_TYPE + HANDEDNESS,
 }

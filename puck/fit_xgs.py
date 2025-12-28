@@ -280,12 +280,19 @@ def enrich_data_with_bios(df: pd.DataFrame) -> pd.DataFrame:
                 if start_year < 1900 or start_year > 2100:
                     continue
                 season_str = f"{start_year}{start_year + 1}"
-                # print(f"Fetching bios for season {season_str}...")
                 bios = nhl_api.get_season_player_bios(season_str)
                 master_map.update(bios)
             
             # Map values
-            df['shoots_catches'] = df['player_id'].map(master_map)
+            # Robust mapping: IDs can be floats in pandas (8.0), so we strip the .0
+            def format_pid(val):
+                if pd.isna(val): return "0"
+                try:
+                    return str(int(float(val)))
+                except:
+                    return str(val)
+
+            df['shoots_catches'] = df['player_id'].map(format_pid).map(master_map)
             # Default missing to 'L' (most common)
             df['shoots_catches'] = df['shoots_catches'].fillna('L')
             
