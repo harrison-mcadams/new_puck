@@ -128,6 +128,18 @@ def preprocess_data(df: pd.DataFrame, features: List[str] = None) -> pd.DataFram
     final_cols = [c for c in df.columns if c in cols_to_keep]
     return df[final_cols].copy()
 
+def get_xgb_default_params(random_state: int = 42) -> Dict[str, Any]:
+    """Return the baseline parameters used for the XGBoost xG models."""
+    return {
+        'n_estimators': 200,
+        'max_depth': 6,
+        'learning_rate': 0.1,
+        'random_state': random_state,
+        'enable_categorical': True,
+        'eval_metric': 'logloss',
+        'tree_method': 'hist'
+    }
+
 
 class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
     """
@@ -237,9 +249,19 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  
         return df_out
 
-    def fit(self, X: pd.DataFrame, y=None):
-        """Train the three layers."""
-        df = self._prepare_data(X, is_training=True)
+    def fit(self, X: pd.DataFrame, y=None) -> 'XGBNestedXGClassifier':
+        """
+        Train the three layers of the Nested xG Model.
+        
+        Args:
+            X: Raw training DataFrame (will be preprocessed internally).
+        """
+        # Ensure we use the centralized preprocessing if not already processed
+        if 'is_blocked' not in X.columns or 'is_on_net' not in X.columns:
+            logger.info("Preprocessing training data...")
+            df = preprocess_data(X, features=self.features)
+        else:
+            df = self._prepare_data(X, is_training=True)
         
         # --- 1. Define Layer Features ---
         
