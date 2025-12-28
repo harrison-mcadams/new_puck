@@ -264,6 +264,7 @@ def main():
     parser.add_argument('--season', type=str, default='20252026')
     parser.add_argument('--condition', type=str, default='5v5') # 5v5, 5v4, 4v5
     parser.add_argument('--force', action='store_true')
+    parser.add_argument('--turbo', action='store_true', help='Enable parallel processing')
     args = parser.parse_args()
     
     season = args.season
@@ -314,28 +315,59 @@ def main():
 
     # Process Loop
     # Use config for batch size / GC
-    count = 0
     start_time = time.time()
     
-    for gid in games_to_process:
-        # Extract single game DF
-        df_game = df_data[df_data['game_id'] == gid]
-        if df_game.empty: continue
+    if args.turbo:
+        from joblib import Parallel, delayed
+        print("[TURBO] Starting Parallel Processing (Joblib Backend)...")
+        # Note: process_game takes (game_id, df_game, season, condition, partials_dir, condition_name, force)
+        # We need to construct the args list
         
-        success = process_game(gid, df_game, season, condition, partials_dir, cond_name, force=args.force)
+        # Helper to extract df_game for each gid
+        # IMPORTANT: Passing the full df_data to each worker via closure or arg is EFFICIENT with joblib (memmap).
+        # We just need to slice it inside the worker? 
+        # No, better to pass the slice if cheap, or just pass full df and gid.
+        # process_game expects df_game (small slice). Slicing in main process and passing slices is safer for pickling.
         
-        if success:
-            count += 1
-            if count % 1 == 0:
-                elapsed = time.time() - start_time
-                rate = count / elapsed
-                print(f"Processed {count}/{len(games_to_process)} ({rate:.2f} games/s)")
-                
-        # Memory Management
-        if count % config.GC_FREQUENCY == 0:
-            if hasattr(timing, '_SHIFTS_CACHE'):
-                timing._SHIFTS_CACHE.clear()
-            gc.collect()
+        # Prepare Tasks
+        tasks = []
+        for gid in games_to_process:
+             # Slice here (cheap view usually)
+             df_game = df_data[df_data['game_id'] == gid]
+             if not df_game.empty:
+                 tasks.append((gid, df_game, season, condition, partials_dir, cond_name, args.force))
+        
+        # Execute
+        results = Parallel(n_jobs=-1, verbose=5)(
+            delayed(process_game)(*t) for t in tasks
+        )
+        
+        success_count = sum(1 for r in results if r)
+        print(f"[TURBO] Processed {success_count}/{len(tasks)} games.")
+        
+    else:
+        # Serial Loop
+        count = 0
+        for gid in games_to_process:
+            # Extract single game DF
+            df_game = df_data[df_data['game_id'] == gid]
+            if df_game.empty: continue
+            
+            success = process_game(gid, df_game, season, condition, partials_dir, cond_name, force=args.force)
+            
+            if success:
+                count += 1
+                if count % 10 == 0:
+                    elapsed = time.time() - start_time
+                    rate = count / elapsed
+                    print(f"Processed {count}/{len(games_to_process)} ({rate:.2f} games/s)", end='\r')
+                    
+            # Memory Management
+            if count % config.GC_FREQUENCY == 0:
+                if hasattr(timing, '_SHIFTS_CACHE'):
+                    timing._SHIFTS_CACHE.clear()
+                gc.collect()
+        print("") # newline
             
     print("Cache processing complete.")
 

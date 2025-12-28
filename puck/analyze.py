@@ -250,205 +250,8 @@ def players(season: str = '20252026',
 
     print(f"players: Analyzing {len(target_pids)} players...")
     
-    # Pre-fetch player details if needed
-    from .nhl_api import get_player_details
-    from concurrent.futures import ProcessPoolExecutor, as_completed
-    import os
-
-    # Helper function for parallel execution
-    def _process_single_player(pid, pname, pnum, df_data, base_cond, team, out_dir, season, league_map, league_map_right, plot, min_games):
-        try:
-            # Optimization: Filter data to only games where player played
-            p_games = df_data[df_data['player_id'] == pid]['game_id'].unique()
-            
-            if len(p_games) < min_games:
-                return None
-                
-            p_df = df_data[df_data['game_id'].isin(p_games)].copy()
-            
-            # Infer team if not provided
-            p_team = team
-            if not p_team:
-                p_events = p_df[p_df['player_id'] == pid]
-                if not p_events.empty:
-                    top_team_id = p_events['team_id'].mode()
-                    if not top_team_id.empty:
-                        p_team = top_team_id[0]
-                        try:
-                            row = p_df[(p_df['home_id'] == p_team) | (p_df['away_id'] == p_team)].iloc[0]
-                            if row['home_id'] == p_team:
-                                p_team = row['home_abb']
-                            else:
-                                p_team = row['away_abb']
-                        except Exception:
-                            pass
-
-            # Setup condition for this player
-            p_cond = base_cond.copy()
-            p_cond['player_id'] = pid
-            if p_team:
-                p_cond['team'] = p_team
-            
-            # Output path
-            p_out_path = os.path.join(out_dir, f"{pid}_map.png")
-            
-            # Calculate robust timing
-            timing_res = timing.compute_game_timing(p_df, p_cond, season=season)
-            t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
-            
-            _, ret_heat, _, p_stats = xgs_map(
-                season=season,
-                data_df=p_df,
-                condition=p_cond,
-                out_path=None,
-                return_heatmaps=True,
-                show=False,
-                total_seconds=t_seconds,
-                use_intervals=True,
-                title=pname,
-                stats_only=not plot
-            )
-            
-            if not p_stats:
-                return None
-
-            xg_for = p_stats.get('team_xgs', 0.0)
-            xg_ag = p_stats.get('other_xgs', 0.0)
-            seconds = p_stats.get('team_seconds', 0.0)
-            
-            if seconds <= 0:
-                return None
-
-            xg_for_60 = (xg_for / seconds) * 3600
-            xg_ag_60 = (xg_ag / seconds) * 3600
-            
-            # Relative Map Calculation
-            rel_path = None
-            rel_off_60 = None
-            rel_def_60 = None
-            
-            team_map = None
-            if isinstance(ret_heat, dict):
-                team_map = ret_heat.get('team') or ret_heat.get('home')
-            
-            if team_map is not None and league_map is not None:
-                other_map = ret_heat.get('other') or ret_heat.get('not_team')
-                
-                combined_rel_map, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
-                    team_map, league_map, seconds, other_map, seconds,
-                    league_baseline_right=league_map_right
-                )
-                
-                if plot:
-                    # Plot Relative Map
-                    rel_path = os.path.join(out_dir, f"{pid}_relative.png")
-                    
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    draw_rink(ax=ax)
-                    
-                    from matplotlib.colors import SymLogNorm
-                    norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-0.0006, vmax=0.0006, base=10)
-                    cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
-                    cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
-                    
-                    gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
-                    gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
-                    extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
-                    
-                    cmap = plt.get_cmap('RdBu_r')
-                    try: cmap.set_bad(color=(1,1,1,0)) 
-                    except: pass
-                    
-                    m = np.ma.masked_invalid(combined_rel_map)
-                    im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
-                    
-                    txt_stats = p_stats.copy()
-                    txt_stats['home_xg'] = xg_for
-                    txt_stats['away_xg'] = xg_ag
-                    txt_stats['have_xg'] = True
-                    txt_stats['home_goals'] = p_stats.get('team_goals', 0)
-                    txt_stats['away_goals'] = p_stats.get('other_goals', 0)
-                    txt_stats['home_attempts'] = p_stats.get('team_attempts', 0)
-                    txt_stats['away_attempts'] = p_stats.get('other_attempts', 0)
-                    
-                    # Add percentiles (passed in p_stats if available, or we need to handle them)
-                    # Note: percentiles are not passed to this helper, we need to add them to p_stats before calling or inside
-                    # Actually, percentiles are in the 'percentiles' dict in the main function.
-                    # We can pass them in.
-                    # BUT wait, we can't pass the whole percentiles dict to every worker efficiently?
-                    # It's small enough.
-                    
-                    h_att = txt_stats['home_attempts']
-                    a_att = txt_stats['away_attempts']
-                    tot_att = h_att + a_att
-                    txt_stats['home_shot_pct'] = 100.0 * h_att / tot_att if tot_att > 0 else 0.0
-                    txt_stats['away_shot_pct'] = 100.0 * a_att / tot_att if tot_att > 0 else 0.0
-                    
-                    cond_str = "All"
-                    if base_cond: # Use base_cond as condition
-                         # ... (reconstruct cond_str logic)
-                         pass
-
-                    # We need to reconstruct cond_str logic or pass it in.
-                    # Let's just pass it in or simplify.
-                    
-                    add_summary_text(
-                        ax=ax,
-                        stats=txt_stats,
-                        main_title=pname,
-                        is_season_summary=True,
-                        team_name=team or "UNK",
-                        full_team_name=pname,
-                        filter_str=str(base_cond) # Simplified for now
-                    )
-                    ax.axis('off')
-                    
-                    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-                    cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
-                    if cbar_ticks:
-                        cbar.set_ticks(cbar_ticks)
-                        cbar.set_ticklabels(cbar_ticklabels)
-                    
-                    fig.savefig(rel_path, dpi=150, bbox_inches='tight')
-                    plt.close(fig)
-
-                    # Save Raw Map
-                    try:
-                        from .plot import plot_events
-                        ret_pe = plot_events(
-                            p_df,
-                            out_path=p_out_path,
-                            title=pname,
-                            summary_stats=txt_stats,
-                            plot_kwargs={
-                                'is_season_summary': True,
-                                'filter_str': str(base_cond),
-                                'team_for_heatmap': p_team,
-                            }
-                        )
-                        if ret_pe and len(ret_pe) >= 1:
-                            plt.close(ret_pe[0])
-                    except Exception as e:
-                        print(f"players: Failed to save map for {pid}: {e}")
-
-            return {
-                'player_id': pid,
-                'name': pname,
-                'team': team,
-                'xg_for': xg_for,
-                'xg_against': xg_ag,
-                'toi_sec': seconds,
-                'xg_for_60': xg_for_60,
-                'xg_against_60': xg_ag_60,
-                'rel_off_60': rel_off_60,
-                'rel_def_60': rel_def_60,
-                'map_path': rel_path,
-                'games_played': len(p_games)
-            }
-        except Exception as e:
-            print(f"Error processing {pid}: {e}")
-            return None
-
+    print(f"players: Analyzing {len(target_pids)} players (Parallel={parallel})...")
+    
     # Prepare tasks
     tasks = []
     for pid in target_pids:
@@ -456,43 +259,12 @@ def players(season: str = '20252026',
         pname = pid_name_map.get(pid)
         pnum = pid_num_map.get(pid)
         
-        # ... (name resolution logic same as before) ...
-        if not pname or not pnum:
-             # ... (logic to fetch name) ...
-             # For parallel, maybe skip fetching name if missing to avoid API calls in loop?
-             # Or fetch before?
-             pass
-        
-        if not pname: pname = f"Player {pid}"
-        if pnum: pname = f"{pname} #{int(pnum)}"
-        
-        tasks.append((pid, pname, pnum))
-
-    # Run in parallel
-    # NOTE: We can't pickle the whole df_data efficiently if it's huge.
-    # But on Mac (spawn), it might copy. On fork (default for some), it's COW.
-    # Python 3.8+ on Mac defaults to 'spawn'.
-    # This might be slow to copy df_data.
-    # Alternative: Use threads? Matplotlib is not thread safe.
-    # We stick to sequential for now but optimize the loop?
-    
-    # Actually, the user asked to speed it up.
-    # The bottleneck is likely I/O and plotting.
-    # Let's try to just optimize the loop logic first without full multiprocessing refactor
-    # because passing df_data to workers is heavy.
-    
-    for pid in target_pids:
-    # ... (original loop) ...
-        pid = int(pid)
-        pname = pid_name_map.get(pid)
-        pnum = pid_num_map.get(pid)
-        
         # If name or number missing, try to fetch from API using a game_id
         if not pname or not pnum:
             # Find a game this player played in
-            p_games = df_data[df_data['player_id'] == pid]['game_id'].unique()
+            p_games_for_name = df_data[df_data['player_id'] == pid]['game_id'].unique()
             # Try games in reverse order until we find details
-            for gid in reversed(p_games):
+            for gid in reversed(p_games_for_name):
                 try:
                     details = get_player_details(gid)
                     if pid in details:
@@ -508,252 +280,33 @@ def players(season: str = '20252026',
         if pnum:
             pname = f"{pname} #{int(pnum)}"
         
-        # Optimization: Filter data to only games where player played
-        # This prevents computing timing for the entire season for every player
-        p_games = df_data[df_data['player_id'] == pid]['game_id'].unique()
-        
-        if len(p_games) < min_games:
-            # print(f"players: Skipping {pname} ({len(p_games)} games < {min_games})")
-            continue
-            
-        p_df = df_data[df_data['game_id'].isin(p_games)].copy()
-        
-        # Infer team if not provided
-        p_team = team
-        if not p_team:
-            # Find the team_id associated with the player in p_df
-            # We look for events where player_id == pid and get the team_id
-            p_events = p_df[p_df['player_id'] == pid]
-            if not p_events.empty:
-                # Get most common team_id
-                top_team_id = p_events['team_id'].mode()
-                if not top_team_id.empty:
-                    p_team = top_team_id[0]
-                    # Also try to get abbreviation if possible
-                    # (This is optional but helpful for filenames)
-                    # We can look up home_abb/away_abb where home_id/away_id matches p_team
-                    try:
-                        row = p_df[(p_df['home_id'] == p_team) | (p_df['away_id'] == p_team)].iloc[0]
-                        if row['home_id'] == p_team:
-                            p_team = row['home_abb']
-                        else:
-                            p_team = row['away_abb']
-                    except Exception:
-                        pass
+        tasks.append((pid, pname, pnum))
 
-        # Setup condition for this player
-        p_cond = base_cond.copy()
-        p_cond['player_id'] = pid
-        if p_team:
-            p_cond['team'] = p_team
+    if parallel:
+        print(f"Starting parallel pool for {len(tasks)} items...")
         
-        try:
-            # Output path for this player's map
-            # Use p_team for filename if available
-            # Output path for this player's map
-            # Since we are likely in a team folder, we can simplify the filename
-            # But to be safe and consistent, we'll keep the team prefix or just use PID
-            # User requested "player_ids", let's use just PID if we are in a team folder context?
-            # Actually, let's stick to {pid}_map.png to be clean inside the team folder.
-            p_out_path = os.path.join(out_dir, f"{pid}_map.png")
+        # Note: joblib with n_jobs=-1 uses all available cores. 
+        # For 'loky' backend, passing df_data (large) might use shared memory via memmap if it's large enough (>1MB).
+        # This is strictly better than pickling it.
+        
+        results = Parallel(n_jobs=-1, verbose=5)(
+            delayed(_process_single_player)(
+                pid, pname, pnum, df_data, base_cond, team, out_dir, season, league_map, league_map_right, plot, min_games, percentiles
+            ) for pid, pname, pnum in tasks
+        )
+        
+        # Filter None results
+        for r in results:
+            if r: player_stats.append(r)
             
-            # Calculate robust timing for player
-            timing_res = timing.compute_game_timing(p_df, p_cond, season=season)
-            t_seconds = timing_res.get('aggregate', {}).get('intersection_seconds_total', 0.0)
-            
-            if t_seconds is None:
-                print(f"DEBUG: t_seconds is None for pid={pid}", flush=True)
-                print(f"DEBUG: timing_res keys: {list(timing_res.keys())}", flush=True)
-                print(f"DEBUG: aggregate: {timing_res.get('aggregate')}", flush=True)
-                t_seconds = 0.0
-            try:
-                t_seconds = float(t_seconds)
-            except Exception:
-                t_seconds = 0.0
-
-            _, ret_heat, _, p_stats = xgs_map(
-                season=season,
-                data_df=p_df,
-                condition=p_cond,
-                out_path=None, # Don't save yet, we'll save manually with correct summary text
-                return_heatmaps=True,
-                show=False,
-                total_seconds=t_seconds,
-                use_intervals=True, # Force interval filtering to get On-Ice data
-                title=pname,
-                stats_only=not plot # Optimization: skip heatmap/plotting if we aren't plotting
+    else:
+        # Sequential Loop
+        for pid, pname, pnum in tasks:
+            res = _process_single_player(
+                pid, pname, pnum, df_data, base_cond, team, out_dir, season, league_map, league_map_right, plot, min_games, percentiles
             )
-            
-            if not p_stats:
-                continue
-
-            xg_for = p_stats.get('team_xgs', 0.0)
-            xg_ag = p_stats.get('other_xgs', 0.0)
-            seconds = p_stats.get('team_seconds', 0.0)
-            
-            if seconds <= 0:
-                continue
-
-            xg_for_60 = (xg_for / seconds) * 3600
-            xg_ag_60 = (xg_ag / seconds) * 3600
-            
-            # Relative Map Calculation
-            team_map = None
-            if isinstance(ret_heat, dict):
-                team_map = ret_heat.get('team')
-                if team_map is None:
-                    team_map = ret_heat.get('home')
-            
-            rel_path = None
-            if team_map is not None and league_map is not None:
-                other_map = ret_heat.get('other')
-                if other_map is None:
-                    other_map = ret_heat.get('not_team')
-                
-                # DEBUG: Inspect maps
-                # tm_sum = np.nansum(team_map) if team_map is not None else 0
-                # om_sum = np.nansum(other_map) if other_map is not None else 0
-                # lm_sum = np.nansum(league_map) if league_map is not None else 0
-                # print(f"DEBUG: Relative Map Inputs for {pid}:")
-                # print(f"  Seconds: {seconds}")
-                # print(f"  Team Map Sum: {tm_sum:.4f}, Max: {np.nanmax(team_map) if team_map is not None else 0:.4f}")
-                # print(f"  Other Map Sum: {om_sum:.4f}, Max: {np.nanmax(other_map) if other_map is not None else 0:.4f}")
-                # print(f"  League Map Sum: {lm_sum:.4f}, Max: {np.nanmax(league_map) if league_map is not None else 0:.4f}")
-
-                combined_rel_map, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
-                    team_map, league_map, seconds, other_map, seconds,
-                    league_baseline_right=league_map_right
-                )
-                
-                if plot:
-                    # Plot Relative Map
-                    rel_path = os.path.join(out_dir, f"{pid}_relative.png")
-                    
-                    fig, ax = plt.subplots(figsize=(10, 5))
-                    draw_rink(ax=ax)
-                    
-                    # Use SymLogNorm for relative map (consistent with season analysis)
-                    from matplotlib.colors import SymLogNorm
-                    norm = SymLogNorm(linthresh=1e-5, linscale=1.0, vmin=-0.0006, vmax=0.0006, base=10)
-                    
-                    cbar_ticks = [-0.0006, -0.0001, -0.00001, 0, 0.00001, 0.0001, 0.0006]
-                    cbar_ticklabels = ['High -', 'Med -', 'Low -', 'Avg', 'Low +', 'Med +', 'High +']
-                    
-                    gx = np.arange(-100.0, 100.0 + 1.0, 1.0)
-                    gy = np.arange(-42.5, 42.5 + 1.0, 1.0)
-                    extent = (gx[0] - 0.5, gx[-1] + 0.5, gy[0] - 0.5, gy[-1] + 0.5)
-                    
-                    cmap = plt.get_cmap('RdBu_r')
-                    try: cmap.set_bad(color=(1,1,1,0)) 
-                    except: pass
-                    
-                    m = np.ma.masked_invalid(combined_rel_map)
-                    im = ax.imshow(m, extent=extent, origin='lower', cmap=cmap, norm=norm)
-                    
-                    txt_stats = p_stats.copy()
-                    txt_stats['home_xg'] = xg_for
-                    txt_stats['away_xg'] = xg_ag
-                    txt_stats['have_xg'] = True
-                    
-                    txt_stats['home_goals'] = p_stats.get('team_goals', 0)
-                    txt_stats['away_goals'] = p_stats.get('other_goals', 0)
-                    txt_stats['home_attempts'] = p_stats.get('team_attempts', 0)
-                    txt_stats['away_attempts'] = p_stats.get('other_attempts', 0)
-                    
-                    # Add relative stats for summary text
-                    txt_stats['rel_off_pct'] = rel_off_pct
-                    txt_stats['rel_def_pct'] = rel_def_pct
-                    
-                    # Add percentiles if available
-                    if percentiles and pid in percentiles:
-                        txt_stats['off_percentile'] = percentiles[pid].get('off')
-                        txt_stats['def_percentile'] = percentiles[pid].get('def')
-                    
-                    # Calculate shot percentages if not present
-                    h_att = txt_stats['home_attempts']
-                    a_att = txt_stats['away_attempts']
-                    tot_att = h_att + a_att
-                    if tot_att > 0:
-                        txt_stats['home_shot_pct'] = 100.0 * h_att / tot_att
-                        txt_stats['away_shot_pct'] = 100.0 * a_att / tot_att
-                    else:
-                        txt_stats['home_shot_pct'] = 0.0
-                        txt_stats['away_shot_pct'] = 0.0
-                    
-                    # Format condition string nicely
-                    cond_str = "All"
-                    if condition:
-                        parts = []
-                        if 'game_state' in condition:
-                            parts.append(",".join(condition['game_state']))
-                        if 'is_net_empty' in condition:
-                            val = condition['is_net_empty']
-                            if val == [0]: parts.append("No Empty Net")
-                            elif val == [1]: parts.append("Empty Net")
-                        cond_str = " | ".join(parts) if parts else str(condition)
-
-                    add_summary_text(
-                        ax=ax,
-                        stats=txt_stats,
-                        main_title=pname,
-                        is_season_summary=True,
-                        team_name=team or "UNK",
-                        full_team_name=pname,
-                        filter_str=cond_str
-                    )
-                    ax.axis('off')
-                    
-                    # Colorbar
-                    cbar = fig.colorbar(im, ax=ax, fraction=0.025, pad=0.02)
-                    cbar.set_label('Relative xG/60 Difference', rotation=270, labelpad=20)
-                    if cbar_ticks:
-                        cbar.set_ticks(cbar_ticks)
-                        cbar.set_ticklabels(cbar_ticklabels)
-                    
-                    fig.savefig(rel_path, dpi=150, bbox_inches='tight')
-                    plt.close(fig)
-                    # print(f"players: Generated relative map for {pid} at {rel_path}")
-
-                    # Save the raw map with consistent summary text
-                    try:
-                        from .plot import plot_events
-                        
-                        ret_pe = plot_events(
-                            p_df,
-                            out_path=p_out_path,
-                            title=pname,
-                            summary_stats=txt_stats, # Use txt_stats which has percentiles
-                            plot_kwargs={
-                                'is_season_summary': True,
-                                'filter_str': cond_str,
-                                'team_for_heatmap': p_team,
-                            }
-                        )
-                        if ret_pe and len(ret_pe) >= 1:
-                            plt.close(ret_pe[0])
-                        # print(f"players: Generated map for {pid} at {p_out_path}")
-                    except Exception as e:
-                        print(f"players: Failed to save map for {pid}: {e}")
-
-            player_stats.append({
-                'player_id': pid,
-                'name': pname,
-                'team': team,
-                'xg_for': xg_for,
-                'xg_against': xg_ag,
-                'toi_sec': seconds,
-                'xg_for_60': xg_for_60,
-                'xg_against_60': xg_ag_60,
-                'rel_off_60': rel_off_60 if 'rel_off_60' in locals() else None,
-                'rel_def_60': rel_def_60 if 'rel_def_60' in locals() else None,
-                'map_path': rel_path,
-                'games_played': len(p_games)
-            })
-            
-        except Exception as e:
-            print(f"players: Error analyzing player {pid}: {e}")
-            import traceback
-            traceback.print_exc()
+            if res:
+                player_stats.append(res)
 
     # 6. Aggregate and Plot Scatter
     if not player_stats:
@@ -1368,6 +921,10 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         
         # Use clean_df_for_model with encode_method='none' to preserve raw columns for Nested Model (OHE)
         # This standardizes preprocessing (filtering, is_goal creation) while maintaining compatibility.
+        
+        # Ensure bio features are present (shoots_catches)
+        df_imputed = fit_xgs.enrich_data_with_bios(df_imputed)
+
         df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(
             df_imputed, input_features, fixed_categorical_levels=cat_levels, encode_method='none'
         )

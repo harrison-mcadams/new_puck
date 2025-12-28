@@ -24,6 +24,7 @@ def run_analysis():
     parser.add_argument('--season', type=str, default='20252026')
     parser.add_argument('--vmax', type=float, default=None, help='Global colorbar limit')
     parser.add_argument('--scan-limit', action='store_true', help='Scan for global max limit instead of plotting')
+    parser.add_argument('--turbo', action='store_true', help='Enable parallel processing')
     args = parser.parse_args()
     season = args.season
     global_vmax = args.vmax
@@ -401,34 +402,84 @@ def run_analysis():
     except Exception as e:
         print(f"Warning: Failed to save player summary json: {e}")
 
-    # 3. Plotting Loop
-    print(f"Generating Plots for {len(df_sum)} players...")
+    # Limit for safety in parallel (matplotlib backend issues?)
+    # Agg backend is thread safe-ish but we are using processes.
     
-    processed_pids = set()
-    manifest_updates = {}
+    tasks = []
     
-    global_scan_max = 0.0
-    
-    # Config for GC
-    gc_counter = 0
-    gc_freq = config.GC_FREQUENCY if hasattr(config, 'GC_FREQUENCY') else 50
+    print("Preparing tasks...")
+    # Pre-calculate expensive lookups to avoid passing big dicts/dfs if possible
+    # We pass p_df (filtered) to each worker.
     
     for idx, (index, row) in enumerate(df_sum.iterrows()):
-        if idx % 50 == 0:
-             if scan_limit:
-                 print(f"Scanning Player {idx}/{len(df_sum)}... (Max: {global_scan_max:.4f})", end='\r')
-             else:
-                 print(f"Generating Plots: Player {idx}/{len(df_sum)}...", end='\r')
         pid = int(row['player_id'])
-        pid_int = pid
         
-        # Determine Team
+        # Prepare Args
+        # 1. Player Data Slice (Filter main DF)
+        # This takes memory but ensures worker is independent
+        p_df = df_data[df_data['player_id'] == pid].copy()
+        
+        # 2. Agg Entry
+        agg_entry = global_agg[pid]
+        
+        # 3. Stats & Meta
+        stats_row = row.to_dict() # xg_for_60, etc
+        
+        # 4. Percentiles
+        pcts = pct_map.get(pid, {'off_pctile': 0, 'def_pctile': 0})
+        
+        # 5. Name
         pname = pid_name_map.get(pid, f"Player {pid}")
         
-        # Team Determination logic (Re-use)
-        # We need to peek at stats or use df_data
-        # df_data is still available
-        p_df = df_data[df_data['player_id'] == pid].copy()
+        tasks.append((
+            pid, pname, p_df, agg_entry, stats_row, pcts, 
+            league_map, league_map_right, t_map, out_dir_base, season, 
+            global_vmax, scan_limit
+        ))
+        
+        # Memory optimization: Clear from global_agg to save RAM as we pack into tasks?
+        # Tasks list will hold references. p_df copies data. This duplicates memory!
+        # DANGER: copying p_df for 1200 players might perform OOM on 32GB RAM if DF is huge.
+        # df_data is ~1GB? 1200 copies of subsets... sum of subsets = total size. 
+        # So it's ~1GB total. Safe.
+        
+        global_agg[pid] = None # Clear inner data to help GC
+    
+    # Run
+    global_scan_max = 0.0
+    if hasattr(args, 'turbo') and args.turbo and not scan_limit:
+        from joblib import Parallel, delayed
+        print(f"[TURBO] Generating {len(tasks)} plots in parallel...")
+        
+        results = Parallel(n_jobs=-1, verbose=5)(
+            delayed(process_single_player_plot)(*t) for t in tasks
+        )
+        
+        # Scan limit logic merging
+        if scan_limit:
+            # We need to collect maxes
+            # results would be list of maxes
+            global_scan_max = max([r for r in results if r is not None] + [0.0])
+            
+    else:
+        # Serial
+        print(f"Generating Plots for {len(tasks)} players (Serial)...")
+        for idx, t in enumerate(tasks):
+             if idx % 50 == 0: print(f"Processing {idx}/{len(tasks)}...", end='\r')
+             res = process_single_player_plot(*t)
+             if res is not None and res > global_scan_max:
+                 global_scan_max = res
+                 
+    print("Done.")
+    if scan_limit:
+        print(f"SCAN COMPLETE. Max 80th Percentile (Saturated): {global_scan_max}")
+
+# Helper for Parallel
+def process_single_player_plot(pid, pname, p_df, agg_entry, stats_row, pcts, 
+                               league_map, league_map_right, t_map, out_dir_base, season, 
+                               global_vmax, scan_limit):
+    try:
+        # Determine Team (Logic copied from main)
         p_team = 'UNK'
         if not p_df.empty and 'team_id' in p_df.columns:
              tid_mode = p_df['team_id'].mode()
@@ -439,9 +490,11 @@ def run_analysis():
         if p_team == 'UNK':
              # stats fallback
              team_counts = {}
-             for s in global_agg[pid]['stats']:
-                 t = s.get('team', 'UNK')
-                 team_counts[t] = team_counts.get(t, 0) + 1
+             # agg_entry['stats'] is a list of dicts
+             if agg_entry and 'stats' in agg_entry:
+                 for s in agg_entry['stats']:
+                     t = s.get('team', 'UNK')
+                     team_counts[t] = team_counts.get(t, 0) + 1
              if team_counts:
                  p_team = max(team_counts, key=team_counts.get)
                  
@@ -449,15 +502,14 @@ def run_analysis():
         out_dir_team = os.path.join(out_dir_base, f'{season}/{p_team}')
         os.makedirs(out_dir_team, exist_ok=True)
         
-        # Data
-        agg_entry = global_agg[pid]
-        total_stats = row['stats']
-        seconds = row['seconds']
-        xg_for_60 = row['xg_for_60']
-        xg_ag_60 = row['xg_ag_60']
+        # Unpack Stats
+        total_stats = stats_row['stats']
+        seconds = stats_row['seconds']
+        xg_for_60 = stats_row['xg_for_60']
+        xg_ag_60 = stats_row['xg_ag_60']
         
-        off_p = pct_map[pid]['off_pctile']
-        def_p = pct_map[pid]['def_pctile']
+        off_p = pcts['off_pctile']
+        def_p = pcts['def_pctile']
 
         # Relative Map
         team_map = agg_entry['grid_team']
@@ -465,8 +517,9 @@ def run_analysis():
         
         rel_path = os.path.join(out_dir_team, f"{pid}_relative.png")
         
+        local_max = 0.0
+        
         if team_map is not None and league_map is not None:
-            try:
                 combined_rel, rel_off_pct, rel_def_pct, rel_off_60, rel_def_60 = compute_relative_map(
                     team_map, league_map, seconds, other_map, seconds, 
                     league_baseline_right=league_map_right
@@ -486,19 +539,12 @@ def run_analysis():
                 # Aggressive saturation
                 p80 = np.nanpercentile(np.abs(processed_grid_ma.filled(np.nan)), 80.0)
                 if not np.ma.is_masked(p80) and p80 > 0:
-                     if p80 > global_scan_max:
-                          global_scan_max = p80
+                     local_max = p80
                 
                 if scan_limit:
-                     # Skip plotting
-                     continue
+                     return local_max
                 
                 # Plot using Shared Routine
-                # Debug map integrity
-                # v_min = np.nanmin(combined_rel)
-                # v_max = np.nanmax(combined_rel)
-                # print(f"DEBUG {pname}: Range [{v_min:.5f}, {v_max:.5f}]")
-                
                 minutes = seconds / 60.0
                 display_cond = f"5v5 | {minutes:.1f} min"
                 
@@ -514,8 +560,8 @@ def run_analysis():
                     'other_xg_per60': xg_ag_60,
                     'rel_off_pct': rel_off_pct,
                     'rel_def_pct': rel_def_pct,
-                    'off_percentile': off_p,     # Added!
-                    'def_percentile': def_p,     # Added!
+                    'off_percentile': off_p,     
+                    'def_percentile': def_p,     
                     'home_shot_pct': 0, 'away_shot_pct': 0
                 }
                 
@@ -559,64 +605,35 @@ def run_analysis():
                 fig.savefig(rel_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
                 
-            except Exception as e:
-                print(f"Error plotting relative map for {pname}: {e}")
-                
-            # Raw Plot
-                p_out_path = os.path.join(out_dir_team, f"{pid}_map.png")
-                # Need shots DF. 
-                # p_df is already filtered and ready.
-                
-                custom_styles = {
-                    'goal': {'marker': 'D', 'size': 80, 'team_color': 'green', 'away_color': 'green', 'zorder': 10},
-                    'shot-on-goal': {'marker': 'o', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'},
-                    'missed-shot': {'marker': 'x', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'},
-                    'blocked-shot': {'marker': '^', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'}
-                }
-                
-                plot_events(
-                    p_df, 
-                    events_to_plot=['goal', 'shot-on-goal', 'missed-shot', 'blocked-shot'],
-                    event_styles=custom_styles,
-                    out_path=p_out_path, 
-                    title=f"{pname} - {p_team}", 
-                    summary_stats=txt_props, # Use same enriched stats
-                    heatmap_split_mode='home_away',
-                    plot_kwargs={'is_season_summary': True, 'filter_str': display_cond, 'team_for_heatmap': p_team},
-                    return_heatmaps=False
-                )
-                plt.close('all')
-                
-                # Update Manifest accumulator
-                manifest_updates[str(pid)] = {
-                    'games_played': len(agg_entry['stats']),
-                    'last_game_id': 0 # Simplification or calc
-                }
-                
-            except Exception as e:
-                print(f"Error processing {pname}: {e}")
-                
-        # --- MEMORY OPTIMIZATION ---
-        # Clear specific player data from accumulators instantly
-        global_agg[pid] = None 
-        del agg_entry
-        del p_df
+        # Raw Plot
+        p_out_path = os.path.join(out_dir_team, f"{pid}_map.png")
         
-        # Periodic GC
-        gc_counter += 1
-        if gc_counter >= gc_freq:
-            gc.collect()
-            gc_counter = 0
-            # print(f"DEBUG: GC Collected at player {idx}")
+        custom_styles = {
+            'goal': {'marker': 'D', 'size': 80, 'team_color': 'green', 'away_color': 'green', 'zorder': 10},
+            'shot-on-goal': {'marker': 'o', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'},
+            'missed-shot': {'marker': 'x', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'},
+            'blocked-shot': {'marker': '^', 'size': 30, 'team_color': 'cyan', 'away_color': 'cyan'}
+        }
         
-    # Update Manifest
-    manifest.update(manifest_updates)
-    with open(manifest_path, 'w') as f:
-        json.dump(manifest, f)
+        plot_events(
+            p_df, 
+            events_to_plot=['goal', 'shot-on-goal', 'missed-shot', 'blocked-shot'],
+            event_styles=custom_styles,
+            out_path=p_out_path, 
+            title=f"{pname} - {p_team}", 
+            summary_stats=txt_props, # Use same enriched stats
+            heatmap_split_mode='home_away',
+            plot_kwargs={'is_season_summary': True, 'filter_str': display_cond, 'team_for_heatmap': p_team},
+            return_heatmaps=False
+        )
+        plt.close('all')
         
-    print("Done.")
-    if scan_limit:
-        print(f"SCAN COMPLETE. Max 80th Percentile (Saturated): {global_scan_max}")
+        return local_max
+
+    except Exception as e:
+        print(f"Error plotting {pname}: {e}")
+        return 0.0
 
 if __name__ == "__main__":
     run_analysis()
+

@@ -33,10 +33,11 @@ def main():
     parser.add_argument('--force', action='store_true', help='Force full re-download/re-calc')
     parser.add_argument('--skip-fetch', action='store_true', help='Skip data fetching (use existing CSV)')
     parser.add_argument('--only-5v5', action='store_true', help='Only process 5v5 data')
+    parser.add_argument('--turbo', action='store_true', help='Enable parallel processing for intervals and analysis')
     args = parser.parse_args()
     
     season = args.season
-    print(f"--- Starting Daily Update for Season {season} ---")
+    print(f"--- Starting Daily Update for Season {season} (Turbo={'ON' if args.turbo else 'OFF'}) ---")
     
     # 1. Update Data
     df_season = pd.DataFrame()
@@ -85,10 +86,14 @@ def main():
                     
         # parse._season with use_cache=True will check static/cache/game_ID.json
         # We disable cache if force is True
+        # In Turbo mode, we increase workers for fetching
+        fetch_workers = 16 if args.turbo else 4
+        
         df_season = parse._season(
             season=season, 
             out_path='data', 
-            use_cache=not args.force
+            use_cache=not args.force,
+            max_workers=fetch_workers
         )
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
@@ -99,8 +104,7 @@ def main():
             subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'generate_teams.py')], check=False)
         except Exception as e:
             print(f"Warning: generate_teams.py failed: {e}")
-
-    
+            
     if df_season.empty:
         print("No data found. Exiting.")
         return
@@ -121,17 +125,33 @@ def main():
         print("Filtering to 5v5 only for interval cache.")
         conditions_to_cache = [c for c in conditions_to_cache if c['game_state'] == ['5v5']]
     
-    # We can just call get_game_intervals_cached for each game/condition
-    # It handles the check/compute/save logic.
-    count = 0
-    for game_id in game_ids:
-        for cond in conditions_to_cache:
-            timing.get_game_intervals_cached(game_id, season, cond)
-        count += 1
-        if count % 50 == 0:
-            print(f"Processed intervals for {count}/{len(game_ids)} games...")
-            
-    print("Interval cache updated.")
+    # Parallel Interval Generation
+    if args.turbo:
+        from joblib import Parallel, delayed
+        print(f"[TURBO] Generating intervals in parallel for {len(game_ids)} games...")
+        
+        # Flatten tasks
+        tasks = []
+        for game_id in game_ids:
+            for cond in conditions_to_cache:
+                tasks.append((game_id, season, cond))
+        
+        # Run
+        Parallel(n_jobs=-1, verbose=1)(
+            delayed(timing.get_game_intervals_cached)(*t) for t in tasks
+        )
+        print("Interval cache updated (Parallel).")
+        
+    else:
+        # Serial Interval Generation
+        count = 0
+        for game_id in game_ids:
+            for cond in conditions_to_cache:
+                timing.get_game_intervals_cached(game_id, season, cond)
+            count += 1
+            if count % 50 == 0:
+                print(f"Processed intervals for {count}/{len(game_ids)} games...")
+        print("Interval cache updated.")
 
     # FREE MEMORY: We don't need the season dataframe anymore.
     # This is critical on low-memory devices (Raspberry Pi) as the subprocesses
@@ -157,6 +177,8 @@ def main():
             cmd = [sys.executable, cache_script, '--season', season, '--condition', cond]
             if args.force:
                 cmd.append('--force')
+            if args.turbo:
+                cmd.append('--turbo') # Pass it down
             
             subprocess.run(cmd, check=True)
         except Exception as e:
@@ -200,6 +222,8 @@ def main():
     # Scan Players 5v5
     # Note: run_player_analysis currently defaults to 5v5.
     cmd_p_scan = [sys.executable, player_script, '--season', season, '--scan-limit']
+    if args.turbo:
+        cmd_p_scan.append('--turbo')
     out_p = run_cmd_capture(cmd_p_scan)
     max_p = parse_max(out_p)
     print(f"   Player 5v5 Max: {max_p}")
@@ -227,8 +251,10 @@ def main():
                     '--condition', '5v5', '--vmax', str(vmax_l)], check=True)
                     
     # Plot Players 5v5
-    subprocess.run([sys.executable, player_script, '--season', season, 
-                    '--vmax', str(vmax_p)], check=True)
+    cmd_p_plot = [sys.executable, player_script, '--season', season, '--vmax', str(vmax_p)]
+    if args.turbo:
+        cmd_p_plot.append('--turbo')
+    subprocess.run(cmd_p_plot, check=True)
 
     # Process Other Conditions (League Only)
     if not args.only_5v5:

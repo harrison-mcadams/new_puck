@@ -245,15 +245,23 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
     print(f"Total loaded rows: {len(full_df)}")
 
     # Enrich with Handedness
-    if nhl_api and 'player_id' in full_df.columns and 'game_id' in full_df.columns:
-        print("Enriching with player handedness...")
+    full_df = enrich_data_with_bios(full_df)
+
+    return full_df
+
+def enrich_data_with_bios(df: pd.DataFrame) -> pd.DataFrame:
+    """Add player handedness (shoots_catches) to the DataFrame."""
+    if nhl_api and 'player_id' in df.columns and 'game_id' in df.columns:
+        # print("Enriching with player handedness...")
         try:
             # derive season start year from first 4 chars of game_id
-            full_df['temp_season_start'] = full_df['game_id'].astype(str).str[:4]
+            df['temp_season_start'] = df['game_id'].astype(str).str[:4]
             # filter out non-digit
-            full_df = full_df[full_df['temp_season_start'].str.isdigit()].copy()
-            full_df['temp_season_start'] = full_df['temp_season_start'].astype(int)
-            unique_starts = full_df['temp_season_start'].unique()
+            # We work on a copy to determine unique seasons, but map back to original
+            starts = df['temp_season_start']
+            # handle potential non-numeric or NaN
+            mask = starts.astype(str).str.isdigit()
+            unique_starts = starts[mask].astype(int).unique()
             
             master_map = {}
             for start_year in unique_starts:
@@ -261,22 +269,29 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
                 if start_year < 1900 or start_year > 2100:
                     continue
                 season_str = f"{start_year}{start_year + 1}"
-                print(f"Fetching bios for season {season_str}...")
+                # print(f"Fetching bios for season {season_str}...")
                 bios = nhl_api.get_season_player_bios(season_str)
                 master_map.update(bios)
             
             # Map values
-            full_df['shoots_catches'] = full_df['player_id'].map(master_map)
+            df['shoots_catches'] = df['player_id'].map(master_map)
             # Default missing to 'L' (most common)
-            full_df['shoots_catches'] = full_df['shoots_catches'].fillna('L')
+            df['shoots_catches'] = df['shoots_catches'].fillna('L')
             
-            full_df.drop(columns=['temp_season_start'], inplace=True)
-            print("Handedness enrichment complete.")
+            if 'temp_season_start' in df.columns:
+                df.drop(columns=['temp_season_start'], inplace=True)
+            # print("Handedness enrichment complete.")
             
         except Exception as e:
             print(f"Warning: Handedness enrichment failed: {e}")
-
-    return full_df
+            if 'shoots_catches' not in df.columns:
+                df['shoots_catches'] = 'L'
+    else:
+        # ensuring column exists if we can't enrich
+        if 'shoots_catches' not in df.columns:
+             df['shoots_catches'] = 'L'
+             
+    return df
 
 def compare_models(configs: List[ModelConfig], 
                    df_train: pd.DataFrame, 
