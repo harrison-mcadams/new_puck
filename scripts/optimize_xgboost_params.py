@@ -22,7 +22,7 @@ from puck import fit_xgboost_nested, fit_xgs, features
 
 # --- CONFIGURATION ---
 OUTPUT_FILE = Path('analysis/nested_xgs/best_params_xgboost.json')
-N_ITER = 20 # Number of parameter combinations to try
+N_ITER = 30 # Number of parameter combinations to try
 CV_FOLDS = 3
 RANDOM_STATE = 42
 NAN_MASK_RATE = 0.05
@@ -105,14 +105,18 @@ def main():
     if OUTPUT_FILE.exists():
         with open(OUTPUT_FILE, 'r') as f:
             try:
-                results = json.load(f)
-                print(f"Loaded existing results: {list(results.keys())}")
+                # FORCE RE-RUN: Ignore existing results for a new feature set
+                # results = json.load(f)
+                # print(f"Loaded existing results: {list(results.keys())}")
+                print("Note: Overwriting existing results for fresh optimization with new feature set.")
+                results = {}
             except:
                 pass
 
     # Features
-    # Note: These match the XGBNestedXGClassifier defaults exactly
-    feature_cols = ['distance', 'angle_deg', 'game_state', 'shot_type', 'shoots_catches']
+    # Explicitly use the 'all_inclusive' set
+    feature_cols = features.get_features('all_inclusive')
+    print(f"Optimizing for {len(feature_cols)} features: {feature_cols}")
     
     # --- BLOCK LAYER ---
     if 'block' not in results:
