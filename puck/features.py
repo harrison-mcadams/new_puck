@@ -15,16 +15,15 @@ SHOT_TYPE = ['shot_type']
 HANDEDNESS = ['shoots_catches']
 
 # prior event
-# - rebounds
-# - cycle
-# - rush
+REBOUND = ['is_rebound', 'rebound_angle_change', 'rebound_time_diff']
+PRIOR_EVENT = ['last_event_type', 'last_event_time_diff']
 
 # Named Feature Sets
 FEATURE_SETS = {
     'minimal': COORDINATES,
     'baseline': COORDINATES + ['game_state'] + SHOT_TYPE + HANDEDNESS,
-    'standard': COORDINATES + SITUATION,
-    'all_inclusive': COORDINATES + SITUATION + SHOT_TYPE + HANDEDNESS,
+    'standard': COORDINATES + SITUATION + REBOUND + PRIOR_EVENT,
+    'all_inclusive': COORDINATES + SITUATION + SHOT_TYPE + HANDEDNESS + REBOUND + PRIOR_EVENT,
 }
 
 def get_features(name: str = 'standard') -> List[str]:

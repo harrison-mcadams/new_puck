@@ -866,6 +866,10 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
     else:
         period_side_map = {}
 
+    # State for sequence and rebound tracking
+    last_event: Dict[str, Any] = {}
+    team_last_shot: Dict[Any, Dict[str, Any]] = {}
+
     for ev in rows:
         try:
             rec = dict(ev)  # shallow copy
@@ -990,6 +994,56 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
             # periodTimeType was only needed to compute elapsed seconds earlier;
             # remove it so final records do not include this transient field.
             rec.pop('periodTimeType', None)
+
+            # --- Sequence and Rebound Features ---
+            # Initialize potential feature fields
+            rec['last_event_type'] = None
+            rec['last_event_time_diff'] = None
+            rec['is_rebound'] = 0
+            rec['rebound_angle_change'] = None
+            rec['rebound_time_diff'] = None
+
+            # 1. Prior Event Context (independent of team)
+            if last_event:
+                rec['last_event_type'] = last_event.get('event')
+                if total_elapsed is not None and last_event.get('total_time_elapsed_s') is not None:
+                    rec['last_event_time_diff'] = float(total_elapsed - last_event.get('total_time_elapsed_s'))
+
+            # 2. Rebound Logic (specific to shot attempts by the same team)
+            shot_attempt_types = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+            is_shot = rec.get('event') in shot_attempt_types
+            tid = rec.get('team_id')
+
+            if is_shot and tid is not None:
+                prev_shot = team_last_shot.get(tid)
+                if prev_shot and total_elapsed is not None:
+                    # check if the last shot was in the same period and within a threshold (5 seconds)
+                    time_diff = total_elapsed - prev_shot.get('time')
+                    if time_diff <= 5 and rec.get('period') == prev_shot.get('period'):
+                        rec['is_rebound'] = 1
+                        rec['rebound_time_diff'] = float(time_diff)
+                        # We need angle_deg from the current and previous same-team shot
+                        # Angle info is stored if available
+                        curr_angle = rec.get('angle_deg')
+                        prev_angle = prev_shot.get('angle')
+                        if curr_angle is not None and prev_angle is not None:
+                            rec['rebound_angle_change'] = float(abs(curr_angle - prev_angle))
+
+                # Update team's last shot state (even if not a rebound)
+                team_last_shot[tid] = {
+                    'angle': rec.get('angle_deg'),
+                    'time': total_elapsed,
+                    'period': rec.get('period')
+                }
+
+            # 3. Update Global Sequence State (last coordinate-bearing event)
+            if x is not None and y is not None:
+                last_event = {
+                    'event': rec.get('event'),
+                    'total_time_elapsed_s': total_elapsed,
+                    'x': x,
+                    'y': y
+                }
 
             elaborated_game_feed.append(rec)
 

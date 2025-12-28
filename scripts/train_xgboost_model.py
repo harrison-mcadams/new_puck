@@ -119,7 +119,7 @@ df_test['prob_accuracy'] = clf.predict_proba_layer(df_test, 'accuracy')
 df_test['prob_finish'] = clf.predict_proba_layer(df_test, 'finish')
 
 # Save to CSV for manual inspection
-debug_csv_path = 'analysis/nested_xgs/test_predictions.csv'
+debug_csv_path = 'analysis/nested_xgs/test_predictions_new.csv'
 Path(debug_csv_path).parent.mkdir(parents=True, exist_ok=True)
 df_test.to_csv(debug_csv_path, index=False)
 print(f"Predictions saved to {debug_csv_path}")
