@@ -112,10 +112,10 @@ def finish_setup():
     
     try:
         from puck.impute import impute_blocked_shot_origins
-        print("Applying 'mean_6' imputation...")
+        print("Applying 'point_pull' imputation...")
         # Note: impute_blocked_shot_origins modifies a copy if not inplace? 
         # Actually it usually returns a new DF or modifies. Let's assume standard usage.
-        df_nested_input = impute_blocked_shot_origins(combined_df, method='mean_6')
+        df_nested_input = impute_blocked_shot_origins(combined_df, method='point_pull')
         
         clf_nested = fit_nested_xgs.NestedXGClassifier(
             n_estimators=200, 

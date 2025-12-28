@@ -28,7 +28,7 @@ def main():
     # Preprocess (Standard Regular Season Exclusions)
     df = fit_nested_xgs.preprocess_features(df_raw)
     from puck import impute
-    df = impute.impute_blocked_shot_origins(df, method='mean_6')
+    df = impute.impute_blocked_shot_origins(df, method='point_pull')
     
     # Add season
     df['season'] = df['game_id'].astype(str).str[:4]

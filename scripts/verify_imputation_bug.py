@@ -21,7 +21,7 @@ def main():
         return
 
     # Apply imputation
-    df_imputed = impute.impute_blocked_shot_origins(blocks, method='mean_6')
+    df_imputed = impute.impute_blocked_shot_origins(blocks, method='point_pull')
     
     # Compare distances
     comparison = pd.DataFrame({

@@ -99,7 +99,7 @@ def impute_origins(df: pd.DataFrame, method: str) -> pd.DataFrame:
     Methods:
     - 'baseline': No change (uses raw block location).
     - 'fixed_15': 15ft back-projection.
-    - 'mean_6': 6ft back-projection (HockeyViz approximation).
+    - 'point_pull': Point-Pull / Smooth Point Prior strategy.
     """
     df_out = df.copy()
     
@@ -139,7 +139,7 @@ def impute_origins(df: pd.DataFrame, method: str) -> pd.DataFrame:
         # Determine imputation distance D
         if method == 'fixed_15':
             d = 15.0
-        elif method == 'mean_6':
+        elif method in ['point_pull', 'mean_6']:
             d = 5.64 
         else:
             raise ValueError(f"Unknown method {method}")
@@ -214,7 +214,7 @@ def main():
     results = {}
     
     # 3. Compare Methods
-    methods = ['baseline', 'fixed_15', 'mean_6']
+    methods = ['baseline', 'fixed_15', 'point_pull']
     
     for m in methods:
         # Create imputed version of dataframe

@@ -43,7 +43,7 @@ def test_imputation():
     # Fix seed for reproducibility of stochastic distance
     np.random.seed(42)
     
-    df_imp = impute.impute_blocked_shot_origins(df, method='mean_6')
+    df_imp = impute.impute_blocked_shot_origins(df, method='point_pull')
     
     print("\nImputed Data:")
     cols = ['x', 'y', 'imputed_x', 'imputed_y', 'distance', 'angle_deg']

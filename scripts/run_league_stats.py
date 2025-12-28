@@ -316,6 +316,8 @@ def run_league_analysis():
         league_norm_grid = league_grid_sum / total_team_seconds
         
         # Save Baseline
+        np.save(os.path.join(out_root, f'{season}_league_baseline.npy'), league_norm_grid)
+        # Also save legacy name for safety or if scripts expect it
         np.save(os.path.join(out_root, 'baseline.npy'), league_norm_grid)
         
         # 2. Compute Rates and Percentiles
@@ -517,6 +519,12 @@ def run_league_analysis():
         # 3. Scatter Plot (only if not scanning)
         if not scan_limit and summary_list:
             df_sum = pd.DataFrame(summary_list)
+            # Save summary files with season prefix to match analyze.py expectation
+            df_sum.to_csv(os.path.join(out_root, f'{season}_team_summary.csv'), index=False)
+            with open(os.path.join(out_root, f'{season}_team_summary.json'), 'w') as f:
+                json.dump(summary_list, f)
+            
+            # Legacy names
             df_sum.to_csv(os.path.join(out_root, 'team_summary.csv'), index=False)
             with open(os.path.join(out_root, 'team_summary.json'), 'w') as f:
                 json.dump(summary_list, f)

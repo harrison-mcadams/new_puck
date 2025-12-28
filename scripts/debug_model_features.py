@@ -36,7 +36,7 @@ def debug_features():
     # 1. Impute (as in analyze._predict_xgs)
     try:
         from puck import impute
-        df_imputed = impute.impute_blocked_shot_origins(df_5v5, method='mean_6')
+        df_imputed = impute.impute_blocked_shot_origins(df_5v5, method='point_pull')
     except Exception as e:
         print(f"Impute fallback: {e}")
         df_imputed = df_5v5.copy()

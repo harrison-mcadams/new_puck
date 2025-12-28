@@ -54,7 +54,7 @@ def main():
         df_shots['game_state'] = '5v5'
         
     print("Applying blocked shot imputation...")
-    df_shots = impute.impute_blocked_shot_origins(df_shots, method='mean_6')
+    df_shots = impute.impute_blocked_shot_origins(df_shots, method='point_pull')
         
     try:
         probs = clf.predict_proba(df_shots)[:, 1]

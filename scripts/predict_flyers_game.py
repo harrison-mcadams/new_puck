@@ -112,7 +112,7 @@ def main():
     # 3. PREPARE DATA FOR MODELS
     # Nested needs imputation
     logger.info("Imputing for Nested Model...")
-    df_game_imputed = impute.impute_blocked_shot_origins(df_game, method='mean_6')
+    df_game_imputed = impute.impute_blocked_shot_origins(df_game, method='point_pull')
     
     # 4. PREDICTIONS
     

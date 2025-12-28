@@ -908,10 +908,10 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         try:
             from . import impute
             # Use same method as training
-            df_imputed = impute.impute_blocked_shot_origins(df_shots, method='mean_6')
+            df_imputed = impute.impute_blocked_shot_origins(df_shots, method='point_pull')
         except ImportError:
              import impute
-             df_imputed = impute.impute_blocked_shot_origins(df_shots, method='mean_6')
+             df_imputed = impute.impute_blocked_shot_origins(df_shots, method='point_pull')
         except Exception as e:
             print(f"Warning: Imputation failed in _predict_xgs: {e}")
         if is_xgboost:

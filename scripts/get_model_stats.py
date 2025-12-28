@@ -52,7 +52,7 @@ def get_stats():
     
     # Nested Model Substats
     df_n_eval = df_eval.loc[df_s_eval.index].copy()
-    df_n_imp = impute.impute_blocked_shot_origins(df_n_eval, method='mean_6')
+    df_n_imp = impute.impute_blocked_shot_origins(df_n_eval, method='point_pull')
     p_nested = clf_nested.predict_proba(df_n_imp)[:, 1]
     
     def print_metrics(name, y, p):

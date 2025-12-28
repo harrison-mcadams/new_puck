@@ -138,7 +138,7 @@ def main():
             except ImportError:
                 import impute
             
-            df_nested_imputed = impute.impute_blocked_shot_origins(df_nested_train, method='mean_6')
+            df_nested_imputed = impute.impute_blocked_shot_origins(df_nested_train, method='point_pull')
             
             # Initialize & Fit
             hp_block = opt_results.get('Nested_Block', {}) if fset == 'all_inclusive' else {}
@@ -168,7 +168,7 @@ def main():
                 'feature_set_name': fset,
                 'raw_features': features,
                 'final_features': clf_nested.final_features,
-                'imputation': 'mean_6'
+                'imputation': 'point_pull'
             }
             with open(str(model_path) + '.meta.json', 'w') as f:
                 json.dump(meta, f)
@@ -230,7 +230,7 @@ def main():
         else:
             # Nested model handles raw input (with imputation)
             from puck import impute
-            df_imp = impute.impute_blocked_shot_origins(df_test, method='mean_6')
+            df_imp = impute.impute_blocked_shot_origins(df_test, method='point_pull')
             y_test = (df_imp['event'] == 'goal').astype(int).values
             p_test = clf.predict_proba(df_imp)[:, 1]
             

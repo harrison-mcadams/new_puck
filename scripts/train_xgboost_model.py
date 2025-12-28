@@ -65,7 +65,7 @@ if n_blocked > 0:
 try:
     from puck import impute
     print("Applying blocked shot coordinate imputation...")
-    df = impute.impute_blocked_shot_origins(df, method='mean_6')
+    df = impute.impute_blocked_shot_origins(df, method='point_pull')
 except Exception as e:
     print(f"Warning: Could not impute coordinates: {e}")
 

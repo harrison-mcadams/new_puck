@@ -65,8 +65,8 @@ def main():
     print(f"Total shots: {len(all_shots)}")
     print(f"Blocks: {len(blocks)}")
     
-    # Apply CURRENT (BORKED) imputation to blocks
-    borked_blocks = impute.impute_blocked_shot_origins(blocks, method='mean_6')
+    # Apply CURRENT imputation to blocks
+    borked_blocks = impute.impute_blocked_shot_origins(blocks, method='point_pull')
     
     # Apply CORRECTED imputation to blocks
     corrected_results = blocks.apply(lambda r: corrected_impute_row(r), axis=1)
@@ -96,9 +96,9 @@ def main():
     # Plot 3: Borked vs Corrected Imputation (X-coordinates)
     ax = axes[1, 0]
     ax.hist(blocks['distance'], bins=50, alpha=0.3, label='Nominal', density=True)
-    ax.hist(borked_blocks['distance'], bins=50, alpha=0.3, label='Borked Impute', density=True)
+    ax.hist(borked_blocks['distance'], bins=50, alpha=0.3, label='Point Pull', density=True)
     ax.hist(blocks['distance_corr'], bins=50, alpha=0.3, label='Corrected Impute', density=True)
-    ax.set_title("Distance Distribution: Nominal vs Imputed")
+    ax.set_title("Distance Distribution: Nominal vs Point Pull")
     ax.set_xlabel("Distance")
     ax.legend()
     
@@ -121,7 +121,7 @@ def main():
     summary = pd.DataFrame({
         'SOG/Goal/Miss': others['distance'].describe(),
         'Block (Nominal)': blocks['distance'].describe(),
-        'Block (Current BORKED)': borked_blocks['distance'].describe(),
+        'Block (Point Pull)': borked_blocks['distance'].describe(),
         'Block (Corrected)': blocks['distance_corr'].describe()
     })
     print(summary)
@@ -131,7 +131,7 @@ def main():
     if len(left_blocks) > 0:
         print("\nLeft-goal Blocked Shots (x < 0):")
         print(f"Mean distance (Nominal): {left_blocks['distance'].mean():.2f}")
-        print(f"Mean distance (Borked): {borked_blocks.loc[left_blocks.index, 'distance'].mean():.2f}")
+        print(f"Mean distance (Point Pull): {borked_blocks.loc[left_blocks.index, 'distance'].mean():.2f}")
         print(f"Mean distance (Corrected): {left_blocks['distance_corr'].mean():.2f}")
 
 if __name__ == "__main__":

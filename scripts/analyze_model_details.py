@@ -152,7 +152,7 @@ def analyze_feature_effects(clf_single, clf_nested, df):
     df_unblocked = df[df['event'] != 'blocked-shot'].copy()
     
     # Impute for nested
-    df_imp = impute.impute_blocked_shot_origins(df_unblocked, method='mean_6')
+    df_imp = impute.impute_blocked_shot_origins(df_unblocked, method='point_pull')
     
     # Predict Single
     # We must clean/encode first using metadata logic
@@ -274,7 +274,7 @@ def analyze_game_calibration(clf_single, clf_nested, df):
     df_play = df[mask_events].copy()
     
     # Impute
-    df_imp = impute.impute_blocked_shot_origins(df_play, method='mean_6')
+    df_imp = impute.impute_blocked_shot_origins(df_play, method='point_pull')
     
     # Predict Single
     # We must clean/encode first using metadata logic

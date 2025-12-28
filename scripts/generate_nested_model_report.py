@@ -68,7 +68,7 @@ def main():
     
     # Apply Imputation
     print("Applying imputation for blocked shots...")
-    df_imp = impute.impute_blocked_shot_origins(df, method='mean_6')
+    df_imp = impute.impute_blocked_shot_origins(df, method='point_pull')
     
     # 3. Evaluate
     print("Running predictions...")

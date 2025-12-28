@@ -42,7 +42,7 @@ def calculate_geometry(df_in: pd.DataFrame, x_col='x', y_col='y', net_x=89, net_
     
     return dist, angle_deg
 
-def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'mean_6', 
+def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'point_pull', 
                                 x_col='x', y_col='y') -> pd.DataFrame:
     """
     Updates 'imputed_x', 'imputed_y', 'distance', 'angle_deg'.
@@ -117,7 +117,7 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'mean_6',
     # sends the imputed point to the boards (x=89, y=42). 
     # We blend the radial vector with a "Center Pull" vector for deep blocks to bias origins towards the Point.
     
-    if method == 'mean_6':
+    if method in ['point_pull', 'mean_6']:
         # 1. Identify "Deep Blocks" (e.g. < 30ft)
         is_deep = (mag < 30.0)
         

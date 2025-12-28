@@ -109,7 +109,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
                  min_samples_leaf: int = 5,
                  max_features: Any = 'sqrt',
                  random_state: int = 42,
-                 imputation_method: str = 'mean_6',
+                 imputation_method: str = 'point_pull',
                  unknown_shot_type_val: str = 'Unknown',
                  block_params: Dict = None,
                  accuracy_params: Dict = None,
@@ -655,8 +655,8 @@ def main():
     except ImportError:
         import impute
         
-    logger.info("Applying 'mean_6' imputation for blocked shots...")
-    df_imputed = impute.impute_blocked_shot_origins(df, method='mean_6')
+    logger.info("Applying 'point_pull' imputation for blocked shots...")
+    df_imputed = impute.impute_blocked_shot_origins(df, method='point_pull')
     
     # 2. Evaluation Split
     logger.info("Splitting data for evaluation (80/20)...")
@@ -762,7 +762,7 @@ def main():
     # Save Metadata
     meta = {
         'model_type': 'nested',
-        'imputation': 'mean_6',
+        'imputation': 'point_pull',
         'training_rows': len(df_imputed),
         'final_features': clf.final_features
     }

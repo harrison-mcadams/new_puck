@@ -112,9 +112,9 @@ def main():
 
     # --- MODEL 2: NESTED MODEL ---
     logger.info("\n--- Training Nested Model ---")
-    # Uses 'mean_6' imputation
-    logger.info("Applying 'mean_6' imputation...")
-    df_nested_imp = impute.impute_blocked_shot_origins(full_df, method='mean_6')
+    # Uses 'point_pull' imputation
+    logger.info("Applying 'point_pull' imputation...")
+    df_nested_imp = impute.impute_blocked_shot_origins(full_df, method='point_pull')
     
     # NestedXGClassifier handles the rest (encoding, etc.)
     clf_nested = fit_nested_xgs.NestedXGClassifier(
@@ -134,7 +134,7 @@ def main():
     # The NestedXGClassifier class stores feature lists in its config
     meta_n = {
         'model_type': 'nested',
-        'imputation': 'mean_6'
+        'imputation': 'point_pull'
     }
     with open(out_path_n + '.meta.json', 'w') as f:
         json.dump(meta_n, f, indent=2)

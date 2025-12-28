@@ -67,7 +67,7 @@ def check_consistency():
     try:
         # FIX SEED SAME AS ABOVE
         np.random.seed(42)
-        df_train_logic = impute.impute_blocked_shot_origins(df_train_logic, method='mean_6')
+        df_train_logic = impute.impute_blocked_shot_origins(df_train_logic, method='point_pull')
     except: pass
     
     # Predict directly

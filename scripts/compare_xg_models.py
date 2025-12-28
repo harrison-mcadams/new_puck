@@ -113,7 +113,7 @@ def main():
     
     
     # --- MODEL B: NESTED MODEL ---
-    # Rules: Uses "mean_6" imputation.
+    # Rules: Uses "point_pull" imputation.
     # We train on full set (imputed).
     # We test on full set (imputed).
     # NOTE: The "Test Set" for Nested includes Blocked Shots (where goal=0).
@@ -126,8 +126,8 @@ def main():
     print("\n--- Evaluating Nested Model ---")
     
     # Impute on the RAW splits (to avoid leakage)
-    train_nested_imp = impute.impute_blocked_shot_origins(train_df_raw, method='mean_6')
-    test_nested_imp = impute.impute_blocked_shot_origins(test_df_raw, method='mean_6')
+    train_nested_imp = impute.impute_blocked_shot_origins(train_df_raw, method='point_pull')
+    test_nested_imp = impute.impute_blocked_shot_origins(test_df_raw, method='point_pull')
     
     # Fit
     clf_nested = fit_nested_xgs.NestedXGClassifier(
