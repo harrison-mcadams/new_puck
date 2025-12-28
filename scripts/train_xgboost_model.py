@@ -15,9 +15,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from sklearn.model_selection import train_test_split
-from sklearn.metrics import log_loss, roc_auc_score
+from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss, classification_report
 from sklearn.calibration import calibration_curve
 import joblib
+import json
 
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
@@ -148,7 +149,90 @@ plt.savefig(out_path)
 print(f"Saved calibration plots to {out_path}")
 
 # %%
-# 8. SAVE MODEL
+# 8. Full Summary Diagnostics
+print("\n--- Generating Full Diagnostics ---")
+
+# A. Feature Importance Plots
+def plot_importance(model, feature_names, title, ax):
+    if model is None:
+        return
+    importances = model.feature_importances_
+    indices = np.argsort(importances)
+    ax.barh(range(len(indices)), importances[indices], align='center')
+    ax.set_yticks(range(len(indices)))
+    ax.set_yticklabels([feature_names[i] for i in indices])
+    ax.set_xlabel('Relative Importance')
+    ax.set_title(title)
+
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+plot_importance(clf.model_block, clf.config_block.feature_cols, "Block Model Importance", axes[0])
+plot_importance(clf.model_accuracy, clf.config_accuracy.feature_cols, "Accuracy Model Importance", axes[1])
+plot_importance(clf.model_finish, clf.config_finish.feature_cols, "Finish Model Importance", axes[2])
+plt.tight_layout()
+imp_path = Path('analysis/nested_xgs/feature_importance.png')
+plt.savefig(imp_path)
+print(f"Saved feature importance to {imp_path}")
+
+# B. Textual Report
+report_path = Path('analysis/nested_xgs/training_report.txt')
+with open(report_path, 'w') as f:
+    f.write("XGBoost Nested Model Training Report\n")
+    f.write("====================================\n\n")
+    
+    # Model Config
+    f.write("Model Configuration:\n")
+    f.write(f"  n_estimators: {clf.n_estimators}\n")
+    f.write(f"  max_depth: {clf.max_depth}\n")
+    f.write(f"  learning_rate: {clf.learning_rate}\n")
+    f.write(f"  nan_mask_rate: {getattr(clf, 'nan_mask_rate', 'N/A')}\n")
+    f.write(f"  enable_categorical: {clf.enable_categorical}\n\n")
+    
+    # Overall Metrics
+    f.write("Overall Performance (Test Set):\n")
+    f.write(f"  AUC: {auc:.4f}\n")
+    f.write(f"  LogLoss: {ll:.4f}\n")
+    f.write(f"  Avg Predicted xG: {probs.mean():.4f}\n")
+    f.write(f"  Actual Goal Rate: {y_test_goal.mean():.4f}\n")
+    f.write(f"  Ratio (Pred/Act): {probs.mean() / y_test_goal.mean():.4f}\n\n")
+    
+    # Layer Metrics
+    f.write("Layer Performance:\n")
+    # Block
+    block_auc = roc_auc_score(df_test['is_blocked'], p_block)
+    block_brier = brier_score_loss(df_test['is_blocked'], p_block)
+    f.write(f"  Block Model:\n    AUC: {block_auc:.4f}\n    Brier: {block_brier:.4f}\n")
+    
+    # Accuracy
+    if mask_unblocked.any():
+        acc_auc = roc_auc_score(df_acc['is_on_net'], p_acc)
+        acc_brier = brier_score_loss(df_acc['is_on_net'], p_acc)
+        f.write(f"  Accuracy Model:\n    AUC: {acc_auc:.4f}\n    Brier: {acc_brier:.4f}\n")
+        
+    # Finish
+    if mask_on_net.any():
+        fin_auc = roc_auc_score(df_fin['is_goal'], p_fin)
+        fin_brier = brier_score_loss(df_fin['is_goal'], p_fin)
+        f.write(f"  Finish Model:\n    AUC: {fin_auc:.4f}\n    Brier: {fin_brier:.4f}\n")
+
+    # Blocked Shot Analysis (Post-fix verification)
+    f.write("\nBlocked Shot Analysis (Test Sample):\n")
+    mask_test_blocked = df_test['is_blocked'] == 1
+    if mask_test_blocked.any():
+        blocked_xg_mean = df_test.loc[mask_test_blocked, 'xG'].mean()
+        blocked_xg_max  = df_test.loc[mask_test_blocked, 'xG'].max()
+        blocked_fin_mean = df_test.loc[mask_test_blocked, 'prob_finish'].mean()
+        blocked_fin_max = df_test.loc[mask_test_blocked, 'prob_finish'].max()
+        
+        f.write(f"  Count: {mask_test_blocked.sum()}\n")
+        f.write(f"  Mean xG: {blocked_xg_mean:.4f}\n")
+        f.write(f"  Max xG: {blocked_xg_max:.4f}\n")
+        f.write(f"  Mean Finish Prob: {blocked_fin_mean:.4f} (Goal: Low due to fix)\n")
+        f.write(f"  Max Finish Prob:  {blocked_fin_max:.4f}\n")
+
+print(f"Saved training report to {report_path}")
+
+# %%
+# 9. SAVE MODEL
 # We save to the location analyze.py expects
 # Using "all" as suffix since we might retrain on full data, but for dev we save this one
 model_path = Path('analysis/xgs/xg_model_nested_all.joblib')
