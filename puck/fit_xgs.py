@@ -65,6 +65,17 @@ except ImportError:
         print(f"Warning: Could not import NestedXGClassifier: {e}")
         NestedXGClassifier = None
 
+# Import XGBoost Nested Model
+try:
+    from . import fit_xgboost_nested
+    XGBNestedXGClassifier = fit_xgboost_nested.XGBNestedXGClassifier
+except ImportError:
+    try:
+        import fit_xgboost_nested
+        XGBNestedXGClassifier = fit_xgboost_nested.XGBNestedXGClassifier
+    except ImportError:
+        XGBNestedXGClassifier = None
+
 # Import Config for valid Data Directory
 try:
     from . import config as puck_config

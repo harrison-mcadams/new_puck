@@ -112,30 +112,57 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'mean_6',
     # We sample target distances from a Normal Distribution (mean=55ft, std=8ft) to create a natural spread.
     # This prevents artificial "walls" or detectable patterns while eliminating False Slot Shots.
     
+    # NEW (Verification Step Correction):
+    # If the block is very close to the goal line (e.g. mag < 30 and ux is small), purely radial projection
+    # sends the imputed point to the boards (x=89, y=42). 
+    # We blend the radial vector with a "Center Pull" vector for deep blocks to bias origins towards the Point.
+    
     if method == 'mean_6':
         # 1. Identify "Deep Blocks" (e.g. < 30ft)
         is_deep = (mag < 30.0)
         
         # 2. Generate Target Distances (Normal Dist ~ 55ft)
-        # We use a fixed seed if we want reproducibility, or just random
-        # Generating for ALL rows then masking is faster/cleaner
-        target_dists = np.random.normal(loc=55.0, scale=8.0, size=len(df_out))
+        target_dists = np.random.normal(loc=55.0, scale=8.0, size=len(bx))
         
-        # 3. Calculate how far we need to project to reach that target
-        # d_proj = target - current_mag
-        # But allow negative projection? No.
-        # And ensure at least default projection
+        # 3. Calculate Projection Distance
         d_proj_deep = np.maximum(5.64, target_dists - mag)
-        
-        # 4. Combine: Use Deep Logic for deep blocks, Default (5.64) for others
         d_proj = np.where(is_deep, d_proj_deep, 5.64)
+        
+        # 4. Modify Direction Vectors (Deep Blocks Only)
+        # Vector pointing from Net to Center Ice (0,0) is (-sign(net_x), 0)
+        # We blend the observed vector (ux, uy) with this center vector
+        # Blend factor alpha depends on depth? Let's use constant 0.5 for deep blocks to ensure significant pull.
+        
+        # Target Vector: (-sign(net_x), 0)
+        # If net_x is 89, target is (-1, 0).
+        t_ux = -np.sign(net_x) 
+        t_uy = 0.0
+        
+        # Blend Factor (0.0 = Raw, 1.0 = Pure Point)
+        # Use 0.5 for deep blocks, 0.0 otherwise
+        alpha = np.where(is_deep, 0.5, 0.0)
+        
+        # Blend
+        ux_blend = (1 - alpha) * ux + alpha * t_ux
+        uy_blend = (1 - alpha) * uy + alpha * t_uy
+        
+        # Re-Normalize
+        mag_blend = np.sqrt(ux_blend**2 + uy_blend**2)
+        # Handle zero mag (unlikely unless ux=1, t_ux=-1 and alpha=0.5 -> cancellations)
+        # t_ux is -1. ux is usually -1 (slot) or 0 (side).
+        # if ux = 1 (shot from behind net?), then -1 + 1 cancels.
+        # Fallback to t_ux if blend is zero
+        ux_final = np.where(mag_blend < 1e-3, t_ux, ux_blend / mag_blend)
+        uy_final = np.where(mag_blend < 1e-3, t_uy, uy_blend / mag_blend)
         
     else:
         d_proj = 15.0 if method == 'fixed_15' else 0.0
+        ux_final = ux
+        uy_final = uy
     
     # Apply projection
-    ox = bx + (ux * d_proj)
-    oy = by + (uy * d_proj)
+    ox = bx + (ux_final * d_proj)
+    oy = by + (uy_final * d_proj)
     
     # RINK BOUNDARIES (Clamp to valid ice)
     # Standard NHL Rink: X +/- 100, Y +/- 42.5

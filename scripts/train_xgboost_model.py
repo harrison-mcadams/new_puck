@@ -17,11 +17,12 @@ from pathlib import Path
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.calibration import calibration_curve
+import joblib
 
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_nested_xgs, fit_xgboost_nested, config as puck_config
+from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config
 
 def plot_calib(y_true, y_prob, name, ax):
     prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10, strategy='uniform')
@@ -37,7 +38,7 @@ print("--- Training XGBoost Nested Model ---")
 
 # 1. Load Data
 print("Loading data...")
-df = fit_nested_xgs.load_data()
+df = fit_xgs.load_data()
 
 # %% 
 # 2. Preprocess (Filter & Clean) using XGBoost specific routine
@@ -147,36 +148,46 @@ plt.savefig(out_path)
 print(f"Saved calibration plots to {out_path}")
 
 # %%
-# 8. DEBUG: Top High-xG Blocked Shots
-# Run this to check the "Crease Block" Hypothesis
-# We expect to see high-xG blocked shots having small distances (imputed or otherwise)
-
-print("\n--- DEBUG: TOP 20 HIGH xG BLOCKED SHOTS ---")
-try:
-    cols = ['xG', 'distance', 'angle_deg', 'prob_block', 'prob_accuracy', 'prob_finish']
-    # Add coordinate columns if they exist
-    if 'imputed_x' in df_test.columns:
-        cols.extend(['x', 'y', 'imputed_x', 'imputed_y'])
-    elif 'x' in df_test.columns:
-        cols.extend(['x', 'y'])
-        
-    top_blk = df_test[df_test['is_blocked'] == 1].sort_values('xG', ascending=False).head(20)
-    print(top_blk[cols].to_string(index=False))
-except Exception as e:
-    print(f"Error inspecting dataframe: {e}")
-    # Fallback to reading the CSV if df_test isn't in memory
-    import os
-    f = 'analysis/nested_xgs/test_predictions.csv'
-    if not os.path.exists(f): 
-        f = 'analysis/nested_xgs/test_predictions_new.csv'
-    
-    if os.path.exists(f):
-        print(f"Reading from {f}...")
-        df_csv = pd.read_csv(f)
-        blk = df_csv[df_csv['is_blocked'] == 1]
-        top_blk_csv = blk.sort_values('xG', ascending=False).head(20)
-        # We might not have all cols in CSV if we didn't save them all, but we saved most
-        print(top_blk_csv[['xG', 'distance', 'angle_deg', 'prob_finish']].to_string(index=False))
-
+# 8. SAVE MODEL
+# We save to the location analyze.py expects
+# Using "all" as suffix since we might retrain on full data, but for dev we save this one
+model_path = Path('analysis/xgs/xg_model_nested_all.joblib')
+model_path.parent.mkdir(parents=True, exist_ok=True)
+joblib.dump(clf, model_path)
+print(f"Model saved to {model_path}")
 
 # %%
+# 9. VERIFY PREDICTION PIPELINE (analyze.py)
+print("\n--- Verifying analyze._predict_xgs pipeline ---")
+try:
+    # Use a small sample of test data
+    # Note: df_test ALREADY has imputed coordinates and processed columns.
+    # _predict_xgs expects somewhat raw data (though it handles imputation internally).
+    # Ideally we pass it data BEFORE imputation/preprocessing to test full flow.
+    # We can load a few raw rows.
+    
+    # Load raw again for a small batch
+    df_raw = fit_xgs.load_data().sample(50, random_state=42)
+    
+    # Run _predict_xgs
+    # This will load the model we just saved!
+    print("Calling analyze._predict_xgs...")
+    df_pred, loaded_clf, _ = analyze._predict_xgs(df_raw, model_path=str(model_path))
+    
+    if 'xgs' in df_pred.columns:
+        print(f"Prediction successful. Mean xG: {df_pred['xgs'].mean():.4f}")
+        print("Sample predictions:\n", df_pred[['event', 'xgs']].head())
+    else:
+        print("Error: 'xgs' column missing after prediction.")
+        
+    # Check if correct class loaded
+    print(f"Loaded CLF type: {type(loaded_clf).__name__}")
+    if type(loaded_clf).__name__ == 'XGBNestedXGClassifier':
+        print("SUCCESS: Loaded correct XGBoost class.")
+    else:
+        print("FAILURE: Loaded wrong class!")
+
+except Exception as e:
+    print(f"Pipeline verification failed: {e}")
+    import traceback
+    traceback.print_exc()

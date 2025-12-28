@@ -163,6 +163,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.learning_rate = learning_rate
         self.random_state = random_state
         self.enable_categorical = enable_categorical
+        self.nan_mask_rate = 0.05 # Fraction of training examples to mask 'shot_type' to NaN
         
         # Internal Models
         self.model_block: Optional[XGBClassifier] = None
@@ -249,13 +250,38 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_block.fit(df[feat_block], df['is_blocked'])
         
         # --- 4. Train Accuracy Model (Unblocked Only) ---
-        df_unblocked = df[df['is_blocked'] == 0]
+        df_unblocked = df[df['is_blocked'] == 0].copy()
+        
+        # NaN INJECTION / DROPOUT for shot_type
+        # To ensure the model learns a valid path for NaN shot_type (common in Blocked Shots),
+        # we randomly mask some training examples to NaN.
+        if self.nan_mask_rate > 0 and 'shot_type' in df_unblocked.columns:
+            logger.info(f"Applying NaN injection to Accuracy Model (rate={self.nan_mask_rate})")
+            n_mask = int(len(df_unblocked) * self.nan_mask_rate)
+            if n_mask > 0:
+                # Use a reliable random generator
+                rng = np.random.default_rng(self.random_state)
+                mask_idx = rng.choice(df_unblocked.index, size=n_mask, replace=False)
+                # Need to use .loc to set.
+                # Note: 'category' dtype allows NaN.
+                df_unblocked.loc[mask_idx, 'shot_type'] = np.nan
+
         logger.info(f"Training Accuracy Model (N={len(df_unblocked)}) with features: {feat_full}")
         self.model_accuracy = XGBClassifier(**self._get_xgb_params())
         self.model_accuracy.fit(df_unblocked[feat_full], df_unblocked['is_on_net'])
         
         # --- 5. Train Finish Model (On Net Only) ---
-        df_on_net = df[df['is_on_net'] == 1]
+        df_on_net = df[df['is_on_net'] == 1].copy()
+        
+        # NaN INJECTION / DROPOUT for shot_type
+        if self.nan_mask_rate > 0 and 'shot_type' in df_on_net.columns:
+            logger.info(f"Applying NaN injection to Finish Model (rate={self.nan_mask_rate})")
+            n_mask = int(len(df_on_net) * self.nan_mask_rate)
+            if n_mask > 0:
+                rng = np.random.default_rng(self.random_state)
+                mask_idx = rng.choice(df_on_net.index, size=n_mask, replace=False)
+                df_on_net.loc[mask_idx, 'shot_type'] = np.nan
+
         logger.info(f"Training Finish Model (N={len(df_on_net)}) with features: {feat_full}")
         self.model_finish = XGBClassifier(**self._get_xgb_params())
         self.model_finish.fit(df_on_net[feat_full], df_on_net['is_goal_layer'])

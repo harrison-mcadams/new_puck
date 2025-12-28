@@ -875,6 +875,10 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
     # Also check via string just in case of reload/import issues
     if not is_nested and type(clf).__name__ == 'NestedXGClassifier':
         is_nested = True
+        
+    is_xgboost = (type(clf).__name__ == 'XGBNestedXGClassifier')
+    if is_xgboost:
+        is_nested = True
 
     if is_nested:
        
@@ -910,85 +914,84 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
              df_imputed = impute.impute_blocked_shot_origins(df_shots, method='mean_6')
         except Exception as e:
             print(f"Warning: Imputation failed in _predict_xgs: {e}")
-        if 'shot_type' in df_imputed.columns:
-            df_imputed['shot_type'] = df_imputed['shot_type'].fillna('Unknown')
-        else:
-            df_imputed['shot_type'] = 'Unknown'
-
-        # 2. Clean and Identify Features
-        # Use features from clf if available, otherwise fallback
-        input_features = getattr(clf, 'features', ['distance', 'angle_deg', 'game_state', 'shot_type'])
-        
-        # Use clean_df_for_model with encode_method='none' to preserve raw columns for Nested Model (OHE)
-        # This standardizes preprocessing (filtering, is_goal creation) while maintaining compatibility.
-        
-        # Ensure bio features are present (shoots_catches)
-        df_imputed = fit_xgs.enrich_data_with_bios(df_imputed)
-
-        df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(
-            df_imputed, input_features, fixed_categorical_levels=cat_levels, encode_method='none'
-        )
-
-
-        
-        # The code previously iterated over 'features' (input_features) and filled them.
-        # But 'clean_df_for_model' effectively drops the raw categorical cols after encoding
-        # (unless we change that behavior, but it looks like it replaces them).
-        
-        # So we should check validity of final_feature_cols_game.
-        # BUT: The model (clf) expects specific columns.
-        
-        # If cat_levels was passed (from loading model), clean_df_for_model attempts to align 
-        # features to fixed_mappings.
-        
-        # We need to make sure df_model matches what clf.predict_proba expects.
-        # If clf is a wrapper (NestedXGClassifier), it might handle its own sub-models 
-        # but usually it expects the same feature set as training.
-        
-        # NestedXGClassifier internal logic usually handles splitting by shot type 
-        # IF it takes raw data? No, scikit-learn classifiers take numeric matrices usually.
-        # Let's check: NestedXGClassifier in fit_nested_xgs.py likely takes the
-        # *processed* features if we are calling .predict_proba on it? 
-        # OR does it take raw features?
-        
-        # Let's assume (safely) that we pass the processed df to the CLF.
-        # We need to ensure columns match 'feature_names' if available (from metadata).
-        
-        if feature_names:
-            # Add missing columns with 0
-            for f in feature_names:
-                if f not in df_model.columns:
-                    df_model[f] = 0
-            # Reorder
-            df_model = df_model[feature_names]
-        
-        # Predict
-        try:
-            # For NestedXGClassifier, predict_proba might raise if columns mismatch heavily,
-            # but we tried to align.
-            preds = clf.predict_proba(df_model)[:, 1]
-        except Exception as e:
-            # Fallback for models that might not have probability or different signature
-            print(f"Prediction failed: {e}")
-            return df, clf, (feature_names, cat_levels)
-
-        # 4. Map back to original DF
-        # df_model index should match df_shots index (minus any dropped by clean_df_for_model due to NaNs)
-        
-        # Create a series for the shots
-        pred_series = pd.Series(preds, index=df_model.index)
-        
-        # Initialize xgs column with NaN or 0? 
-        # Convention: if column exists, update it. If not, create it.
-        if 'xgs' not in df.columns:
-            df['xgs'] = np.nan
+        if is_xgboost:
+            # XGBoost Path: Bypass clean_df_for_model to preserve NaNs (categorical handling)
+            # Ensure features exist
+            input_features = getattr(clf, 'features', ['distance', 'angle_deg', 'game_state', 'shot_type', 'shoots_catches'])
             
-        # Update only the valid predicted indices
-        df.loc[pred_series.index, 'xgs'] = pred_series
-        
-        # Metadata pass-through
-        final_features = list(df_model.columns)
-        cat_levels = cat_map_game
+            # Enrich BIOS
+            df_model = fit_xgs.enrich_data_with_bios(df_imputed)
+            
+            # Ensure columns exist (fill with NaN if missing, NOT Unknown)
+            for f in input_features:
+                if f not in df_model.columns:
+                    df_model[f] = np.nan
+            
+            # Subset to features
+            df_model = df_model[input_features].copy()
+            
+            # Predict
+            try:
+                preds = clf.predict_proba(df_model)[:, 1]
+            except Exception as e:
+                print(f"XGBoost Prediction failed: {e}")
+                return df, clf, (input_features, {})
+                
+            # Map back
+            pred_series = pd.Series(preds, index=df_model.index)
+            if 'xgs' not in df.columns:
+                df['xgs'] = np.nan
+            df.loc[pred_series.index, 'xgs'] = pred_series
+            
+            final_features = list(df_model.columns)
+            cat_levels = {} # Handled natively
+
+        else:
+            # LEGACY NESTED PATH (Random Forest)
+            if 'shot_type' in df_imputed.columns:
+                df_imputed['shot_type'] = df_imputed['shot_type'].fillna('Unknown')
+            else:
+                df_imputed['shot_type'] = 'Unknown'
+
+            # 2. Clean and Identify Features
+            # Use features from clf if available, otherwise fallback
+            input_features = getattr(clf, 'features', ['distance', 'angle_deg', 'game_state', 'shot_type'])
+            
+            # Use clean_df_for_model with encode_method='none' to preserve raw columns for Nested Model (OHE)
+            # This standardizes preprocessing (filtering, is_goal creation) while maintaining compatibility.
+            
+            # Ensure bio features are present (shoots_catches)
+            df_imputed = fit_xgs.enrich_data_with_bios(df_imputed)
+
+            df_model, final_feature_cols_game, cat_map_game = fit_xgs.clean_df_for_model(
+                df_imputed, input_features, fixed_categorical_levels=cat_levels, encode_method='none'
+            )
+
+            # The logic iterates... (omitted for brevity, assume standard flow)
+            
+            # Check for feature names (if metadata provided)
+            if feature_names:
+                for f in feature_names:
+                    if f not in df_model.columns:
+                        df_model[f] = 0
+                df_model = df_model[feature_names]
+            
+            # Predict
+            try:
+                preds = clf.predict_proba(df_model)[:, 1]
+            except Exception as e:
+                print(f"Prediction failed: {e}")
+                return df, clf, (feature_names, cat_levels)
+
+            # 4. Map back to original DF
+            pred_series = pd.Series(preds, index=df_model.index)
+            if 'xgs' not in df.columns:
+                df['xgs'] = np.nan
+            df.loc[pred_series.index, 'xgs'] = pred_series
+            
+            # Metadata pass-through
+            final_features = list(df_model.columns)
+            cat_levels = cat_map_game
 
     else:
         # STANDARD MODEL LOGIC:
