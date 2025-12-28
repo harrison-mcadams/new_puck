@@ -47,17 +47,15 @@ def main():
     clf = joblib.load(model_path)
     
     # 2. Load Data
-    data_path = 'data/20252026.csv'
-    if not os.path.exists(data_path):
-        data_path = 'data/20252026/20252026_df.csv'
+    print("Loading data via fit_xgs.load_all_seasons_data()...")
+    df = fit_xgs.load_all_seasons_data()
     
-    print(f"Loading data from {data_path}...")
-    df = pd.read_csv(data_path)
-    
-    # Filter for regular season
+    # Filter for 20252026 season via game_id
     if 'game_id' in df.columns:
         df['game_id_str'] = df['game_id'].astype(str)
-        df = df[df['game_id_str'].str.contains(r'^\d{4}02\d{4}$')]
+        # Season is YYYYTTNNNN
+        df = df[df['game_id_str'].str.startswith('2025') & (df['game_id_str'].str[4:6] == '02')]
+        print(f"Filtered to 2025-26 Regular Season: {len(df)} rows.")
     
     # Preprocess
     df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)

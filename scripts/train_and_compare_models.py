@@ -55,9 +55,9 @@ def main():
 
     # 1. Define Experiments
     experiments = [
-        {'name': 'Single_Minimal', 'type': 'single', 'feature_set': 'minimal', 'color': 'gray'},
-        {'name': 'Single_Standard', 'type': 'single', 'feature_set': 'standard', 'color': 'blue'},
-        {'name': 'Single_All', 'type': 'single', 'feature_set': 'all_inclusive', 'color': 'cyan'},
+        # {'name': 'Single_Minimal', 'type': 'single', 'feature_set': 'minimal', 'color': 'gray'},
+        # {'name': 'Single_Standard', 'type': 'single', 'feature_set': 'standard', 'color': 'blue'},
+        # {'name': 'Single_All', 'type': 'single', 'feature_set': 'all_inclusive', 'color': 'cyan'},
         {'name': 'Nested_Standard', 'type': 'nested', 'feature_set': 'standard', 'color': 'purple'},
         {'name': 'Nested_All', 'type': 'nested', 'feature_set': 'all_inclusive', 'color': 'magenta'},
     ]
@@ -66,6 +66,25 @@ def main():
     print("\nLoading all seasons data...")
     df_raw = fit_xgs.load_all_seasons_data()
     print(f"Loaded {len(df_raw)} rows.")
+    
+    # 2. Perform Train/Test Split UP FRONT
+    print("Performing 80/20 train/test split...")
+    df_raw['is_goal'] = (df_raw['event'] == 'goal').astype(int)
+    
+    # Standard exclusions for both train and test
+    valid_events = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
+    mask_valid = df_raw['event'].isin(valid_events)
+    if 'is_net_empty' in df_raw.columns:
+        mask_valid &= (df_raw['is_net_empty'] != 1)
+    if 'game_state' in df_raw.columns:
+        mask_valid &= ~df_raw['game_state'].isin(['1v0', '0v1'])
+    
+    df_filtered = df_raw[mask_valid].copy()
+    
+    df_train, df_test = train_test_split(
+        df_filtered, test_size=0.2, random_state=42, stratify=df_filtered['is_goal']
+    )
+    print(f"Train set: {len(df_train)}, Test set: {len(df_test)}")
     
     out_dir = Path(puck_config.ANALYSIS_DIR) / 'xgs'
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -86,9 +105,12 @@ def main():
         
         if mtype == 'single':
             # Train Single model
-            # Use get_clf with 'train' behavior to standardize
-            # Load optimized params if available
-            hp = opt_results.get('Single_All', {}) if fset == 'all_inclusive' else {}
+            # Use optimized params from Single_All if available for all variants to be fair?
+            # Or use default (hp) only if fset == 'all_inclusive'
+            hp = opt_results.get('Single_All', {}) if fset == 'all_inclusive' else {
+                'n_estimators': 100,
+                'max_depth': 10
+            }
             
             clf, final_feats, cat_map, meta = fit_xgs.get_clf(
                 out_path=str(model_path),
@@ -96,25 +118,17 @@ def main():
                 model_type='single',
                 features=features,
                 feature_set_name=fset,
-                data_df=df_raw,
+                data_df=df_train,
                 **hp
             )
             exp['clf'] = clf
             exp['final_features'] = final_feats
             exp['cat_map'] = cat_map
             exp['meta'] = meta
-            
-            # DEBUG: Print Top Features
-            print(f"   [DEBUG] Top 5 Features for {exp['name']}:")
-            importances = clf.clf.feature_importances_
-            top_indices = np.argsort(importances)[-5:][::-1]
-            for idx in top_indices:
-                print(f"     - {final_feats[idx]}: {importances[idx]:.4f}")
-            print("")
         else:
             # Train Nested model
-            # Preprocess (Standard exclusions)
-            df_nested_input = fit_nested_xgs.preprocess_features(df_raw.copy())
+            # Preprocess (Standard exclusions already done in df_filtered)
+            df_nested_train = fit_nested_xgs.preprocess_features(df_train.copy())
             
             # Impute
             try:
@@ -122,10 +136,9 @@ def main():
             except ImportError:
                 import impute
             
-            df_nested_imputed = impute.impute_blocked_shot_origins(df_nested_input, method='mean_6')
+            df_nested_imputed = impute.impute_blocked_shot_origins(df_nested_train, method='mean_6')
             
             # Initialize & Fit
-            # Initialize & Fit with optimized params if available
             hp_block = opt_results.get('Nested_Block', {}) if fset == 'all_inclusive' else {}
             hp_acc = opt_results.get('Nested_Accuracy', {}) if fset == 'all_inclusive' else {}
             hp_fin = opt_results.get('Nested_Finish', {}) if fset == 'all_inclusive' else {}
@@ -136,7 +149,6 @@ def main():
                 block_params=hp_block,
                 accuracy_params=hp_acc,
                 finish_params=hp_fin,
-                # Shared defaults if not overridden
                 n_estimators=200, 
                 max_depth=10
             )
@@ -177,21 +189,9 @@ def main():
     # I'll perform the comparison logic here using the loaded models directly (in-memory)!
     # Fast and robust.
     
-    # 2. Prepare Evaluation Data
+    # 3. Prepare Evaluation Data
     print(f"Preparing evaluation data...")
-    df_eval_raw = df_raw.copy()
-    df_eval_raw['is_goal'] = (df_eval_raw['event'] == 'goal').astype(int)
-    _, df_test_raw = train_test_split(df_eval_raw, test_size=0.2, random_state=42, stratify=df_eval_raw['is_goal'])
-    
-    # Standard exclusions for fair comparison
-    valid_events = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
-    mask_eval = df_test_raw['event'].isin(valid_events)
-    if 'is_net_empty' in df_test_raw.columns:
-        mask_eval &= (df_test_raw['is_net_empty'] != 1)
-    if 'game_state' in df_test_raw.columns:
-        mask_eval &= ~df_test_raw['game_state'].isin(['1v0', '0v1'])
-    
-    df_test = df_test_raw[mask_eval].copy()
+    # df_test is already filtered and held out.
     print(f"Test set size: {len(df_test)}")
 
     # Plotting Setup
@@ -234,10 +234,16 @@ def main():
         score_auc = auc(fpr, tpr)
         score_brier = brier_score_loss(y_test, p_test)
         
+        # Calibration Sanity Check
+        total_xg = np.sum(p_test)
+        total_goals = np.sum(y_test)
+        
         results.append({
             'name': name,
             'auc': score_auc,
             'brier': score_brier,
+            'total_xg': total_xg,
+            'total_goals': total_goals,
             'type': mtype
         })
         
@@ -255,12 +261,13 @@ def main():
     print(f"\nSaved comparison plot to {comp_img}")
 
     # Display Summary Table
-    print("\n" + "="*50)
-    print(f"{'Model Name':<20} | {'Type':<8} | {'AUC':<8} | {'Brier':<8}")
-    print("-" * 50)
+    print("\n" + "="*70)
+    print(f"{'Model Name':<20} | {'Type':<8} | {'AUC':<8} | {'Brier':<8} | {'Pred/Actual':<11}")
+    print("-" * 70)
     for res in results:
-        print(f"{res['name']:<20} | {res['type']:<8} | {res['auc']:.4f} | {res['brier']:.4f}")
-    print("="*50)
+        ratio = res['total_xg'] / res['total_goals'] if res['total_goals'] > 0 else 0
+        print(f"{res['name']:<20} | {res['type']:<8} | {res['auc']:.4f}   | {res['brier']:.4f}   | {ratio:.4f}")
+    print("="*70)
 
     # Importance Plots (Carousel style - one plot per important model)
     print("\nGenerating importance plots...")

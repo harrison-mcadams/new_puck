@@ -735,8 +735,7 @@ def main():
     logger.info("Retraining final model on FULL data (all years)...")
     clf = NestedXGClassifier(
         n_estimators=200, 
-        max_depth=10, 
-        prevent_overfitting=True
+        max_depth=10
     )
     clf.fit(df_imputed)
     

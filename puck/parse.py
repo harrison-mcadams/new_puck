@@ -963,35 +963,9 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                     # fallback to right goal
                     goal_x = right_goal_x
 
-                goal_y = 0.0
-                distance = math.hypot(x - goal_x, y - goal_y)
+                from rink import calculate_distance_and_angle
+                distance, angle_deg = calculate_distance_and_angle(x, y, goal_x, goal_y)
                 rec['distance'] = distance
-
-                # Calculate angle such that:
-                # - angle = 0° along the goal-line vector pointing toward the
-                #   goalie's left (i.e. along +y for left-side goal, along -y for right-side goal)
-                # - angle increases clockwise
-                #
-                # Vector from goal center to shot:
-                vx = x - goal_x
-                vy = y - goal_y
-
-                # Reference vector along goal line pointing toward goalie's left:
-                # If goal_x < 0 (left goal), goalie faces +x so his left is +y.
-                # If goal_x > 0 (right goal), goalie faces -x so his left is -y.
-                if goal_x < 0:
-                    rx, ry = 0.0, 1.0
-                else:
-                    rx, ry = 0.0, -1.0
-
-                # Signed angle from ref r to vector v (CCW positive): atan2(cross, dot)
-                cross = rx * vy - ry * vx
-                dot = rx * vx + ry * vy
-                angle_rad_ccw = math.atan2(cross, dot)
-
-                # We want clockwise positive, so invert sign, convert to degrees
-                angle_deg = ( -math.degrees(angle_rad_ccw) ) % 360.0
-
                 rec['angle_deg'] = angle_deg
 
             else:

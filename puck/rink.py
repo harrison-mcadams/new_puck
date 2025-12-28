@@ -241,3 +241,35 @@ def rink_goal_xs(mirror: bool = False):
     if mirror:
         return -left_goal_x, -right_goal_x
     return left_goal_x, right_goal_x
+
+
+def calculate_distance_and_angle(x: float, y: float, goal_x: float, goal_y: float = 0.0) -> tuple[float, float]:
+    """
+    Standard calculation for distance and angle to the goal.
+    Angle is 0-360 degrees:
+    - 0 at goalie's left (along goal-line vector)
+    - Increases clockwise
+    """
+    distance = math.hypot(x - goal_x, y - goal_y)
+    
+    # Vector from goal center to shot:
+    vx = x - goal_x
+    vy = y - goal_y
+
+    # Reference vector along goal line pointing toward goalie's left:
+    # If goal_x < 0 (left goal), goalie faces +x so his left is +y.
+    # If goal_x > 0 (right goal), goalie faces -x so his left is -y.
+    if goal_x < 0:
+        rx, ry = 0.0, 1.0
+    else:
+        rx, ry = 0.0, -1.0
+
+    # Signed angle from ref r to vector v (CCW positive): atan2(cross, dot)
+    cross = rx * vy - ry * vx
+    dot = rx * vx + ry * vy
+    angle_rad_ccw = math.atan2(cross, dot)
+
+    # We want clockwise positive, so invert sign, convert to degrees
+    angle_deg = (-math.degrees(angle_rad_ccw)) % 360.0
+    
+    return distance, angle_deg

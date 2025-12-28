@@ -2,27 +2,38 @@
 import pandas as pd
 import numpy as np
 import math
+import sys
+import os
 
 def calculate_geometry(df_in: pd.DataFrame, x_col='x', y_col='y', net_x=89, net_y=0):
     """
     Recalculate distance and angle for a given set of x,y coordinates relative to the net.
     Returns Series for distance and angle.
     """
-    dx = df_in[x_col] - net_x
-    dy = df_in[y_col] - net_y
-    dist = np.sqrt(dx**2 + dy**2)
+    try:
+        from .rink import calculate_distance_and_angle
+    except ImportError:
+        try:
+            from rink import calculate_distance_and_angle
+        except ImportError:
+            # Fallback for scripts running from project root
+            sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+            from puck.rink import calculate_distance_and_angle
     
-    # Angle calculation
-    # We want degrees, 0 at center line? Standard logic matches puck.parse?
-    # Usually in this codebase: abs(degrees(atan2(y, x_dist_to_goal)))
-    # But let's stick to the logic from compare_imputations which seemed to work.
+    # Apply standard geometry calculation to each row
+    # results = df_in.apply(lambda row: calculate_distance_and_angle(row[x_col], row[y_col], net_x, net_y), axis=1)
     
-    with np.errstate(divide='ignore', invalid='ignore'):
-         angle_rad = np.arctan(np.abs(dy / dx))
-         angle_deg = np.degrees(angle_rad)
+    # Efficient vectorized approach if possible, but for xG consistency we can use apply 
+    # since this is usually called on chunks or during training.
     
-    # Handle x=89 (dx=0) -> 90 degrees
-    angle_deg = angle_deg.fillna(90.0)
+    # Standard puck geometry logic from rink.py:
+    # distance = math.hypot(x - goal_x, y - goal_y)
+    # angle_deg = (-math.degrees(math.atan2(cross, dot))) % 360.0
+    
+    # Let's use the helper directly
+    res = df_in.apply(lambda r: calculate_distance_and_angle(r[x_col], r[y_col], net_x, net_y), axis=1)
+    dist = res.apply(lambda x: x[0])
+    angle_deg = res.apply(lambda x: x[1])
     
     return dist, angle_deg
 
