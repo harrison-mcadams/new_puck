@@ -20,7 +20,7 @@ import pandas as pd
 import requests
 
 from . import nhl_api
-from .rink import rink_goal_xs
+from .rink import rink_goal_xs, BLUE_LINE_X
 
 
 logging.basicConfig(level=logging.INFO)
@@ -1002,6 +1002,7 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
             rec['is_rebound'] = 0
             rec['rebound_angle_change'] = None
             rec['rebound_time_diff'] = None
+            rec['is_rush'] = 0
 
             # 1. Prior Event Context (independent of team)
             if last_event:
@@ -1015,6 +1016,7 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
             tid = rec.get('team_id')
 
             if is_shot and tid is not None:
+                # A. Rebound
                 prev_shot = team_last_shot.get(tid)
                 if prev_shot and total_elapsed is not None:
                     # check if the last shot was in the same period and within a threshold (5 seconds)
@@ -1028,6 +1030,40 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                         prev_angle = prev_shot.get('angle')
                         if curr_angle is not None and prev_angle is not None:
                             rec['rebound_angle_change'] = float(abs(curr_angle - prev_angle))
+
+                # B. Rush
+                # Definition: < 5 seconds after an event outside the defending zone
+                # Reliance on last_event (any team)
+                if last_event and rec.get('last_event_time_diff') is not None:
+                    if rec['last_event_time_diff'] <= 5:
+                        # Determine attacking goal X to define defending zone
+                        # (Logic replicated from above to ensure availability)
+                        gx_rush = 89.0 # Default right
+                        try:
+                            left_goal_x, right_goal_x = rink_goal_xs()
+                        except:
+                            left_goal_x, right_goal_x = -89.0, 89.0
+                            
+                        if rec.get('team_id') == rec.get('home_id'):
+                            if rec.get('home_team_defending_side') == 'left': gx_rush = right_goal_x
+                            elif rec.get('home_team_defending_side') == 'right': gx_rush = left_goal_x
+                            else: gx_rush = right_goal_x
+                        elif rec.get('team_id') == rec.get('away_id'):
+                            if rec.get('home_team_defending_side') == 'left': gx_rush = left_goal_x
+                            elif rec.get('home_team_defending_side') == 'right': gx_rush = right_goal_x
+                            else: gx_rush = left_goal_x
+                        
+                        # Zone Check
+                        lx = last_event.get('x')
+                        if lx is not None:
+                            is_outside = False
+                            if gx_rush < 0: # Attacking Left Goal -> Defending Zone is X < -BLUE_LINE
+                                if lx >= -BLUE_LINE_X: is_outside = True
+                            else: # Attacking Right Goal -> Defending Zone is X > BLUE_LINE
+                                if lx <= BLUE_LINE_X: is_outside = True
+                            
+                            if is_outside:
+                                rec['is_rush'] = 1
 
                 # Update team's last shot state (even if not a rebound)
                 team_last_shot[tid] = {

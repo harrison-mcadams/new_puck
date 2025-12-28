@@ -315,10 +315,23 @@ def run_league_analysis():
         # So ratios work out.
         league_norm_grid = league_grid_sum / total_team_seconds
         
-        # Save Baseline
-        np.save(os.path.join(out_root, f'{season}_league_baseline.npy'), league_norm_grid)
-        # Also save legacy name for safety or if scripts expect it
-        np.save(os.path.join(out_root, 'baseline.npy'), league_norm_grid)
+        # Save Baseline (Per 60, Split by Side)
+        # league_norm_grid contains full-rink rates (both sides).
+        # For player analysis, we need one-sided baselines.
+        mid = league_norm_grid.shape[1] // 2
+        
+        # Left Baseline (Zero out Right)
+        baseline_left = league_norm_grid.copy()
+        baseline_left[:, mid:] = 0.0
+        np.save(os.path.join(out_root, f'{season}_league_baseline.npy'), baseline_left * 3600.0)
+        np.save(os.path.join(out_root, 'baseline.npy'), baseline_left * 3600.0)
+        
+        # Right Baseline (Zero out Left)
+        baseline_right = league_norm_grid.copy()
+        baseline_right[:, :mid] = 0.0 # Zero left, keep mid? or zero mid?
+        # Typically x < 0 is Left, x >= 0 is Right or x > 0.
+        # Let's cleanly split.
+        np.save(os.path.join(out_root, f'{season}_league_baseline_right.npy'), baseline_right * 3600.0)
         
         # 2. Compute Rates and Percentiles
         # Prepare lists for percentile calculation

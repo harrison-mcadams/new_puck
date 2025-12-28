@@ -116,10 +116,11 @@ df_test = df_test.copy()
 df_test['xG'] = probs
 df_test['prob_block'] = clf.predict_proba_layer(df_test, 'block')
 df_test['prob_accuracy'] = clf.predict_proba_layer(df_test, 'accuracy')
+import time
 df_test['prob_finish'] = clf.predict_proba_layer(df_test, 'finish')
 
 # Save to CSV for manual inspection
-debug_csv_path = 'analysis/nested_xgs/test_predictions_new.csv'
+debug_csv_path = f'analysis/nested_xgs/test_predictions_{int(time.time())}.csv'
 Path(debug_csv_path).parent.mkdir(parents=True, exist_ok=True)
 df_test.to_csv(debug_csv_path, index=False)
 print(f"Predictions saved to {debug_csv_path}")

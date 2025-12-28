@@ -22,8 +22,11 @@ def regenerate(season):
     
     if 'is_rebound' in df.columns:
         print(f"SUCCESS: 'is_rebound' present. Counts:\n{df['is_rebound'].value_counts(dropna=False)}")
+    
+    if 'is_rush' in df.columns:
+        print(f"SUCCESS: 'is_rush' present. Counts:\n{df['is_rush'].value_counts(dropna=False)}")
     else:
-        print("FAILURE: 'is_rebound' NOT found in returned DataFrame.")
+        print("FAILURE: 'is_rush' NOT found in returned DataFrame.")
 
 if __name__ == "__main__":
     # Regenerate for all seasons from 2014-2015 to 2025-2026

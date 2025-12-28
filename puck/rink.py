@@ -15,6 +15,7 @@ RINK_LENGTH = 200.0
 RINK_WIDTH = 85.0
 # approximate goal x placement used elsewhere (feet from centerline)
 GOAL_X = 89.0
+BLUE_LINE_X = 25.0
 
 
 def draw_rink(ax=None, center_line=True, mirror: bool = False, show_goals: bool = True):
