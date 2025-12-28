@@ -12,36 +12,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from puck.nhl_api import get_game_feed, SESSION
 from puck.rink import draw_rink
-
-def fetch_tracking_data(game_id, event_id, season):
-    """
-    Fetches the tracking data for a specific event from the NHL Edge API.
-    URL Pattern: https://wsr.nhle.com/sprites/{season}/{gameId}/ev{eventId}.json
-    """
-    url = f"https://wsr.nhle.com/sprites/{season}/{game_id}/ev{event_id}.json"
-    print(f"Fetching tracking data from: {url}")
-    
-    # Add headers to mimic a browser to avoid 403
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": "https://www.nhl.com/",
-        "Origin": "https://www.nhl.com"
-    }
-
-    try:
-        resp = SESSION.get(url, headers=headers, timeout=10)
-        if resp.status_code == 404:
-            print(f"  -> Data not found (404). This goal might not have Edge data.")
-            return None
-        elif resp.status_code == 403:
-            print(f"  -> Forbidden (403). Headers might be insufficient.")
-            return None
-        
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        print(f"  -> Error fetching data: {e}")
-        return None
+from puck.edge import fetch_tracking_data, transform_coordinates
 
 def visualize_goal(data, game_id, event_id):
     """
@@ -70,9 +41,8 @@ def visualize_goal(data, game_id, event_id):
             if x_raw is None or y_raw is None:
                 continue
             
-            # Scale to feet (Estimate: 12 units/ft, Origin at 1200, 510)
-            x = (x_raw - 1200.0) / 12.0
-            y = -(y_raw - 510.0) / 12.0 # Flip Y for correct orientation
+            # Use shared transform logic
+            x, y = transform_coordinates(x_raw, y_raw)
                 
             if key == "1":
                 frame_data['puck'] = (x, y)
@@ -205,6 +175,7 @@ def process_game(game_id, season="20252026", output_dir="data", demo=False):
         event_id = goal['event_id']
         print(f"Processing Goal: Event {event_id} (P{goal['period']} - {goal['time']})")
         
+        # Use new module
         data = fetch_tracking_data(game_id, event_id, season)
         if not data:
             continue
@@ -234,13 +205,21 @@ def process_game(game_id, season="20252026", output_dir="data", demo=False):
                     
                 # The keys in onIce are playerIds or "1" for Puck
                 for key, info in on_ice.items():
+                    x_raw = info.get('x')
+                    y_raw = info.get('y')
+                    if x_raw is None or y_raw is None:
+                        continue
+                    
+                    # Use shared transform logic
+                    x, y = transform_coordinates(x_raw, y_raw)
+
                     if key == "1":
                         # Puck
                         csv_rows.append([
                             i, ts, 'puck', 
                             'puck', # id
                             '', # team
-                            info.get('x'), info.get('y'), ''
+                            x, y, ''
                         ])
                     else:
                         # Player
@@ -248,7 +227,7 @@ def process_game(game_id, season="20252026", output_dir="data", demo=False):
                             i, ts, 'player', 
                             info.get('playerId', key),
                             info.get('teamId', ''),
-                            info.get('x'), info.get('y'),
+                            x, y,
                             info.get('sweaterNumber', '')
                         ])
         
