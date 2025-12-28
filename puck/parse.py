@@ -26,6 +26,19 @@ from .rink import rink_goal_xs
 logging.basicConfig(level=logging.INFO)
 
 
+def _period_time_to_seconds(time_str):
+    if time_str is None:
+        return None
+    try:
+        s = str(time_str).strip()
+        if ':' in s:
+            mm, ss = s.split(':')
+            return int(mm) * 60 + int(ss)
+        else:
+            return int(float(s))
+    except Exception:
+        return None
+
 def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
     """Extract shot and goal events with coordinates from an api-web game feed.
 
@@ -535,6 +548,7 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
     - lightweight per-task retry/backoff; per-thread small delays (min_delay+jitter)
     """
     from concurrent.futures import ThreadPoolExecutor, as_completed
+    print("DEBUG: _scrape running (version patched)")
 
     games = nhl_api.get_season(team=team, season=season, game_types=game_types)
     records: List[Dict[str, Any]] = []
@@ -730,7 +744,7 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
         try:
             elaborated_df = _elaborate(events_df)
         except Exception as e:
-            logging.warning('Elaboration error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
+            logging.exception('DEBUG_TRACE_ME Elaboration error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
             continue
         # extend records with dictionaries
         try:
@@ -1448,11 +1462,16 @@ def infer_home_defending_side_from_play(p: dict, game_feed: Optional[dict] = Non
                 pass
 
             # require numeric x/y and the rink helper
+            left_x, right_x = -89.0, 89.0
             try:
-                from rink import rink_goal_xs
+                # Try relative import first
+                from .rink import rink_goal_xs
                 left_x, right_x = rink_goal_xs()
+            except ImportError:
+                 # If that fails, just use constants and move on
+                 pass
             except Exception:
-                left_x, right_x = -89.0, 89.0
+                 pass
 
             # build candidate rows for the home team (or all rows if home_id unknown)
             if home_id is not None and 'team_id' in events_df.columns:
