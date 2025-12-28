@@ -1,0 +1,23 @@
+--- Empirical Stats (5v5) ---
+               Count  Goals    Sh_Pct  Mean_Dist
+shot_type                                       
+wrist         497173  27208  0.054725  37.554113
+snap          142422   9662  0.067841  36.998514
+slap          129560   4572  0.035289  50.909833
+backhand       72533   5455  0.075207  20.309977
+tip-in         65703   5395  0.082112  18.023670
+deflected      19930   1726  0.086603  19.443025
+wrap-around     9381    451  0.048076   8.356586
+poke            1148    135  0.117596  12.811407
+bat             1029    124  0.120505  14.347848
+between-legs     162      9  0.055556  11.737277
+cradle            28      4  0.142857   7.140056
+
+--- Model Controlled Test (20ft, 0deg) ---
+   Shot_Type  xG_Probability
+5  deflected        0.127141
+2       snap        0.091551
+1       slap        0.077170
+0      wrist        0.074563
+4     tip-in        0.047121
+3   backhand        0.041237

@@ -1,0 +1,23 @@
+--- Empirical Accuracy Stats (Unblocked, 5v5) ---
+              Unblocked_Attempts  On_Net  Accuracy_Pct  Mean_Dist
+shot_type                                                        
+wrist                     497173  364786      0.733720  37.554113
+snap                      142422  104737      0.735399  36.998514
+slap                      129560   85939      0.663314  50.909833
+backhand                   72533   54758      0.754939  20.309977
+tip-in                     65703   36067      0.548940  18.023670
+deflected                  19930   11182      0.561064  19.443025
+wrap-around                 9381    7284      0.776463   8.356586
+poke                        1148     993      0.864983  12.811407
+bat                         1029     574      0.557823  14.347848
+between-legs                 162     110      0.679012  11.737277
+cradle                        28      14      0.500000   7.140056
+
+--- Controlled Accuracy Prediction (P(On Net | Unblocked), 20ft Slot) ---
+   Shot_Type  Predicted_Accuracy
+5  deflected            0.863106
+0      wrist            0.727931
+2       snap            0.722441
+3   backhand            0.594267
+1       slap            0.568389
+4     tip-in            0.393827
