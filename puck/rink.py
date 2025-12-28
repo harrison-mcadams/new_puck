@@ -6,7 +6,7 @@ uses a rectangle + semicircular endcaps. The helper returns the matplotlib
 """
 
 import matplotlib
-matplotlib.use("Agg")
+# matplotlib.use("Agg") # Removed to allow interactive backends
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import math
