@@ -483,6 +483,18 @@ def load_data(path_pattern: str = None) -> pd.DataFrame:
             
     full_df = pd.concat(dfs, ignore_index=True)
     logger.info(f"Loaded {len(full_df)} total rows.")
+
+    # Enrich features (Handedness)
+    try:
+        from . import fit_xgs
+        full_df = fit_xgs.enrich_data_with_bios(full_df)
+    except ImportError:
+        try:
+            import fit_xgs
+            full_df = fit_xgs.enrich_data_with_bios(full_df)
+        except Exception as e:
+            logger.warning(f"Could not enrich data with bios: {e}")
+
     return full_df
 
 

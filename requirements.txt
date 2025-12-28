@@ -11,3 +11,5 @@ gunicorn
 joblib
 beautifulsoup4>=4.10.0
 lxml>=4.9.0
+xgboost>=2.0.0
+ipykernel

@@ -45,37 +45,50 @@ def calculate_geometry(df_in: pd.DataFrame, x_col='x', y_col='y', net_x=89, net_
 def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'mean_6', 
                                 x_col='x', y_col='y') -> pd.DataFrame:
     """
-    Returns a copy of df with 'distance' and 'angle_deg' updated for BLOCKED shots.
-    The 'x' and 'y' columns in the output are NOT updated (original block location kept),
-    but 'imputed_x' and 'imputed_y' are added.
+    Updates 'imputed_x', 'imputed_y', 'distance', 'angle_deg'.
     
-    Methods:
-    - 'mean_6': 5.64ft back-projection (HockeyViz approximation).
-    - 'fixed_15': 15ft back-projection.
+    Logic:
+    1. NON-BLOCKED SHOTS:
+       - imputed_x = x
+       - imputed_y = y
+       - distance/angle = UNTOUCHED (keep original)
+       
+    2. BLOCKED SHOTS:
+       - imputed_x, imputed_y = back-projected coordinates
+       - distance, angle = RECALCULATED from imputed coords
     """
     df_out = df.copy()
     
-    # We only modify blocked shots
+    # 1. Initialize imputed cols with original
+    # (Matches user requirement: imputation should return same x/y for non-blocked)
+    df_out['imputed_x'] = df_out[x_col]
+    df_out['imputed_y'] = df_out[y_col]
+
+    # Mask for blocked shots
     mask_blocked = (df['event'] == 'blocked-shot')
     if not mask_blocked.any():
         return df_out
 
-    # Initialize with original
-    df_out['imputed_x'] = df_out[x_col]
-    df_out['imputed_y'] = df_out[y_col]
-
-    # Get coordinates of blocks
+    # 2. Logic for BLOCKED only
     bx = df_out.loc[mask_blocked, x_col]
     by = df_out.loc[mask_blocked, y_col]
     
-    # Deduce Net location per row (89, 0) or (-89, 0) based on existing distance.
-    # Blocked shots in our data already have 'distance' calculated relative to the correct goal.
+    # Need existing distance to deduce net location
+    # If distance missing, we guess based on side of rink
     if 'distance' in df_out.columns:
+        # Distance to (89,0) vs (-89,0)
         d1 = np.sqrt((bx - 89)**2 + by**2)
         d2 = np.sqrt((bx + 89)**2 + by**2)
-        net_x = np.where(np.abs(d1 - df_out.loc[mask_blocked, 'distance']) < np.abs(d2 - df_out.loc[mask_blocked, 'distance']), 89, -89)
+        # Compare calculated distance to stored distance
+        # We assume stored distance is correct-ish relative to "some" net
+        old_dist = df_out.loc[mask_blocked, 'distance']
+        # closer match wins
+        net_x = np.where(np.abs(d1 - old_dist) < np.abs(d2 - old_dist), 89, -89)
     else:
-        # Fallback: Guess based on x coordinate if distance is missing
+        # Fallback: Guess based on x coordinate (standard NHL coords, +x is one side)
+        # Usually positive x is offensive zone for home? It varies. 
+        # But usually blocking happens in defensive zone.
+        # Safe fallback: assume nearest net.
         net_x = np.where(bx > 0, 89, -89)
     
     net_y = 0
@@ -83,69 +96,95 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'mean_6',
     # Vector from Net to Block
     vx = bx - net_x
     vy = by - net_y
-    
-    # Magnitude
     mag = np.sqrt(vx**2 + vy**2)
     
-    # Direction Unit Vector (pointing upstream, away from net)
+    # Unit Vector
     ux = vx / mag
     uy = vy / mag
     
-    # Handle division by zero
+    # Fill NaNs (div by zero)
     ux = ux.fillna(0)
     uy = uy.fillna(0)
     
-    # Determine imputation distance D
-    if method == 'fixed_15':
-        d = 15.0
-    elif method == 'mean_6':
-        d = 5.64 
+    # Distance to project back
+    # "Smooth Point Prior" Strategy:
+    # For deep blocks (< 30ft), we assume the shot originated from the 'Point' or 'High Slot'.
+    # We sample target distances from a Normal Distribution (mean=55ft, std=8ft) to create a natural spread.
+    # This prevents artificial "walls" or detectable patterns while eliminating False Slot Shots.
+    
+    if method == 'mean_6':
+        # 1. Identify "Deep Blocks" (e.g. < 30ft)
+        is_deep = (mag < 30.0)
+        
+        # 2. Generate Target Distances (Normal Dist ~ 55ft)
+        # We use a fixed seed if we want reproducibility, or just random
+        # Generating for ALL rows then masking is faster/cleaner
+        target_dists = np.random.normal(loc=55.0, scale=8.0, size=len(df_out))
+        
+        # 3. Calculate how far we need to project to reach that target
+        # d_proj = target - current_mag
+        # But allow negative projection? No.
+        # And ensure at least default projection
+        d_proj_deep = np.maximum(5.64, target_dists - mag)
+        
+        # 4. Combine: Use Deep Logic for deep blocks, Default (5.64) for others
+        d_proj = np.where(is_deep, d_proj_deep, 5.64)
+        
     else:
-        # Default fallback or error?
-        d = 0.0
+        d_proj = 15.0 if method == 'fixed_15' else 0.0
     
-    # Calculate Origin
-    ox = bx + (ux * d)
-    oy = by + (uy * d)
+    # Apply projection
+    ox = bx + (ux * d_proj)
+    oy = by + (uy * d_proj)
     
-    # Update ONLY where ox/oy are valid (not NaN)
-    mask_valid_coords = mask_blocked & bx.notna() & by.notna()
+    # RINK BOUNDARIES (Clamp to valid ice)
+    # Standard NHL Rink: X +/- 100, Y +/- 42.5
+    ox = np.clip(ox, -99.0, 99.0)
+    oy = np.clip(oy, -42.0, 42.0)
     
-    if mask_valid_coords.any():
-        df_out.loc[mask_valid_coords, 'imputed_x'] = ox[mask_valid_coords]
-        df_out.loc[mask_valid_coords, 'imputed_y'] = oy[mask_valid_coords]
-        
-        # Determine net_x for the valid updates for recalculation
-        valid_net_x = net_x[mask_valid_coords.loc[mask_blocked].values] if isinstance(net_x, np.ndarray) else net_x
-        
-        # Recalculate geometry ONLY for valid updates
-        # Since net_x varies, we can't use the vectorized helper as easily if it assumes fixed net.
-        # But calculate_geometry is a helper in this file that can take net_x.
-        
-        # Let's update calculate_geometry to handle varying net_x if needed, 
-        # or just loop if small or use row-wise net_x.
-        
-        # The easiest is to use row-wise net_x in a small loop or map for recalculation.
-        res = df_out.loc[mask_valid_coords].apply(
-            lambda r: calculate_distance_and_angle(
-                r['imputed_x'], r['imputed_y'], 
-                89 if np.abs(np.sqrt((r['imputed_x']-89)**2 + r['imputed_y']**2) - r['distance']) < 15 else -89,
-                0
-            ), axis=1
-        )
-        # Note: comparison above is slightly tricky as 'distance' was the OLD distance.
-        # Better: use the net_x we already deduced.
-        
-        # Re-deduce or pass through net_x? 
-        # Let's just use the net_x we found earlier.
-        
-        blocks_idx = df_out.index[mask_valid_coords]
-        for idx in blocks_idx:
-            # Re-run same logic to find goal for this specific row
-            r = df_out.loc[idx]
-            g_x = 89 if np.abs(np.sqrt((r[x_col]-89)**2 + r[y_col]**2) - r['distance']) < np.abs(np.sqrt((r[x_col]+89)**2 + r[y_col]**2) - r['distance']) else -89
-            new_d, new_a = calculate_distance_and_angle(r['imputed_x'], r['imputed_y'], g_x, 0)
-            df_out.at[idx, 'distance'] = new_d
-            df_out.at[idx, 'angle_deg'] = new_a
+    # Update Imputed Coordinates (for BLOCKED only)
+    df_out.loc[mask_blocked, 'imputed_x'] = ox
+    df_out.loc[mask_blocked, 'imputed_y'] = oy
     
+    # 3. Recalculate Distance & Angle (for BLOCKED only)
+    # We use the SAME net_x we deduced above
+    # Calculate using vectorized numpy for speed/simplicity
+    
+    # New vectors
+    dx_new = df_out.loc[mask_blocked, 'imputed_x'] - net_x
+    dy_new = df_out.loc[mask_blocked, 'imputed_y'] - net_y
+    
+    # New Distance
+    new_dist = np.hypot(dx_new, dy_new)
+    df_out.loc[mask_blocked, 'distance'] = new_dist
+    
+    # New Angle
+    # Use standard NHL angle logic (from rink.py usually)
+    # If rink.py import failed, we use fallback math.
+    # Logic: Angle is degrees from center line.
+    
+    # We'll use apply/lambda with our helper if available, or direct math if easy.
+    # The helper calculate_distance_and_angle handles the specific sign conventions.
+    
+    # Let's map row-wise to be safe and consistent with rink.py logic
+    # We need to zip imputed_x, imputed_y, and net_x
+    
+    def get_new_metrics(row, nx):
+        return calculate_distance_and_angle(row['imputed_x'], row['imputed_y'], nx, 0)
+
+    # We need to align net_x with the dataframe index
+    # net_x is a numpy array matching mask_blocked rows
+    
+    idxs = df_out[mask_blocked].index
+    
+    # Create temporary DF to apply over
+    temp_df = df_out.loc[mask_blocked, ['imputed_x', 'imputed_y']].copy()
+    temp_df['net_x'] = net_x
+    
+    res = temp_df.apply(lambda r: calculate_distance_and_angle(r['imputed_x'], r['imputed_y'], r['net_x'], 0), axis=1)
+    
+    # Update
+    df_out.loc[idxs, 'distance'] = res.apply(lambda x: x[0])
+    df_out.loc[idxs, 'angle_deg'] = res.apply(lambda x: x[1])
+
     return df_out

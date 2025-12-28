@@ -1,55 +1,72 @@
-# Python cache
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.venv/
+venv/
+env/
+.env
 
-# Cache directories
-.cache/
-*.cache
+# --- Distribution / Install ---
+build/
+dist/
+*.egg-info/
+.eggs/
 
-# Test/coverage
-.pytest_cache/
-htmlcov/
-.coverage
-.coverage.*
+# --- Jupyter ---
+.ipynb_checkpoints
 
-# IDE
-#.vscode/
+# --- IDEs ---
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
 
-# OS
+# --- OS ---
 .DS_Store
 Thumbs.db
 
-# Temporary files
-tmp/
-*.tmp
-
-# Project specific
-.venv/
+# --- Project Data & Models ---
 data/
-analysis/
+tmp/
+temp/
+shifts/
+*.pkl
+*.pickle
 *.joblib
 *.joblibx
 *.npz
 *.npy
-repro_*.txt
-run_analysis_log_*.txt
 
-# Generated images (root)
-*.png
-
-# Keep web/static mostly clean, but allow assets
-# (Generated content is now in analysis/)
-logs/*
+# --- Outputs & Logs ---
+analysis/
+logs/
+*.log
 !logs/.keep
-puck.config.json
-*_output.log
-debug_*.txt
+app_output.log
+daily_output.log
+debug*.txt
+repro_*.txt
+run_*_log*.txt
+test_output_*/
+qc_report/
+rf_testing/
+verification_report.txt
+
+# --- Web / Generated Content ---
+# Keep web/static clean
+static/generated/
+*.png
 streamed_*.html
 matches_today.json
-*.md
+
+# --- Configuration ---
+puck.config.json
+
+# --- Debug & Cache ---
+.cache/
+debug_shifts*.csv
+debug_shifts*.json
+static/debug_shifts*.csv
