@@ -55,11 +55,10 @@ def main():
 
     # 1. Define Experiments
     experiments = [
-        # {'name': 'Single_Minimal', 'type': 'single', 'feature_set': 'minimal', 'color': 'gray'},
-        # {'name': 'Single_Standard', 'type': 'single', 'feature_set': 'standard', 'color': 'blue'},
-        # {'name': 'Single_All', 'type': 'single', 'feature_set': 'all_inclusive', 'color': 'cyan'},
-        {'name': 'Nested_Standard', 'type': 'nested', 'feature_set': 'standard', 'color': 'purple'},
-        {'name': 'Nested_All', 'type': 'nested', 'feature_set': 'all_inclusive', 'color': 'magenta'},
+        {'name': 'Nested_Baseline', 'type': 'nested', 'feature_set': 'baseline', 'color': 'green'},
+        {'name': 'Nested_Standard', 'type': 'nested', 'feature_set': 'standard', 'color': 'blue'},
+        {'name': 'Nested_All', 'type': 'nested', 'feature_set': 'all_inclusive', 'color': 'purple'},
+        {'name': 'Single_All', 'type': 'single', 'feature_set': 'all_inclusive', 'color': 'cyan'},
     ]
 
     # Load Data Once
@@ -108,8 +107,11 @@ def main():
             # Use optimized params from Single_All if available for all variants to be fair?
             # Or use default (hp) only if fset == 'all_inclusive'
             hp = opt_results.get('Single_All', {}) if fset == 'all_inclusive' else {
-                'n_estimators': 100,
-                'max_depth': 10
+                'n_estimators': 200,
+                'max_depth': 15,
+                'min_samples_split': 10,
+                'min_samples_leaf': 5,
+                'max_features': 'sqrt'
             }
             
             clf, final_feats, cat_map, meta = fit_xgs.get_clf(
@@ -150,7 +152,10 @@ def main():
                 accuracy_params=hp_acc,
                 finish_params=hp_fin,
                 n_estimators=200, 
-                max_depth=10
+                max_depth=15,
+                min_samples_split=10,
+                min_samples_leaf=5,
+                max_features='sqrt'
             )
             clf_nested.fit(df_nested_imputed)
             
@@ -228,6 +233,29 @@ def main():
             df_imp = impute.impute_blocked_shot_origins(df_test, method='mean_6')
             y_test = (df_imp['event'] == 'goal').astype(int).values
             p_test = clf.predict_proba(df_imp)[:, 1]
+            
+            # Layer Specific AUCs for Nested
+            p_block = clf.predict_proba_layer(df_imp, 'block')
+            y_block = (df_imp['event'] == 'blocked-shot').astype(int).values
+            score_auc_block = roc_auc_score(y_block, p_block)
+            
+            mask_unblocked = (y_block == 0)
+            df_unblocked = df_imp[mask_unblocked]
+            p_acc = clf.predict_proba_layer(df_unblocked, 'accuracy')
+            y_acc = df_unblocked['is_on_net'].values if 'is_on_net' in df_unblocked.columns else (df_unblocked['event'].isin(['shot-on-goal', 'goal'])).astype(int).values
+            score_auc_acc = roc_auc_score(y_acc, p_acc)
+            
+            mask_on_net = (y_acc == 1)
+            df_on_net = df_unblocked[mask_on_net]
+            p_fin = clf.predict_proba_layer(df_on_net, 'finish')
+            y_fin = (df_on_net['event'] == 'goal').astype(int).values
+            score_auc_fin = roc_auc_score(y_fin, p_fin)
+            
+            exp['layer_aucs'] = {
+                'block': score_auc_block,
+                'accuracy': score_auc_acc,
+                'finish': score_auc_fin
+            }
         
         # Metrics
         fpr, tpr, _ = roc_curve(y_test, p_test)
@@ -244,7 +272,8 @@ def main():
             'brier': score_brier,
             'total_xg': total_xg,
             'total_goals': total_goals,
-            'type': mtype
+            'type': mtype,
+            'layer_aucs': exp.get('layer_aucs')
         })
         
         # Plot
@@ -266,7 +295,11 @@ def main():
     print("-" * 70)
     for res in results:
         ratio = res['total_xg'] / res['total_goals'] if res['total_goals'] > 0 else 0
-        print(f"{res['name']:<20} | {res['type']:<8} | {res['auc']:.4f}   | {res['brier']:.4f}   | {ratio:.4f}")
+        line = f"{res['name']:<20} | {res['type']:<8} | {res['auc']:.4f}   | {res['brier']:.4f}   | {ratio:.4f}"
+        print(line)
+        if res['layer_aucs']:
+            la = res['layer_aucs']
+            print(f"  -> Layer AUCs: Block: {la['block']:.4f}, Accuracy: {la['accuracy']:.4f}, Finish: {la['finish']:.4f}")
     print("="*70)
 
     # Importance Plots (Carousel style - one plot per important model)

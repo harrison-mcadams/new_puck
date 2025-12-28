@@ -21,11 +21,11 @@ def run_tuning(X, y, name):
         return None
 
     param_dist = {
-        'n_estimators': [100, 300],
-        'max_depth': [5, 10, 15, 20, None],
-        'min_samples_split': [5, 10, 20],
-        'min_samples_leaf': [1, 5, 10],
-        'max_features': ['sqrt', None]
+        'n_estimators': [200, 500],
+        'max_depth': [10, 15, 20, 25, None],
+        'min_samples_split': [5, 10, 20, 50],
+        'min_samples_leaf': [1, 5, 10, 20],
+        'max_features': ['sqrt', 'log2', None]
     }
     
     rf = RandomForestClassifier(random_state=42, n_jobs=1)
