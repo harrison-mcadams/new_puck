@@ -1929,6 +1929,9 @@ def xgs_map(season: Optional[str] = '20252026', *,
     from . import fit_xgs
     from . import plot as plot_mod
     from . import parse as _parse
+    # Import for blocked shot logic distance/angle recalc
+    from . import correction
+
 
     # --- Helpers ------------------------------------------------------------
     # Determine the CSV path to use for model training if needed, even if we have df_all
@@ -2536,6 +2539,17 @@ def xgs_map(season: Optional[str] = '20252026', *,
             team_val = team_param
     else:
         df_filtered, team_val = _apply_condition(df_all)
+
+    # --- CRITICAL FIX: BLOCKED SHOT ATTRIBUTION ---
+    # The NHL API attributes 'blocked-shot' events to the blocking team (Defense).
+    # For xG analysis, we want these events attributed to the SHOOTER (Offense).
+    # We utilize the centralized correction module which handles:
+    # 1. Swapping team_id (Home <-> Away)
+    # 2. Flipping coordinates (-X, -Y) for correct zone placement
+    # 3. Recalculating distance/angle relative to the Shooter's Attack Goal
+    
+    if int(df_filtered.shape[0]) > 0:
+        df_filtered = correction.fix_blocked_shot_attribution(df_filtered)
 
     if df_filtered.shape[0] == 0:
         print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")

@@ -23,7 +23,7 @@ import json
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config, features as feature_util
+from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config, features as feature_util, correction
 
 def plot_calib(y_true, y_prob, name, ax):
     prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10, strategy='uniform')
@@ -37,9 +37,16 @@ print("Imports complete.")
 # %%
 print("--- Training XGBoost Nested Model ---")
 
+
 # 1. Load Data
 print("Loading data...")
 df = fit_xgs.load_data()
+
+# 1.5 Fix Blocked Shot Attribution (Swap team_id, Recalc Dist/Angle)
+print("Applying blocked shot attribution correction (Swap ID + Recalc Distance)...")
+df = correction.fix_blocked_shot_attribution(df)
+
+# -----------------------------
 
 # %% 
 # 2. Preprocess (Filter & Clean) using XGBoost specific routine

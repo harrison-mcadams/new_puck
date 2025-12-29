@@ -1,0 +1,23 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Testing Blocked Shot Attribution ---
+
+Analyzing for Team 100 (Blocker):
+
+--- Testing Coordinate Logic (correction.py) ---
+Mock Input:
+   team_id     x  distance
+0      100 -80.0     999.0
+
+Corrected Output:
+   team_id     x  distance
+0      200 -80.0       9.0
+
+Expected Team: 200, Actual: 200
+Expected Dist: 9.0, Actual: 9.0
+RESULT: SUCCESS. Coordinate logic is correct.
+
+--- Invoking analyze.xgs_map for Team 200 ---
+xgs_map: condition does not require shift data; skipping interval filtering to include all events
+Team 200 (Shooter) Stats from xgs_map: Team xG = 0.5, Other xG = 0.0
+RESULT: SUCCESS. Blocked shot attributed to Shooter (200).
