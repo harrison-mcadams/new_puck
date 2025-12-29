@@ -1,0 +1,39 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loaded 51447 shots.
+
+=== My Model SIGNIFICANTLY HIGHER (Top 5) ===
+|   game_id |   period |   sec | team   | shooterName     | event        | shotType   |      xgs |     xGoal |     diff |
+|----------:|---------:|------:|:-------|:----------------|:-------------|:-----------|---------:|----------:|---------:|
+|     20378 |        2 |  1705 | HOME   | Zach Bogosian   | shot-on-goal | WRIST      | 0.535372 | 0.018201  | 0.517171 |
+|     20319 |        3 |  3099 | AWAY   | Sean Monahan    | shot-on-goal | WRIST      | 0.548152 | 0.0468959 | 0.501256 |
+|     20169 |        3 |  3027 | AWAY   | Wyatt Johnston  | shot-on-goal | WRIST      | 0.470657 | 0.0229698 | 0.447687 |
+|     20299 |        3 |  2926 | AWAY   | Patrick Kane    | shot-on-goal | WRIST      | 0.448649 | 0.0427223 | 0.405927 |
+|     20081 |        2 |  1374 | AWAY   | Kirill Kaprizov | shot-on-goal | SNAP       | 0.47866  | 0.0738872 | 0.404773 |
+
+=== My Model SIGNIFICANTLY LOWER (Top 5) ===
+|   game_id |   period |   sec | team   | shooterName       | event       | shotType   |       xgs |    xGoal |      diff |
+|----------:|---------:|------:|:-------|:------------------|:------------|:-----------|----------:|---------:|----------:|
+|     20359 |        3 |  3475 | HOME   | Quinton Byfield   | missed-shot | WRIST      | 0.0631576 | 0.938233 | -0.875075 |
+|     20263 |        3 |  3552 | AWAY   | Alex Iafallo      | goal        | WRIST      | 0.0666439 | 0.938959 | -0.872315 |
+|     20320 |        3 |  3476 | AWAY   | Alex Ovechkin     | goal        | SNAP       | 0.0457016 | 0.908015 | -0.862313 |
+|     20297 |        3 |  3417 | AWAY   | Marcus Pettersson | goal        | WRIST      | 0.0456696 | 0.907843 | -0.862173 |
+|     20054 |        3 |  3498 | HOME   | Radek Faksa       | goal        | BACK       | 0.0623353 | 0.909419 | -0.847084 |
+
+--- Mean Diff by Event Type ---
+event
+goal           -0.079252
+missed-shot    -0.008991
+shot-on-goal   -0.004014
+Name: diff, dtype: float64
+
+--- Mean Diff by Shot Type (MP) ---
+shotType
+BACK    -0.014840
+DEFL    -0.032510
+SLAP    -0.009118
+SNAP    -0.005429
+TIP     -0.019137
+WRAP     0.007822
+WRIST   -0.011194
+Name: diff, dtype: float64

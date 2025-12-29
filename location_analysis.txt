@@ -1,0 +1,63 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Total Shots: 51015
+Mean Location Diff (Local - MP): 1.38 ft
+MAE Location Diff: 1.79 ft
+Median Abs Diff: 0.00 ft
+
+Shots with > 10.0ft Disagreement: 1021 (2.00%)
+
+--- Loading Season Data for Arena Context ---
+
+--- Mean Abs Error by Arena (Home Team) ---
+home_team
+UTA    3.859193
+BOS    2.953951
+PHI    2.504054
+BUF    2.251835
+COL    2.223579
+CAR    2.177268
+NYR    2.077460
+SJS    2.077308
+TOR    2.008383
+NSH    1.955139
+Name: dist_diff, dtype: float64
+
+--- Mean Abs Error by Shot Type ---
+shotType
+WRIST    2.688126
+BACK     1.707729
+SNAP     1.150681
+DEFL     1.013566
+SLAP     0.769784
+TIP      0.651857
+WRAP     0.403887
+Name: dist_diff, dtype: float64
+
+--- Mean Bias (Signed Diff) by Shot Type ---
+shotType
+WRIST    2.343762
+BACK     1.374739
+DEFL     0.707113
+SNAP     0.706627
+SLAP     0.380629
+TIP      0.278610
+WRAP    -0.105305
+Name: dist_diff, dtype: float64
+
+--- Extreme Examples (Diff > 30ft) ---
+ game_id  period    sec home_team    shooterName        event shotType   distance  shotDistance  dist_diff
+   20107       3 2440.0       UTA  Lawson Crouse shot-on-goal     SLAP 185.000000      7.000000 178.000000
+   20593       1  779.0       CAR  Moritz Seider shot-on-goal    WRIST 188.000000     10.000000 178.000000
+   20007       3 3019.0       VGK Brian Dumoulin shot-on-goal     SNAP 187.010695      9.219544 177.791150
+   20525       2 1969.0       CBJ Olen Zellweger shot-on-goal     SNAP 187.024063      9.486833 177.537230
+   20099       2 1219.0       OTT Mattias Ekholm shot-on-goal     SLAP 186.024192      8.544004 177.480188
+   20397       2 1673.0       NSH    Luke Schenn shot-on-goal    WRIST 188.042548     10.770330 177.272219
+   20553       2 1796.0       BUF    Ryan Pulock shot-on-goal    WRIST 187.042776      9.848858 177.193918
+   20543       1  213.0       SJS   Dmitry Orlov shot-on-goal    WRIST 183.024589      5.830952 177.193637
+   20036       3 3483.0       SJS   Dmitry Orlov shot-on-goal    WRIST 186.067192      9.433981 176.633211
+   20143       2 2367.0       WPG   Nate Schmidt shot-on-goal    WRIST 185.067555      8.602325 176.465230
+
+--- Coordinate Checks ---
+X Correlation: 0.9982
+Y Correlation: 0.9964

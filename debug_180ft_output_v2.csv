@@ -1,0 +1,22 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loaded 289 events for Game 2025020107.
+Available Columns: ['event', 'x', 'y', 'game_state', 'is_net_empty', 'period', 'period_time', 'player_id', 'player_name', 'team_id', 'home_id', 'away_id', 'home_abb', 'away_abb', 'home_team_defending_side', 'game_id', 'shot_type', 'score_diff', 'home_score', 'away_score', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s', 'synthetic', 'predicted_penalty_duration_seconds', 'predicted_penalty_end_total_seconds', 'periodTime_seconds_elapsed', 'total_time_elapsed_seconds', 'distance', 'angle_deg', 'last_event_type', 'last_event_time_diff', 'is_rebound', 'rebound_angle_change', 'rebound_time_diff', 'is_rush', 'game_seconds']
+
+--- Rows around index slice ---
+       period  time_elapsed_in_period_s         event     x     y    distance  team_id
+30120       3                       0.0       faceoff   0.0   0.0   89.000000       68
+30121       3                       6.0  shot-on-goal  82.0 -24.0   25.000000       68
+30122       3                      20.0      giveaway -31.0   6.0  120.149906       68
+30123       3                      22.0  blocked-shot -65.0  13.0   27.294688       21
+30124       3                      40.0  shot-on-goal -96.0   0.0  185.000000       68
+30125       3                      58.0  shot-on-goal  -5.0  13.0   85.000000       21
+30126       3                      65.0      takeaway -99.0  -5.0   11.180340       21
+30127       3                      65.0   missed-shot -63.0 -40.0   47.707442       21
+30128       3                      68.0  blocked-shot -83.0   5.0    7.810250       21
+30129       3                      70.0          goal -82.0  -8.0   10.630146       21
+30130       3                      70.0       faceoff   0.0   0.0   89.000000       68
+30131       3                      75.0  shot-on-goal  39.0 -37.0   62.201286       68
+30132       3                      79.0   missed-shot  31.0  36.0   68.264193       68
+30133       3                      81.0       faceoff  69.0  22.0  159.524293       21
+30134       3                      99.0           hit  24.0 -40.0  119.870764       21

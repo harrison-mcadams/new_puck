@@ -159,7 +159,8 @@ def main():
     try:
         resp = requests.get('https://api.nhle.com/stats/rest/en/team')
         teams_data = resp.json().get('data', [])
-        team_map = {int(t['id']): t['triCode'] for t in teams_data if 'triCode' in t}
+        # TeamID in final_df is STRING (from stats.index cleanup)
+        team_map = {str(t['id']): t['triCode'] for t in teams_data if 'triCode' in t}
     except:
         team_map = {}
         

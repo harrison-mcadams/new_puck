@@ -984,6 +984,7 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                 from .rink import calculate_distance_and_angle
                 goal_y = 0.0
                 distance, angle_deg = calculate_distance_and_angle(x, y, goal_x, goal_y)
+                
                 rec['distance'] = distance
                 rec['angle_deg'] = angle_deg
 

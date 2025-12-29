@@ -1,0 +1,55 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loading local data for 20252026...
+Loaded season dataframe from data\20252026.csv -> shape=(165465, 36)
+Generating local xG predictions...
+Local Shots (All): 52065
+Downloading MoneyPuck shots from http://peter-tanner.com/moneypuck/downloads/shots_2025.zip...
+Extracting shots_2025.csv...
+Loaded MoneyPuck Shots: 51563
+Merging data...
+Matched 51447 total shots.
+Removed 432 empty net events. Remaining: 51015
+
+Correlation (Non-Empty Net): 0.7349
+
+--- Feature Agreements ---
+Distance Correlation: 0.9842
+Mean Distance Diff (Loc - MP): -0.14 ft
+MAE Distance Diff: 0.27 ft
+
+--- Discrepancy Breakdown (Diff > 0.2) ---
+Total Significant Discrepancies: 864 (1.7%)
+  > Due to Location/Data Mismatch (> 5.0ft): 45 (5.2%)
+  > Due to Model Opinion (Loc Match):    819 (94.8%)
+Merged Columns: ['game_id', 'period', 'game_seconds_calc', 'team_id', 'event', 'xgs', 'player_id', 'x', 'y', 'distance', 'angle_deg', 'is_net_empty', 'is_rebound', 'shot_type', 'id_local', 'sec', 'time', 'team', 'xGoal', 'shotID', 'shooterName', 'shotType', 'shotDistance', 'shotAngle', 'xCord', 'yCord', 'emptyNet', 'diff', 'abs_diff', 'dist_diff']
+
+--- Top Model Disagreements (Data Agrees, Models Differ) ---
+ game_id  period    sec        shooterName        event shotType shot_type      xgs    xGoal      diff  distance  shotDistance     dist_diff
+   20076       2 2396.0       Sam Reinhart shot-on-goal      TIP    tip-in 0.207933 0.933953 -0.726020  7.000000      7.000000  0.000000e+00
+   20240       3 3178.0   Artturi Lehkonen shot-on-goal    WRIST     wrist 0.133963 0.847245 -0.713282 17.464249     17.464249 -2.702194e-11
+   20548       3 2864.0       Matt Duchene shot-on-goal      TIP    tip-in 0.174787 0.886961 -0.712174  6.000000      6.000000  0.000000e+00
+   20131       1  209.0       Logan Cooley         goal    WRIST     wrist 0.169342 0.874438 -0.705096  6.324555      6.324555 -3.240963e-12
+   20031       2 1545.0        Zack Bolduc         goal    WRIST     wrist 0.172499 0.876162 -0.703663  5.385165      5.385165  4.503953e-12
+   20087       1  222.0 Jonathan Huberdeau         goal    WRIST     wrist 0.214636 0.917807 -0.703171  2.828427      2.828427 -3.809841e-12
+   20437       1  884.0       Jason Zucker         goal    WRIST     wrist 0.169963 0.872989 -0.703026  6.000000      6.000000  0.000000e+00
+   20075       2 1523.0      Tyler Toffoli         goal     SNAP      snap 0.161212 0.856063 -0.694851 14.560220     14.560220 -3.896439e-11
+   20574       2 1753.0    Dmitri Voronkov shot-on-goal     BACK  backhand 0.219928 0.913311 -0.693383  8.246211      8.246211 -4.678924e-12
+   20032       1  956.0      Nick Schmaltz shot-on-goal    WRIST     wrist 0.179818 0.864411 -0.684593  5.099020      5.099020  2.784439e-12
+
+--- Top Data Disagreements (Location Mismatch) ---
+ game_id  period    sec       shooterName        event shotType shot_type      xgs    xGoal      diff  distance  shotDistance  dist_diff
+   20115       3 2589.0      Dylan Larkin shot-on-goal     BACK  backhand 0.111731 0.787843 -0.676112 13.038405      7.071068   5.967337
+   20577       3 3008.0       Nick Suzuki  missed-shot      NaN      slap 0.078275 0.710107 -0.631832 39.824616      6.403124  33.421491
+   20197       3 3050.0        Timo Meier  missed-shot      TIP     wrist 0.018351 0.647569 -0.629218 37.735925      5.000000  32.735925
+   20600       1  554.0 Valeri Nichushkin shot-on-goal     DEFL     wrist 0.008869 0.533651 -0.524782 51.107729      6.082763  45.024967
+   20378       2 1705.0     Zach Bogosian shot-on-goal    WRIST     wrist 0.535372 0.018201  0.517171  4.000000     51.224994 -47.224994
+   20081       2 1374.0        Matt Boldy shot-on-goal    WRIST      snap 0.478660 0.008041  0.470619  8.062258     34.409301 -26.347043
+   20479       2 1873.0       Jeff Malott  missed-shot     DEFL     wrist 0.020077 0.490596 -0.470519 30.083218      9.000000  21.083218
+   20423       2 1448.0         Josh Doan shot-on-goal    WRIST      snap 0.075162 0.506270 -0.431108 31.764760     13.038405  18.726356
+   20088       3 3039.0       Collin Graf shot-on-goal    WRIST     wrist 0.413089 0.010000  0.403089  5.099020     13.928388  -8.829369
+   20220       1 1009.0     Cole Caufield shot-on-goal     SNAP      snap 0.149840 0.534786 -0.384946 27.892651     12.041595  15.851057
+
+Saved deep dive data to C:/Users/harri/Desktop/new_puck/analysis\shot_comparison_deep_dive_2025.csv
+Saved plot.
+Saved scatter plot.

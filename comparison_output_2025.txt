@@ -1,0 +1,39 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loaded Local Data: 32 teams.
+Downloading MoneyPuck data from https://moneypuck.com/moneypuck/playerData/seasonSummary/2025/regular/teams.csv...
+Loaded MoneyPuck Data: 160 rows.
+Merged 32 teams.
+
+--- Correlation Analysis (5v5 xG Rate) ---
+xG For Correlation:      0.9586
+xG Against Correlation:  0.9334
+
+--- League Totals (5v5) ---
+My Total xG For:   2594.0
+MP Total xG For:   2680.2
+My Total Goals:    2419
+MP Total Goals:    2411.0
+My xG/Goal Ratio:  1.072
+MP xG/Goal Ratio:  1.112
+
+--- Largest Differences (per 60) ---
+Positive = My Model is Higher
+
+Top 5 Overestimates (xG For):
+team_abbr  team_xg_per60  mp_xg_for_per_60  diff_xg_for
+      DET       2.869156          2.774848     0.094308
+      PHI       2.471804          2.379043     0.092761
+      OTT       2.762646          2.734877     0.027770
+      MTL       2.514888          2.489761     0.025128
+      STL       2.576673          2.569378     0.007295
+
+Top 5 Underestimates (xG For):
+team_abbr  team_xg_per60  mp_xg_for_per_60  diff_xg_for
+      COL       3.184518          3.442542    -0.258024
+      CAR       3.019646          3.203185    -0.183539
+      CGY       2.614327          2.792803    -0.178476
+      TBL       2.852012          3.027982    -0.175970
+      CHI       2.270714          2.416933    -0.146219
+
+Saved Comparison Plot to: C:/Users/harri/Desktop/new_puck/analysis\league\20252026\5v5\comparison_moneypuck_5v5.png

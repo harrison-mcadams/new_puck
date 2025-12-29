@@ -1,62 +1,39 @@
 Config: Platform=Mac/PC, Workers=4
 Data Dir: C:/Users/harri/Desktop/new_puck/data
-Loading all seasons data...
-Loading 20152016 from C:\Users\harri\Desktop\new_puck\data\20152016\20152016_df.csv...
-Loading 20162017 from C:\Users\harri\Desktop\new_puck\data\20162017\20162017_df.csv...
-Loading 20172018 from C:\Users\harri\Desktop\new_puck\data\20172018\20172018_df.csv...
-Loading 20182019 from C:\Users\harri\Desktop\new_puck\data\20182019\20182019_df.csv...
-Loading 20192020 from C:\Users\harri\Desktop\new_puck\data\20192020\20192020_df.csv...
-Loading 20202021 from C:\Users\harri\Desktop\new_puck\data\20202021\20202021_df.csv...
-Loading 20212022 from C:\Users\harri\Desktop\new_puck\data\20212022\20212022_df.csv...
-Loading 20222023 from C:\Users\harri\Desktop\new_puck\data\20222023\20222023_df.csv...
-Loading 20232024 from C:\Users\harri\Desktop\new_puck\data\20232024\20232024_df.csv...
-Loading 20242025 from C:\Users\harri\Desktop\new_puck\data\20242025\20242025_df.csv...
-Total loaded rows: 3603250
+Loaded Local Data: 32 teams.
+Downloading MoneyPuck data from https://moneypuck.com/moneypuck/playerData/seasonSummary/2024/regular/teams.csv...
+Loaded MoneyPuck Data: 160 rows.
+Merged 32 teams.
 
---- Pre-season (TT=01) Analysis ---
-Sample size: 63527
-Empty Net Shots: 128 (0.5%)
-Empty Net Block Rate: 23.4%
-Total Block Rate: 24.0%
-Mini-Model AUC: 0.7225
+--- Correlation Analysis (5v5 xG Rate) ---
+xG For Correlation:      0.5144
+xG Against Correlation:  0.3384
 
-Correlations with is_blocked:
-is_blocked        1.000000
-game_state_5v5    0.019297
-angle_deg        -0.010140
-game_state_4v4   -0.021885
-game_state_3v3   -0.022020
-distance         -0.166898
-Name: is_blocked, dtype: float64
+--- League Totals (5v5) ---
+My Total xG For:   2594.0
+MP Total xG For:   5420.7
+My Total Goals:    2419
+MP Total Goals:    5230.0
+My xG/Goal Ratio:  1.072
+MP xG/Goal Ratio:  1.036
 
---- Regular Season (TT=02) Analysis ---
-Sample size: 3255260
-Empty Net Shots: 8119 (0.6%)
-Empty Net Block Rate: 20.7%
-Total Block Rate: 25.4%
-Mini-Model AUC: 0.7171
+--- Largest Differences (per 60) ---
+Positive = My Model is Higher
 
-Correlations with is_blocked:
-is_blocked        1.000000
-game_state_5v5    0.029945
-game_state_4v4   -0.006668
-angle_deg        -0.011032
-game_state_3v3   -0.022371
-distance         -0.170080
-Name: is_blocked, dtype: float64
+Top 5 Overestimates (xG For):
+team_abbr  team_xg_per60  mp_xg_for_per_60  diff_xg_for
+      COL       3.184518          2.518320     0.666197
+      DET       2.869156          2.364952     0.504204
+      ANA       2.843604          2.377389     0.466215
+      MIN       2.656419          2.210111     0.446307
+      OTT       2.762646          2.401657     0.360989
 
---- Playoffs (TT=03) Analysis ---
-Sample size: 280345
-Empty Net Shots: 703 (0.6%)
-Empty Net Block Rate: 20.8%
-Total Block Rate: 27.9%
-Mini-Model AUC: 0.7315
+Top 5 Underestimates (xG For):
+team_abbr  team_xg_per60  mp_xg_for_per_60  diff_xg_for
+      EDM       2.590271          2.757721    -0.167450
+      DAL       2.487720          2.644024    -0.156304
+      LAK       2.513654          2.620072    -0.106418
+      SEA       2.159386          2.262192    -0.102806
+      WPG       2.466291          2.552469    -0.086178
 
-Correlations with is_blocked:
-is_blocked        1.000000
-game_state_5v5    0.024741
-game_state_3v3   -0.003526
-angle_deg        -0.014483
-game_state_4v4   -0.015443
-distance         -0.187430
-Name: is_blocked, dtype: float64
+Saved Comparison Plot to: C:/Users/harri/Desktop/new_puck/analysis\league\20252026\5v5\comparison_moneypuck_5v5.png

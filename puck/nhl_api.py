@@ -1336,7 +1336,45 @@ def get_roster_handedness(game_id: Any) -> Dict[int, str]:
         return {}
 
 
-def get_shifts_from_nhl_html(game_id: Any, force_refresh: bool = False, debug: bool = False) -> Dict[str, Any]:
+def get_pbp_from_nhl_html(game_id: Any, force_refresh: bool = False) -> str:
+    """Fetch and return the raw HTML content of the NHL official Play-by-Play report."""
+    key = str(game_id)
+    if not force_refresh:
+        cached = _cache_get('pbp_html', key)
+        if cached and isinstance(cached, dict) and 'html' in cached:
+            return cached['html']
+
+    try:
+        gid = str(game_id)
+        if len(gid) >= 10:
+            year = int(gid[:4])
+            season = f"{year}{year+1}"
+            suffix = gid[4:]
+        else:
+            season = '20252026'
+            suffix = gid
+
+        url = f"https://www.nhl.com/scores/htmlreports/{season}/PL{suffix}.HTM"
+        
+        _throttle()
+        try:
+            resp = SESSION.get(url, timeout=12)
+            resp.raise_for_status()
+            html = resp.text
+        except Exception:
+            # Try http fallback
+            url_http = url.replace('https://', 'http://')
+            resp = SESSION.get(url_http, timeout=12)
+            resp.raise_for_status()
+            html = resp.text
+            
+        _cache_put('pbp_html', key, {'html': html})
+        return html
+    except Exception as e:
+        logging.warning('get_pbp_from_nhl_html: failed for game %s: %s', game_id, e)
+        return ""
+
+
     """Fallback: obtain shift information by scraping NHL official HTML reports.
 
     This implementation parses per-player shift detail tables and, when those are
