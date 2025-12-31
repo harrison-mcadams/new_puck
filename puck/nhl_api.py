@@ -28,6 +28,8 @@ from collections import deque
 _PUNCTUATION_PATTERN = re.compile(r"[,.'\"]")
 _WHITESPACE_PATTERN = re.compile(r"\s+")
 
+import threading
+
 # Simple on-disk and in-memory cache to reduce repeated API calls
 _CACHE_DIR = os.path.join(CACHE_DIR, 'nhl_api')
 os.makedirs(_CACHE_DIR, exist_ok=True)
@@ -36,10 +38,13 @@ _SHIFTS_CACHE: Dict[str, Dict[str, Any]] = {}
 _CACHE_TTL = 60 * 60  # default cache TTL: 1 hour
 _CACHING_ENABLED = True
 
+_API_LOCK = threading.RLock()
+
 def set_caching(enabled: bool):
     """Enable or disable API caching globally."""
     global _CACHING_ENABLED
-    _CACHING_ENABLED = enabled
+    with _API_LOCK:
+        _CACHING_ENABLED = enabled
 
 # Basic throttling: ensure at least MIN_INTERVAL seconds between requests
 _LAST_REQUEST_TIME = 0.0
@@ -54,15 +59,16 @@ _API_CALL_MAX = 60  # default max calls permitted in window
 
 def _increment_api_call():
     """Record that an API call was just made (append timestamp and prune old entries)."""
-    try:
-        now = time.time()
-        _API_CALL_TIMES.append(now)
-        # prune older entries outside the window
-        cutoff = now - _API_CALL_WINDOW
-        while _API_CALL_TIMES and _API_CALL_TIMES[0] < cutoff:
-            _API_CALL_TIMES.popleft()
-    except Exception:
-        pass
+    with _API_LOCK:
+        try:
+            now = time.time()
+            _API_CALL_TIMES.append(now)
+            # prune older entries outside the window
+            cutoff = now - _API_CALL_WINDOW
+            while _API_CALL_TIMES and _API_CALL_TIMES[0] < cutoff:
+                _API_CALL_TIMES.popleft()
+        except Exception:
+            pass
 
 
 def _allow_api_call() -> bool:
@@ -155,40 +161,38 @@ def _cache_get(kind: str, key: str, ttl: int = None) -> Optional[Dict[str, Any]]
     if not _CACHING_ENABLED:
         return None
 
-    if ttl is None:
-        ttl = _CACHE_TTL
-    # check in-memory cache first
-    if kind == 'game_feed':
-        if key in _GAME_FEED_CACHE:
-            cached = _GAME_FEED_CACHE[key]
-            if _is_cacheable(kind, cached):
-                return cached
-            else:
-                # purge in-memory and on-disk
-                try:
-                    _GAME_FEED_CACHE.pop(key, None)
-                except Exception:
-                    pass
-                try:
-                    os.remove(_cache_path(kind, key))
-                except Exception:
-                    pass
-                return None
-    elif kind == 'shifts':
-        if key in _SHIFTS_CACHE:
-            cached = _SHIFTS_CACHE[key]
-            if _is_cacheable(kind, cached):
-                return cached
-            else:
-                try:
-                    _SHIFTS_CACHE.pop(key, None)
-                except Exception:
-                    pass
-                try:
-                    os.remove(_cache_path(kind, key))
-                except Exception:
-                    pass
-                return None
+    with _API_LOCK:
+        if kind == 'game_feed':
+            if key in _GAME_FEED_CACHE:
+                cached = _GAME_FEED_CACHE[key]
+                if _is_cacheable(kind, cached):
+                    return cached
+                else:
+                    # purge in-memory and on-disk
+                    try:
+                        _GAME_FEED_CACHE.pop(key, None)
+                    except Exception:
+                        pass
+                    try:
+                        os.remove(_cache_path(kind, key))
+                    except Exception:
+                        pass
+                    return None
+        elif kind == 'shifts':
+            if key in _SHIFTS_CACHE:
+                cached = _SHIFTS_CACHE[key]
+                if _is_cacheable(kind, cached):
+                    return cached
+                else:
+                    try:
+                        _SHIFTS_CACHE.pop(key, None)
+                    except Exception:
+                        pass
+                    try:
+                        os.remove(_cache_path(kind, key))
+                    except Exception:
+                        pass
+                    return None
 
     path = _cache_path(kind, key)
     try:
@@ -205,10 +209,11 @@ def _cache_get(kind: str, key: str, ttl: int = None) -> Optional[Dict[str, Any]]
                         pass
                     return None
                 # populate memory cache
-                if kind == 'game_feed':
-                    _GAME_FEED_CACHE[key] = data
-                elif kind == 'shifts':
-                    _SHIFTS_CACHE[key] = data
+                with _API_LOCK:
+                    if kind == 'game_feed':
+                        _GAME_FEED_CACHE[key] = data
+                    elif kind == 'shifts':
+                        _SHIFTS_CACHE[key] = data
                 return data
     except Exception:
         # any cache read error -> treat as cache miss
@@ -234,10 +239,11 @@ def _cache_put(kind: str, key: str, obj: Dict[str, Any]):
         with open(tmp, 'w', encoding='utf-8') as fh:
             json.dump(obj, fh)
         os.replace(tmp, path)
-        if kind == 'game_feed':
-            _GAME_FEED_CACHE[key] = obj
-        elif kind == 'shifts':
-            _SHIFTS_CACHE[key] = obj
+        with _API_LOCK:
+            if kind == 'game_feed':
+                _GAME_FEED_CACHE[key] = obj
+            elif kind == 'shifts':
+                _SHIFTS_CACHE[key] = obj
     except Exception:
         pass
 
