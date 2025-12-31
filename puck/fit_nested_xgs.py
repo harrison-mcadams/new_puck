@@ -46,6 +46,7 @@ from typing import List, Dict, Optional, Tuple, Any
 # We use scikit-learn for the Random Forest classifiers.
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import log_loss, roc_auc_score
 from sklearn.calibration import calibration_curve
 from sklearn.preprocessing import LabelEncoder
@@ -78,13 +79,15 @@ except ImportError:
 class LayerConfig:
     name: str
     target_col: str
-    positive_label: int  # The value in target_col we are predicting probability OF
+    positive_label: int
     feature_cols: List[str]
     n_estimators: int = 200
     max_depth: Optional[int] = 10
     min_samples_split: int = 2
     min_samples_leaf: int = 1
     max_features: Any = 'sqrt'
+    class_weight: Any = None  # New support
+
 
 from sklearn.base import BaseEstimator, ClassifierMixin
 
@@ -99,7 +102,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
       
     Final Probability = P(Unblocked) * P(On Net) * P(Goal)
     
-    UPDATED: Now uses dynamic features.
+    UPDATED: Now uses dynamic features and supports class_weight.
     """
     def __init__(self, features: List[str] = None,
                  feature_set_name: str = None,
@@ -113,7 +116,8 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
                  unknown_shot_type_val: str = 'Unknown',
                  block_params: Dict = None,
                  accuracy_params: Dict = None,
-                 finish_params: Dict = None):
+                 finish_params: Dict = None,
+                 use_calibration: bool = True):
         self.features = features
         self.feature_set_name = feature_set_name
         self.n_estimators = n_estimators
@@ -127,7 +131,8 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         self.block_params = block_params or {}
         self.accuracy_params = accuracy_params or {}
-        self.finish_params = finish_params or {}
+        self.finish_params = finish_params or {'class_weight': 'balanced_subsample'}
+        self.use_calibration = use_calibration
         
         # State initialized in fit
         self.model_block = None
@@ -138,6 +143,7 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.numeric_cols = []
         self.shot_type_priors = None
         self.shot_type_cols = []
+        self.calibrator = None
 
         # Resolve features if name provided
         if self.features is None and self.feature_set_name:
@@ -159,15 +165,6 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
     def fit(self, X, y=None):
         """
         Fit the nested models and learn shot type priors for imputation.
-        Expects X to be a DataFrame. 
-        Note: If OHE is already done externally, we identify cols. 
-        BUT for consistency, we often expect Raw data and do OHE, 
-        OR we expect clean_df_for_model to have done it?
-        
-        DECISION: To support analyze.py which uses clean_df_for_model, 
-        we assume X ALREADY contains the OHE columns and we just need to identify them.
-        However, fit_nested_xgs.py main() passes raw data.
-        So we support both: if raw cols exist, we encode. If not, we assume we find them.
         """
         if not isinstance(X, pd.DataFrame):
              raise ValueError("NestedXGClassifier.fit expects a pandas DataFrame as X.")
@@ -178,22 +175,40 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         if 'event' not in df.columns:
             raise ValueError("NestedXGClassifier requires 'event' column in X for training to determine layer targets.")
 
+        # Optional Split for Calibration
+        if self.use_calibration:
+            # We split here to ensure layers are trained on one set and calibrated on another
+            df_train, df_calib = train_test_split(df, test_size=0.20, random_state=self.random_state)
+            logger = logging.getLogger("NestedXG")
+            logger.info(f"Calibration enabled: Training on {len(df_train)} rows, Calibrating on {len(df_calib)} rows.")
+        else:
+            df_train = df
+            df_calib = None
+
         # 1. Identify Numeric and Categorical Features from the requested list
-        self.categorical_cols = [c for c in self.features if df[c].dtype == object]
+        self.categorical_cols = [c for c in self.features if df_train[c].dtype == object]
         self.numeric_cols = [c for c in self.features if c not in self.categorical_cols]
 
-        # 2. Perform OHE (if raw cols exist)
+        # 2. Perform OHE (on BOTH sets if they exist)
         if self.categorical_cols:
-            df = pd.get_dummies(df, columns=self.categorical_cols, prefix_sep='_')
+            df_train = pd.get_dummies(df_train, columns=self.categorical_cols, prefix_sep='_')
+            if df_calib is not None:
+                df_calib = pd.get_dummies(df_calib, columns=self.categorical_cols, prefix_sep='_')
         
         # Identify columns after OHE
         self.final_features = []
         for c in self.features:
             if c in self.categorical_cols:
-                # Add all resulting code columns
-                self.final_features.extend([col for col in df.columns if col.startswith(f"{c}_")])
+                self.final_features.extend([col for col in df_train.columns if col.startswith(f"{c}_")])
             else:
                 self.final_features.append(c)
+        
+        # Ensure feature alignment for df_calib if it was split
+        if df_calib is not None:
+            for c in df_train.columns:
+                if c not in df_calib.columns:
+                    df_calib[c] = 0
+            df_calib = df_calib[df_train.columns] # Match order
 
         # 3. Define Layer Features
         # Helper to merge base params with layer-specific overrides
@@ -203,7 +218,8 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
                 'max_depth': self.max_depth,
                 'min_samples_split': self.min_samples_split,
                 'min_samples_leaf': self.min_samples_leaf,
-                'max_features': self.max_features
+                'max_features': self.max_features,
+                'class_weight': None 
             }
             if overrides:
                 base.update(overrides)
@@ -218,6 +234,8 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
             feature_cols=[c for c in self.final_features if not c.startswith('shot_type_')],
             **bp
         )
+
+
         self.config_accuracy = LayerConfig(
             name="Accuracy Model", target_col='is_on_net', positive_label=1,
             feature_cols=self.final_features,
@@ -230,9 +248,9 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         )
 
         # Create Layer Targets
-        df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
-        df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
-        df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
+        df_train['is_blocked'] = (df_train['event'] == 'blocked-shot').astype(int)
+        df_train['is_on_net'] = df_train['event'].isin(['shot-on-goal', 'goal']).astype(int)
+        df_train['is_goal_layer'] = (df_train['event'] == 'goal').astype(int)
 
         # 2. Train Layer 1: Block Model (All Data)
         self.model_block = RandomForestClassifier(
@@ -241,32 +259,35 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
             min_samples_split=self.config_block.min_samples_split,
             min_samples_leaf=self.config_block.min_samples_leaf,
             max_features=self.config_block.max_features,
+            class_weight=self.config_block.class_weight,
             random_state=self.random_state, 
             n_jobs=-1
         )
-        self.model_block.fit(df[self.config_block.feature_cols], df[self.config_block.target_col])
+        self.model_block.fit(df_train[self.config_block.feature_cols], df_train[self.config_block.target_col])
         
         # 3. Train Layer 2: Accuracy Model (Unblocked Only)
-        df_unblocked = df[df['is_blocked'] == 0]
+        df_unblocked = df_train[df_train['is_blocked'] == 0]
         self.model_accuracy = RandomForestClassifier(
             n_estimators=self.config_accuracy.n_estimators, 
             max_depth=self.config_accuracy.max_depth, 
             min_samples_split=self.config_accuracy.min_samples_split,
             min_samples_leaf=self.config_accuracy.min_samples_leaf,
             max_features=self.config_accuracy.max_features,
+            class_weight=self.config_accuracy.class_weight,
             random_state=self.random_state, 
             n_jobs=-1
         )
         self.model_accuracy.fit(df_unblocked[self.config_accuracy.feature_cols], df_unblocked[self.config_accuracy.target_col])
 
         # 4. Train Layer 3: Finish Model (On Net Only)
-        df_on_net = df[df['is_on_net'] == 1]
+        df_on_net = df_train[df_train['is_on_net'] == 1]
         self.model_finish = RandomForestClassifier(
             n_estimators=self.config_finish.n_estimators, 
             max_depth=self.config_finish.max_depth, 
             min_samples_split=self.config_finish.min_samples_split,
             min_samples_leaf=self.config_finish.min_samples_leaf,
             max_features=self.config_finish.max_features,
+            class_weight=self.config_finish.class_weight,
             random_state=self.random_state, 
             n_jobs=-1
         )
@@ -290,6 +311,19 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
         else:
             self.shot_type_priors = None
         
+        # 6. Optional Calibration (Platt Scaling)
+        if self.use_calibration and df_calib is not None:
+            # Generate predictions on the calibration set
+            calib_preds = self.predict_proba(df_calib)[:, 1]
+            calib_targets = (df_calib['event'] == 'goal').astype(int)
+            
+            # Train Logistic Regression calibrator (Platt Scaling)
+            # We reshape calib_preds to 2D for sklearn
+            X_calib = calib_preds.reshape(-1, 1)
+            
+            self.calibrator = LogisticRegression(penalty=None) # No penalty for pure scaling
+            self.calibrator.fit(X_calib, calib_targets)
+
         return self
 
     def predict_proba(self, X):
@@ -309,7 +343,13 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
              df = pd.get_dummies(df, columns=cat_cols, prefix_sep='_')
         
         # Add missing columns with 0
-        for c in self.final_features:
+        # Ensure we cover all features used in any layer configuration
+        all_needed = set(self.final_features)
+        if self.config_block: all_needed.update(self.config_block.feature_cols)
+        if self.config_accuracy: all_needed.update(self.config_accuracy.feature_cols)
+        if self.config_finish: all_needed.update(self.config_finish.feature_cols)
+
+        for c in all_needed:
             if c not in df.columns:
                 df[c] = 0
                 
@@ -380,6 +420,12 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
             
         # 3. Final xG
         p_goal = p_unblocked * p_goal_given_unblocked
+        
+        # 4. Apply Calibration if enabled
+        if self.use_calibration and self.calibrator:
+            # LogisticRegression expects 2D array
+            X_cal = p_goal.reshape(-1, 1)
+            p_goal = self.calibrator.predict_proba(X_cal)[:, 1]
         
         return np.column_stack((1 - p_goal, p_goal))
     

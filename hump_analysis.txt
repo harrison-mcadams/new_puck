@@ -1,0 +1,35 @@
+Analyzing 51015 non-empty net shots...
+
+Shot Counts by xG Bin:
+xg_bin
+0.0-0.05            25883
+0.05-0.10 (Hump)    11820
+0.10-0.15            7319
+0.15+                5993
+
+--- Composition of the 'Hump' (0.05-0.10) vs Low Danger (0.0-0.05) ---
+
+Top Shot Types (Hump):
+shot_type
+wrist       0.382891
+snap        0.218142
+tip-in      0.183195
+backhand    0.087832
+slap        0.084363
+
+Top Shot Types (Low Danger - Pre-Hump):
+shot_type
+wrist       0.523028
+snap        0.235028
+slap        0.172011
+backhand    0.041303
+tip-in      0.017966
+
+Mean Distance: Hump=23.0 ft, Pre-Hump=48.3 ft
+Median Distance: Hump=24.1 ft, Pre-Hump=47.0 ft
+Mean Angle: Hump=94.3, Pre-Hump=93.1
+
+Rebound %: Hump=11.2%, Pre-Hump=8.8%
+
+Wrist Shots in Hump: Mean Dist=23.8, Count=4525
+Snap Shots in Hump: Mean Dist=27.9, Count=2578

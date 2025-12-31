@@ -1,4 +1,4 @@
-Analyzing 50472 location-matched shots (dist_diff < 2ft)...
+Analyzing 50470 location-matched shots (dist_diff < 2ft)...
 
 Overall Stats for Location Matches:
   MAE xG: 0.0294
@@ -13,63 +13,62 @@ Shot Type Agreement: 80.3%
 Shot Type Crosstab (Top 10 Disagreements):
 shotType     BACK  DEFL  SLAP  SNAP   TIP  WRAP  WRIST
 shot_type                                             
-backhand     3576     0     0     2     3     0      3
-bat             0     1     0     0     1     0      1
-deflected       2   795     0     2     5     0      6
-poke            0     0     0     0     0     0      2
+backhand     3575     0     0     3     2     0      1
+bat             0     1     0     0     1     0      2
+deflected       2   797     0     2     5     0      4
 slap            2     0     0     4     0     0      2
-snap            2     0     3     0     0     0      4
-tip-in          0     3     0     1  4600     0      7
+snap            0     0     3     0     1     0      2
+tip-in          1     3     0     0  4595     0      8
 wrap-around     0     0     0     1     0   366      0
-wrist           3     2     1     8     3     1      0
+wrist           5     4     1    10     2     1      0
 
 Mean xG by My Shot Type:
                    xgs     xGoal
 shot_type                       
-backhand      0.095335  0.104536
-bat           0.134421  0.168886
+backhand      0.095327  0.104690
+bat           0.134421  0.168902
 between-legs  0.108907  0.169813
-cradle        0.089689  0.093044
-deflected     0.129708  0.159717
-poke          0.142082  0.196438
-slap          0.035310  0.043868
-snap          0.072148  0.074263
-tip-in        0.103472  0.122166
-wrap-around   0.069446  0.063215
-wrist         0.057119  0.062154
+cradle        0.089688  0.093044
+deflected     0.129920  0.159587
+poke          0.141403  0.191746
+slap          0.035324  0.043889
+snap          0.072221  0.074388
+tip-in        0.103406  0.122029
+wrap-around   0.069457  0.063215
+wrist         0.057083  0.062043
 
 Mean xG by MoneyPuck Shot Type:
                xgs     xGoal
 shotType                    
-BACK      0.095388  0.104300
-DEFL      0.128988  0.159219
-SLAP      0.035220  0.043787
-SNAP      0.072160  0.074502
-TIP       0.103656  0.122116
-WRAP      0.069929  0.062935
-WRIST     0.057106  0.062228
+BACK      0.095447  0.104732
+DEFL      0.129928  0.159988
+SLAP      0.035234  0.043808
+SNAP      0.072303  0.074648
+TIP       0.103529  0.122023
+WRAP      0.069939  0.062935
+WRIST     0.056986  0.061957
 
-Rebound Agreement: 91.9%
+Rebound Agreement: 92.0%
 
 Rebound Disagreement Impact:
                        abs_xg_diff          xg_diff
                               mean  count      mean
 is_rebound shotRebound                             
-0          0.0            0.022750  42428 -0.002063
-           1.0            0.145519     19 -0.132381
-1          0.0            0.037055   4048 -0.011609
-           1.0            0.092318   3977 -0.053519
+0          0.0            0.022750  42441 -0.002062
+           1.0            0.127439     14 -0.107887
+1          0.0            0.037006   4048 -0.011634
+           1.0            0.092411   3967 -0.053416
 
-Analyzing 37246 'Purely Matched' shots (Location, Type, State all match)...
+Analyzing 37253 'Purely Matched' shots (Location, Type, State all match)...
   Pure MAE xG: 0.0256
 
 xG Discrepancy by Distance Bin (Pure Matches):
             xg_diff  abs_xg_diff       xgs     xGoal  count
 dist_bin                                                   
-(0, 10]   -0.028043     0.080842  0.176946  0.204989   2887
-(10, 20]  -0.001105     0.045033  0.122993  0.124097   4364
-(20, 30]   0.009871     0.031140  0.085933  0.076062   5940
-(30, 50]  -0.003657     0.017523  0.034402  0.038059  14605
-(50, 100] -0.007559     0.008715  0.008721  0.016280   9450
+(0, 10]   -0.027435     0.080835  0.176705  0.204141   2888
+(10, 20]  -0.001258     0.045033  0.122991  0.124249   4360
+(20, 30]   0.009883     0.031200  0.086000  0.076117   5945
+(30, 50]  -0.003652     0.017522  0.034407  0.038059  14611
+(50, 100] -0.007559     0.008717  0.008724  0.016283   9449
 
 Saved pure disagreements to C:/Users/harri/Desktop/new_puck/analysis\pure_xg_disagreements.csv

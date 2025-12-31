@@ -1,0 +1,4 @@
+Next steps:
+
+1. do rebounds better
+2. think more about prior event information: time since last event, distance from last event, speed from last event

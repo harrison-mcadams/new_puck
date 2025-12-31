@@ -29,24 +29,37 @@ def fetch_tracking_data(game_id: str, event_id: str, season: str) -> Optional[Di
     # Add headers to mimic a browser to avoid 403
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9",
         "Referer": "https://www.nhl.com/",
         "Origin": "https://www.nhl.com"
     }
 
-    try:
-        resp = SESSION.get(url, headers=headers, timeout=10)
-        if resp.status_code == 404:
-            logging.warning(f"  -> Data not found (404) for {url}")
+    import time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            resp = SESSION.get(url, headers=headers, timeout=10)
+            if resp.status_code == 404:
+                logging.warning(f"  -> Data not found (404) for {url}")
+                return None
+            elif resp.status_code == 403:
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt  # Exponential backoff: 1s, 2s, 4s
+                    time.sleep(wait_time)
+                    continue
+                logging.warning(f"  -> Forbidden (403) for {url} after {max_retries} attempts.")
+                return None
+            
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(1)
+                continue
+            logging.error(f"  -> Error fetching data: {e}")
             return None
-        elif resp.status_code == 403:
-            logging.warning(f"  -> Forbidden (403) for {url}. Headers might be insufficient.")
-            return None
-        
-        resp.raise_for_status()
-        return resp.json()
-    except Exception as e:
-        logging.error(f"  -> Error fetching data: {e}")
-        return None
+    return None
 
 def transform_coordinates(x_raw: float, y_raw: float) -> Tuple[float, float]:
     """

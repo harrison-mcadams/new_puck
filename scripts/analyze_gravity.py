@@ -12,6 +12,8 @@ from puck.nhl_api import get_game_feed
 from puck.possession import infer_possession_events
 import matplotlib.pyplot as plt
 
+BASELINE_FILE = os.path.join(r"c:\Users\harri\Desktop\new_puck\data\edge_goals", "mod_baseline.csv")
+
 DATA_DIR = r"c:\Users\harri\Desktop\new_puck\data\edge_goals"
 METADATA_FILE = os.path.join(DATA_DIR, "metadata.csv")
 OUTPUT_FILE = os.path.join(DATA_DIR, "gravity_analysis.csv")
@@ -135,9 +137,9 @@ def visualize_gravity(df_agg, output_dir):
                 # 3. Correlation Plot
                 _create_correlation(
                     df_group,
-                    'on_puck_mean_dist_ft', 'off_puck_mean_dist_ft',
-                    f"On-Puck vs Off-Puck MOD ({season}) - {group_name}",
-                    os.path.join(output_dir, f"gravity_corr_{season}_{group_name.lower()}.png")
+                    'rel_on_puck_mean_dist_ft', 'rel_off_puck_mean_dist_ft',
+                    f"Relative On-Puck vs Off-Puck MOD ({season}) - {group_name}",
+                    os.path.join(output_dir, f"gravity_rel_corr_{season}_{group_name.lower()}.png")
                 )
             
     except Exception as e:
@@ -166,9 +168,14 @@ def _create_scatter(df, x_col, y_col, title, out_path, color):
         )
     
     plt.title(title, fontsize=16)
-    plt.xlabel("Mean Opponent Distance (ft)\n<-- Higher Pressure | More Space -->", fontsize=12)
-    plt.ylabel("Avg Nearest Opponent Distance (ft)\n<-- In Traffic | Finding Open Space -->", fontsize=12)
+    plt.xlabel("Relative Mean Opponent Distance (ft)\n<-- Higher Relative Pressure | More Relative Space -->", fontsize=12)
+    plt.ylabel("Relative Avg Nearest Opponent Distance (ft)\n<-- In Traffic | Finding Open Space -->", fontsize=12)
     plt.grid(True, linestyle='--', alpha=0.3)
+    
+    # Add zero lines
+    plt.axvline(0, color='black', alpha=0.3, linestyle='--')
+    plt.axhline(0, color='black', alpha=0.3, linestyle='--')
+    
     plt.savefig(out_path, dpi=100, bbox_inches='tight')
     plt.close()
     print(f"Saved plot to {out_path}")
@@ -190,40 +197,60 @@ def _create_correlation(df, x_col, y_col, title, out_path):
         plt.annotate(lbl, (row[x_col], row[y_col]), fontsize=8)
         
     plt.title(title, fontsize=14)
-    plt.xlabel("On-Puck Mean Opponent Distance (ft)", fontsize=11)
-    plt.ylabel("Off-Puck Mean Opponent Distance (ft)", fontsize=11)
+    plt.xlabel("Relative On-Puck MOD (ft)", fontsize=11)
+    plt.ylabel("Relative Off-Puck MOD (ft)", fontsize=11)
     plt.gca().invert_xaxis()
     plt.gca().invert_yaxis()
     plt.grid(True, linestyle=':', alpha=0.5)
+    
+    # Add zero lines
+    plt.axvline(0, color='black', alpha=0.3)
+    plt.axhline(0, color='black', alpha=0.3)
+    
     plt.savefig(out_path, dpi=100, bbox_inches='tight')
     plt.close()
 
 def analyze_gravity():
-    if not os.path.exists(METADATA_FILE):
-        print(f"Metadata file not found: {METADATA_FILE}")
-        return
+    import glob
+    
+    # Scan CSV files directly from season directories
+    csv_files = []
+    for season in ['20242025', '20252026']:
+        season_dir = os.path.join(DATA_DIR, season)
+        if os.path.exists(season_dir):
+            for f in glob.glob(os.path.join(season_dir, "*_positions.csv")):
+                # Parse filename: game_GAMEID_goal_EVENTID_positions.csv
+                basename = os.path.basename(f)
+                parts = basename.replace('_positions.csv', '').split('_')
+                if len(parts) >= 4 and parts[0] == 'game' and parts[2] == 'goal':
+                    csv_files.append({
+                        'path': f,
+                        'game_id': parts[1],
+                        'event_id': parts[3],
+                        'season': season
+                    })
+    
+    print(f"Found {len(csv_files)} goal CSV files to analyze.")
 
-    df_meta = pd.read_csv(METADATA_FILE)
-    print(f"Found {len(df_meta)} goals to analyze.")
+    # Load Baseline
+    df_baseline = pd.read_csv(BASELINE_FILE)
+    baseline_map = df_baseline.set_index(['x_bin', 'y_bin'])['mean'].to_dict()
 
     results = []
     skipped_preseason = 0
     
-    for idx, row in df_meta.iterrows():
-        try:
-            game_id = str(int(row['game_id']))
-            event_id = str(int(row['event_id']))
-            scorer_id = str(int(row['scorer_id']))
-            season = str(row['season'])
-        except:
-            continue
+    for idx, file_info in enumerate(csv_files):
+        if idx % 500 == 0:
+            print(f"  Processing {idx}/{len(csv_files)}...")
+            
+        game_id = file_info['game_id']
+        event_id = file_info['event_id']
+        season = file_info['season']
+        pos_file = file_info['path']
             
         if len(game_id) >= 6 and game_id[4:6] == '01':
             skipped_preseason += 1
             continue
-            
-        pos_file = os.path.join(DATA_DIR, f"game_{game_id}_goal_{event_id}_positions.csv")
-        if not os.path.exists(pos_file): continue
             
         try:
             df_pos = pd.read_csv(pos_file)
@@ -237,25 +264,54 @@ def analyze_gravity():
              df_pos['y'] = -(df_pos['y'] - 510.0) / 12.0
         
         df_pos['entity_id'] = df_pos['entity_id'].astype(str)
+        
+        # NORMALIZE TO POSITIVE END
+        # Check the mean X position of players in the LAST 50 frames to determine end
+        last_frame = df_pos['frame_idx'].max()
+        end_data = df_pos[(df_pos['entity_type'] == 'player') & (df_pos['frame_idx'] > last_frame - 50)]
+        if end_data.empty: continue
+        
+        end_mean_x = end_data['x'].mean()
+        
+        # If play ends at Negative X, flip everything to Positive X
+        if end_mean_x < 0:
+            df_pos['x'] = -df_pos['x']
+            df_pos['y'] = -df_pos['y']
+
+        # Now filter to Goal Moment
         df_pos = filter_data_to_goal_moment(df_pos)
         
-        scorer_frames = df_pos[df_pos['entity_id'] == scorer_id]
-        if scorer_frames.empty: continue
+        df_players = df_pos[df_pos['entity_type'] == 'player']
+        if df_players.empty: continue
         
-        scoring_team_id = scorer_frames.iloc[0]['team_id']
-        
-        # EXTRACT GAME STATE (situationCode)
+        # EXTRACT GAME STATE (situationCode) AND SCORING TEAM (eventOwnerTeamId)
         feed = get_game_feed(game_id)
         plays = feed.get('plays', [])
         this_play = next((p for p in plays if str(p.get('eventId')) == event_id), None)
         
+        scoring_team_id = None
+        if this_play:
+            off_team_id = this_play.get('details', {}).get('eventOwnerTeamId')
+            if off_team_id:
+                off_team_val = float(off_team_id)
+                teams = df_players['team_id'].unique()
+                
+                # Match API ID to Tracking ID
+                if off_team_val in teams:
+                    scoring_team_id = off_team_val
+                else:
+                    # Try fuzzy matching int values
+                    match = next((t for t in teams if int(t) == int(off_team_val)), None)
+                    if match:
+                        scoring_team_id = match
+        
+        if scoring_team_id is None:
+             # Fallback if API fails? Skip to be safe
+             continue
+        
         game_state = 'UNK'
         if this_play and 'situationCode' in this_play:
             sc = this_play['situationCode'] # e.g. "1551"
-            # format: [awayGoalie, awaySkaters, homeSkaters, homeGoalie]
-            # We want to know if it's 5v5.
-            # But wait, we need to know WHICH team is home/away to label correctly?
-            # Actually for gravity, we just care if it's 5v5 skaters.
             if len(sc) == 4:
                 if sc[1] == '5' and sc[2] == '5':
                     game_state = '5v5'
@@ -268,7 +324,7 @@ def analyze_gravity():
 
         roster = get_roster_map(game_id)
         
-        df_players = df_pos[df_pos['entity_type'] == 'player']
+        # df_players already defined above for team detection
         off_players = df_players[df_players['team_id'] == scoring_team_id]['entity_id'].unique()
         def_players_df = df_players[df_players['team_id'] != scoring_team_id]
         
@@ -322,23 +378,37 @@ def analyze_gravity():
                     dy = def_frame['y'] - my
                     dists = np.sqrt(dx**2 + dy**2)
                     
-                    states[state].append((dists.mean(), dists.min()))
+                    # Expected MOD for this location
+                    xb = (mx // 5) * 5
+                    yb = (my // 5) * 5
+                    expected_mod = baseline_map.get((xb, yb), np.nan)
+                    
+                    states[state].append((dists.mean(), dists.min(), expected_mod))
                 except: pass
             
             if not states['on_puck'] and not states['off_puck']: continue
             
             def _avg(lst, idx):
-                if not lst: return np.nan
-                return np.mean([x[idx] for x in lst])
+                # Filter out nans for the expected_mod column (index 2)
+                clean = [x[idx] for x in lst if not np.isnan(x[idx])]
+                if not clean: return np.nan
+                return np.mean(clean)
+
+            on_puck_mod = _avg(states['on_puck'], 0)
+            off_puck_mod = _avg(states['off_puck'], 0)
+            exp_on_puck = _avg(states['on_puck'], 2)
+            exp_off_puck = _avg(states['off_puck'], 2)
 
             res = {
                 'season': season, 'game_id': game_id, 'event_id': event_id,
-                'player_id': pid, 'role': 'Scorer' if pid == scorer_id else 'Teammate',
+                'player_id': pid, 'role': 'Teammate',  # Scorer ID not available in file-based approach
                 'game_state': game_state,
-                'on_puck_mean_dist_ft': _avg(states['on_puck'], 0),
+                'on_puck_mean_dist_ft': on_puck_mod,
                 'on_puck_nearest_dist_ft': _avg(states['on_puck'], 1),
-                'off_puck_mean_dist_ft': _avg(states['off_puck'], 0),
+                'off_puck_mean_dist_ft': off_puck_mod,
                 'off_puck_nearest_dist_ft': _avg(states['off_puck'], 1),
+                'rel_on_puck_mean_dist_ft': on_puck_mod - exp_on_puck,
+                'rel_off_puck_mean_dist_ft': off_puck_mod - exp_off_puck,
                 'on_puck_frames': len(states['on_puck']),
                 'off_puck_frames': len(states['off_puck'])
             }
@@ -367,6 +437,8 @@ def analyze_gravity():
         'on_puck_nearest_dist_ft': 'mean',
         'off_puck_mean_dist_ft': 'mean',
         'off_puck_nearest_dist_ft': 'mean',
+        'rel_on_puck_mean_dist_ft': 'mean',
+        'rel_off_puck_mean_dist_ft': 'mean',
         'event_id': 'count'
     }).rename(columns={'event_id': 'goals_on_ice_count'}).reset_index()
     

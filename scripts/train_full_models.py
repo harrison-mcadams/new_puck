@@ -11,7 +11,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from puck import fit_xgs, fit_nested_xgs, impute
+from puck import fit_xgs, fit_nested_xgs, fit_xgboost_nested, impute
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(message)s')
 logger = logging.getLogger("TrainFull")
@@ -116,19 +116,53 @@ def main():
     logger.info("Applying 'point_pull' imputation...")
     df_nested_imp = impute.impute_blocked_shot_origins(full_df, method='point_pull')
     
-    # NestedXGClassifier handles the rest (encoding, etc.)
-    clf_nested = fit_nested_xgs.NestedXGClassifier(
+    # XGBNestedXGClassifier handles the rest (encoding, categorical support, etc.)
+    clf_nested = fit_xgboost_nested.XGBNestedXGClassifier(
         n_estimators=200,
-        max_depth=10,
-        prevent_overfitting=True
+        max_depth=6, # XGB standard
+        use_calibration=True,
+        use_balancing=True
     )
     
-    logger.info("Fitting Nested Model...")
+    logger.info("Fitting XGBoost Nested Model...")
     clf_nested.fit(df_nested_imp)
     
     # Save
     out_path_n = 'analysis/xgs/xg_model_nested.joblib'
     joblib.dump(clf_nested, out_path_n)
+
+    # --- SANITY CHECK ---
+    logger.info("--- STARTING SANITY CHECK PREDICTION ---")
+    try:
+        # Check training data sample
+        sample = df_nested_imp.iloc[:5].copy()
+        logger.info(f"Sanity Check Input Index: {sample.index}")
+        probs = clf_nested.predict_proba(sample)
+        logger.info(f"Sanity Check Probs (Train Data): \n{probs}")
+
+        # Check synthetic data
+        syn_df = pd.DataFrame([{
+            'distance': 30, 'angle_deg': 0, 'game_state': '5v5', 
+            'is_rebound': 0, 'is_rush': 0, 'shot_type': 'wrist',
+            'time_elapsed_in_period_s': 600, 'period_number': 1, 'score_diff': 0,
+            'last_event_type': 'Faceoff', 'last_event_time_diff': 10,
+            'rebound_angle_change': 0, 'rebound_time_diff': 0, 'total_time_elapsed_s': 600,
+            'shoots_catches': 'L',
+            'event': 'shot-on-goal'
+        }])
+        # Ensure cols exist
+        for f in clf_nested.features:
+            if f not in syn_df.columns: syn_df[f] = 0
+            
+        logger.info(f"Sanity Check Synthetic Index: {syn_df.index}")
+        probs_syn = clf_nested.predict_proba(syn_df)
+        logger.info(f"Sanity Check Probs (Synthetic): \n{probs_syn}")
+        logger.info("--- SANITY CHECK PASSED ---")
+
+    except Exception as e:
+        logger.error(f"--- SANITY CHECK FAILED: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
     
     # Save Metadata (Nested handles its own features, but we can save generic info)
     # The NestedXGClassifier class stores feature lists in its config
