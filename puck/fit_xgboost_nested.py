@@ -52,33 +52,28 @@ class LayerConfig:
     max_depth: int = 6
     learning_rate: float = 0.1
 
-def preprocess_data(df: pd.DataFrame, features: List[str] = None) -> pd.DataFrame:
+def preprocess_data(df: pd.DataFrame, features: Optional[List[str]] = None) -> pd.DataFrame:
     """Clean and prepare data for the XGBoost Nested Model."""
-    valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
-    if 'event' in df.columns:
-        df = df[df['event'].isin(valid_events)].copy()
+    df = df.copy()
     
-    if 'is_net_empty' in df.columns:
-        mask_empty = (df['is_net_empty'] == 1) | (df['is_net_empty'] == True)
-        df = df[~mask_empty].copy()
-
-    if 'game_state' in df.columns:
-        mask_extreme = df['game_state'].isin(['1v0', '0v1'])
-        df = df[~mask_extreme].copy()
-
-    if 'game_id' in df.columns:
-        gid = df['game_id'].astype(str)
-        mask_reg = (gid.str.len() >= 6) & (gid.str[4:6] == '02')
-        if not mask_reg.all():
-            df = df[mask_reg].copy()
-
-    # Create Targets
+    # Fast metadata wipe for categoricals to avoid code mismatches
+    # We MUST reset the index and clear any existing category mapping
+    df = df.reset_index(drop=True)
+    for col in (df.columns):
+        if hasattr(df[col], 'cat'):
+            df[col] = df[col].astype(object)
+    
+    # Create Targets if event exists
     if 'event' in df.columns:
+        # Standard filtering (optional but good for training)
+        valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+        df = df[df['event'].isin(valid_events)].copy()
+        
         df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
         df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
         df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
-
-    # Standardize Categoricals
+    
+    # Standardize Categoricals using fixed VOCABs
     if 'game_state' in df.columns:
         df['game_state'] = pd.Categorical(df['game_state'], categories=VOCAB_GAME_STATE)
     
@@ -86,13 +81,19 @@ def preprocess_data(df: pd.DataFrame, features: List[str] = None) -> pd.DataFram
         df['shot_type'] = df['shot_type'].fillna('Unknown')
         df['shot_type'] = pd.Categorical(df['shot_type'], categories=VOCAB_SHOT_TYPE)
 
-    for col in (features or []):
-        if col not in df.columns:
-            df[col] = np.nan
-        elif df[col].dtype == object and col not in ['game_state', 'shot_type']:
-            df[col] = df[col].astype('category')
+    for col in (df.columns):
+        if col not in ['game_state', 'shot_type']:
+            if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]):
+                df[col] = df[col].astype('category')
+            elif features and col in features:
+                try:
+                    df[col] = df[col].astype(float)
+                except (TypeError, ValueError):
+                    pass
             
-    return df.reset_index(drop=True)
+    # Final clean up: explicitly cast to RangeIndex and ensure no weird index metadata
+    df.index = pd.RangeIndex(len(df))
+    return df
 
 class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, 
@@ -125,6 +126,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_block = None
         self.model_accuracy = None
         self.model_finish = None
+        self.feature_dtypes = {} # To store dtypes for inference consistency
         
         # Introspection Configs (for diagnostics)
         feat_block = [f for f in self.features if 'shot_type' not in f]
@@ -153,22 +155,67 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         """Prepare dataframe for prediction (inference)."""
         df_out = df.copy()
         
-        # Standardize known categoricals
-        if 'game_state' in df_out.columns:
-            df_out['game_state'] = pd.Categorical(df_out['game_state'], categories=VOCAB_GAME_STATE)
+        # Fast metadata wipe for categoricals to avoid code mismatches
+        df_out = df_out.reset_index(drop=True)
+        for col in (df_out.columns):
+            if hasattr(df_out[col], 'cat'):
+                df_out[col] = df_out[col].astype(object)
         
-        if 'shot_type' in df_out.columns:
-            df_out['shot_type'] = df_out['shot_type'].fillna('Unknown')
-            df_out['shot_type'] = pd.Categorical(df_out['shot_type'], categories=VOCAB_SHOT_TYPE)
+        try:
+            # Standardize known categoricals
+            if 'game_state' in df_out.columns:
+                df_out['game_state'] = pd.Categorical(df_out['game_state'], categories=VOCAB_GAME_STATE)
+            
+            if 'shot_type' in df_out.columns:
+                df_out['shot_type'] = df_out['shot_type'].fillna('Unknown')
+                df_out['shot_type'] = pd.Categorical(df_out['shot_type'], categories=VOCAB_SHOT_TYPE)
 
-        for col in self.features:
-            if col not in df_out.columns:
-                df_out[col] = np.nan
-            if col not in ['game_state', 'shot_type']:
-                if df_out[col].dtype == object or df_out[col].dtype.name == 'category':
-                    df_out[col] = df_out[col].astype('category')
+            for col in (self.features or []):
+                if col not in df_out.columns:
+                    # If we have a recorded dtype (especially categorical), use it
+                    if self.feature_dtypes and col in self.feature_dtypes:
+                        dt = self.feature_dtypes[col]
+                        if isinstance(dt, pd.CategoricalDtype):
+                            df_out[col] = pd.Series([np.nan]*len(df_out), dtype=dt)
+                        else:
+                            df_out[col] = np.nan
+                    else:
+                        df_out[col] = np.nan
+                
+                # Apply recorded categories if they exist to ensure code mapping is identical
+                if self.feature_dtypes and col in self.feature_dtypes:
+                    dt = self.feature_dtypes[col]
+                    if isinstance(dt, pd.CategoricalDtype):
+                        # Wipe existing if necessary (safety)
+                        if hasattr(df_out[col], 'cat'):
+                            df_out[col] = df_out[col].astype(object)
+                        df_out[col] = pd.Categorical(df_out[col], categories=dt.categories)
+                    else:
+                        try:
+                            # Standardize numeric to float
+                            if pd.api.types.is_numeric_dtype(dt):
+                                df_out[col] = df_out[col].astype(float)
+                        except:
+                            pass
+                else:
+                    # FALLBACK: If we don't have recorded dtypes yet (e.g. during calibration fit),
+                    # convert objects to category to satisfy XGBoost.
+                    if col not in ['game_state', 'shot_type']:
+                        if pd.api.types.is_object_dtype(df_out[col]) or pd.api.types.is_string_dtype(df_out[col]):
+                            df_out[col] = df_out[col].astype('category')
+                        else:
+                            try:
+                                if pd.api.types.is_numeric_dtype(df_out[col]):
+                                    df_out[col] = df_out[col].astype(float)
+                            except:
+                                pass
+        except Exception as e:
+            logger.error(f"Error in _prepare_df: {e}")
+            raise
                     
-        return df_out.reset_index(drop=True)
+        # Final clean up: explicitly cast to RangeIndex and ensure no weird index metadata
+        df_out.index = pd.RangeIndex(len(df_out))
+        return df_out
 
     def fit(self, X: pd.DataFrame, y=None):
         if self.use_calibration:
@@ -230,17 +277,22 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_finish = XGBClassifier(**p_finish)
         self.model_finish.fit(df_on_net[feat_full], df_on_net['is_goal_layer'])
         
+        # Record final dtypes for categorical consistency
+        # CRITICAL: Do this BEFORE predict_proba call during calibration
+        self.feature_dtypes = df[self.features].dtypes.to_dict()
+        
         # 4. Calibration
         if self.use_calibration and df_calib_raw is not None:
             logger.info("Fitting Platt Scaling calibrator...")
             calib_preds = self.predict_proba(df_calib_raw)[:, 1]
             if 'event' in df_calib_raw.columns:
-                targets = (df_calib_raw['event'] == 'goal').astype(int)
+                df_c = preprocess_data(df_calib_raw, features=self.features)
+                targets = (df_c['event'] == 'goal').astype(int)
             else:
-                 # If we only have subsets, we might need preprocessing
-                 # But usually df_calib_raw is just the raw split
-                 df_c = preprocess_data(df_calib_raw, features=self.features)
-                 targets = df_c['is_goal_layer']
+                # If we only have subsets, we might need preprocessing
+                # But usually df_calib_raw is just the raw split
+                df_c = preprocess_data(df_calib_raw, features=self.features)
+                targets = df_c['is_goal_layer']
             
             # Ensure alignment? predict_proba prepares df -> reset index
             # targets should match
@@ -258,6 +310,10 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = self._prepare_df(X)
         feat_block = [f for f in self.features if 'shot_type' not in f]
         
+        # 0. Debug Logging
+        if len(df) < 100: # Only for small/synthetic checks to avoid log spam
+            logger.info(f"Predict Proba Input: Index={type(df.index)}, Dtypes={df.dtypes.to_dict()}")
+
         # 1. P(Blocked)
         p_blocked = self.model_block.predict_proba(df[feat_block])[:, 1]
         p_unblocked = 1.0 - p_blocked

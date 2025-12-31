@@ -42,7 +42,7 @@ def main():
     print("Starting Model Deep Dive...")
     
     # 1. Load Model
-    model_path = Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_nested.joblib'
+    model_path = Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_nested_all.joblib'
     if not model_path.exists():
         print(f"Error: Model not found at {model_path}")
         return

@@ -26,9 +26,15 @@ def main():
         return
 
     print("Generating local xG predictions...")
-    # This adds 'xg' column (and potentially others)
-    # Ensure we use the best model (Nested usually)
-    df_local, _, _ = analyze._predict_xgs(df_local, behavior='overwrite')
+    # Explicitly use the new XGBoost model
+    model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
+    
+    # Preprocess exactly like training/verification
+    from puck import fit_xgboost_nested, impute
+    df_local = fit_xgboost_nested.preprocess_data(df_local)
+    df_local = impute.impute_blocked_shot_origins(df_local, method='point_pull')
+    
+    df_local, _, _ = analyze._predict_xgs(df_local, model_path=model_path, behavior='overwrite')
     
     # Filter for shots only
     df_local_shots = df_local[df_local['event'].isin(['shot-on-goal', 'goal', 'missed-shot'])].copy()
