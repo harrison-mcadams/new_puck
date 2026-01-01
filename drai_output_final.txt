@@ -1,0 +1,32 @@
+Analyzing Scorer Split for: Draisaitl...
+Player: Leon Draisaitl (ID: 8477934)
+Value counts of is_scorer: 
+is_scorer
+False    61
+True     24
+Name: count, dtype: int64
+Direct check for first 10 rows: [False, False, True, True, False, True, False, True, True, False]
+
+--- Results ---
+Total Goals on Ice: 85
+Goals Scored by Leon Draisaitl: 24
+Goals Scored by Teammates: 61
+NaNs in gravity column: 10
+Zero weights: 0
+
+--- DEBUG DATA ---
+off_puck_frames                int64
+rel_off_puck_mean_dist_ft    float64
+dtype: object
+      off_puck_frames  rel_off_puck_mean_dist_ft
+1452               52                   2.269465
+1760               42                  -2.037335
+3028               11                   4.032347
+3487               17                  -5.282038
+3512               33                   5.190458
+
+Relative Off-Puck Gravity (Positive = Open Space):
+On Goals He Scored: 1.00 ft
+On Goals by Teammates: 2.29 ft
+
+CONCLUSION: AVERAGE.

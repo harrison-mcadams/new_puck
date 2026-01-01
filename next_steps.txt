@@ -1,4 +1,6 @@
 Next steps:
 
+1. this whole model drift thing...
 1. do rebounds better
 2. think more about prior event information: time since last event, distance from last event, speed from last event
+3. think about how to quantify predictive ability. this will give means to empirically optimize some of our parameters (like blocked shot importance)

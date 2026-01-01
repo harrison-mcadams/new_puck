@@ -1,0 +1,2 @@
+,season,player_id,player_name,team_abbr,position,on_puck_mean_dist_ft,on_puck_nearest_dist_ft,off_puck_mean_dist_ft,off_puck_nearest_dist_ft,rel_on_puck_mean_dist_ft,rel_off_puck_mean_dist_ft,goals_on_ice_count
+1616,20252026,8483733,Nikita Grebenkin,PHI,R,22.120849381080145,8.104804443229751,30.046662966437687,11.843764835374614,-8.807443058724692,-4.386438863155604,10

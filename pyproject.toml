@@ -1,0 +1,2 @@
+[tool.pyrefly]
+exclude = ["venv", ".venv", ".git", ".idea", ".vscode", "__pycache__", "node_modules"]

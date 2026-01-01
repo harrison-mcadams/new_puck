@@ -831,8 +831,14 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
     import pandas as pd
     import numpy as np
     from . import fit_xgs
+    from . import correction
 
-    df = df_filtered
+    df = df_filtered.copy()
+    
+    # Correction: Fix blocked shot attribution (critical for distance/angle consistency)
+    # This matches the training pipeline in train_xgboost_model.py
+    if 'event' in df.columns and 'blocked-shot' in df['event'].unique():
+         df = correction.fix_blocked_shot_attribution(df)
     if df.shape[0] == 0:
         return df, None, None
 

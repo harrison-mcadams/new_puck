@@ -1,0 +1,18 @@
+
+--- WOWY Analysis: Leon Draisaitl with/without Connor McDavid ---
+Goals on ice WITH Connor McDavid: 37
+Goals on ice WITHOUT Connor McDavid: 48
+
+Leon Draisaitl Off-Puck Gravity:
+  WITH Connor McDavid:    +1.72 ft
+  WITHOUT Connor McDavid: +1.99 ft
+  Difference:           -0.27 ft
+
+--- WOWY Analysis: Connor McDavid with/without Leon Draisaitl ---
+Goals on ice WITH Leon Draisaitl: 37
+Goals on ice WITHOUT Leon Draisaitl: 40
+
+Connor McDavid Off-Puck Gravity:
+  WITH Leon Draisaitl:    -2.68 ft
+  WITHOUT Leon Draisaitl: -1.57 ft
+  Difference:           -1.11 ft

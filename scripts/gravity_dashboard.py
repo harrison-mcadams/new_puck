@@ -1,87 +1,201 @@
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+import json
 import os
+import sys
 
 # Paths
 DATA_PATH = os.path.join("analysis", "gravity", "player_gravity_season.csv")
 OUTPUT_HTML = os.path.join("analysis", "gravity", "gravity_dashboard.html")
 
-def create_dashboard():
+HTML_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Gravity Analysis Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <style>
+        body { font-family: sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .controls { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 20px; flex-wrap: wrap; align-items: center; }
+        label { font-weight: bold; margin-right: 5px; }
+        select, input { padding: 5px; background: #333; color: white; border: 1px solid #555; border-radius: 4px; }
+        #plot { width: 100%; height: 80vh; border-radius: 8px; background: #1e1e1e; }
+        .metric-value { font-family: monospace; color: #4db8ff; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div>
+            <label for="seasonSelect">Season:</label>
+            <select id="seasonSelect" onchange="updatePlot()"></select>
+        </div>
+        
+        <div>
+            <label for="teamSelect">Team:</label>
+            <select id="teamSelect" onchange="updatePlot()">
+                <option value="ALL">All Teams</option>
+            </select>
+        </div>
+
+        <div style="flex-grow: 1; max-width: 400px;">
+            <label for="goalSlider">Min Goals on Ice: <span id="goalValue" class="metric-value">5</span></label>
+            <input type="range" id="goalSlider" min="1" max="50" value="5" style="width: 100%;" oninput="document.getElementById('goalValue').innerText = this.value; updatePlot();">
+        </div>
+
+        <div>
+            <label for="metricSelect">Metric:</label>
+            <select id="metricSelect" onchange="updatePlot()">
+                <option value="absolute">Relative Gravity (vs League)</option>
+                <option value="wowy">Linemate-Adjusted Gravity (vs Line)</option>
+            </select>
+        </div>
+    </div>
+
+    <div id="plot"></div>
+
+    <script>
+        // EMBEDDED DATA
+        const rawData = __DATA_JSON__;
+        
+        // Init Controls
+        const seasons = [...new Set(rawData.map(d => d.season))].sort();
+        const teams = [...new Set(rawData.map(d => d.team_abbr))].sort();
+        
+        const seasonSelect = document.getElementById('seasonSelect');
+        seasons.forEach(s => {
+            let opt = document.createElement('option');
+            opt.value = s;
+            opt.innerText = s;
+            seasonSelect.appendChild(opt);
+        });
+        // Select latest season by default
+        seasonSelect.value = seasons[seasons.length - 1];
+
+        const teamSelect = document.getElementById('teamSelect');
+        teams.forEach(t => {
+            let opt = document.createElement('option');
+            opt.value = t;
+            opt.innerText = t;
+            teamSelect.appendChild(opt);
+        });
+
+        function getFilteredData() {
+            const s = parseInt(seasonSelect.value);
+            const t = teamSelect.value;
+            const limit = parseInt(document.getElementById('goalSlider').value);
+
+            return rawData.filter(d => {
+                if (d.season !== s) return false;
+                if (t !== 'ALL' && d.team_abbr !== t) return false;
+                if (d.goals_on_ice_count < limit) return false;
+                return true;
+            });
+        }
+
+        function updatePlot() {
+            const data = getFilteredData();
+            const metric = document.getElementById('metricSelect').value;
+            
+            // Split by Position for Colors
+            const positions = ['F', 'D'];
+            const colors = {'F': '#1f77b4', 'D': '#ff7f0e', 'G': '#2ca02c', 'UNK': '#999'};
+            
+            const traces = positions.map(pos => {
+                const subset = data.filter(d => d.display_position === pos);
+                return {
+                    x: subset.map(d => d.rel_on_puck_mean_dist_ft),
+                    y: subset.map(d => metric === 'absolute' ? d.rel_off_puck_mean_dist_ft : d.rel_to_teammates_off_puck),
+                    mode: 'markers',
+                    name: pos === 'F' ? 'Forwards' : 'Defense',
+                    marker: {
+                        size: subset.map(d => d.goals_on_ice_count),
+                        sizemode: 'area',
+                        sizeref: 2.0 * 50 / (40*40),
+                        sizemin: 4,
+                        color: colors[pos],
+                        opacity: 0.8,
+                        line: {width: 1, color: 'white'}
+                    },
+                    text: subset.map(d => d.player_name),
+                    customdata: subset.map(d => [d.team_abbr, d.goals_on_ice_count, d.on_puck_mean_dist_ft, d.rel_off_puck_mean_dist_ft, d.rel_to_teammates_off_puck]),
+                    hovertemplate: 
+                        "<b>%{text}</b> (%{customdata[0]})<br>" +
+                        "Pos: " + pos + "<br>" +
+                        "Goals on Ice: %{customdata[1]}<br>" +
+                        "Rel On-Puck: %{x:.2f} ft<br>" +
+                        "Rel Off-Puck (League): %{customdata[3]:+.2f} ft<br>" +
+                        "vs Teammates: %{customdata[4]:+.2f} ft<br>" +
+                        "<extra></extra>"
+                };
+            });
+
+            const layout = {
+                template: 'plotly_dark',
+                title: metric === 'absolute' ? `Relative Gravity (vs League Baseline)` : `Linemate-Adjusted Gravity (Relative to Line)`,
+                xaxis: { title: 'Relative On-Puck MOD (ft) <br><i>(Negative = Draws More Pressure)</i>', autorange: 'reversed' },
+                yaxis: { title: metric === 'absolute' ? 'Rel Off-Puck MOD (ft)' : 'Off-Puck Gravity Relative to Teammates (ft)', autorange: 'reversed' },
+                hovermode: 'closest',
+                shapes: [
+                    { type: 'line', x0: 0, y0: -100, x1: 0, y1: 100, line: {color: 'gray', dash: 'dash'} },
+                    { type: 'line', x0: -100, y0: 0, x1: 100, y1: 0, line: {color: 'gray', dash: 'dash'} }
+                ],
+                paper_bgcolor: '#1e1e1e',
+                plot_bgcolor: '#1e1e1e',
+                font: { color: '#e0e0e0' }
+            };
+
+            Plotly.react('plot', traces, layout, {responsive: true});
+        }
+
+        // Initial Render
+        updatePlot();
+    </script>
+</body>
+</html>
+"""
+
+def generate_dashboard():
     if not os.path.exists(DATA_PATH):
         print(f"Data not found at {DATA_PATH}")
         return
 
+    print("Loading data...")
     df = pd.read_csv(DATA_PATH)
     
-    # Clean up column names and types
+    # Cleaning & Mapping
     df = df.dropna(subset=['rel_on_puck_mean_dist_ft', 'rel_off_puck_mean_dist_ft'])
-    
-    # Ensure team_abbr exists (fallback if analysis is still running correctly)
     if 'team_abbr' not in df.columns:
         df['team_abbr'] = 'UNK'
     
-    # Create the interactive scatter plot
-    # x: Rel On-Puck MOD (Lower is more pressure)
-    # y: Rel Off-Puck MOD (Lower is more pressure)
+    df['display_position'] = df['position'].map({
+        'L': 'F', 'R': 'F', 'C': 'F', 'F': 'F',
+        'D': 'D', 'G': 'G'
+    }).fillna('UNK')
+
+    # Convert to list of dicts for JSON
+    # Keep only necessary columns to reduce file size
+    cols = ['season', 'player_name', 'team_abbr', 'display_position', 
+            'goals_on_ice_count', 'rel_on_puck_mean_dist_ft', 'rel_off_puck_mean_dist_ft',
+            'on_puck_mean_dist_ft', 'off_puck_mean_dist_ft', 'rel_to_teammates_off_puck']
+          # Prepare Data
+    data_records = df.to_dict(orient='records')
     
-    fig = px.scatter(
-        df,
-        x='rel_on_puck_mean_dist_ft',
-        y='rel_off_puck_mean_dist_ft',
-        color='position',
-        size='goals_on_ice_count',
-        hover_name='player_name',
-        hover_data=['team_abbr', 'position', 'goals_on_ice_count', 'on_puck_mean_dist_ft', 'off_puck_mean_dist_ft'],
-        title='Interactive Relative Gravity Dashboard',
-        labels={
-            'rel_on_puck_mean_dist_ft': 'Relative On-Puck MOD (ft)',
-            'rel_off_puck_mean_dist_ft': 'Relative Off-Puck MOD (ft)',
-            'goals_on_ice_count': 'Goals on Ice'
-        },
-        template='plotly_dark'
-    )
+    # DEBUG CHECK
+    for r in data_records:
+        if 'Grebenkin' in str(r.get('player_name')):
+             print(f"DEBUG GREBENKIN: {r}")
 
-    # Invert axes so that 'more pressure' (negative values) is top-right or at least more intuitive
-    fig.update_xaxes(autorange="reversed")
-    fig.update_yaxes(autorange="reversed")
-
-    # Add zero lines
-    fig.add_shape(type="line", x0=0, y0=-20, x1=0, y1=20, line=dict(color="Gray", dash="dash", width=1))
-    fig.add_shape(type="line", x0=-20, y0=0, x1=20, y1=0, line=dict(color="Gray", dash="dash", width=1))
-
-    # Add slider for Goals on Ice (Interactive in Filter)
-    # Note: Plotly Express doesn't have a direct "slider filter" that stays on the HTML easily 
-    # without Dash, but we can use 'updatemenus' for some basic filtering or just let the user 
-    # use the built-in Plotly tools.
-    # For a true slider, we would usually use a Dash app, but for a static HTML, 
-    # we can use Plotly's 'animation_frame' trick or just custom JS if needed.
-    # However, the user specifically asked for a slider. I'll use a range slider 
-    # but that's for axis range.
+    json_data = json.dumps(data_records)
     
-    # A better approach for "Slider for min goals" in a static HTML is to use 
-    # multiple traces and toggle them, or just use Dash. 
-    # Since I'm making a single HTML, I'll provide a dropdown for team as well.
+    # Inject into HTML
+    html_content = HTML_TEMPLATE.replace('__DATA_JSON__', json_data)
     
-    teams = sorted(df['team_abbr'].unique())
-    buttons = [dict(label="All Teams", method="update", args=[{"visible": [True] * len(df['position'].unique())}, {"title": "All Teams"}])]
-    
-    for team in teams:
-        # This is strictly for team filtering
-        mask = (df['team_abbr'] == team)
-        # This is a bit complex for pure Plotly.js buttons without a server.
-        # I'll stick to a clean, highly interactive plot with hover/zoom first.
-        pass
-
-    fig.update_layout(
-        xaxis_title="<-- More Gravity (On-Puck) | Less Gravity -->",
-        yaxis_title="<-- More Gravity (Off-Puck) | Less Gravity -->",
-        legend_title="Position"
-    )
-
     os.makedirs(os.path.dirname(OUTPUT_HTML), exist_ok=True)
-    fig.write_html(OUTPUT_HTML)
-    print(f"Dashboard saved to {OUTPUT_HTML}")
+    with open(OUTPUT_HTML, 'w', encoding='utf-8') as f:
+        f.write(html_content)
+        
+    print(f"Interactive dashboard generated: {OUTPUT_HTML} ({len(data_records)} records)")
 
 if __name__ == "__main__":
-    create_dashboard()
+    generate_dashboard()

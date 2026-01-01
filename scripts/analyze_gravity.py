@@ -12,10 +12,7 @@ from puck.nhl_api import get_game_feed
 from puck.possession import infer_possession_events
 import matplotlib.pyplot as plt
 
-BASELINE_FILE = os.path.join(r"c:\Users\harri\Desktop\new_puck\data\edge_goals", "mod_baseline.csv")
-
 DATA_DIR = r"c:\Users\harri\Desktop\new_puck\data\edge_goals"
-METADATA_FILE = os.path.join(DATA_DIR, "metadata.csv")
 OUTPUT_FILE = os.path.join(DATA_DIR, "gravity_analysis.csv")
 
 def get_roster_map(game_id):
@@ -219,12 +216,16 @@ def analyze_gravity():
     
     print(f"Found {len(csv_files)} goal CSV files to analyze.")
 
-    # 2. SETUP RESOURCES
+    # 2. SETUP RESOURCES (DUAL BASELINES)
     try:
-        df_baseline = pd.read_csv(BASELINE_FILE)
-        baseline_map = df_baseline.set_index(['x_bin', 'y_bin'])['mean'].to_dict()
+        df_base_on = pd.read_csv(os.path.join(DATA_DIR, "mod_baseline_on_puck.csv"))
+        base_on_map = df_base_on.set_index(['x_bin', 'y_bin'])['mean'].to_dict()
+        
+        df_base_off = pd.read_csv(os.path.join(DATA_DIR, "mod_baseline_off_puck.csv"))
+        base_off_map = df_base_off.set_index(['x_bin', 'y_bin'])['mean'].to_dict()
+        print("Loaded dual baselines (On-Puck & Off-Puck).")
     except Exception as e:
-        print(f"Error loading baseline: {e}")
+        print(f"Error loading baselines (Wait for generation to finish!): {e}")
         return
 
     feed_cache = {}
@@ -258,6 +259,7 @@ def analyze_gravity():
         season = file_info['season']
         pos_file = file_info['path']
 
+        # Skip if already processed
         if (str(game_id), str(event_id)) in processed_keys:
             return []
 
@@ -326,10 +328,13 @@ def analyze_gravity():
             poss_events = infer_possession_events(df_pos, threshold_ft=6.0)
             poss_map = {}
             if not poss_events.empty:
+                off_pids_set = set(str(p) for p in off_pids)
                 for _, pev in poss_events.iterrows():
-                    if pev['is_possession']:
+                    # Only count possession if the player is on the OFFENSIVE team
+                    pid_str = str(pev['player_id'])
+                    if pev['is_possession'] and pid_str in off_pids_set:
                         for f in range(int(pev['start_frame']), int(pev['end_frame']) + 1):
-                            poss_map[f] = str(pev['player_id'])
+                            poss_map[f] = pid_str
 
             results = []
             for pid in off_pids:
@@ -352,7 +357,13 @@ def analyze_gravity():
                         
                         # Baseline lookup
                         xb, yb = (mx // 5) * 5, (my // 5) * 5
-                        exp = baseline_map.get((xb, yb), np.nan)
+                        
+                        # DUAL BASELINE LOGIC
+                        if label == 'on_puck':
+                             exp = base_on_map.get((xb, yb), np.nan)
+                        else:
+                             exp = base_off_map.get((xb, yb), np.nan)
+
                         points[label].append((dists.mean(), dists.min(), exp))
                     except: pass
                 
