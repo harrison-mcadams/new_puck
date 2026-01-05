@@ -1,0 +1,39 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Identifying Shot Attempts for Game 2024020151 Goal 293 ---
+DEBUG: Max Abs X: 89.67855833333334
+DEBUG: Raw Frame 8 Y: 26.09056666666667
+PBP Block Event 292 Shooter ID: 8479390
+Target Shooter ID: 8479390
+Detected Attack Direction: Net at X=-89.0
+
+Evaluating 7 Candidate Segments...
+Checking Frame 7: Speed 23.7 (Launch: False)
+  Frame 7 Dist: 34.1
+  -> Dropped F7: Dist 34.1 and Low Speed
+Checking Frame 18: Speed 32.5 (Launch: False)
+  Frame 18 Dist: 30.9
+  -> Dropped F18: Dist 30.9 and Low Speed
+Checking Frame 30: Speed 15.8 (Launch: False)
+Checking Frame 46: Speed 59.5 (Launch: False)
+  Frame 46 Dist: 24.8
+  -> Candidate F46: Score 0.003 (Q:0.35 DistGate:0.01)
+Checking Frame 70: Speed 11.2 (Launch: False)
+  Frame 70 Dist: 2.4
+  -> Candidate F70: Score 0.035 (Q:0.03 DistGate:1.00)
+Checking Frame 84: Speed 63.1 (Launch: False)
+  Frame 84 Dist: 5.7
+  -> Candidate F84: Score 0.590 (Q:0.61 DistGate:0.96)
+
+Top Candidates:
+  F84 | Score: 0.590 | Spd: 63.1 | Dist: 5.7ft | Dev: 9.6°
+  F70 | Score: 0.035 | Spd: 11.2 | Dist: 2.4ft | Dev: 39.8°
+  F46 | Score: 0.003 | Spd: 59.5 | Dist: 24.8ft | Dev: 54.9°
+
+[SUCCESS] Identified Best Shot Candidate: Frame 84
+  Confidence Score: 0.590
+  Location: (-73.6, 12.4)
+  Speed: 63.1 fps
+  Shooter Proximity: 5.7 ft
+  Net Alignment: 9.6 deg deviation
+Candidates saved to C:/Users/harri/Desktop/new_puck/data\..\analysis\blocked_shots\candidate_vectors_2024020151_293_v2.csv

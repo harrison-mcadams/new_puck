@@ -110,6 +110,12 @@ def identify_shots():
         
     print(f"Target Shooter ID: {shooter_id}")
     
+    # Get Blocker ID
+    blocker_id = None
+    if block_play:
+        blocker_id = block_play.get('details', {}).get('blockingPlayerId')
+        print(f"Target Blocker ID: {blocker_id}")
+    
     # 3. Find Candidate Shot Definitions
     # Logic: High Speed (>30fps) Start of Vector + Proximity to Shooter (<3ft)
     
@@ -303,20 +309,69 @@ def identify_shots():
         # Alignment: 0-45 deg -> 1.0-0.0
         s_align = max(1 - (dev / 45), 0)
         
-        # Proximity Gate: 
-        # < 5ft: 1.0
-        # 5-25ft: Linear decay to 0.0
-        # > 25ft: 0.0
         if dist <= 5.0:
             s_dist = 1.0
         else:
             s_dist = max(1 - ((dist - 5.0) / 20.0), 0)
+        
+        # 4. Blocker Plausibility Check (Forward Trace)
+        # Does this vector actually go near the blocker?
+        blocker_dist = 99.9
+        min_blocker_dist = 99.9
+        
+        if blocker_id:
+            # Look ahead N frames (e.g., 20 frames = 2.0s max flight time)
+            # Find min distance from Projected Puck to Actual Blocker Position
+            
+            # Simple Linear Projection: P(t) = P0 + V*t
+            # We check frame f = start + t
+            
+            for t in range(1, 30): # Look ahead 3 seconds max
+                f_check = start_frame + t
+                
+                # Get Blocker Position at f_check
+                df_b = df_pos[(df_pos[col_id] == float(blocker_id)) & (df_pos['frame_idx'] == f_check)]
+                if df_b.empty: continue
+                
+                bx, by = df_b.iloc[0]['x'], df_b.iloc[0]['y']
+                
+                # Projected Puck Position
+                proj_x = row['x'] + (row['vx'] * t) # vx is per frame here? No, vx is per 0.1s. 
+                # Wait, calculate_kinematics: df['dt'] = 0.1. df['vx'] = dx / 0.1. 
+                # So vx is units/second.
+                # Displacement per frame (0.1s) is vx * 0.1.
+                
+                proj_x = row['x'] + (row['vx'] * 0.1 * t)
+                proj_y = row['y'] + (row['vy'] * 0.1 * t)
+                
+                d_b = np.sqrt((proj_x - bx)**2 + (proj_y - by)**2)
+                if d_b < min_blocker_dist:
+                    min_blocker_dist = d_b
+            
+            blocker_dist = min_blocker_dist
+            print(f"  -> Blocker Check: Min Dist {blocker_dist:.1f}ft to ID {blocker_id}")
+            
+        # Blocker Gate:
+        # If > 10ft, heavy penalty? 
+        # Let's just store it and use it as a 'tie breaker' or small weight for now.
+        # Although user said "only passes forward shot vectors... that are plausibly blocked".
+        # So maybe a strict gate?
+        # Let's make it a score multiplier.
+        
+        s_blocker = 1.0
+        if blocker_id:
+            if blocker_dist < 6.0: s_blocker = 1.0 # Within reach
+            elif blocker_dist > 20.0: s_blocker = 0.0 # Impossible
+            else: s_blocker = max(1 - ((blocker_dist - 6.0) / 14.0), 0) # Linear decay
+
             
         # Composite Score
         # Speed and Alignment define the "Quality" of the vector
         # Proximity confirms it is "Yours" (The Shooter's)
+        # Blocker Dist confirms it "Intersects" (The Block)
+        
         base_quality = (0.7 * s_speed) + (0.3 * s_align)
-        score = base_quality * s_dist
+        score = base_quality * s_dist * s_blocker
         
         print(f"  -> Candidate F{start_frame}: Score {score:.3f} (Q:{base_quality:.2f} DistGate:{s_dist:.2f})")
         
@@ -325,6 +380,8 @@ def identify_shots():
             'score': score,
             'speed': effective_speed, # Store effective speed
             'dist': dist,
+            'blocker_dist': min_blocker_dist,
+            'blocker_id': blocker_id,
             'dev_deg': dev,
             'x': row['x'], 'y': row['y'],
             'vx': row['vx'], 'vy': row['vy']
@@ -340,7 +397,7 @@ def identify_shots():
     
     print(f"\nTop Candidates:")
     for c in candidates:
-        print(f"  F{int(c['frame_idx'])} | Score: {c['score']:.3f} | Spd: {c['speed']:.1f} | Dist: {c['dist']:.1f}ft | Dev: {c['dev_deg']:.1f}°")
+        print(f"  F{int(c['frame_idx'])} | Score: {c['score']:.3f} | Spd: {c['speed']:.1f} | Dist: {c['dist']:.1f}ft | BlockDist: {c['blocker_dist']:.1f}ft | Dev: {c['dev_deg']:.1f}°")
         
     best = candidates[0]
     print(f"\n[SUCCESS] Identified Best Shot Candidate: Frame {best['frame_idx']}")

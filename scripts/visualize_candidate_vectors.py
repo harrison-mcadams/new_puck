@@ -25,7 +25,7 @@ def visualize_candidates():
     # Load Data
     base_dir = config.DATA_DIR
     data_path = os.path.join(base_dir, 'edge_goals', '20242025', f'game_{target_game_id}_goal_{target_goal_id}_positions.csv')
-    candidates_path = os.path.join(base_dir, 'analysis', 'candidate_shot_vectors.csv')
+    candidates_path = os.path.join(config.ANALYSIS_DIR, 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}_v2.csv')
     
     if not os.path.exists(data_path) or not os.path.exists(candidates_path):
         print("Data files not found.")
@@ -111,7 +111,21 @@ def visualize_candidates():
         
         # Plot Players
         frame_players = df_players[df_players['frame_idx'] == frame_idx]
-        ax.scatter(frame_players['x'], frame_players['y'], c='blue', s=50, alpha=0.6, label='Players')
+        
+        # Check for Blocker ID in candidates (take first row, assuming same block ID)
+        blocker_id = None
+        if 'blocker_id' in df_cand.columns and not df_cand.empty:
+             val = df_cand.iloc[0]['blocker_id']
+             if pd.notnull(val): blocker_id = val
+             
+        # Plot Regular Players
+        if blocker_id:
+             others = frame_players[frame_players[col_id] != blocker_id]
+             blocker = frame_players[frame_players[col_id] == blocker_id]
+             ax.scatter(others['x'], others['y'], c='blue', s=50, alpha=0.6, label='Players')
+             ax.scatter(blocker['x'], blocker['y'], c='magenta', marker='s', s=80, edgecolors='black', label='Blocker')
+        else:
+             ax.scatter(frame_players['x'], frame_players['y'], c='blue', s=50, alpha=0.6, label='Players')
         
         # Plot Puck
         frame_puck = df_puck[df_puck['frame_idx'] == frame_idx]
@@ -135,7 +149,7 @@ def visualize_candidates():
             ax.arrow(row['x'], row['y'], dx, dy, 
                      head_width=2, head_length=3, fc='red', ec='red', width=0.5, zorder=10)
             
-            ax.text(row['x'], row['y']+2, f"F{int(row['frame_idx'])}\nDev:{row['dev_deg']:.1f}", 
+            ax.text(row['x'], row['y']+2, f"F{int(row['frame_idx'])}\nDev:{row['dev_deg']:.1f}\nBlk:{row['blocker_dist']:.1f}ft", 
                     color='red', fontsize=8, fontweight='bold')
             
         ax.set_title(f"Game {target_game_id} | Frame {frame_idx}")
@@ -150,6 +164,18 @@ def visualize_candidates():
     
     ani.save(out_file, writer='pillow', fps=10)
     print(f"Animation saved to {out_file}")
+
+    # Save Best Candidate PNG
+    if 'score' in df_cand.columns:
+        best_row = df_cand.loc[df_cand['score'].idxmax()]
+        best_frame = int(best_row['frame_idx'])
+        print(f"Saving Best Candidate PNG for Frame {best_frame} (Score {best_row['score']:.3f})...")
+        
+        # Update plot to that frame
+        update(best_frame)
+        png_out = os.path.join(base_dir, '..', 'analysis', 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}_best.png')
+        plt.savefig(png_out)
+        print(f"PNG saved to {png_out}")
 
 if __name__ == "__main__":
     visualize_candidates()
