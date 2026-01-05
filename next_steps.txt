@@ -4,3 +4,6 @@ Next steps:
 1. do rebounds better
 2. think more about prior event information: time since last event, distance from last event, speed from last event
 3. think about how to quantify predictive ability. this will give means to empirically optimize some of our parameters (like blocked shot importance)
+4. arena location adjustment. apparently it's better now, but maybe the model is mis-calibarated on all of the bad old data?
+5. in our season df we use for training, do some blocked shots have shot types? because shot tyeps are included in the pbp html for at least some blocked shot attempts.
+6. player position (and forward vs d classification) as model features. something blocked crease-front shot by a defenseman more likely to originate from the point

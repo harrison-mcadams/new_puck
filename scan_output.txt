@@ -1,0 +1,35 @@
+Scanning data/edge_goals/20242025/game_2024020202_goal_328_edge.json...
+
+--- All Unique Keys Found ---
+id: 1999
+playerId: 1999
+x: 1999
+y: 1999
+sweaterNumber: 1999
+teamId: 1999
+teamAbbrev: 1999
+timeStamp: 140
+onIce: 140
+55026: 140
+21082: 140
+21049: 140
+21051: 140
+55003: 140
+21029: 140
+21060: 140
+55031: 140
+55024: 140
+21042: 140
+1: 140
+55051: 136
+55020: 125
+21007: 56
+55037: 41
+21096: 36
+55013: 29
+21008: 21
+21037: 11
+21017: 4
+
+--- Potential Game Clock Values ---
+No 'MM:SS' strings found.

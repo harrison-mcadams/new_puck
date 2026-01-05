@@ -27,13 +27,13 @@ def generate_baseline():
     csv_files.sort()
     
     # OUTPUT FILES
-    out_on = 'data/intermediate_on_puck.csv'
-    out_off = 'data/intermediate_off_puck.csv'
+    out_on = 'data/intermediate_on_puck_v2.csv'
+    out_off = 'data/intermediate_off_puck_v2.csv'
     
     # Initialize Headers if not exist
     for f in [out_on, out_off]:
         if not os.path.exists(f):
-             pd.DataFrame(columns=['x', 'y', 'mod']).to_csv(f, index=False)
+             pd.DataFrame(columns=['x', 'y', 'puck_vel', 'mod']).to_csv(f, index=False)
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import threading
@@ -143,6 +143,10 @@ def generate_baseline():
             
             if not frame_possessor: return None
             
+            # PUCK VELOCITY
+            df_puck = df_pos[df_pos['entity_type'] == 'puck'].sort_values('frame_idx').set_index('frame_idx')
+            puck_vel_map = np.sqrt(df_puck['x'].diff()**2 + df_puck['y'].diff()**2).fillna(0).to_dict()
+            
             def_frames = {f: g for f, g in def_p.groupby('frame_idx') if f in frame_possessor}
             
             pts_on = []
@@ -162,10 +166,12 @@ def generate_baseline():
                     dy = df_frame['y'] - my
                     d = np.sqrt(dx**2 + dy**2).mean() 
                     
+                    v = puck_vel_map.get(frame, 0)
+                    
                     if pid_val == possessor:
-                        pts_on.append([mx, my, d])
+                        pts_on.append([mx, my, v, d])
                     else:
-                        pts_off.append([mx, my, d])
+                        pts_off.append([mx, my, v, d])
                         
             return {'on': pts_on, 'off': pts_off}
 
@@ -215,40 +221,63 @@ def generate_baseline():
 
     print(f"Collection Complete. On-Puck: {count_on}, Off-Puck: {count_off}")
     
-    # GENERATE BASELINES
-    def make_baseline(input_csv, output_base, title):
-        print(f"Generating baseline for {title}...")
+    # GENERATE BASELINES (XGBOOST)
+    def train_baseline_model(input_csv, output_model, title):
+        print(f"Training XGBoost baseline for {title}...")
         try:
             df = pd.read_csv(input_csv)
             df = df[df['x'] > 0] # Offensive zone only
             
-            grid_size = 5
-            df['x_bin'] = (df['x'] // grid_size) * grid_size
-            df['y_bin'] = (df['y'] // grid_size) * grid_size
-            
-            baseline = df.groupby(['x_bin', 'y_bin'])['mod'].agg(['mean', 'count']).reset_index()
-            baseline = baseline[baseline['count'] > 20] 
-            
-            baseline.to_csv(output_base, index=False)
-            
-            # Viz
-            plt.figure(figsize=(10, 8))
-            pivot = baseline.pivot(index='y_bin', columns='x_bin', values='mean')
-            plt.imshow(pivot, extent=[baseline['x_bin'].min(), baseline['x_bin'].max() + 5, 
-                                       baseline['y_bin'].min(), baseline['y_bin'].max() + 5], 
-                       origin='lower', cmap='RdYlGn_r')
-            plt.colorbar(label='Mean Opponent Distance (ft)')
-            plt.title(f"Baseline: {title}")
-            plt.xlabel("Rink X")
-            plt.ylabel("Rink Y")
-            plt.savefig(output_base.replace('.csv', '.png'))
-            plt.close()
-            print(f"Saved {output_base}")
-        except Exception as e:
-            print(f"Failed to generate {title}: {e}")
+            if len(df) < 1000:
+                print(f"Insufficient data for {title}: {len(df)} rows.")
+                return
 
-    make_baseline(out_on, os.path.join(DATA_DIR, "mod_baseline_on_puck.csv"), "On-Puck Gravity")
-    make_baseline(out_off, os.path.join(DATA_DIR, "mod_baseline_off_puck.csv"), "Off-Puck Gravity")
+            import xgboost as xgb
+            X = df[['x', 'y', 'puck_vel']]
+            y = df['mod']
+            
+            model = xgb.XGBRegressor(
+                n_estimators=100,
+                max_depth=5,
+                learning_rate=0.1,
+                objective='reg:squarederror'
+            )
+            model.fit(X, y)
+            
+            # Save model
+            import joblib
+            joblib.dump(model, output_model)
+            print(f"Saved model to {output_model}")
+            
+            # Viz - Compare at different speeds
+            plt.figure(figsize=(12, 5))
+            for i, speed in enumerate([0, 2]): # Compare stationary vs moving
+                plt.subplot(1, 2, i+1)
+                
+                # Create grid for viz
+                xs = np.linspace(0, 100, 50)
+                ys = np.linspace(-42.5, 42.5, 50)
+                X_grid, Y_grid = np.meshgrid(xs, ys)
+                grid_df = pd.DataFrame({
+                    'x': X_grid.ravel(),
+                    'y': Y_grid.ravel(),
+                    'puck_vel': speed
+                })
+                preds = model.predict(grid_df).reshape(X_grid.shape)
+                
+                plt.imshow(preds, extent=[0, 100, -42.5, 42.5], origin='lower', cmap='RdYlGn_r', aspect='auto')
+                plt.colorbar(label='Exp Dist (ft)')
+                plt.title(f"{title} (Speed={speed})")
+            
+            plt.tight_layout()
+            plt.savefig(output_model.replace('.joblib', '.png'))
+            plt.close()
+            
+        except Exception as e:
+            print(f"Failed to train {title}: {e}")
+
+    train_baseline_model(out_on, os.path.join(DATA_DIR, "baseline_model_on_puck.joblib"), "On-Puck")
+    train_baseline_model(out_off, os.path.join(DATA_DIR, "baseline_model_off_puck.joblib"), "Off-Puck")
 
 if __name__ == "__main__":
     generate_baseline()

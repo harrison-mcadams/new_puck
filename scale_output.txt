@@ -1,0 +1,7 @@
+Total Unique Timestamps: 140
+First 5: [17308603928 17308603929 17308603930 17308603931 17308603932]
+Average Interval: 1.0
+
+Sample Value: 17308603928
+Hypothesis A (Value/10 = Seconds): 2024-11-05 21:33:12.800000 (UTC assuming local run)
+Hypothesis B (Value/1000 = Seconds): 1970-07-20 03:56:43.928000

@@ -1,0 +1,40 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Fetching shifts for game 2024020202...
+Found 697 shifts.
+
+Sample Shift Keys: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'raw']
+No 'startTime' key found in shifts.
+
+Full Sample:
+{
+  "game_id": 2024020202,
+  "player_id": 8474586,
+  "team_id": 55,
+  "period": 1,
+  "start_raw": "00:00",
+  "end_raw": "00:28",
+  "start_seconds": 0.0,
+  "end_seconds": 28.0,
+  "raw": {
+    "id": 14537550,
+    "detailCode": 0,
+    "duration": "00:28",
+    "endTime": "00:28",
+    "eventDescription": null,
+    "eventDetails": null,
+    "eventNumber": 7,
+    "firstName": "Jordan",
+    "gameId": 2024020202,
+    "hexValue": "#9CDBD9",
+    "lastName": "Eberle",
+    "period": 1,
+    "playerId": 8474586,
+    "shiftNumber": 1,
+    "startTime": "00:00",
+    "teamAbbrev": "SEA",
+    "teamId": 55,
+    "teamName": "Seattle Kraken",
+    "typeCode": 517
+  }
+}

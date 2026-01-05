@@ -1,0 +1,8 @@
+Checking for Goal Crossings (abs(x) > 89)...
+Found 3 distinct 'In Net' sequences.
+Sequence 1: Frames 29-39 (Dur: 11 frames). Start TS: 17308603957
+  Start Coords: (-90.24, -18.08)
+Sequence 2: Frames 50-59 (Dur: 10 frames). Start TS: 17308603978
+  Start Coords: (-89.26, -23.35)
+Sequence 3: Frames 89-139 (Dur: 51 frames). Start TS: 17308604017
+  Start Coords: (-89.94, -3.30)

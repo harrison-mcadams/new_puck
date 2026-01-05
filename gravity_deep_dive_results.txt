@@ -1,0 +1,22 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+--- Analyzing Noah Cates in game_2024021146_goal_921_positions.csv ---
+Play Duration: 140 frames
+X range: 61.7 to 94.1
+On-Puck Frames: 36
+  Nearest Defender Avg: 4.08 ft
+  Mean Defender Avg: 16.12 ft
+Off-Puck Frames: 104
+  Nearest Defender Avg: 4.39 ft
+  Mean Defender Avg: 16.04 ft
+
+--- Analyzing Matvei Michkov in game_2024020240_goal_609_positions.csv ---
+Play Duration: 140 frames
+X range: -54.2 to 92.9
+On-Puck Frames: 20
+  Nearest Defender Avg: 18.61 ft
+  Mean Defender Avg: 47.88 ft
+Off-Puck Frames: 120
+  Nearest Defender Avg: 22.78 ft
+  Mean Defender Avg: 58.21 ft

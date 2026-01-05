@@ -11,6 +11,7 @@ from puck.edge import transform_coordinates, filter_data_to_goal_moment
 from puck.nhl_api import get_game_feed
 from puck.possession import infer_possession_events
 import matplotlib.pyplot as plt
+import joblib
 
 DATA_DIR = r"c:\Users\harri\Desktop\new_puck\data\edge_goals"
 OUTPUT_FILE = os.path.join(DATA_DIR, "gravity_analysis.csv")
@@ -216,16 +217,13 @@ def analyze_gravity():
     
     print(f"Found {len(csv_files)} goal CSV files to analyze.")
 
-    # 2. SETUP RESOURCES (DUAL BASELINES)
+    # 2. SETUP RESOURCES (XGBOOST BASELINES)
     try:
-        df_base_on = pd.read_csv(os.path.join(DATA_DIR, "mod_baseline_on_puck.csv"))
-        base_on_map = df_base_on.set_index(['x_bin', 'y_bin'])['mean'].to_dict()
-        
-        df_base_off = pd.read_csv(os.path.join(DATA_DIR, "mod_baseline_off_puck.csv"))
-        base_off_map = df_base_off.set_index(['x_bin', 'y_bin'])['mean'].to_dict()
-        print("Loaded dual baselines (On-Puck & Off-Puck).")
+        model_on = joblib.load(os.path.join(DATA_DIR, "baseline_model_on_puck.joblib"))
+        model_off = joblib.load(os.path.join(DATA_DIR, "baseline_model_off_puck.joblib"))
+        print("Loaded velocity-aware XGBoost baselines.")
     except Exception as e:
-        print(f"Error loading baselines (Wait for generation to finish!): {e}")
+        print(f"Error loading baseline models (Wait for generation to finish!): {e}")
         return
 
     feed_cache = {}
@@ -324,6 +322,10 @@ def analyze_gravity():
                 def_df = def_df[~def_df['entity_id'].isin(goalie_ids)]
                 if def_df.empty: return []
 
+            # PUCK VELOCITY
+            df_puck = df_pos[df_pos['entity_type'] == 'puck'].sort_values('frame_idx').set_index('frame_idx')
+            puck_vel_map = np.sqrt(df_puck['x'].diff()**2 + df_puck['y'].diff()**2).fillna(0).to_dict()
+
             # Possession / Distance calculation
             poss_events = infer_possession_events(df_pos, threshold_ft=6.0)
             poss_map = {}
@@ -355,14 +357,14 @@ def analyze_gravity():
                         defs = def_df[def_df['frame_idx'] == frame]
                         dists = np.sqrt((defs['x'] - mx)**2 + (defs['y'] - my)**2)
                         
-                        # Baseline lookup
-                        xb, yb = (mx // 5) * 5, (my // 5) * 5
+                        # VELOCITY-AWARE BASELINE PREDICTION
+                        v = puck_vel_map.get(frame, 0)
+                        input_df = pd.DataFrame([[mx, my, v]], columns=['x', 'y', 'puck_vel'])
                         
-                        # DUAL BASELINE LOGIC
                         if label == 'on_puck':
-                             exp = base_on_map.get((xb, yb), np.nan)
+                             exp = model_on.predict(input_df)[0]
                         else:
-                             exp = base_off_map.get((xb, yb), np.nan)
+                             exp = model_off.predict(input_df)[0]
 
                         points[label].append((dists.mean(), dists.min(), exp))
                     except: pass

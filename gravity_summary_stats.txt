@@ -1,0 +1,6 @@
+                         on_puck_nearest_dist_ft  off_puck_nearest_dist_ft  rel_on_puck_mean_dist_ft  rel_off_puck_mean_dist_ft  game_id
+player_name    season                                                                                                                   
+Matvei Michkov 20242025                13.582618                 17.302936                  1.970430                   1.598611       55
+               20252026                 7.994345                 11.087177                 -0.143582                  -0.235319       19
+Noah Cates     20242025                 8.459596                  9.955559                 -1.589161                  -3.604331       41
+               20252026                 7.297908                 10.658412                 -5.385527                  -3.241501       17

@@ -1,0 +1,6 @@
+--- Detailed Gravity Stats ---
+        season  player_id     player_name team_abbr position  on_puck_mean_dist_ft  on_puck_nearest_dist_ft  off_puck_mean_dist_ft  off_puck_nearest_dist_ft  rel_on_puck_mean_dist_ft  rel_off_puck_mean_dist_ft  rel_to_teammates_off_puck  goals_on_ice_count
+546   20242025    8480220      Noah Cates       PHI        L             26.492824                 9.074603              28.136090                  9.826632                 -1.571468                  -4.243673                  -3.291347                  41
+865   20242025    8484387  Matvei Michkov       PHI        R             37.750431                15.375265              34.693144                 15.400095                  4.927905                   1.387428                   1.036036                  55
+1361  20252026    8480220      Noah Cates       PHI        L             20.905227                 8.778457              25.621424                  9.978098                 -2.632873                  -4.910532                  -0.279211                  17
+1720  20252026    8484387  Matvei Michkov       PHI        R             33.475418                 9.422150              32.774907                 12.147939                  2.214303                  -0.861383                  -1.199399                  19

@@ -1,0 +1,58 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Goal Event (328) Keys ---
+dict_keys(['eventId', 'periodDescriptor', 'timeInPeriod', 'timeRemaining', 'situationCode', 'homeTeamDefendingSide', 'typeCode', 'typeDescKey', 'sortOrder', 'details', 'pptReplayUrl'])
+timeInPeriod: 14:12
+timeRemaining: 05:48
+{'details': {'assist1PlayerId': 8481042,
+             'assist1PlayerTotal': 4,
+             'assist2PlayerId': 8477492,
+             'assist2PlayerTotal': 16,
+             'awayScore': 1,
+             'discreteClip': 6364266833112,
+             'discreteClipFr': 6364266627112,
+             'eventOwnerTeamId': 21,
+             'goalieInNetId': 8475831,
+             'highlightClip': 6364266735112,
+             'highlightClipFr': 6364266736112,
+             'highlightClipSharingUrl': 'https://nhl.com/video/ivan-ivan-with-a-goal-vs-seattle-kraken-6364266735112',
+             'highlightClipSharingUrlFr': 'https://nhl.com/fr/video/ivan-ivan-with-a-goal-vs-le-kraken-de-seattle-6364266736112',
+             'homeScore': 2,
+             'scoringPlayerId': 8483930,
+             'scoringPlayerTotal': 3,
+             'shotType': 'wrist',
+             'xCoord': -77,
+             'yCoord': 12,
+             'zoneCode': 'O'},
+ 'eventId': 328,
+ 'homeTeamDefendingSide': 'right',
+ 'periodDescriptor': {'maxRegulationPeriods': 3,
+                      'number': 1,
+                      'periodType': 'REG'},
+ 'pptReplayUrl': 'https://wsr.nhle.com/sprites/20242025/2024020202/ev328.json',
+ 'situationCode': '1551',
+ 'sortOrder': 200,
+ 'timeInPeriod': '14:12',
+ 'timeRemaining': '05:48',
+ 'typeCode': 505,
+ 'typeDescKey': 'goal'}
+
+--- Block Event (325) Keys ---
+{'details': {'blockingPlayerId': 8476467,
+             'eventOwnerTeamId': 21,
+             'reason': 'blocked',
+             'shootingPlayerId': 8483930,
+             'xCoord': -63,
+             'yCoord': -6,
+             'zoneCode': 'D'},
+ 'eventId': 325,
+ 'homeTeamDefendingSide': 'right',
+ 'periodDescriptor': {'maxRegulationPeriods': 3,
+                      'number': 1,
+                      'periodType': 'REG'},
+ 'situationCode': '1551',
+ 'sortOrder': 199,
+ 'timeInPeriod': '14:04',
+ 'timeRemaining': '05:56',
+ 'typeCode': 508,
+ 'typeDescKey': 'blocked-shot'}

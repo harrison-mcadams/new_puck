@@ -1,0 +1,14 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Identifying Shot Attempts for Game 2024020202 Goal 328 ---
+PBP Block Event 325 Shooter ID: 8483930
+Target Shooter ID: 8483930
+Vector Candidate 0: Frame 3 Speed 48.2fps -> Dist to Shooter: 62.7ft
+Vector Candidate 1: Frame 24 Speed 83.3fps -> Dist to Shooter: 8.2ft
+Vector Candidate 2: Frame 59 Speed 42.4fps -> Dist to Shooter: 5.8ft
+Vector Candidate 3: Frame 87 Speed 73.3fps -> Dist to Shooter: 11.9ft
+
+[SUCCESS] Identified Shot Release at Frame 59
+  Location: (-90.9, -8.8)
+  Speed: 42.4 ft/s
+  Shooter Proximity: 5.8 ft

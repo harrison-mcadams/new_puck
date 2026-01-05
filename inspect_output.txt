@@ -1,0 +1,6 @@
+JSON Root is a LIST of length 140.
+First Item Type: <class 'dict'>
+First Item Keys: ['timeStamp', 'onIce']
+  > Found Potentital Time Key: timeStamp = 17308603928
+Last Item Time Keys:
+  > timeStamp = 17308604067
