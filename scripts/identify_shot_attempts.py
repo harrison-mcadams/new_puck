@@ -5,7 +5,9 @@ import pandas as pd
 import numpy as np
 import logging
 from puck import nhl_api
+from puck import nhl_api
 from puck import config
+import requests
 
 # Setup logging
 logging.basicConfig(level=logging.INFO, format='%(message)s')
@@ -31,6 +33,24 @@ def calculate_kinematics(df):
     df['angle_std'] = diff.rolling(window=3, center=True).mean().fillna(0)
     
     return df
+
+def get_goalie_ids(game_id):
+    """Fetches goalie IDs for the game to exclude them from blocker checks."""
+    url = f"https://api-web.nhle.com/v1/gamecenter/{game_id}/boxscore"
+    goalie_ids = []
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            # Home
+            for g in data.get('playerByGameStats', {}).get('homeTeam', {}).get('goalies', []):
+                goalie_ids.append(float(g.get('playerId')))
+            # Away
+            for g in data.get('playerByGameStats', {}).get('awayTeam', {}).get('goalies', []):
+                goalie_ids.append(float(g.get('playerId')))
+    except Exception as e:
+        print(f"[WARN] Failed to fetch goalies: {e}")
+    return set(goalie_ids)
 
 def identify_shots():
     # Parse Args
@@ -71,13 +91,16 @@ def identify_shots():
         print(f"DEBUG: Raw Frame 8 Y: {f8['y'].iloc[0]}")
     
     # Coordinate Normalization (if needed)
-    # FORCE DISABLED: Data is already normalized.
-    # if df_puck['x'].abs().max() > 200:
-    #      print("DEBUG: Normalizing...")
-    #      df_puck['x'] = (df_puck['x'] - 1200.0) / 12.0
-    #      df_puck['y'] = -(df_puck['y'] - 510.0) / 12.0
-    #      df_pos['x'] = (df_pos['x'] - 1200.0) / 12.0
-    #      df_pos['y'] = -(df_pos['y'] - 510.0) / 12.0
+    if df_puck['x'].abs().max() > 200:
+         print("DEBUG: Normalizing coordinates...")
+         def norm_x(x): return (x - 1200.0) / 12.0
+         def norm_y(y): return -(y - 510.0) / 12.0
+         
+         df_pos['x'] = norm_x(df_pos['x'])
+         df_pos['y'] = norm_y(df_pos['y'])
+         
+         # Re-extract normalized puck/players
+         df_puck = df_pos[df_pos['entity_type'] == 'puck'].copy()
 
     df_puck = calculate_kinematics(df_puck)
     
@@ -119,63 +142,43 @@ def identify_shots():
     # 3. Find Candidate Shot Definitions
     # Logic: High Speed (>30fps) Start of Vector + Proximity to Shooter (<3ft)
     
-    # Segment vectors simply by speed threshold first
-    # Find frames where speed JUMPS from Low to High
-    
-    SHOT_SPEED_THRESH = 40.0 # ft/s (approx 27mph - weak shot but decent threshold)
-    
     # Calculate Linearity (Rolling Angle Std)
-    df_puck['angle_std'] = df_puck['angle'].rolling(window=5, center=True).std()
+    # Use unwrap to handle -180/180 crossing smoothly
+    angles_rad = np.radians(df_puck['angle'].fillna(0).values)
+    unwrapped = np.unwrap(angles_rad)
+    df_puck['angle_unwrapped'] = np.degrees(unwrapped)
+    df_puck['angle_unwrapped'] = np.degrees(unwrapped)
+    df_puck['angle_std_linear'] = df_puck['angle_unwrapped'].rolling(window=5, center=True, min_periods=1).std()
     
-    # Filter for ballistic frames (Speed > 10 AND Angle Std < 30)
-    # We want to catch EVERYTHING in the CSV for debugging
-    high_speed = df_puck[(df_puck['speed'] > 10.0) & (df_puck['angle_std'] < 30.0)] 
-    
-    if high_speed.empty:
-        print("No high speed linear puck detected.")
-        return
-        
-    # Group into continuous segments
-    high_speed['group'] = (high_speed['frame_idx'].diff() > 1).cumsum()
-    
-    candidates = []
-    
-    # --- 3. CANDIDATE GENERATION & SCORING ---
-    candidates = []
-    
-    # Iterate through potential start frames
-    # We scan linear segments or simply search high-activity frames?
-    # Let's Scan all linear-ish segments relative to net
-    
-    # Parameters for Scoring
-    # User emphasized "vector looks like a shot" (High Speed is #1 factor)
-    W_SPEED = 0.7      # Critical: Projectile motion
-    W_PROXIMITY = 0.15 # Important but secondary to kinematics
-    W_ALIGNMENT = 0.15 # Must be aimed at net
-    
-    # Filter: Minimal criteria to be considered "Shot-Like"
-    # Relaxed for Debugging Scope
-    # Speed > 10 fps (was 20/40)
-    # Linearity < 30 deg (was 10/15)
-    
-    segment_starts = df_puck[
+    # Filter for ballistic frames (Speed > 10 AND Angle Std < 35)
+    # Relaxing angle std slightly to 35 for pre-season/noisy data
+    high_speed_idx = df_puck[
         (df_puck['speed'] > 10.0) & 
-        (df_puck['angle_std'] < 30.0) 
+        (df_puck['angle_std_linear'] < 35.0) 
     ].index
     
-    # We want unique 'starts' of segments.
-    # Let's map indices back to frames
-    valid_frames = df_puck.loc[segment_starts, 'frame_idx'].unique()
+    # NEW: Acceleration-based Burst Detection
+    # Catch shots blocked immediately (within 2-3 frames) which fail 5-frame linearity
+    df_puck['accel'] = df_puck['speed'].diff()
+    burst_idx = df_puck[
+        (df_puck['speed'] > 15.0) &
+        (df_puck['accel'] > 10.0) # explosive start
+    ].index
     
-    # Group consecutive frames
-    if len(valid_frames) > 0:
-        valid_frames = np.sort(valid_frames)
-        gaps = np.diff(valid_frames) > 1
-        # Add first element
-        starts = [valid_frames[0]]
-        starts.extend(valid_frames[1:][gaps])
-    else:
-        starts = []
+    # Combine
+    combined_idx = high_speed_idx.union(burst_idx)
+
+    # 4. Group into Shot Events (consecutive frames)
+    # If gap > 1 frame, it's a new shot
+    if len(combined_idx) == 0:
+        print("No high-speed ballistic frames found.")
+        return
+
+    valid_frames = np.sort(df_puck.loc[combined_idx, 'frame_idx'].unique())
+    gaps = np.diff(valid_frames) > 1
+    starts = [valid_frames[0]]
+    starts.extend(valid_frames[1:][gaps])
+    print(f"DEBUG STARTS: {starts}")
         
     # BACK-TRACE REFINEMENT
     # Rolling window (Standard Deviation) often disqualifies the very first frames of a shot
@@ -207,20 +210,36 @@ def identify_shots():
         min_dist = 999.9
         
         for f_cand in range(current_start, current_start + 3):
-             df_s = df_pos[(df_pos[col_id] == float(shooter_id)) & (df_pos['frame_idx'] == f_cand)]
-             df_p = df_puck[df_puck['frame_idx'] == f_cand]
+             # Try Intended Shooter
+             dist_to_cand = 999.9
+             if shooter_id:
+                 df_s = df_pos[(df_pos[col_id] == float(shooter_id)) & (df_pos['frame_idx'] == f_cand)]
+                 df_p = df_puck[df_puck['frame_idx'] == f_cand]
+                 if not df_s.empty and not df_p.empty:
+                     sx, sy = df_s.iloc[0]['x'], df_s.iloc[0]['y']
+                     px, py = df_p.iloc[0]['x'], df_p.iloc[0]['y']
+                     dist_to_cand = np.sqrt((px-sx)**2 + (py-sy)**2)
              
-             if not df_s.empty and not df_p.empty:
-                 sx, sy = df_s.iloc[0]['x'], df_s.iloc[0]['y']
-                 px, py = df_p.iloc[0]['x'], df_p.iloc[0]['y']
-                 d = np.sqrt((px-sx)**2 + (py-sy)**2)
+             # Fallback if shooter missing or too far
+             if dist_to_cand > 20.0:
+                 df_frame = df_pos[(df_pos['frame_idx'] == f_cand) & (df_pos['entity_type'] == 'player')]
+                 df_p = df_puck[df_puck['frame_idx'] == f_cand]
+                 if not df_frame.empty and not df_p.empty:
+                    px, py = df_p.iloc[0]['x'], df_p.iloc[0]['y']
+                    dists = np.sqrt((df_frame['x'] - px)**2 + (df_frame['y'] - py)**2)
+                    dist_to_cand = dists.min()
+
+             if dist_to_cand < min_dist:
+                 # If we already have a "good" proximity (< 5ft) at an EARLIER frame,
+                 # don't pull forward to a later frame just because an opponent (fallback) 
+                 # or tracking noise is "closer". 
+                 # Exception: If the current min_dist is from fallback and we find the INTENDED shooter, we might update.
+                 # But generally, we want the RELEASE frame.
+                 if min_dist < 5.0:
+                     continue
                  
-                 # Only update if significantly better? 
-                 # Or just minimize.
-                 # If we are strictly ballistic, min_dist might be at current_start or +1.
-                 if d < min_dist:
-                     min_dist = d
-                     best_start = f_cand
+                 min_dist = dist_to_cand
+                 best_start = f_cand
         
         current_start = best_start
         
@@ -230,11 +249,14 @@ def identify_shots():
     starts = refined_starts
         
     # Determine Net Direction
-    mean_vx = df_puck['vx'].mean()
-    net_x = -89.0 if mean_vx < 0 else 89.0
-    print(f"Detected Attack Direction: Net at X={net_x}")
+    # Use velocity of candidate shot frames, NOT global mean
+    candidate_vx = df_puck.loc[combined_idx, 'vx'].mean()
+    net_x = -89.0 if candidate_vx < 0 else 89.0
+    print(f"Detected Attack Direction (from candidates): Net at X={net_x}")
     
     print(f"\nEvaluating {len(starts)} Candidate Segments...")
+    
+    candidates = []
     
     # --- REFINEMENT STEP: FORWARD SCAN ---
     # Skip "weak" launch frames if they are too slow (<40fps)
@@ -257,9 +279,20 @@ def identify_shots():
             
     starts = refined_final_starts
 
+    # Get Goalies to exclude
+    goalie_ids = get_goalie_ids(target_game_id)
+    print(f"Goalies to exclude: {goalie_ids}")
+
     # --- MAIN SCORING LOOP ---
     for start_frame in starts:
-        row = df_puck[df_puck['frame_idx'] == start_frame].iloc[0]
+        start_frame = int(start_frame)
+        print(f"Checking Frame {start_frame}...")
+        
+        df_f = df_puck[df_puck['frame_idx'] == start_frame]
+        if df_f.empty:
+            print(f"  -> WARNING: Frame {start_frame} missing from puck data.")
+            continue
+        row = df_f.iloc[0]
         
         # Handling Launch Frames (Low Speed Start)
         effective_speed = row['speed']
@@ -272,27 +305,36 @@ def identify_shots():
                 effective_speed = next_row['speed'].iloc[0] # Borrow speed from shot
                 is_launch_frame = True
         
-        print(f"Checking Frame {start_frame}: Speed {effective_speed:.1f} (Launch: {is_launch_frame})")
-        
         # 1. Alignment (Net Vector)
-        dx_net = net_x - row['x']
-        dy_net = 0 - row['y']
-        angle_to_net = np.degrees(np.arctan2(dy_net, dx_net))
-        
-        dev = abs(row['angle'] - angle_to_net)
-        dev = dev % 360
-        if dev > 180: dev = 360 - dev
+        # Check BOTH nets since attack direction might be ambiguous
+        nets = [-89.0, 89.0]
+        devs = []
+        for nx in nets:
+            dx_net = nx - row['x']
+            dy_net = 0 - row['y'] # standard net y=0
+            angle_to_net = np.degrees(np.arctan2(dy_net, dx_net))
+            d = abs(row['angle'] - angle_to_net)
+            d = d % 360
+            if d > 180: d = 360 - d
+            devs.append(d)
+            
+        dev = min(devs)
         
         # Relax deviation check for Launch frames (angle might be weird during acceleration)
         if not is_launch_frame and dev > 60: continue 
         
         # 2. Proximity
-        df_shooter = df_pos[(df_pos[col_id] == float(shooter_id)) & (df_pos['frame_idx'] == start_frame)]
         dist = 99.9
-        if not df_shooter.empty:
-            sx, sy = df_shooter.iloc[0]['x'], df_shooter.iloc[0]['y']
-            px, py = row['x'], row['y']
-            dist = np.sqrt((px-sx)**2 + (py-sy)**2)
+        if shooter_id:
+            df_shooter = df_pos[(df_pos[col_id] == float(shooter_id)) & (df_pos['frame_idx'] == start_frame)]
+            if not df_shooter.empty:
+                sx, sy = df_shooter.iloc[0]['x'], df_shooter.iloc[0]['y']
+                px, py = row['x'], row['y']
+                dist = np.sqrt((px-sx)**2 + (py-sy)**2)
+        
+        # Strict Shooter Check: No fallback
+        if dist > 30.0:
+            pass # Previously fallback to closest player. Now ignored.
             
         print(f"  Frame {start_frame} Dist: {dist:.1f}")
             
@@ -315,56 +357,53 @@ def identify_shots():
             s_dist = max(1 - ((dist - 5.0) / 20.0), 0)
         
         # 4. Blocker Plausibility Check (Forward Trace)
-        # Does this vector actually go near the blocker?
-        blocker_dist = 99.9
         min_blocker_dist = 99.9
+        min_any_player_dist = 99.9 # Generic Closest Player
+        any_player_id = None
         
-        if blocker_id:
-            # Look ahead N frames (e.g., 20 frames = 2.0s max flight time)
-            # Find min distance from Projected Puck to Actual Blocker Position
+        available_ids = df_pos[col_id].unique()
+        
+        blocker_in_data = False
+        if blocker_id and float(blocker_id) in available_ids:
+            blocker_in_data = True
             
-            # Simple Linear Projection: P(t) = P0 + V*t
-            # We check frame f = start + t
+        for t in range(1, 40): # Look ahead 4 seconds max
+            f_check = start_frame + t
             
-            for t in range(1, 30): # Look ahead 3 seconds max
-                f_check = start_frame + t
-                
-                # Get Blocker Position at f_check
+            proj_x = row['x'] + (row['vx'] * 0.1 * t)
+            proj_y = row['y'] + (row['vy'] * 0.1 * t)
+
+            # Specific Blocker Check
+            if blocker_in_data:
                 df_b = df_pos[(df_pos[col_id] == float(blocker_id)) & (df_pos['frame_idx'] == f_check)]
-                if df_b.empty: continue
-                
-                bx, by = df_b.iloc[0]['x'], df_b.iloc[0]['y']
-                
-                # Projected Puck Position
-                proj_x = row['x'] + (row['vx'] * t) # vx is per frame here? No, vx is per 0.1s. 
-                # Wait, calculate_kinematics: df['dt'] = 0.1. df['vx'] = dx / 0.1. 
-                # So vx is units/second.
-                # Displacement per frame (0.1s) is vx * 0.1.
-                
-                proj_x = row['x'] + (row['vx'] * 0.1 * t)
-                proj_y = row['y'] + (row['vy'] * 0.1 * t)
-                
-                d_b = np.sqrt((proj_x - bx)**2 + (proj_y - by)**2)
-                if d_b < min_blocker_dist:
-                    min_blocker_dist = d_b
+                if not df_b.empty:
+                    bx, by = df_b.iloc[0]['x'], df_b.iloc[0]['y']
+                    d_b = np.sqrt((proj_x - bx)**2 + (proj_y - by)**2)
+                    if d_b < min_blocker_dist:
+                        min_blocker_dist = d_b
             
+            # Generic Player Check Removed (Strict Verification)
+            pass
+
+        if blocker_in_data:
             blocker_dist = min_blocker_dist
             print(f"  -> Blocker Check: Min Dist {blocker_dist:.1f}ft to ID {blocker_id}")
-            
+        else:
+             print(f"  -> Blocker Check: ID {blocker_id} not found in tracking (Strict).")
+
         # Blocker Gate:
-        # If > 10ft, heavy penalty? 
-        # Let's just store it and use it as a 'tie breaker' or small weight for now.
-        # Although user said "only passes forward shot vectors... that are plausibly blocked".
-        # So maybe a strict gate?
-        # Let's make it a score multiplier.
-        
         s_blocker = 1.0
-        if blocker_id:
-            if blocker_dist < 6.0: s_blocker = 1.0 # Within reach
-            elif blocker_dist > 20.0: s_blocker = 0.0 # Impossible
-            else: s_blocker = max(1 - ((blocker_dist - 6.0) / 14.0), 0) # Linear decay
+        if blocker_in_data:
+            blocker_dist = min_blocker_dist
+            if blocker_dist < 6.0: s_blocker = 1.0 
+            elif blocker_dist > 20.0: s_blocker = 0.0 
+            else: s_blocker = max(1 - ((blocker_dist - 6.0) / 14.0), 0) 
+        elif blocker_id:
+            # Strict Penalty for Missing Blocker
+            s_blocker = 0.1
 
             
+        
         # Composite Score
         # Speed and Alignment define the "Quality" of the vector
         # Proximity confirms it is "Yours" (The Shooter's)

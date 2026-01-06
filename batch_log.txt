@@ -1,0 +1,3824 @@
+Found 7925 position files.
+
+=== Processing Game 2024010005 Goal 1005 ===
+
+=== Processing Game 2024010005 Goal 156 ===
+
+=== Processing Game 2024010005 Goal 306 ===
+
+=== Processing Game 2024010005 Goal 666 ===
+
+=== Processing Game 2024010005 Goal 904 ===
+
+=== Processing Game 2024010005 Goal 95 ===
+
+=== Processing Game 2024010039 Goal 1101 ===
+
+=== Processing Game 2024010039 Goal 916 ===
+  Block ID: 915 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024010051 Goal 1120 ===
+
+=== Processing Game 2024010051 Goal 451 ===
+
+=== Processing Game 2024010051 Goal 610 ===
+
+=== Processing Game 2024010065 Goal 484 ===
+  Block ID: 480 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024010065 Goal 735 ===
+
+=== Processing Game 2024010065 Goal 827 ===
+  Block ID: 826 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024010074 Goal 612 ===
+
+=== Processing Game 2024010084 Goal 1086 ===
+
+=== Processing Game 2024010084 Goal 201 ===
+
+=== Processing Game 2024010084 Goal 538 ===
+
+=== Processing Game 2024010084 Goal 808 ===
+
+=== Processing Game 2024010084 Goal 873 ===
+  Block ID: 872 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020001 Goal 1730620 ===
+
+=== Processing Game 2024020001 Goal 1730882 ===
+
+=== Processing Game 2024020001 Goal 1731224 ===
+
+=== Processing Game 2024020001 Goal 1731328 ===
+  Block ID: 1731541 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020001 Goal 274 ===
+
+=== Processing Game 2024020002 Goal 1612933 ===
+
+=== Processing Game 2024020002 Goal 1613124 ===
+
+=== Processing Game 2024020002 Goal 1613220 ===
+
+=== Processing Game 2024020002 Goal 258 ===
+  Block ID: 1612884 (Delta: 5s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020003 Goal 465 ===
+
+=== Processing Game 2024020003 Goal 489 ===
+
+=== Processing Game 2024020003 Goal 745 ===
+
+=== Processing Game 2024020003 Goal 763 ===
+
+=== Processing Game 2024020003 Goal 780 ===
+
+=== Processing Game 2024020004 Goal 1115 ===
+
+=== Processing Game 2024020004 Goal 1136 ===
+
+=== Processing Game 2024020004 Goal 199 ===
+
+=== Processing Game 2024020004 Goal 202 ===
+
+=== Processing Game 2024020004 Goal 420 ===
+
+=== Processing Game 2024020004 Goal 459 ===
+
+=== Processing Game 2024020004 Goal 473 ===
+  Block ID: 472 (Delta: 1s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020004 Goal 700 ===
+
+=== Processing Game 2024020004 Goal 746 ===
+
+=== Processing Game 2024020004 Goal 970 ===
+
+=== Processing Game 2024020005 Goal 1123 ===
+
+=== Processing Game 2024020005 Goal 1128 ===
+
+=== Processing Game 2024020005 Goal 161 ===
+
+=== Processing Game 2024020005 Goal 257 ===
+
+=== Processing Game 2024020005 Goal 657 ===
+
+=== Processing Game 2024020005 Goal 727 ===
+
+=== Processing Game 2024020005 Goal 876 ===
+
+=== Processing Game 2024020006 Goal 223 ===
+  Block ID: 219 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020007 Goal 132 ===
+
+=== Processing Game 2024020007 Goal 163 ===
+
+=== Processing Game 2024020007 Goal 411 ===
+
+=== Processing Game 2024020007 Goal 466 ===
+
+=== Processing Game 2024020007 Goal 495 ===
+  Block ID: 157 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020007 Goal 711 ===
+
+=== Processing Game 2024020008 Goal 1090 ===
+
+=== Processing Game 2024020008 Goal 347 ===
+
+=== Processing Game 2024020008 Goal 429 ===
+
+=== Processing Game 2024020008 Goal 490 ===
+
+=== Processing Game 2024020008 Goal 495 ===
+
+=== Processing Game 2024020008 Goal 651 ===
+
+=== Processing Game 2024020009 Goal 1023 ===
+  Block ID: 1019 (Delta: 6s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020009 Goal 1063 ===
+
+=== Processing Game 2024020009 Goal 1211 ===
+  Block ID: 1208 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020009 Goal 1255 ===
+
+=== Processing Game 2024020009 Goal 249 ===
+
+=== Processing Game 2024020009 Goal 286 ===
+
+=== Processing Game 2024020009 Goal 293 ===
+
+=== Processing Game 2024020009 Goal 342 ===
+
+=== Processing Game 2024020009 Goal 463 ===
+
+=== Processing Game 2024020009 Goal 796 ===
+  Block ID: 794 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020009 Goal 903 ===
+
+=== Processing Game 2024020010 Goal 1053 ===
+
+=== Processing Game 2024020010 Goal 346 ===
+
+=== Processing Game 2024020010 Goal 353 ===
+  Block ID: 352 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020010 Goal 430 ===
+
+=== Processing Game 2024020010 Goal 433 ===
+
+=== Processing Game 2024020010 Goal 492 ===
+
+=== Processing Game 2024020010 Goal 611 ===
+
+=== Processing Game 2024020010 Goal 750 ===
+
+=== Processing Game 2024020010 Goal 765 ===
+
+=== Processing Game 2024020010 Goal 853 ===
+  Block ID: 850 (Delta: 6s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020010 Goal 875 ===
+
+=== Processing Game 2024020010 Goal 989 ===
+
+=== Processing Game 2024020011 Goal 1050 ===
+
+=== Processing Game 2024020011 Goal 1106 ===
+
+=== Processing Game 2024020011 Goal 255 ===
+
+=== Processing Game 2024020011 Goal 298 ===
+
+=== Processing Game 2024020011 Goal 415 ===
+
+=== Processing Game 2024020011 Goal 428 ===
+
+=== Processing Game 2024020011 Goal 453 ===
+
+=== Processing Game 2024020011 Goal 455 ===
+
+=== Processing Game 2024020011 Goal 808 ===
+
+=== Processing Game 2024020011 Goal 967 ===
+
+=== Processing Game 2024020012 Goal 1104 ===
+
+=== Processing Game 2024020012 Goal 1120 ===
+
+=== Processing Game 2024020012 Goal 818 ===
+
+=== Processing Game 2024020012 Goal 857 ===
+
+=== Processing Game 2024020013 Goal 1088 ===
+
+=== Processing Game 2024020013 Goal 182 ===
+
+=== Processing Game 2024020013 Goal 311 ===
+
+=== Processing Game 2024020013 Goal 794 ===
+
+=== Processing Game 2024020014 Goal 1032 ===
+
+=== Processing Game 2024020014 Goal 152 ===
+  Block ID: 151 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020014 Goal 317 ===
+
+=== Processing Game 2024020014 Goal 517 ===
+
+=== Processing Game 2024020014 Goal 531 ===
+
+=== Processing Game 2024020014 Goal 548 ===
+
+=== Processing Game 2024020014 Goal 685 ===
+
+=== Processing Game 2024020014 Goal 851 ===
+
+=== Processing Game 2024020014 Goal 972 ===
+
+=== Processing Game 2024020015 Goal 210 ===
+
+=== Processing Game 2024020015 Goal 310 ===
+
+=== Processing Game 2024020015 Goal 401 ===
+
+=== Processing Game 2024020015 Goal 524 ===
+
+=== Processing Game 2024020015 Goal 836 ===
+
+=== Processing Game 2024020015 Goal 891 ===
+
+=== Processing Game 2024020016 Goal 1045 ===
+
+=== Processing Game 2024020016 Goal 1049 ===
+
+=== Processing Game 2024020016 Goal 1096 ===
+
+=== Processing Game 2024020016 Goal 265 ===
+
+=== Processing Game 2024020016 Goal 468 ===
+
+=== Processing Game 2024020016 Goal 736 ===
+
+=== Processing Game 2024020016 Goal 841 ===
+
+=== Processing Game 2024020016 Goal 916 ===
+
+=== Processing Game 2024020016 Goal 922 ===
+
+=== Processing Game 2024020017 Goal 1001 ===
+  Block ID: 950 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020017 Goal 1180 ===
+  Block ID: 1179 (Delta: 6s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020017 Goal 464 ===
+
+=== Processing Game 2024020017 Goal 469 ===
+  Block ID: 468 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020017 Goal 487 ===
+
+=== Processing Game 2024020017 Goal 644 ===
+
+=== Processing Game 2024020017 Goal 869 ===
+  Block ID: 868 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020018 Goal 309 ===
+
+=== Processing Game 2024020018 Goal 516 ===
+  Block ID: 514 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020018 Goal 684 ===
+
+=== Processing Game 2024020018 Goal 735 ===
+
+=== Processing Game 2024020018 Goal 911 ===
+
+=== Processing Game 2024020019 Goal 1073 ===
+
+=== Processing Game 2024020019 Goal 1083 ===
+
+=== Processing Game 2024020019 Goal 192 ===
+  Block ID: 191 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020019 Goal 210 ===
+
+=== Processing Game 2024020019 Goal 380 ===
+  Block ID: 303 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020019 Goal 672 ===
+
+=== Processing Game 2024020019 Goal 806 ===
+
+=== Processing Game 2024020019 Goal 873 ===
+
+=== Processing Game 2024020019 Goal 914 ===
+
+=== Processing Game 2024020020 Goal 1130 ===
+
+=== Processing Game 2024020020 Goal 1149 ===
+
+=== Processing Game 2024020020 Goal 387 ===
+
+=== Processing Game 2024020020 Goal 596 ===
+
+=== Processing Game 2024020020 Goal 981 ===
+
+=== Processing Game 2024020021 Goal 1066 ===
+
+=== Processing Game 2024020021 Goal 1086 ===
+  Block ID: 169 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020021 Goal 807 ===
+
+=== Processing Game 2024020022 Goal 199 ===
+
+=== Processing Game 2024020022 Goal 337 ===
+
+=== Processing Game 2024020022 Goal 388 ===
+
+=== Processing Game 2024020022 Goal 507 ===
+
+=== Processing Game 2024020022 Goal 651 ===
+
+=== Processing Game 2024020022 Goal 721 ===
+
+=== Processing Game 2024020022 Goal 874 ===
+
+=== Processing Game 2024020023 Goal 15 ===
+
+=== Processing Game 2024020023 Goal 177 ===
+
+=== Processing Game 2024020023 Goal 372 ===
+
+=== Processing Game 2024020023 Goal 480 ===
+  Block ID: 478 (Delta: 7s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020023 Goal 573 ===
+
+=== Processing Game 2024020023 Goal 919 ===
+
+=== Processing Game 2024020023 Goal 941 ===
+
+=== Processing Game 2024020024 Goal 1126 ===
+
+=== Processing Game 2024020024 Goal 580 ===
+  Block ID: 579 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020024 Goal 780 ===
+
+=== Processing Game 2024020025 Goal 1102 ===
+  Block ID: 1101 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020025 Goal 216 ===
+
+=== Processing Game 2024020025 Goal 420 ===
+
+=== Processing Game 2024020025 Goal 431 ===
+
+=== Processing Game 2024020025 Goal 533 ===
+
+=== Processing Game 2024020025 Goal 810 ===
+
+=== Processing Game 2024020025 Goal 840 ===
+
+=== Processing Game 2024020026 Goal 1014 ===
+
+=== Processing Game 2024020026 Goal 1100 ===
+
+=== Processing Game 2024020026 Goal 233 ===
+
+=== Processing Game 2024020026 Goal 422 ===
+
+=== Processing Game 2024020026 Goal 450 ===
+
+=== Processing Game 2024020026 Goal 895 ===
+
+=== Processing Game 2024020027 Goal 279 ===
+
+=== Processing Game 2024020027 Goal 341 ===
+
+=== Processing Game 2024020027 Goal 803 ===
+
+=== Processing Game 2024020027 Goal 823 ===
+
+=== Processing Game 2024020027 Goal 907 ===
+  Block ID: 906 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020028 Goal 1135 ===
+
+=== Processing Game 2024020028 Goal 583 ===
+
+=== Processing Game 2024020028 Goal 891 ===
+
+=== Processing Game 2024020029 Goal 317 ===
+
+=== Processing Game 2024020029 Goal 386 ===
+
+=== Processing Game 2024020029 Goal 625 ===
+
+=== Processing Game 2024020029 Goal 655 ===
+  Block ID: 654 (Delta: 1s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020029 Goal 950 ===
+  Block ID: 949 (Delta: 1s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020030 Goal 1014 ===
+
+=== Processing Game 2024020030 Goal 1238 ===
+
+=== Processing Game 2024020030 Goal 152 ===
+
+=== Processing Game 2024020030 Goal 210 ===
+
+=== Processing Game 2024020030 Goal 567 ===
+
+=== Processing Game 2024020030 Goal 599 ===
+
+=== Processing Game 2024020030 Goal 621 ===
+
+=== Processing Game 2024020030 Goal 707 ===
+
+=== Processing Game 2024020030 Goal 713 ===
+
+=== Processing Game 2024020030 Goal 778 ===
+
+=== Processing Game 2024020030 Goal 827 ===
+
+=== Processing Game 2024020031 Goal 1023 ===
+
+=== Processing Game 2024020031 Goal 1270 ===
+
+=== Processing Game 2024020031 Goal 163 ===
+
+=== Processing Game 2024020031 Goal 371 ===
+
+=== Processing Game 2024020031 Goal 498 ===
+
+=== Processing Game 2024020031 Goal 554 ===
+
+=== Processing Game 2024020031 Goal 599 ===
+
+=== Processing Game 2024020031 Goal 930 ===
+
+=== Processing Game 2024020032 Goal 1187 ===
+
+=== Processing Game 2024020032 Goal 192 ===
+
+=== Processing Game 2024020032 Goal 735 ===
+  Block ID: 731 (Delta: 4s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020033 Goal 207 ===
+
+=== Processing Game 2024020033 Goal 275 ===
+  Block ID: 270 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020033 Goal 523 ===
+
+=== Processing Game 2024020033 Goal 524 ===
+
+=== Processing Game 2024020033 Goal 568 ===
+
+=== Processing Game 2024020033 Goal 575 ===
+
+=== Processing Game 2024020033 Goal 637 ===
+
+=== Processing Game 2024020033 Goal 788 ===
+
+=== Processing Game 2024020033 Goal 802 ===
+
+=== Processing Game 2024020033 Goal 902 ===
+
+=== Processing Game 2024020033 Goal 951 ===
+
+=== Processing Game 2024020034 Goal 1112 ===
+
+=== Processing Game 2024020034 Goal 1126 ===
+
+=== Processing Game 2024020034 Goal 233 ===
+
+=== Processing Game 2024020034 Goal 247 ===
+
+=== Processing Game 2024020034 Goal 459 ===
+
+=== Processing Game 2024020034 Goal 498 ===
+
+=== Processing Game 2024020034 Goal 602 ===
+
+=== Processing Game 2024020034 Goal 624 ===
+
+=== Processing Game 2024020034 Goal 632 ===
+
+=== Processing Game 2024020034 Goal 747 ===
+
+=== Processing Game 2024020035 Goal 1082 ===
+
+=== Processing Game 2024020035 Goal 1093 ===
+  Block ID: 1092 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020035 Goal 1114 ===
+
+=== Processing Game 2024020035 Goal 1121 ===
+  Block ID: 1120 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020035 Goal 232 ===
+
+=== Processing Game 2024020035 Goal 280 ===
+
+=== Processing Game 2024020035 Goal 708 ===
+
+=== Processing Game 2024020035 Goal 817 ===
+
+=== Processing Game 2024020035 Goal 857 ===
+
+=== Processing Game 2024020036 Goal 338 ===
+
+=== Processing Game 2024020036 Goal 493 ===
+
+=== Processing Game 2024020036 Goal 551 ===
+
+=== Processing Game 2024020036 Goal 590 ===
+  Block ID: 589 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020036 Goal 824 ===
+
+=== Processing Game 2024020036 Goal 887 ===
+  Block ID: 886 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020036 Goal 995 ===
+
+=== Processing Game 2024020037 Goal 1051 ===
+
+=== Processing Game 2024020037 Goal 968 ===
+
+=== Processing Game 2024020038 Goal 1042 ===
+
+=== Processing Game 2024020038 Goal 108 ===
+
+=== Processing Game 2024020038 Goal 452 ===
+  Block ID: 397 (Delta: 5s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020039 Goal 441 ===
+
+=== Processing Game 2024020039 Goal 445 ===
+
+=== Processing Game 2024020040 Goal 1027 ===
+
+=== Processing Game 2024020040 Goal 1158 ===
+
+=== Processing Game 2024020040 Goal 163 ===
+
+=== Processing Game 2024020040 Goal 656 ===
+
+=== Processing Game 2024020040 Goal 996 ===
+
+=== Processing Game 2024020041 Goal 153 ===
+  Block ID: 227 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020041 Goal 298 ===
+
+=== Processing Game 2024020041 Goal 792 ===
+
+=== Processing Game 2024020041 Goal 942 ===
+
+=== Processing Game 2024020042 Goal 167 ===
+
+=== Processing Game 2024020042 Goal 198 ===
+
+=== Processing Game 2024020042 Goal 272 ===
+
+=== Processing Game 2024020042 Goal 620 ===
+
+=== Processing Game 2024020042 Goal 682 ===
+
+=== Processing Game 2024020042 Goal 727 ===
+
+=== Processing Game 2024020042 Goal 738 ===
+
+=== Processing Game 2024020043 Goal 1008 ===
+
+=== Processing Game 2024020043 Goal 1088 ===
+
+=== Processing Game 2024020043 Goal 1219 ===
+
+=== Processing Game 2024020043 Goal 154 ===
+
+=== Processing Game 2024020043 Goal 264 ===
+
+=== Processing Game 2024020043 Goal 274 ===
+
+=== Processing Game 2024020043 Goal 295 ===
+
+=== Processing Game 2024020043 Goal 655 ===
+
+=== Processing Game 2024020043 Goal 719 ===
+
+=== Processing Game 2024020043 Goal 733 ===
+
+=== Processing Game 2024020043 Goal 797 ===
+
+=== Processing Game 2024020043 Goal 802 ===
+
+=== Processing Game 2024020043 Goal 819 ===
+
+=== Processing Game 2024020043 Goal 840 ===
+
+=== Processing Game 2024020043 Goal 928 ===
+
+=== Processing Game 2024020044 Goal 491 ===
+
+=== Processing Game 2024020044 Goal 612 ===
+
+=== Processing Game 2024020044 Goal 924 ===
+
+=== Processing Game 2024020045 Goal 1073 ===
+
+=== Processing Game 2024020045 Goal 253 ===
+
+=== Processing Game 2024020045 Goal 396 ===
+
+=== Processing Game 2024020045 Goal 763 ===
+
+=== Processing Game 2024020045 Goal 859 ===
+
+=== Processing Game 2024020046 Goal 1088 ===
+
+=== Processing Game 2024020046 Goal 187 ===
+
+=== Processing Game 2024020046 Goal 313 ===
+
+=== Processing Game 2024020046 Goal 330 ===
+
+=== Processing Game 2024020046 Goal 390 ===
+
+=== Processing Game 2024020046 Goal 730 ===
+
+=== Processing Game 2024020046 Goal 757 ===
+
+=== Processing Game 2024020046 Goal 945 ===
+
+=== Processing Game 2024020046 Goal 998 ===
+
+=== Processing Game 2024020047 Goal 1190 ===
+
+=== Processing Game 2024020047 Goal 166 ===
+
+=== Processing Game 2024020047 Goal 232 ===
+
+=== Processing Game 2024020047 Goal 555 ===
+
+=== Processing Game 2024020047 Goal 728 ===
+
+=== Processing Game 2024020047 Goal 762 ===
+
+=== Processing Game 2024020047 Goal 905 ===
+
+=== Processing Game 2024020047 Goal 996 ===
+
+=== Processing Game 2024020048 Goal 1217 ===
+
+=== Processing Game 2024020048 Goal 153 ===
+
+=== Processing Game 2024020048 Goal 721 ===
+
+=== Processing Game 2024020048 Goal 935 ===
+
+=== Processing Game 2024020048 Goal 983 ===
+
+=== Processing Game 2024020049 Goal 255 ===
+
+=== Processing Game 2024020049 Goal 393 ===
+
+=== Processing Game 2024020049 Goal 507 ===
+
+=== Processing Game 2024020049 Goal 526 ===
+
+=== Processing Game 2024020049 Goal 538 ===
+
+=== Processing Game 2024020049 Goal 551 ===
+
+=== Processing Game 2024020050 Goal 1083 ===
+
+=== Processing Game 2024020050 Goal 1151 ===
+
+=== Processing Game 2024020050 Goal 1193 ===
+
+=== Processing Game 2024020050 Goal 490 ===
+
+=== Processing Game 2024020050 Goal 720 ===
+
+=== Processing Game 2024020050 Goal 834 ===
+
+=== Processing Game 2024020051 Goal 1073 ===
+
+=== Processing Game 2024020051 Goal 1270 ===
+
+=== Processing Game 2024020051 Goal 1293 ===
+
+=== Processing Game 2024020051 Goal 543 ===
+
+=== Processing Game 2024020051 Goal 904 ===
+
+=== Processing Game 2024020051 Goal 922 ===
+
+=== Processing Game 2024020051 Goal 935 ===
+
+=== Processing Game 2024020052 Goal 1052 ===
+
+=== Processing Game 2024020052 Goal 149 ===
+
+=== Processing Game 2024020052 Goal 605 ===
+
+=== Processing Game 2024020052 Goal 803 ===
+
+=== Processing Game 2024020052 Goal 918 ===
+
+=== Processing Game 2024020053 Goal 1031 ===
+
+=== Processing Game 2024020053 Goal 1093 ===
+
+=== Processing Game 2024020053 Goal 150 ===
+
+=== Processing Game 2024020053 Goal 200 ===
+
+=== Processing Game 2024020053 Goal 416 ===
+
+=== Processing Game 2024020053 Goal 443 ===
+
+=== Processing Game 2024020053 Goal 466 ===
+
+=== Processing Game 2024020053 Goal 833 ===
+
+=== Processing Game 2024020053 Goal 891 ===
+
+=== Processing Game 2024020053 Goal 907 ===
+
+=== Processing Game 2024020054 Goal 306 ===
+
+=== Processing Game 2024020054 Goal 307 ===
+
+=== Processing Game 2024020054 Goal 308 ===
+
+=== Processing Game 2024020054 Goal 650 ===
+
+=== Processing Game 2024020054 Goal 716 ===
+
+=== Processing Game 2024020054 Goal 770 ===
+
+=== Processing Game 2024020054 Goal 811 ===
+
+=== Processing Game 2024020054 Goal 834 ===
+
+=== Processing Game 2024020055 Goal 1089 ===
+
+=== Processing Game 2024020055 Goal 351 ===
+
+=== Processing Game 2024020055 Goal 358 ===
+
+=== Processing Game 2024020055 Goal 783 ===
+
+=== Processing Game 2024020056 Goal 1251 ===
+
+=== Processing Game 2024020056 Goal 1315 ===
+
+=== Processing Game 2024020056 Goal 264 ===
+
+=== Processing Game 2024020056 Goal 333 ===
+
+=== Processing Game 2024020056 Goal 751 ===
+
+=== Processing Game 2024020056 Goal 851 ===
+
+=== Processing Game 2024020056 Goal 966 ===
+
+=== Processing Game 2024020057 Goal 1007 ===
+
+=== Processing Game 2024020057 Goal 1141 ===
+
+=== Processing Game 2024020057 Goal 1151 ===
+
+=== Processing Game 2024020057 Goal 1303 ===
+
+=== Processing Game 2024020057 Goal 1327 ===
+
+=== Processing Game 2024020057 Goal 229 ===
+
+=== Processing Game 2024020057 Goal 236 ===
+
+=== Processing Game 2024020057 Goal 59 ===
+
+=== Processing Game 2024020057 Goal 782 ===
+
+=== Processing Game 2024020057 Goal 855 ===
+
+=== Processing Game 2024020057 Goal 87 ===
+
+=== Processing Game 2024020058 Goal 1009 ===
+
+=== Processing Game 2024020058 Goal 1165 ===
+
+=== Processing Game 2024020058 Goal 191 ===
+
+=== Processing Game 2024020058 Goal 220 ===
+
+=== Processing Game 2024020058 Goal 435 ===
+
+=== Processing Game 2024020058 Goal 695 ===
+
+=== Processing Game 2024020058 Goal 877 ===
+
+=== Processing Game 2024020058 Goal 931 ===
+
+=== Processing Game 2024020059 Goal 256 ===
+
+=== Processing Game 2024020059 Goal 374 ===
+
+=== Processing Game 2024020059 Goal 405 ===
+
+=== Processing Game 2024020059 Goal 432 ===
+
+=== Processing Game 2024020059 Goal 702 ===
+
+=== Processing Game 2024020059 Goal 708 ===
+
+=== Processing Game 2024020059 Goal 730 ===
+
+=== Processing Game 2024020059 Goal 972 ===
+
+=== Processing Game 2024020060 Goal 1117 ===
+
+=== Processing Game 2024020060 Goal 1193 ===
+
+=== Processing Game 2024020060 Goal 157 ===
+
+=== Processing Game 2024020060 Goal 252 ===
+
+=== Processing Game 2024020060 Goal 313 ===
+
+=== Processing Game 2024020060 Goal 632 ===
+
+=== Processing Game 2024020060 Goal 727 ===
+
+=== Processing Game 2024020060 Goal 840 ===
+
+=== Processing Game 2024020060 Goal 962 ===
+
+=== Processing Game 2024020061 Goal 1002 ===
+
+=== Processing Game 2024020061 Goal 462 ===
+
+=== Processing Game 2024020061 Goal 506 ===
+
+=== Processing Game 2024020061 Goal 58 ===
+
+=== Processing Game 2024020061 Goal 984 ===
+
+=== Processing Game 2024020062 Goal 1040 ===
+
+=== Processing Game 2024020062 Goal 1136 ===
+
+=== Processing Game 2024020062 Goal 560 ===
+
+=== Processing Game 2024020062 Goal 660 ===
+
+=== Processing Game 2024020063 Goal 200 ===
+
+=== Processing Game 2024020063 Goal 396 ===
+
+=== Processing Game 2024020063 Goal 518 ===
+
+=== Processing Game 2024020063 Goal 651 ===
+
+=== Processing Game 2024020063 Goal 684 ===
+
+=== Processing Game 2024020063 Goal 692 ===
+
+=== Processing Game 2024020063 Goal 976 ===
+
+=== Processing Game 2024020064 Goal 1094 ===
+
+=== Processing Game 2024020064 Goal 1114 ===
+
+=== Processing Game 2024020064 Goal 163 ===
+
+=== Processing Game 2024020064 Goal 230 ===
+
+=== Processing Game 2024020064 Goal 335 ===
+
+=== Processing Game 2024020064 Goal 392 ===
+
+=== Processing Game 2024020064 Goal 467 ===
+
+=== Processing Game 2024020065 Goal 1293 ===
+
+=== Processing Game 2024020065 Goal 293 ===
+
+=== Processing Game 2024020065 Goal 301 ===
+
+=== Processing Game 2024020065 Goal 597 ===
+  Block ID: 596 (Delta: 4s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020065 Goal 811 ===
+
+=== Processing Game 2024020066 Goal 307 ===
+
+=== Processing Game 2024020066 Goal 466 ===
+
+=== Processing Game 2024020066 Goal 629 ===
+
+=== Processing Game 2024020066 Goal 764 ===
+  Block ID: 763 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020066 Goal 817 ===
+
+=== Processing Game 2024020067 Goal 161 ===
+
+=== Processing Game 2024020067 Goal 469 ===
+
+=== Processing Game 2024020067 Goal 580 ===
+
+=== Processing Game 2024020067 Goal 606 ===
+
+=== Processing Game 2024020067 Goal 659 ===
+
+=== Processing Game 2024020067 Goal 664 ===
+  Block ID: 663 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020067 Goal 679 ===
+
+=== Processing Game 2024020067 Goal 689 ===
+
+=== Processing Game 2024020067 Goal 872 ===
+
+=== Processing Game 2024020067 Goal 983 ===
+
+=== Processing Game 2024020068 Goal 1128 ===
+
+=== Processing Game 2024020069 Goal 1239 ===
+
+=== Processing Game 2024020069 Goal 394 ===
+
+=== Processing Game 2024020069 Goal 574 ===
+  Block ID: 573 (Delta: 6s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020069 Goal 736 ===
+
+=== Processing Game 2024020069 Goal 813 ===
+
+=== Processing Game 2024020069 Goal 826 ===
+  Block ID: 825 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020070 Goal 154 ===
+
+=== Processing Game 2024020070 Goal 445 ===
+
+=== Processing Game 2024020070 Goal 470 ===
+
+=== Processing Game 2024020070 Goal 732 ===
+
+=== Processing Game 2024020070 Goal 788 ===
+
+=== Processing Game 2024020070 Goal 795 ===
+
+=== Processing Game 2024020071 Goal 1013 ===
+
+=== Processing Game 2024020071 Goal 159 ===
+
+=== Processing Game 2024020071 Goal 433 ===
+
+=== Processing Game 2024020071 Goal 446 ===
+
+=== Processing Game 2024020071 Goal 553 ===
+
+=== Processing Game 2024020071 Goal 687 ===
+
+=== Processing Game 2024020071 Goal 772 ===
+
+=== Processing Game 2024020071 Goal 777 ===
+
+=== Processing Game 2024020071 Goal 938 ===
+
+=== Processing Game 2024020071 Goal 988 ===
+
+=== Processing Game 2024020072 Goal 1028 ===
+
+=== Processing Game 2024020072 Goal 395 ===
+
+=== Processing Game 2024020072 Goal 416 ===
+
+=== Processing Game 2024020072 Goal 692 ===
+
+=== Processing Game 2024020072 Goal 875 ===
+
+=== Processing Game 2024020073 Goal 261 ===
+
+=== Processing Game 2024020073 Goal 320 ===
+
+=== Processing Game 2024020073 Goal 342 ===
+
+=== Processing Game 2024020073 Goal 365 ===
+
+=== Processing Game 2024020073 Goal 423 ===
+
+=== Processing Game 2024020073 Goal 463 ===
+
+=== Processing Game 2024020073 Goal 564 ===
+  Block ID: 563 (Delta: 4s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020073 Goal 70 ===
+
+=== Processing Game 2024020073 Goal 941 ===
+
+=== Processing Game 2024020073 Goal 946 ===
+
+=== Processing Game 2024020073 Goal 971 ===
+
+=== Processing Game 2024020074 Goal 1089 ===
+
+=== Processing Game 2024020074 Goal 1133 ===
+
+=== Processing Game 2024020074 Goal 199 ===
+
+=== Processing Game 2024020074 Goal 207 ===
+
+=== Processing Game 2024020074 Goal 478 ===
+
+=== Processing Game 2024020074 Goal 491 ===
+
+=== Processing Game 2024020074 Goal 871 ===
+
+=== Processing Game 2024020075 Goal 124 ===
+
+=== Processing Game 2024020075 Goal 277 ===
+
+=== Processing Game 2024020075 Goal 306 ===
+
+=== Processing Game 2024020075 Goal 445 ===
+  Block ID: 444 (Delta: 5s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020075 Goal 712 ===
+
+=== Processing Game 2024020075 Goal 746 ===
+
+=== Processing Game 2024020075 Goal 805 ===
+
+=== Processing Game 2024020075 Goal 944 ===
+
+=== Processing Game 2024020075 Goal 968 ===
+
+=== Processing Game 2024020076 Goal 1029 ===
+  Block ID: 1028 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020076 Goal 1278 ===
+
+=== Processing Game 2024020076 Goal 1285 ===
+  Block ID: 1284 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020076 Goal 205 ===
+
+=== Processing Game 2024020076 Goal 319 ===
+
+=== Processing Game 2024020076 Goal 566 ===
+
+=== Processing Game 2024020076 Goal 888 ===
+
+=== Processing Game 2024020077 Goal 1003 ===
+
+=== Processing Game 2024020077 Goal 1018 ===
+
+=== Processing Game 2024020077 Goal 1073 ===
+
+=== Processing Game 2024020077 Goal 1081 ===
+
+=== Processing Game 2024020077 Goal 847 ===
+
+=== Processing Game 2024020078 Goal 1007 ===
+
+=== Processing Game 2024020078 Goal 1253 ===
+  Block ID: 1252 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020078 Goal 484 ===
+
+=== Processing Game 2024020078 Goal 558 ===
+
+=== Processing Game 2024020078 Goal 766 ===
+
+=== Processing Game 2024020078 Goal 827 ===
+
+=== Processing Game 2024020078 Goal 929 ===
+
+=== Processing Game 2024020079 Goal 1072 ===
+
+=== Processing Game 2024020079 Goal 1081 ===
+
+=== Processing Game 2024020079 Goal 249 ===
+
+=== Processing Game 2024020079 Goal 571 ===
+
+=== Processing Game 2024020079 Goal 857 ===
+
+=== Processing Game 2024020080 Goal 1179 ===
+
+=== Processing Game 2024020080 Goal 157 ===
+
+=== Processing Game 2024020080 Goal 176 ===
+
+=== Processing Game 2024020080 Goal 236 ===
+
+=== Processing Game 2024020080 Goal 398 ===
+
+=== Processing Game 2024020080 Goal 534 ===
+
+=== Processing Game 2024020080 Goal 538 ===
+
+=== Processing Game 2024020080 Goal 688 ===
+
+=== Processing Game 2024020080 Goal 738 ===
+
+=== Processing Game 2024020080 Goal 887 ===
+
+=== Processing Game 2024020080 Goal 999 ===
+
+=== Processing Game 2024020081 Goal 1042 ===
+
+=== Processing Game 2024020081 Goal 165 ===
+
+=== Processing Game 2024020081 Goal 332 ===
+
+=== Processing Game 2024020081 Goal 369 ===
+
+=== Processing Game 2024020081 Goal 418 ===
+
+=== Processing Game 2024020081 Goal 73 ===
+
+=== Processing Game 2024020082 Goal 430 ===
+
+=== Processing Game 2024020082 Goal 716 ===
+
+=== Processing Game 2024020082 Goal 87 ===
+
+=== Processing Game 2024020083 Goal 1000 ===
+
+=== Processing Game 2024020083 Goal 296 ===
+
+=== Processing Game 2024020083 Goal 814 ===
+
+=== Processing Game 2024020083 Goal 876 ===
+
+=== Processing Game 2024020084 Goal 114 ===
+
+=== Processing Game 2024020084 Goal 624 ===
+
+=== Processing Game 2024020084 Goal 637 ===
+
+=== Processing Game 2024020084 Goal 665 ===
+
+=== Processing Game 2024020084 Goal 762 ===
+
+=== Processing Game 2024020084 Goal 778 ===
+
+=== Processing Game 2024020084 Goal 799 ===
+
+=== Processing Game 2024020085 Goal 1067 ===
+
+=== Processing Game 2024020085 Goal 257 ===
+
+=== Processing Game 2024020085 Goal 296 ===
+
+=== Processing Game 2024020085 Goal 591 ===
+
+=== Processing Game 2024020085 Goal 680 ===
+
+=== Processing Game 2024020085 Goal 796 ===
+
+=== Processing Game 2024020086 Goal 1116 ===
+
+=== Processing Game 2024020086 Goal 1212 ===
+
+=== Processing Game 2024020086 Goal 764 ===
+  Block ID: 762 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020087 Goal 1131 ===
+
+=== Processing Game 2024020087 Goal 460 ===
+
+=== Processing Game 2024020087 Goal 680 ===
+  Block ID: 503 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020088 Goal 102 ===
+
+=== Processing Game 2024020088 Goal 103 ===
+
+=== Processing Game 2024020088 Goal 1102 ===
+
+=== Processing Game 2024020088 Goal 543 ===
+
+=== Processing Game 2024020088 Goal 720 ===
+
+=== Processing Game 2024020088 Goal 862 ===
+
+=== Processing Game 2024020088 Goal 893 ===
+
+=== Processing Game 2024020088 Goal 939 ===
+
+=== Processing Game 2024020088 Goal 982 ===
+
+=== Processing Game 2024020089 Goal 1024 ===
+
+=== Processing Game 2024020089 Goal 1124 ===
+
+=== Processing Game 2024020089 Goal 182 ===
+
+=== Processing Game 2024020089 Goal 416 ===
+
+=== Processing Game 2024020089 Goal 449 ===
+
+=== Processing Game 2024020090 Goal 1120 ===
+
+=== Processing Game 2024020090 Goal 1130 ===
+
+=== Processing Game 2024020090 Goal 1136 ===
+
+=== Processing Game 2024020090 Goal 927 ===
+
+=== Processing Game 2024020090 Goal 997 ===
+
+=== Processing Game 2024020091 Goal 1021 ===
+
+=== Processing Game 2024020091 Goal 146 ===
+
+=== Processing Game 2024020091 Goal 157 ===
+
+=== Processing Game 2024020091 Goal 359 ===
+
+=== Processing Game 2024020091 Goal 611 ===
+
+=== Processing Game 2024020091 Goal 636 ===
+
+=== Processing Game 2024020091 Goal 744 ===
+
+=== Processing Game 2024020092 Goal 1049 ===
+
+=== Processing Game 2024020092 Goal 156 ===
+  Block ID: 154 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020092 Goal 362 ===
+
+=== Processing Game 2024020092 Goal 870 ===
+
+=== Processing Game 2024020092 Goal 878 ===
+
+=== Processing Game 2024020093 Goal 287 ===
+
+=== Processing Game 2024020093 Goal 297 ===
+  Block ID: 291 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020093 Goal 469 ===
+
+=== Processing Game 2024020093 Goal 571 ===
+
+=== Processing Game 2024020093 Goal 653 ===
+
+=== Processing Game 2024020093 Goal 76 ===
+
+=== Processing Game 2024020094 Goal 1064 ===
+
+=== Processing Game 2024020094 Goal 289 ===
+
+=== Processing Game 2024020094 Goal 323 ===
+
+=== Processing Game 2024020094 Goal 454 ===
+
+=== Processing Game 2024020094 Goal 575 ===
+  Block ID: 574 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020094 Goal 598 ===
+
+=== Processing Game 2024020094 Goal 636 ===
+
+=== Processing Game 2024020094 Goal 678 ===
+
+=== Processing Game 2024020094 Goal 757 ===
+
+=== Processing Game 2024020094 Goal 837 ===
+
+=== Processing Game 2024020094 Goal 865 ===
+
+=== Processing Game 2024020094 Goal 877 ===
+
+=== Processing Game 2024020094 Goal 919 ===
+
+=== Processing Game 2024020095 Goal 1000 ===
+
+=== Processing Game 2024020095 Goal 1027 ===
+  Block ID: 206 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020095 Goal 1052 ===
+
+=== Processing Game 2024020095 Goal 721 ===
+
+=== Processing Game 2024020095 Goal 732 ===
+
+=== Processing Game 2024020095 Goal 866 ===
+
+=== Processing Game 2024020096 Goal 194 ===
+
+=== Processing Game 2024020096 Goal 248 ===
+
+=== Processing Game 2024020096 Goal 270 ===
+
+=== Processing Game 2024020096 Goal 363 ===
+  Block ID: 932 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020096 Goal 575 ===
+
+=== Processing Game 2024020096 Goal 58 ===
+  Block ID: 54 (Delta: 11s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020096 Goal 613 ===
+
+=== Processing Game 2024020096 Goal 77 ===
+
+=== Processing Game 2024020096 Goal 940 ===
+  Block ID: 938 (Delta: 11s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020097 Goal 1051 ===
+
+=== Processing Game 2024020097 Goal 1068 ===
+
+=== Processing Game 2024020097 Goal 171 ===
+
+=== Processing Game 2024020097 Goal 187 ===
+
+=== Processing Game 2024020097 Goal 320 ===
+
+=== Processing Game 2024020097 Goal 536 ===
+
+=== Processing Game 2024020097 Goal 757 ===
+
+=== Processing Game 2024020097 Goal 844 ===
+
+=== Processing Game 2024020098 Goal 210 ===
+
+=== Processing Game 2024020099 Goal 241 ===
+
+=== Processing Game 2024020099 Goal 683 ===
+
+=== Processing Game 2024020099 Goal 750 ===
+
+=== Processing Game 2024020099 Goal 795 ===
+
+=== Processing Game 2024020099 Goal 894 ===
+
+=== Processing Game 2024020100 Goal 122 ===
+
+=== Processing Game 2024020100 Goal 208 ===
+
+=== Processing Game 2024020100 Goal 229 ===
+
+=== Processing Game 2024020100 Goal 358 ===
+
+=== Processing Game 2024020100 Goal 379 ===
+
+=== Processing Game 2024020100 Goal 53 ===
+
+=== Processing Game 2024020100 Goal 918 ===
+
+=== Processing Game 2024020100 Goal 930 ===
+
+=== Processing Game 2024020100 Goal 968 ===
+
+=== Processing Game 2024020101 Goal 1094 ===
+
+=== Processing Game 2024020101 Goal 1108 ===
+
+=== Processing Game 2024020101 Goal 454 ===
+
+=== Processing Game 2024020101 Goal 873 ===
+
+=== Processing Game 2024020102 Goal 1156 ===
+
+=== Processing Game 2024020102 Goal 353 ===
+
+=== Processing Game 2024020102 Goal 633 ===
+
+=== Processing Game 2024020102 Goal 841 ===
+
+=== Processing Game 2024020102 Goal 915 ===
+
+=== Processing Game 2024020102 Goal 979 ===
+
+=== Processing Game 2024020103 Goal 1114 ===
+
+=== Processing Game 2024020103 Goal 145 ===
+
+=== Processing Game 2024020103 Goal 466 ===
+
+=== Processing Game 2024020103 Goal 832 ===
+
+=== Processing Game 2024020103 Goal 982 ===
+
+=== Processing Game 2024020104 Goal 115 ===
+
+=== Processing Game 2024020104 Goal 451 ===
+
+=== Processing Game 2024020104 Goal 574 ===
+
+=== Processing Game 2024020104 Goal 656 ===
+
+=== Processing Game 2024020105 Goal 1178 ===
+
+=== Processing Game 2024020105 Goal 641 ===
+
+=== Processing Game 2024020105 Goal 861 ===
+
+=== Processing Game 2024020105 Goal 880 ===
+
+=== Processing Game 2024020106 Goal 1017 ===
+
+=== Processing Game 2024020106 Goal 494 ===
+
+=== Processing Game 2024020106 Goal 645 ===
+
+=== Processing Game 2024020106 Goal 687 ===
+
+=== Processing Game 2024020106 Goal 729 ===
+
+=== Processing Game 2024020107 Goal 1032 ===
+
+=== Processing Game 2024020107 Goal 278 ===
+
+=== Processing Game 2024020107 Goal 343 ===
+
+=== Processing Game 2024020107 Goal 359 ===
+
+=== Processing Game 2024020107 Goal 810 ===
+
+=== Processing Game 2024020107 Goal 851 ===
+
+=== Processing Game 2024020107 Goal 921 ===
+
+=== Processing Game 2024020108 Goal 1100 ===
+
+=== Processing Game 2024020108 Goal 1108 ===
+
+=== Processing Game 2024020108 Goal 143 ===
+
+=== Processing Game 2024020108 Goal 559 ===
+
+=== Processing Game 2024020108 Goal 576 ===
+
+=== Processing Game 2024020108 Goal 663 ===
+
+=== Processing Game 2024020108 Goal 717 ===
+
+=== Processing Game 2024020108 Goal 767 ===
+
+=== Processing Game 2024020108 Goal 898 ===
+
+=== Processing Game 2024020109 Goal 1080 ===
+
+=== Processing Game 2024020109 Goal 317 ===
+
+=== Processing Game 2024020109 Goal 372 ===
+
+=== Processing Game 2024020109 Goal 543 ===
+
+=== Processing Game 2024020109 Goal 657 ===
+
+=== Processing Game 2024020109 Goal 705 ===
+
+=== Processing Game 2024020109 Goal 730 ===
+
+=== Processing Game 2024020110 Goal 1055 ===
+
+=== Processing Game 2024020110 Goal 163 ===
+
+=== Processing Game 2024020110 Goal 207 ===
+
+=== Processing Game 2024020110 Goal 302 ===
+
+=== Processing Game 2024020110 Goal 633 ===
+
+=== Processing Game 2024020110 Goal 878 ===
+
+=== Processing Game 2024020111 Goal 1095 ===
+
+=== Processing Game 2024020111 Goal 1132 ===
+
+=== Processing Game 2024020111 Goal 1265 ===
+
+=== Processing Game 2024020111 Goal 1298 ===
+
+=== Processing Game 2024020111 Goal 282 ===
+
+=== Processing Game 2024020111 Goal 456 ===
+
+=== Processing Game 2024020111 Goal 462 ===
+
+=== Processing Game 2024020111 Goal 592 ===
+
+=== Processing Game 2024020112 Goal 1063 ===
+
+=== Processing Game 2024020112 Goal 228 ===
+
+=== Processing Game 2024020112 Goal 669 ===
+
+=== Processing Game 2024020112 Goal 692 ===
+
+=== Processing Game 2024020112 Goal 781 ===
+
+=== Processing Game 2024020112 Goal 813 ===
+
+=== Processing Game 2024020113 Goal 106 ===
+
+=== Processing Game 2024020113 Goal 127 ===
+
+=== Processing Game 2024020113 Goal 146 ===
+
+=== Processing Game 2024020113 Goal 637 ===
+
+=== Processing Game 2024020114 Goal 1230 ===
+
+=== Processing Game 2024020114 Goal 367 ===
+
+=== Processing Game 2024020114 Goal 556 ===
+
+=== Processing Game 2024020114 Goal 580 ===
+
+=== Processing Game 2024020114 Goal 627 ===
+
+=== Processing Game 2024020114 Goal 782 ===
+
+=== Processing Game 2024020115 Goal 1060 ===
+
+=== Processing Game 2024020115 Goal 1066 ===
+
+=== Processing Game 2024020115 Goal 336 ===
+
+=== Processing Game 2024020115 Goal 448 ===
+
+=== Processing Game 2024020115 Goal 795 ===
+
+=== Processing Game 2024020115 Goal 837 ===
+
+=== Processing Game 2024020116 Goal 1014 ===
+
+=== Processing Game 2024020116 Goal 1076 ===
+
+=== Processing Game 2024020116 Goal 300 ===
+
+=== Processing Game 2024020116 Goal 511 ===
+
+=== Processing Game 2024020116 Goal 696 ===
+
+=== Processing Game 2024020116 Goal 857 ===
+
+=== Processing Game 2024020116 Goal 943 ===
+
+=== Processing Game 2024020117 Goal 1103 ===
+
+=== Processing Game 2024020117 Goal 160 ===
+
+=== Processing Game 2024020117 Goal 312 ===
+
+=== Processing Game 2024020117 Goal 349 ===
+
+=== Processing Game 2024020117 Goal 744 ===
+
+=== Processing Game 2024020118 Goal 1103 ===
+
+=== Processing Game 2024020118 Goal 1118 ===
+
+=== Processing Game 2024020118 Goal 1125 ===
+
+=== Processing Game 2024020118 Goal 137 ===
+
+=== Processing Game 2024020118 Goal 319 ===
+
+=== Processing Game 2024020118 Goal 449 ===
+
+=== Processing Game 2024020118 Goal 454 ===
+
+=== Processing Game 2024020118 Goal 461 ===
+
+=== Processing Game 2024020118 Goal 619 ===
+
+=== Processing Game 2024020118 Goal 751 ===
+
+=== Processing Game 2024020119 Goal 111 ===
+
+=== Processing Game 2024020119 Goal 1222 ===
+
+=== Processing Game 2024020119 Goal 342 ===
+
+=== Processing Game 2024020119 Goal 639 ===
+
+=== Processing Game 2024020119 Goal 66 ===
+
+=== Processing Game 2024020119 Goal 704 ===
+
+=== Processing Game 2024020119 Goal 778 ===
+
+=== Processing Game 2024020120 Goal 1044 ===
+
+=== Processing Game 2024020120 Goal 635 ===
+
+=== Processing Game 2024020120 Goal 745 ===
+
+=== Processing Game 2024020120 Goal 833 ===
+
+=== Processing Game 2024020120 Goal 85 ===
+
+=== Processing Game 2024020121 Goal 1008 ===
+
+=== Processing Game 2024020121 Goal 824 ===
+
+=== Processing Game 2024020121 Goal 882 ===
+
+=== Processing Game 2024020121 Goal 916 ===
+
+=== Processing Game 2024020122 Goal 1128 ===
+
+=== Processing Game 2024020122 Goal 153 ===
+
+=== Processing Game 2024020122 Goal 304 ===
+
+=== Processing Game 2024020122 Goal 341 ===
+
+=== Processing Game 2024020122 Goal 599 ===
+
+=== Processing Game 2024020122 Goal 608 ===
+
+=== Processing Game 2024020122 Goal 691 ===
+
+=== Processing Game 2024020122 Goal 756 ===
+
+=== Processing Game 2024020123 Goal 1029 ===
+
+=== Processing Game 2024020123 Goal 1086 ===
+
+=== Processing Game 2024020123 Goal 1109 ===
+
+=== Processing Game 2024020123 Goal 115 ===
+
+=== Processing Game 2024020123 Goal 147 ===
+
+=== Processing Game 2024020123 Goal 789 ===
+
+=== Processing Game 2024020123 Goal 797 ===
+
+=== Processing Game 2024020123 Goal 823 ===
+
+=== Processing Game 2024020123 Goal 845 ===
+
+=== Processing Game 2024020123 Goal 882 ===
+
+=== Processing Game 2024020123 Goal 917 ===
+
+=== Processing Game 2024020123 Goal 963 ===
+
+=== Processing Game 2024020124 Goal 662 ===
+
+=== Processing Game 2024020124 Goal 720 ===
+
+=== Processing Game 2024020124 Goal 755 ===
+
+=== Processing Game 2024020124 Goal 828 ===
+
+=== Processing Game 2024020124 Goal 936 ===
+
+=== Processing Game 2024020125 Goal 1089 ===
+
+=== Processing Game 2024020125 Goal 208 ===
+
+=== Processing Game 2024020125 Goal 479 ===
+
+=== Processing Game 2024020125 Goal 510 ===
+
+=== Processing Game 2024020125 Goal 628 ===
+
+=== Processing Game 2024020125 Goal 735 ===
+
+=== Processing Game 2024020125 Goal 744 ===
+
+=== Processing Game 2024020126 Goal 1003 ===
+
+=== Processing Game 2024020126 Goal 248 ===
+
+=== Processing Game 2024020126 Goal 491 ===
+
+=== Processing Game 2024020126 Goal 497 ===
+
+=== Processing Game 2024020126 Goal 578 ===
+
+=== Processing Game 2024020126 Goal 712 ===
+
+=== Processing Game 2024020126 Goal 855 ===
+
+=== Processing Game 2024020127 Goal 204 ===
+
+=== Processing Game 2024020127 Goal 619 ===
+
+=== Processing Game 2024020127 Goal 848 ===
+
+=== Processing Game 2024020128 Goal 860 ===
+
+=== Processing Game 2024020128 Goal 956 ===
+
+=== Processing Game 2024020128 Goal 974 ===
+
+=== Processing Game 2024020129 Goal 106 ===
+
+=== Processing Game 2024020129 Goal 1088 ===
+
+=== Processing Game 2024020129 Goal 1175 ===
+
+=== Processing Game 2024020129 Goal 132 ===
+
+=== Processing Game 2024020129 Goal 507 ===
+
+=== Processing Game 2024020129 Goal 820 ===
+
+=== Processing Game 2024020129 Goal 863 ===
+
+=== Processing Game 2024020129 Goal 912 ===
+
+=== Processing Game 2024020130 Goal 1025 ===
+
+=== Processing Game 2024020130 Goal 121 ===
+
+=== Processing Game 2024020130 Goal 177 ===
+
+=== Processing Game 2024020130 Goal 247 ===
+
+=== Processing Game 2024020130 Goal 270 ===
+
+=== Processing Game 2024020130 Goal 631 ===
+
+=== Processing Game 2024020130 Goal 768 ===
+
+=== Processing Game 2024020130 Goal 889 ===
+
+=== Processing Game 2024020130 Goal 926 ===
+
+=== Processing Game 2024020131 Goal 1164 ===
+
+=== Processing Game 2024020131 Goal 476 ===
+
+=== Processing Game 2024020131 Goal 508 ===
+
+=== Processing Game 2024020131 Goal 658 ===
+
+=== Processing Game 2024020131 Goal 839 ===
+  Block ID: 837 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020131 Goal 869 ===
+
+=== Processing Game 2024020131 Goal 882 ===
+
+=== Processing Game 2024020132 Goal 1015 ===
+  Block ID: 166 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020132 Goal 270 ===
+
+=== Processing Game 2024020132 Goal 728 ===
+  Block ID: 162 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020132 Goal 889 ===
+
+=== Processing Game 2024020132 Goal 897 ===
+  Block ID: 896 (Delta: 12s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020132 Goal 952 ===
+
+=== Processing Game 2024020133 Goal 179 ===
+
+=== Processing Game 2024020133 Goal 261 ===
+
+=== Processing Game 2024020133 Goal 551 ===
+
+=== Processing Game 2024020133 Goal 577 ===
+
+=== Processing Game 2024020133 Goal 589 ===
+
+=== Processing Game 2024020133 Goal 595 ===
+
+=== Processing Game 2024020133 Goal 642 ===
+
+=== Processing Game 2024020134 Goal 122 ===
+
+=== Processing Game 2024020134 Goal 145 ===
+  Block ID: 139 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020134 Goal 411 ===
+
+=== Processing Game 2024020134 Goal 510 ===
+
+=== Processing Game 2024020134 Goal 661 ===
+
+=== Processing Game 2024020134 Goal 677 ===
+
+=== Processing Game 2024020134 Goal 777 ===
+
+=== Processing Game 2024020134 Goal 783 ===
+
+=== Processing Game 2024020134 Goal 912 ===
+
+=== Processing Game 2024020134 Goal 990 ===
+
+=== Processing Game 2024020135 Goal 166 ===
+
+=== Processing Game 2024020135 Goal 734 ===
+
+=== Processing Game 2024020135 Goal 891 ===
+  Block ID: 890 (Delta: 7s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020135 Goal 953 ===
+
+=== Processing Game 2024020135 Goal 985 ===
+
+=== Processing Game 2024020136 Goal 1053 ===
+
+=== Processing Game 2024020136 Goal 141 ===
+
+=== Processing Game 2024020136 Goal 203 ===
+
+=== Processing Game 2024020136 Goal 704 ===
+
+=== Processing Game 2024020136 Goal 943 ===
+
+=== Processing Game 2024020137 Goal 1040 ===
+
+=== Processing Game 2024020137 Goal 1155 ===
+
+=== Processing Game 2024020137 Goal 183 ===
+
+=== Processing Game 2024020137 Goal 498 ===
+
+=== Processing Game 2024020137 Goal 536 ===
+
+=== Processing Game 2024020137 Goal 602 ===
+
+=== Processing Game 2024020137 Goal 798 ===
+
+=== Processing Game 2024020137 Goal 842 ===
+
+=== Processing Game 2024020138 Goal 1067 ===
+
+=== Processing Game 2024020138 Goal 1074 ===
+
+=== Processing Game 2024020138 Goal 286 ===
+
+=== Processing Game 2024020138 Goal 374 ===
+
+=== Processing Game 2024020138 Goal 559 ===
+
+=== Processing Game 2024020138 Goal 752 ===
+  Block ID: 751 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020138 Goal 797 ===
+
+=== Processing Game 2024020139 Goal 1020 ===
+
+=== Processing Game 2024020139 Goal 1054 ===
+
+=== Processing Game 2024020139 Goal 1103 ===
+
+=== Processing Game 2024020139 Goal 1127 ===
+
+=== Processing Game 2024020139 Goal 1148 ===
+
+=== Processing Game 2024020139 Goal 1157 ===
+
+=== Processing Game 2024020139 Goal 405 ===
+
+=== Processing Game 2024020139 Goal 504 ===
+
+=== Processing Game 2024020139 Goal 622 ===
+
+=== Processing Game 2024020140 Goal 1009 ===
+
+=== Processing Game 2024020140 Goal 1024 ===
+
+=== Processing Game 2024020140 Goal 244 ===
+
+=== Processing Game 2024020140 Goal 310 ===
+
+=== Processing Game 2024020140 Goal 709 ===
+
+=== Processing Game 2024020140 Goal 724 ===
+
+=== Processing Game 2024020140 Goal 784 ===
+
+=== Processing Game 2024020141 Goal 1161 ===
+
+=== Processing Game 2024020141 Goal 261 ===
+
+=== Processing Game 2024020141 Goal 378 ===
+
+=== Processing Game 2024020141 Goal 667 ===
+  Block ID: 665 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020141 Goal 821 ===
+
+=== Processing Game 2024020142 Goal 1010 ===
+
+=== Processing Game 2024020142 Goal 1027 ===
+
+=== Processing Game 2024020142 Goal 1067 ===
+  Block ID: 1066 (Delta: 6s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020142 Goal 129 ===
+
+=== Processing Game 2024020142 Goal 225 ===
+
+=== Processing Game 2024020142 Goal 317 ===
+
+=== Processing Game 2024020142 Goal 570 ===
+
+=== Processing Game 2024020143 Goal 1108 ===
+
+=== Processing Game 2024020143 Goal 366 ===
+  Block ID: 365 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020143 Goal 408 ===
+
+=== Processing Game 2024020143 Goal 496 ===
+
+=== Processing Game 2024020143 Goal 547 ===
+  Block ID: 403 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020143 Goal 582 ===
+
+=== Processing Game 2024020143 Goal 619 ===
+
+=== Processing Game 2024020143 Goal 696 ===
+
+=== Processing Game 2024020143 Goal 834 ===
+
+=== Processing Game 2024020143 Goal 954 ===
+
+=== Processing Game 2024020144 Goal 1119 ===
+
+=== Processing Game 2024020144 Goal 1128 ===
+
+=== Processing Game 2024020144 Goal 197 ===
+
+=== Processing Game 2024020144 Goal 314 ===
+  Block ID: 312 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020144 Goal 323 ===
+  Block ID: 352 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020144 Goal 446 ===
+  Block ID: 445 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020144 Goal 488 ===
+
+=== Processing Game 2024020145 Goal 1094 ===
+
+=== Processing Game 2024020145 Goal 1100 ===
+
+=== Processing Game 2024020145 Goal 1123 ===
+  Block ID: 1122 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020145 Goal 1233 ===
+
+=== Processing Game 2024020145 Goal 361 ===
+
+=== Processing Game 2024020145 Goal 434 ===
+
+=== Processing Game 2024020145 Goal 767 ===
+
+=== Processing Game 2024020145 Goal 786 ===
+
+=== Processing Game 2024020145 Goal 888 ===
+
+=== Processing Game 2024020146 Goal 1114 ===
+
+=== Processing Game 2024020146 Goal 1168 ===
+
+=== Processing Game 2024020146 Goal 178 ===
+
+=== Processing Game 2024020146 Goal 199 ===
+
+=== Processing Game 2024020146 Goal 356 ===
+
+=== Processing Game 2024020146 Goal 436 ===
+
+=== Processing Game 2024020146 Goal 990 ===
+
+=== Processing Game 2024020147 Goal 233 ===
+  Block ID: 156 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020147 Goal 538 ===
+
+=== Processing Game 2024020147 Goal 826 ===
+
+=== Processing Game 2024020147 Goal 961 ===
+
+=== Processing Game 2024020147 Goal 966 ===
+
+=== Processing Game 2024020148 Goal 1140 ===
+
+=== Processing Game 2024020148 Goal 596 ===
+
+=== Processing Game 2024020149 Goal 107 ===
+
+=== Processing Game 2024020149 Goal 138 ===
+
+=== Processing Game 2024020149 Goal 195 ===
+
+=== Processing Game 2024020149 Goal 227 ===
+
+=== Processing Game 2024020149 Goal 348 ===
+  Block ID: 347 (Delta: 1s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020149 Goal 406 ===
+
+=== Processing Game 2024020149 Goal 634 ===
+
+=== Processing Game 2024020149 Goal 972 ===
+
+=== Processing Game 2024020149 Goal 984 ===
+
+=== Processing Game 2024020149 Goal 991 ===
+
+=== Processing Game 2024020150 Goal 1040 ===
+
+=== Processing Game 2024020150 Goal 1062 ===
+  Block ID: 1061 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020150 Goal 1155 ===
+
+=== Processing Game 2024020150 Goal 154 ===
+
+=== Processing Game 2024020150 Goal 251 ===
+
+=== Processing Game 2024020150 Goal 495 ===
+
+=== Processing Game 2024020150 Goal 820 ===
+
+=== Processing Game 2024020150 Goal 844 ===
+
+=== Processing Game 2024020150 Goal 852 ===
+
+=== Processing Game 2024020151 Goal 1160 ===
+
+=== Processing Game 2024020151 Goal 172 ===
+
+=== Processing Game 2024020151 Goal 186 ===
+
+=== Processing Game 2024020151 Goal 293 ===
+  Block ID: 292 (Delta: 1s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020151 Goal 537 ===
+
+=== Processing Game 2024020151 Goal 58 ===
+
+=== Processing Game 2024020151 Goal 644 ===
+
+=== Processing Game 2024020151 Goal 649 ===
+
+=== Processing Game 2024020152 Goal 1058 ===
+
+=== Processing Game 2024020152 Goal 280 ===
+  Block ID: 279 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020152 Goal 743 ===
+  Block ID: 739 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020152 Goal 876 ===
+
+=== Processing Game 2024020153 Goal 1160 ===
+
+=== Processing Game 2024020153 Goal 240 ===
+
+=== Processing Game 2024020153 Goal 284 ===
+
+=== Processing Game 2024020153 Goal 299 ===
+
+=== Processing Game 2024020153 Goal 360 ===
+
+=== Processing Game 2024020153 Goal 507 ===
+
+=== Processing Game 2024020153 Goal 814 ===
+  Block ID: 812 (Delta: 6s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020153 Goal 863 ===
+
+=== Processing Game 2024020154 Goal 1080 ===
+  Block ID: 1078 (Delta: 7s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020154 Goal 131 ===
+
+=== Processing Game 2024020154 Goal 422 ===
+
+=== Processing Game 2024020154 Goal 862 ===
+
+=== Processing Game 2024020154 Goal 892 ===
+
+=== Processing Game 2024020154 Goal 972 ===
+
+=== Processing Game 2024020155 Goal 1052 ===
+  Block ID: 1051 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020155 Goal 795 ===
+
+=== Processing Game 2024020156 Goal 1038 ===
+
+=== Processing Game 2024020156 Goal 134 ===
+
+=== Processing Game 2024020156 Goal 206 ===
+
+=== Processing Game 2024020156 Goal 366 ===
+
+=== Processing Game 2024020156 Goal 623 ===
+
+=== Processing Game 2024020156 Goal 785 ===
+
+=== Processing Game 2024020156 Goal 816 ===
+
+=== Processing Game 2024020156 Goal 946 ===
+
+=== Processing Game 2024020157 Goal 1028 ===
+  Block ID: 754 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020157 Goal 1168 ===
+
+=== Processing Game 2024020157 Goal 118 ===
+
+=== Processing Game 2024020157 Goal 147 ===
+
+=== Processing Game 2024020157 Goal 181 ===
+
+=== Processing Game 2024020157 Goal 415 ===
+
+=== Processing Game 2024020157 Goal 692 ===
+
+=== Processing Game 2024020158 Goal 1033 ===
+  Block ID: 1032 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020158 Goal 163 ===
+
+=== Processing Game 2024020158 Goal 490 ===
+
+=== Processing Game 2024020158 Goal 591 ===
+
+=== Processing Game 2024020158 Goal 598 ===
+
+=== Processing Game 2024020158 Goal 852 ===
+
+=== Processing Game 2024020159 Goal 1027 ===
+
+=== Processing Game 2024020159 Goal 1098 ===
+
+=== Processing Game 2024020159 Goal 113 ===
+
+=== Processing Game 2024020159 Goal 174 ===
+
+=== Processing Game 2024020159 Goal 459 ===
+
+=== Processing Game 2024020159 Goal 482 ===
+  Block ID: 480 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020160 Goal 1056 ===
+
+=== Processing Game 2024020160 Goal 333 ===
+
+=== Processing Game 2024020160 Goal 343 ===
+
+=== Processing Game 2024020160 Goal 722 ===
+
+=== Processing Game 2024020160 Goal 731 ===
+
+=== Processing Game 2024020160 Goal 776 ===
+
+=== Processing Game 2024020160 Goal 921 ===
+
+=== Processing Game 2024020160 Goal 942 ===
+
+=== Processing Game 2024020160 Goal 986 ===
+
+=== Processing Game 2024020161 Goal 1067 ===
+
+=== Processing Game 2024020161 Goal 1075 ===
+
+=== Processing Game 2024020161 Goal 566 ===
+
+=== Processing Game 2024020161 Goal 588 ===
+
+=== Processing Game 2024020161 Goal 679 ===
+
+=== Processing Game 2024020162 Goal 1018 ===
+
+=== Processing Game 2024020162 Goal 328 ===
+
+=== Processing Game 2024020162 Goal 915 ===
+
+=== Processing Game 2024020163 Goal 1117 ===
+  Block ID: 1115 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020163 Goal 442 ===
+
+=== Processing Game 2024020163 Goal 869 ===
+
+=== Processing Game 2024020164 Goal 1089 ===
+
+=== Processing Game 2024020164 Goal 527 ===
+
+=== Processing Game 2024020164 Goal 600 ===
+
+=== Processing Game 2024020164 Goal 609 ===
+
+=== Processing Game 2024020164 Goal 620 ===
+
+=== Processing Game 2024020164 Goal 632 ===
+
+=== Processing Game 2024020164 Goal 850 ===
+
+=== Processing Game 2024020164 Goal 980 ===
+
+=== Processing Game 2024020164 Goal 988 ===
+
+=== Processing Game 2024020165 Goal 1014 ===
+
+=== Processing Game 2024020165 Goal 209 ===
+
+=== Processing Game 2024020165 Goal 288 ===
+
+=== Processing Game 2024020165 Goal 383 ===
+
+=== Processing Game 2024020165 Goal 434 ===
+
+=== Processing Game 2024020165 Goal 440 ===
+
+=== Processing Game 2024020165 Goal 625 ===
+
+=== Processing Game 2024020165 Goal 726 ===
+
+=== Processing Game 2024020165 Goal 734 ===
+
+=== Processing Game 2024020165 Goal 954 ===
+
+=== Processing Game 2024020166 Goal 1068 ===
+
+=== Processing Game 2024020166 Goal 107 ===
+
+=== Processing Game 2024020166 Goal 210 ===
+
+=== Processing Game 2024020166 Goal 334 ===
+
+=== Processing Game 2024020166 Goal 675 ===
+
+=== Processing Game 2024020166 Goal 931 ===
+
+=== Processing Game 2024020167 Goal 155 ===
+
+=== Processing Game 2024020167 Goal 158 ===
+
+=== Processing Game 2024020167 Goal 246 ===
+
+=== Processing Game 2024020167 Goal 301 ===
+
+=== Processing Game 2024020167 Goal 314 ===
+
+=== Processing Game 2024020168 Goal 107 ===
+
+=== Processing Game 2024020168 Goal 209 ===
+
+=== Processing Game 2024020168 Goal 2455578 ===
+
+=== Processing Game 2024020168 Goal 2455701 ===
+
+=== Processing Game 2024020168 Goal 2455760 ===
+
+=== Processing Game 2024020168 Goal 2455970 ===
+
+=== Processing Game 2024020168 Goal 2456183 ===
+
+=== Processing Game 2024020168 Goal 2456291 ===
+
+=== Processing Game 2024020168 Goal 255 ===
+
+=== Processing Game 2024020168 Goal 300 ===
+
+=== Processing Game 2024020169 Goal 1187 ===
+
+=== Processing Game 2024020169 Goal 277 ===
+
+=== Processing Game 2024020169 Goal 286 ===
+
+=== Processing Game 2024020169 Goal 642 ===
+
+=== Processing Game 2024020169 Goal 786 ===
+
+=== Processing Game 2024020169 Goal 953 ===
+
+=== Processing Game 2024020169 Goal 993 ===
+
+=== Processing Game 2024020170 Goal 1038 ===
+
+=== Processing Game 2024020170 Goal 146 ===
+
+=== Processing Game 2024020170 Goal 906 ===
+
+=== Processing Game 2024020171 Goal 1006 ===
+
+=== Processing Game 2024020171 Goal 1040 ===
+
+=== Processing Game 2024020171 Goal 210 ===
+
+=== Processing Game 2024020171 Goal 278 ===
+
+=== Processing Game 2024020171 Goal 380 ===
+
+=== Processing Game 2024020171 Goal 516 ===
+
+=== Processing Game 2024020171 Goal 743 ===
+
+=== Processing Game 2024020171 Goal 768 ===
+
+=== Processing Game 2024020172 Goal 1004 ===
+
+=== Processing Game 2024020172 Goal 1110 ===
+
+=== Processing Game 2024020172 Goal 1139 ===
+
+=== Processing Game 2024020172 Goal 1144 ===
+
+=== Processing Game 2024020172 Goal 1163 ===
+
+=== Processing Game 2024020172 Goal 396 ===
+
+=== Processing Game 2024020172 Goal 508 ===
+
+=== Processing Game 2024020172 Goal 962 ===
+
+=== Processing Game 2024020173 Goal 1208 ===
+
+=== Processing Game 2024020173 Goal 1213 ===
+
+=== Processing Game 2024020173 Goal 1233 ===
+
+=== Processing Game 2024020174 Goal 204 ===
+
+=== Processing Game 2024020174 Goal 2280929 ===
+
+=== Processing Game 2024020174 Goal 2280959 ===
+
+=== Processing Game 2024020174 Goal 2280969 ===
+
+=== Processing Game 2024020174 Goal 2281092 ===
+
+=== Processing Game 2024020174 Goal 2281358 ===
+
+=== Processing Game 2024020175 Goal 1021 ===
+
+=== Processing Game 2024020175 Goal 326 ===
+
+=== Processing Game 2024020175 Goal 724 ===
+
+=== Processing Game 2024020176 Goal 1068 ===
+
+=== Processing Game 2024020176 Goal 157 ===
+
+=== Processing Game 2024020176 Goal 201 ===
+
+=== Processing Game 2024020176 Goal 814 ===
+
+=== Processing Game 2024020176 Goal 872 ===
+
+=== Processing Game 2024020176 Goal 895 ===
+
+=== Processing Game 2024020177 Goal 111 ===
+
+=== Processing Game 2024020177 Goal 1194 ===
+
+=== Processing Game 2024020177 Goal 122 ===
+
+=== Processing Game 2024020177 Goal 179 ===
+
+=== Processing Game 2024020177 Goal 231 ===
+
+=== Processing Game 2024020177 Goal 317 ===
+
+=== Processing Game 2024020177 Goal 322 ===
+
+=== Processing Game 2024020177 Goal 451 ===
+
+=== Processing Game 2024020177 Goal 498 ===
+
+=== Processing Game 2024020178 Goal 1025 ===
+
+=== Processing Game 2024020178 Goal 165 ===
+
+=== Processing Game 2024020178 Goal 679 ===
+
+=== Processing Game 2024020179 Goal 318 ===
+
+=== Processing Game 2024020179 Goal 658 ===
+
+=== Processing Game 2024020179 Goal 743 ===
+
+=== Processing Game 2024020180 Goal 1051 ===
+
+=== Processing Game 2024020180 Goal 375 ===
+
+=== Processing Game 2024020180 Goal 755 ===
+
+=== Processing Game 2024020180 Goal 836 ===
+
+=== Processing Game 2024020181 Goal 1084 ===
+
+=== Processing Game 2024020181 Goal 1152 ===
+
+=== Processing Game 2024020181 Goal 179 ===
+
+=== Processing Game 2024020181 Goal 638 ===
+
+=== Processing Game 2024020181 Goal 691 ===
+
+=== Processing Game 2024020181 Goal 745 ===
+
+=== Processing Game 2024020182 Goal 1002 ===
+
+=== Processing Game 2024020182 Goal 1176 ===
+
+=== Processing Game 2024020182 Goal 1186 ===
+
+=== Processing Game 2024020182 Goal 1196 ===
+
+=== Processing Game 2024020182 Goal 601 ===
+
+=== Processing Game 2024020182 Goal 675 ===
+
+=== Processing Game 2024020182 Goal 904 ===
+
+=== Processing Game 2024020183 Goal 1067 ===
+
+=== Processing Game 2024020183 Goal 238 ===
+
+=== Processing Game 2024020183 Goal 694 ===
+
+=== Processing Game 2024020183 Goal 731 ===
+
+=== Processing Game 2024020183 Goal 792 ===
+
+=== Processing Game 2024020183 Goal 865 ===
+
+=== Processing Game 2024020183 Goal 956 ===
+
+=== Processing Game 2024020184 Goal 1023 ===
+
+=== Processing Game 2024020184 Goal 1066 ===
+
+=== Processing Game 2024020184 Goal 1077 ===
+
+=== Processing Game 2024020184 Goal 453 ===
+
+=== Processing Game 2024020184 Goal 761 ===
+
+=== Processing Game 2024020185 Goal 1085 ===
+
+=== Processing Game 2024020185 Goal 146 ===
+
+=== Processing Game 2024020185 Goal 436 ===
+
+=== Processing Game 2024020185 Goal 585 ===
+
+=== Processing Game 2024020185 Goal 733 ===
+
+=== Processing Game 2024020185 Goal 825 ===
+
+=== Processing Game 2024020185 Goal 938 ===
+
+=== Processing Game 2024020186 Goal 1110 ===
+
+=== Processing Game 2024020186 Goal 1134 ===
+
+=== Processing Game 2024020186 Goal 212 ===
+
+=== Processing Game 2024020186 Goal 351 ===
+
+=== Processing Game 2024020186 Goal 464 ===
+
+=== Processing Game 2024020186 Goal 617 ===
+
+=== Processing Game 2024020186 Goal 637 ===
+
+=== Processing Game 2024020186 Goal 653 ===
+
+=== Processing Game 2024020186 Goal 885 ===
+
+=== Processing Game 2024020186 Goal 921 ===
+
+=== Processing Game 2024020186 Goal 934 ===
+
+=== Processing Game 2024020187 Goal 142 ===
+
+=== Processing Game 2024020187 Goal 212 ===
+
+=== Processing Game 2024020188 Goal 1128 ===
+
+=== Processing Game 2024020188 Goal 329 ===
+
+=== Processing Game 2024020188 Goal 445 ===
+
+=== Processing Game 2024020188 Goal 504 ===
+
+=== Processing Game 2024020188 Goal 536 ===
+
+=== Processing Game 2024020188 Goal 573 ===
+
+=== Processing Game 2024020189 Goal 1090 ===
+
+=== Processing Game 2024020189 Goal 248 ===
+
+=== Processing Game 2024020189 Goal 367 ===
+
+=== Processing Game 2024020190 Goal 103 ===
+
+=== Processing Game 2024020190 Goal 1096 ===
+
+=== Processing Game 2024020190 Goal 155 ===
+
+=== Processing Game 2024020190 Goal 555 ===
+
+=== Processing Game 2024020190 Goal 887 ===
+
+=== Processing Game 2024020190 Goal 964 ===
+
+=== Processing Game 2024020191 Goal 1110 ===
+  Block ID: 1108 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020191 Goal 1129 ===
+
+=== Processing Game 2024020191 Goal 307 ===
+
+=== Processing Game 2024020191 Goal 348 ===
+
+=== Processing Game 2024020191 Goal 823 ===
+
+=== Processing Game 2024020191 Goal 963 ===
+
+=== Processing Game 2024020192 Goal 1195 ===
+  Block ID: 1194 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020192 Goal 421 ===
+
+=== Processing Game 2024020192 Goal 943 ===
+
+=== Processing Game 2024020193 Goal 171 ===
+
+=== Processing Game 2024020193 Goal 769 ===
+
+=== Processing Game 2024020193 Goal 967 ===
+
+=== Processing Game 2024020194 Goal 199 ===
+
+=== Processing Game 2024020194 Goal 445 ===
+  Block ID: 444 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020194 Goal 455 ===
+
+=== Processing Game 2024020194 Goal 456 ===
+
+=== Processing Game 2024020194 Goal 694 ===
+  Block ID: 689 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020194 Goal 995 ===
+
+=== Processing Game 2024020195 Goal 1162 ===
+
+=== Processing Game 2024020195 Goal 1181 ===
+  Block ID: 1180 (Delta: 7s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020195 Goal 680 ===
+
+=== Processing Game 2024020195 Goal 700 ===
+
+=== Processing Game 2024020196 Goal 1066 ===
+
+=== Processing Game 2024020196 Goal 1107 ===
+
+=== Processing Game 2024020196 Goal 562 ===
+  Block ID: 561 (Delta: 3s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020196 Goal 692 ===
+
+=== Processing Game 2024020196 Goal 820 ===
+
+=== Processing Game 2024020197 Goal 1070 ===
+
+=== Processing Game 2024020197 Goal 1078 ===
+  Block ID: 1077 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020197 Goal 197 ===
+  Block ID: 196 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020197 Goal 382 ===
+
+=== Processing Game 2024020197 Goal 601 ===
+
+=== Processing Game 2024020197 Goal 608 ===
+
+=== Processing Game 2024020197 Goal 645 ===
+
+=== Processing Game 2024020197 Goal 793 ===
+
+=== Processing Game 2024020197 Goal 799 ===
+
+=== Processing Game 2024020197 Goal 941 ===
+
+=== Processing Game 2024020198 Goal 459 ===
+
+=== Processing Game 2024020198 Goal 553 ===
+
+=== Processing Game 2024020198 Goal 630 ===
+
+=== Processing Game 2024020198 Goal 736 ===
+
+=== Processing Game 2024020198 Goal 941 ===
+
+=== Processing Game 2024020198 Goal 983 ===
+  Block ID: 981 (Delta: 5s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020199 Goal 415 ===
+
+=== Processing Game 2024020199 Goal 569 ===
+
+=== Processing Game 2024020199 Goal 793 ===
+
+=== Processing Game 2024020199 Goal 920 ===
+
+=== Processing Game 2024020199 Goal 961 ===
+
+=== Processing Game 2024020200 Goal 1009 ===
+
+=== Processing Game 2024020200 Goal 620 ===
+
+=== Processing Game 2024020200 Goal 701 ===
+
+=== Processing Game 2024020200 Goal 753 ===
+
+=== Processing Game 2024020200 Goal 906 ===
+
+=== Processing Game 2024020200 Goal 986 ===
+
+=== Processing Game 2024020201 Goal 1055 ===
+  Block ID: 1053 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020201 Goal 812 ===
+
+=== Processing Game 2024020201 Goal 934 ===
+
+=== Processing Game 2024020202 Goal 1025 ===
+  Block ID: 1024 (Delta: 7s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020202 Goal 1030 ===
+
+=== Processing Game 2024020202 Goal 1055 ===
+  Block ID: 1054 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020202 Goal 124 ===
+
+=== Processing Game 2024020202 Goal 153 ===
+
+=== Processing Game 2024020202 Goal 315 ===
+
+=== Processing Game 2024020202 Goal 328 ===
+  Block ID: 325 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020202 Goal 522 ===
+
+=== Processing Game 2024020202 Goal 651 ===
+
+=== Processing Game 2024020203 Goal 1074 ===
+  Block ID: 1073 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020203 Goal 181 ===
+
+=== Processing Game 2024020203 Goal 382 ===
+
+=== Processing Game 2024020203 Goal 398 ===
+
+=== Processing Game 2024020203 Goal 606 ===
+
+=== Processing Game 2024020203 Goal 996 ===
+
+=== Processing Game 2024020204 Goal 1128 ===
+
+=== Processing Game 2024020204 Goal 801 ===
+
+=== Processing Game 2024020204 Goal 927 ===
+
+=== Processing Game 2024020205 Goal 1015 ===
+
+=== Processing Game 2024020205 Goal 144 ===
+
+=== Processing Game 2024020205 Goal 216 ===
+
+=== Processing Game 2024020205 Goal 824 ===
+
+=== Processing Game 2024020205 Goal 85 ===
+
+=== Processing Game 2024020206 Goal 1027 ===
+
+=== Processing Game 2024020206 Goal 424 ===
+
+=== Processing Game 2024020206 Goal 624 ===
+
+=== Processing Game 2024020206 Goal 671 ===
+
+=== Processing Game 2024020206 Goal 848 ===
+
+=== Processing Game 2024020207 Goal 1003 ===
+
+=== Processing Game 2024020207 Goal 1116 ===
+
+=== Processing Game 2024020207 Goal 1124 ===
+
+=== Processing Game 2024020207 Goal 402 ===
+
+=== Processing Game 2024020207 Goal 638 ===
+
+=== Processing Game 2024020207 Goal 676 ===
+
+=== Processing Game 2024020208 Goal 1216 ===
+
+=== Processing Game 2024020208 Goal 129 ===
+
+=== Processing Game 2024020208 Goal 135 ===
+
+=== Processing Game 2024020208 Goal 673 ===
+
+=== Processing Game 2024020208 Goal 685 ===
+
+=== Processing Game 2024020208 Goal 841 ===
+
+=== Processing Game 2024020208 Goal 966 ===
+
+=== Processing Game 2024020209 Goal 1034 ===
+
+=== Processing Game 2024020209 Goal 1134 ===
+
+=== Processing Game 2024020209 Goal 1218 ===
+
+=== Processing Game 2024020209 Goal 830 ===
+
+=== Processing Game 2024020209 Goal 862 ===
+
+=== Processing Game 2024020209 Goal 975 ===
+
+=== Processing Game 2024020210 Goal 1051 ===
+
+=== Processing Game 2024020210 Goal 402 ===
+
+=== Processing Game 2024020211 Goal 1128 ===
+
+=== Processing Game 2024020211 Goal 1137 ===
+
+=== Processing Game 2024020211 Goal 152 ===
+
+=== Processing Game 2024020211 Goal 170 ===
+
+=== Processing Game 2024020211 Goal 180 ===
+
+=== Processing Game 2024020211 Goal 222 ===
+
+=== Processing Game 2024020211 Goal 493 ===
+
+=== Processing Game 2024020211 Goal 789 ===
+
+=== Processing Game 2024020212 Goal 1117 ===
+
+=== Processing Game 2024020212 Goal 117 ===
+
+=== Processing Game 2024020212 Goal 252 ===
+
+=== Processing Game 2024020212 Goal 304 ===
+
+=== Processing Game 2024020212 Goal 604 ===
+
+=== Processing Game 2024020212 Goal 670 ===
+
+=== Processing Game 2024020212 Goal 770 ===
+
+=== Processing Game 2024020212 Goal 918 ===
+
+=== Processing Game 2024020213 Goal 1004 ===
+
+=== Processing Game 2024020213 Goal 255 ===
+
+=== Processing Game 2024020213 Goal 54 ===
+
+=== Processing Game 2024020213 Goal 605 ===
+
+=== Processing Game 2024020213 Goal 708 ===
+
+=== Processing Game 2024020213 Goal 714 ===
+
+=== Processing Game 2024020213 Goal 733 ===
+
+=== Processing Game 2024020214 Goal 110 ===
+
+=== Processing Game 2024020214 Goal 254 ===
+
+=== Processing Game 2024020214 Goal 703 ===
+
+=== Processing Game 2024020214 Goal 748 ===
+
+=== Processing Game 2024020214 Goal 896 ===
+
+=== Processing Game 2024020214 Goal 925 ===
+
+=== Processing Game 2024020215 Goal 1036 ===
+
+=== Processing Game 2024020215 Goal 103 ===
+
+=== Processing Game 2024020215 Goal 1071 ===
+
+=== Processing Game 2024020215 Goal 1160 ===
+
+=== Processing Game 2024020215 Goal 337 ===
+
+=== Processing Game 2024020215 Goal 783 ===
+
+=== Processing Game 2024020216 Goal 1012 ===
+
+=== Processing Game 2024020216 Goal 1144 ===
+
+=== Processing Game 2024020216 Goal 294 ===
+
+=== Processing Game 2024020216 Goal 676 ===
+
+=== Processing Game 2024020217 Goal 59 ===
+
+=== Processing Game 2024020218 Goal 1088 ===
+
+=== Processing Game 2024020218 Goal 1157 ===
+
+=== Processing Game 2024020218 Goal 122 ===
+
+=== Processing Game 2024020218 Goal 400 ===
+
+=== Processing Game 2024020218 Goal 648 ===
+
+=== Processing Game 2024020218 Goal 924 ===
+
+=== Processing Game 2024020219 Goal 493 ===
+
+=== Processing Game 2024020219 Goal 578 ===
+
+=== Processing Game 2024020219 Goal 646 ===
+
+=== Processing Game 2024020219 Goal 78 ===
+
+=== Processing Game 2024020219 Goal 844 ===
+
+=== Processing Game 2024020219 Goal 945 ===
+
+=== Processing Game 2024020219 Goal 967 ===
+
+=== Processing Game 2024020220 Goal 1109 ===
+
+=== Processing Game 2024020220 Goal 416 ===
+
+=== Processing Game 2024020220 Goal 644 ===
+
+=== Processing Game 2024020220 Goal 664 ===
+
+=== Processing Game 2024020221 Goal 1049 ===
+
+=== Processing Game 2024020221 Goal 143 ===
+
+=== Processing Game 2024020221 Goal 188 ===
+
+=== Processing Game 2024020221 Goal 240 ===
+
+=== Processing Game 2024020221 Goal 258 ===
+
+=== Processing Game 2024020221 Goal 640 ===
+
+=== Processing Game 2024020222 Goal 1069 ===
+
+=== Processing Game 2024020222 Goal 1114 ===
+
+=== Processing Game 2024020222 Goal 1144 ===
+
+=== Processing Game 2024020222 Goal 196 ===
+
+=== Processing Game 2024020222 Goal 264 ===
+
+=== Processing Game 2024020222 Goal 302 ===
+
+=== Processing Game 2024020222 Goal 832 ===
+
+=== Processing Game 2024020223 Goal 1008 ===
+
+=== Processing Game 2024020223 Goal 1029 ===
+
+=== Processing Game 2024020223 Goal 181 ===
+
+=== Processing Game 2024020223 Goal 366 ===
+
+=== Processing Game 2024020223 Goal 410 ===
+
+=== Processing Game 2024020223 Goal 533 ===
+
+=== Processing Game 2024020223 Goal 815 ===
+
+=== Processing Game 2024020224 Goal 1049 ===
+
+=== Processing Game 2024020224 Goal 113 ===
+
+=== Processing Game 2024020224 Goal 256 ===
+
+=== Processing Game 2024020224 Goal 797 ===
+
+=== Processing Game 2024020225 Goal 212 ===
+
+=== Processing Game 2024020225 Goal 589 ===
+
+=== Processing Game 2024020225 Goal 679 ===
+
+=== Processing Game 2024020225 Goal 731 ===
+
+=== Processing Game 2024020225 Goal 756 ===
+
+=== Processing Game 2024020225 Goal 991 ===
+
+=== Processing Game 2024020226 Goal 1148 ===
+
+=== Processing Game 2024020226 Goal 574 ===
+
+=== Processing Game 2024020226 Goal 637 ===
+
+=== Processing Game 2024020226 Goal 644 ===
+
+=== Processing Game 2024020226 Goal 818 ===
+
+=== Processing Game 2024020227 Goal 387 ===
+
+=== Processing Game 2024020227 Goal 512 ===
+
+=== Processing Game 2024020227 Goal 547 ===
+
+=== Processing Game 2024020227 Goal 557 ===
+
+=== Processing Game 2024020227 Goal 591 ===
+
+=== Processing Game 2024020228 Goal 1040 ===
+
+=== Processing Game 2024020228 Goal 331 ===
+
+=== Processing Game 2024020228 Goal 827 ===
+
+=== Processing Game 2024020228 Goal 834 ===
+
+=== Processing Game 2024020229 Goal 1077 ===
+
+=== Processing Game 2024020229 Goal 115 ===
+
+=== Processing Game 2024020229 Goal 186 ===
+
+=== Processing Game 2024020229 Goal 561 ===
+
+=== Processing Game 2024020229 Goal 605 ===
+
+=== Processing Game 2024020229 Goal 650 ===
+
+=== Processing Game 2024020229 Goal 800 ===
+
+=== Processing Game 2024020229 Goal 822 ===
+
+=== Processing Game 2024020229 Goal 964 ===
+
+=== Processing Game 2024020230 Goal 1093 ===
+
+=== Processing Game 2024020230 Goal 205 ===
+
+=== Processing Game 2024020230 Goal 243 ===
+
+=== Processing Game 2024020230 Goal 252 ===
+
+=== Processing Game 2024020230 Goal 646 ===
+
+=== Processing Game 2024020231 Goal 1034 ===
+
+=== Processing Game 2024020231 Goal 1091 ===
+
+=== Processing Game 2024020231 Goal 1127 ===
+
+=== Processing Game 2024020231 Goal 351 ===
+
+=== Processing Game 2024020231 Goal 659 ===
+
+=== Processing Game 2024020231 Goal 971 ===
+
+=== Processing Game 2024020231 Goal 993 ===
+
+=== Processing Game 2024020232 Goal 1173 ===
+
+=== Processing Game 2024020232 Goal 130 ===
+
+=== Processing Game 2024020232 Goal 455 ===
+
+=== Processing Game 2024020232 Goal 746 ===
+
+=== Processing Game 2024020233 Goal 1094 ===
+
+=== Processing Game 2024020233 Goal 261 ===
+
+=== Processing Game 2024020233 Goal 642 ===
+
+=== Processing Game 2024020233 Goal 689 ===
+
+=== Processing Game 2024020233 Goal 714 ===
+
+=== Processing Game 2024020233 Goal 733 ===
+
+=== Processing Game 2024020233 Goal 772 ===
+
+=== Processing Game 2024020233 Goal 783 ===
+
+=== Processing Game 2024020233 Goal 807 ===
+
+=== Processing Game 2024020233 Goal 851 ===
+
+=== Processing Game 2024020234 Goal 1054 ===
+
+=== Processing Game 2024020234 Goal 257 ===
+
+=== Processing Game 2024020234 Goal 547 ===
+
+=== Processing Game 2024020234 Goal 571 ===
+
+=== Processing Game 2024020234 Goal 784 ===
+
+=== Processing Game 2024020234 Goal 790 ===
+
+=== Processing Game 2024020234 Goal 910 ===
+
+=== Processing Game 2024020235 Goal 1010 ===
+
+=== Processing Game 2024020235 Goal 1109 ===
+
+=== Processing Game 2024020235 Goal 125 ===
+
+=== Processing Game 2024020235 Goal 500 ===
+
+=== Processing Game 2024020235 Goal 514 ===
+
+=== Processing Game 2024020235 Goal 518 ===
+
+=== Processing Game 2024020235 Goal 534 ===
+
+=== Processing Game 2024020235 Goal 886 ===
+
+=== Processing Game 2024020235 Goal 910 ===
+
+=== Processing Game 2024020235 Goal 921 ===
+
+=== Processing Game 2024020236 Goal 357 ===
+
+=== Processing Game 2024020237 Goal 1002 ===
+
+=== Processing Game 2024020237 Goal 1071 ===
+
+=== Processing Game 2024020237 Goal 454 ===
+
+=== Processing Game 2024020238 Goal 1006 ===
+  Block ID: 1003 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020238 Goal 1030 ===
+
+=== Processing Game 2024020238 Goal 137 ===
+
+=== Processing Game 2024020238 Goal 353 ===
+
+=== Processing Game 2024020238 Goal 557 ===
+
+=== Processing Game 2024020238 Goal 920 ===
+  Block ID: 268 (Delta: 3s)
+  [ERROR] Identification script failed: Command '['C:\\Users\\harri\\AppData\\Local\\Programs\\Python\\Python312\\python.exe', 'scripts/identify_shot_attempts.py', '2024020238', '920', '268']' returned non-zero exit status 1.
+
+=== Processing Game 2024020239 Goal 1040 ===
+
+=== Processing Game 2024020239 Goal 146 ===
+
+=== Processing Game 2024020239 Goal 202 ===
+
+=== Processing Game 2024020239 Goal 639 ===
+
+=== Processing Game 2024020239 Goal 644 ===
+
+=== Processing Game 2024020239 Goal 650 ===
+  Block ID: 649 (Delta: 9s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020239 Goal 803 ===
+
+=== Processing Game 2024020239 Goal 808 ===
+
+=== Processing Game 2024020239 Goal 855 ===
+
+=== Processing Game 2024020239 Goal 877 ===
+
+=== Processing Game 2024020239 Goal 954 ===
+
+=== Processing Game 2024020239 Goal 973 ===
+
+=== Processing Game 2024020240 Goal 338 ===
+
+=== Processing Game 2024020240 Goal 461 ===
+
+=== Processing Game 2024020240 Goal 609 ===
+
+=== Processing Game 2024020240 Goal 68 ===
+
+=== Processing Game 2024020240 Goal 784 ===
+
+=== Processing Game 2024020240 Goal 829 ===
+  Block ID: 823 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020241 Goal 1036 ===
+
+=== Processing Game 2024020241 Goal 132 ===
+
+=== Processing Game 2024020241 Goal 244 ===
+
+=== Processing Game 2024020241 Goal 289 ===
+
+=== Processing Game 2024020241 Goal 325 ===
+
+=== Processing Game 2024020241 Goal 341 ===
+
+=== Processing Game 2024020241 Goal 392 ===
+
+=== Processing Game 2024020241 Goal 730 ===
+
+=== Processing Game 2024020242 Goal 1129 ===
+  Block ID: 1128 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020242 Goal 1160 ===
+
+=== Processing Game 2024020242 Goal 659 ===
+
+=== Processing Game 2024020242 Goal 669 ===
+
+=== Processing Game 2024020243 Goal 1188 ===
+
+=== Processing Game 2024020243 Goal 174 ===
+
+=== Processing Game 2024020243 Goal 729 ===
+
+=== Processing Game 2024020243 Goal 799 ===
+
+=== Processing Game 2024020243 Goal 914 ===
+
+=== Processing Game 2024020244 Goal 1004 ===
+
+=== Processing Game 2024020244 Goal 1062 ===
+
+=== Processing Game 2024020244 Goal 144 ===
+
+=== Processing Game 2024020244 Goal 354 ===
+
+=== Processing Game 2024020244 Goal 493 ===
+
+=== Processing Game 2024020244 Goal 620 ===
+
+=== Processing Game 2024020244 Goal 894 ===
+
+=== Processing Game 2024020245 Goal 58 ===
+
+=== Processing Game 2024020245 Goal 605 ===
+
+=== Processing Game 2024020245 Goal 615 ===
+  Block ID: 614 (Delta: 10s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020246 Goal 1111 ===
+
+=== Processing Game 2024020246 Goal 1162 ===
+
+=== Processing Game 2024020246 Goal 265 ===
+
+=== Processing Game 2024020246 Goal 637 ===
+
+=== Processing Game 2024020246 Goal 810 ===
+
+=== Processing Game 2024020247 Goal 1019 ===
+
+=== Processing Game 2024020247 Goal 1099 ===
+
+=== Processing Game 2024020247 Goal 165 ===
+
+=== Processing Game 2024020247 Goal 401 ===
+
+=== Processing Game 2024020247 Goal 727 ===
+
+=== Processing Game 2024020247 Goal 770 ===
+
+=== Processing Game 2024020247 Goal 802 ===
+
+=== Processing Game 2024020247 Goal 877 ===
+
+=== Processing Game 2024020247 Goal 884 ===
+
+=== Processing Game 2024020248 Goal 1050 ===
+
+=== Processing Game 2024020248 Goal 74 ===
+
+=== Processing Game 2024020248 Goal 80 ===
+
+=== Processing Game 2024020248 Goal 860 ===
+
+=== Processing Game 2024020248 Goal 922 ===
+
+=== Processing Game 2024020249 Goal 1153 ===
+
+=== Processing Game 2024020249 Goal 1185 ===
+
+=== Processing Game 2024020249 Goal 1242 ===
+
+=== Processing Game 2024020249 Goal 1302 ===
+
+=== Processing Game 2024020249 Goal 597 ===
+
+=== Processing Game 2024020249 Goal 889 ===
+
+=== Processing Game 2024020249 Goal 947 ===
+
+=== Processing Game 2024020250 Goal 464 ===
+
+=== Processing Game 2024020250 Goal 484 ===
+
+=== Processing Game 2024020250 Goal 510 ===
+
+=== Processing Game 2024020250 Goal 958 ===
+
+=== Processing Game 2024020251 Goal 283 ===
+
+=== Processing Game 2024020251 Goal 401 ===
+
+=== Processing Game 2024020251 Goal 481 ===
+
+=== Processing Game 2024020251 Goal 529 ===
+
+=== Processing Game 2024020251 Goal 543 ===
+
+=== Processing Game 2024020251 Goal 620 ===
+
+=== Processing Game 2024020251 Goal 979 ===
+
+=== Processing Game 2024020252 Goal 1180 ===
+
+=== Processing Game 2024020252 Goal 432 ===
+
+=== Processing Game 2024020252 Goal 537 ===
+
+=== Processing Game 2024020252 Goal 613 ===
+
+=== Processing Game 2024020252 Goal 801 ===
+
+=== Processing Game 2024020253 Goal 1048 ===
+
+=== Processing Game 2024020253 Goal 106 ===
+
+=== Processing Game 2024020253 Goal 1089 ===
+
+=== Processing Game 2024020253 Goal 1140 ===
+
+=== Processing Game 2024020253 Goal 156 ===
+
+=== Processing Game 2024020253 Goal 386 ===
+
+=== Processing Game 2024020253 Goal 760 ===
+  Block ID: 759 (Delta: 4s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020254 Goal 491 ===
+
+=== Processing Game 2024020254 Goal 706 ===
+
+=== Processing Game 2024020254 Goal 901 ===
+
+=== Processing Game 2024020254 Goal 930 ===
+
+=== Processing Game 2024020254 Goal 941 ===
+
+=== Processing Game 2024020255 Goal 1021 ===
+
+=== Processing Game 2024020255 Goal 1127 ===
+
+=== Processing Game 2024020255 Goal 201 ===
+
+=== Processing Game 2024020255 Goal 301 ===
+
+=== Processing Game 2024020255 Goal 444 ===
+
+=== Processing Game 2024020255 Goal 794 ===
+
+=== Processing Game 2024020256 Goal 1099 ===
+
+=== Processing Game 2024020256 Goal 146 ===
+
+=== Processing Game 2024020256 Goal 425 ===
+
+=== Processing Game 2024020256 Goal 442 ===
+
+=== Processing Game 2024020256 Goal 643 ===
+
+=== Processing Game 2024020257 Goal 1064 ===
+
+=== Processing Game 2024020257 Goal 202 ===
+  Block ID: 150 (Delta: 11s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020257 Goal 313 ===
+
+=== Processing Game 2024020257 Goal 360 ===
+
+=== Processing Game 2024020257 Goal 622 ===
+
+=== Processing Game 2024020257 Goal 771 ===
+  Block ID: 156 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020257 Goal 967 ===
+
+=== Processing Game 2024020258 Goal 1000 ===
+  Block ID: 996 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020258 Goal 1158 ===
+
+=== Processing Game 2024020258 Goal 141 ===
+
+=== Processing Game 2024020258 Goal 186 ===
+
+=== Processing Game 2024020258 Goal 230 ===
+
+=== Processing Game 2024020258 Goal 654 ===
+
+=== Processing Game 2024020258 Goal 727 ===
+
+=== Processing Game 2024020258 Goal 917 ===
+
+=== Processing Game 2024020258 Goal 987 ===
+
+=== Processing Game 2024020259 Goal 1220 ===
+
+=== Processing Game 2024020259 Goal 293 ===
+
+=== Processing Game 2024020259 Goal 500 ===
+  Block ID: 497 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020259 Goal 670 ===
+
+=== Processing Game 2024020259 Goal 706 ===
+
+=== Processing Game 2024020260 Goal 1162 ===
+
+=== Processing Game 2024020260 Goal 249 ===
+
+=== Processing Game 2024020260 Goal 284 ===
+
+=== Processing Game 2024020260 Goal 437 ===
+
+=== Processing Game 2024020260 Goal 658 ===
+
+=== Processing Game 2024020260 Goal 681 ===
+
+=== Processing Game 2024020260 Goal 900 ===
+
+=== Processing Game 2024020260 Goal 953 ===
+
+=== Processing Game 2024020261 Goal 1066 ===
+
+=== Processing Game 2024020261 Goal 138 ===
+
+=== Processing Game 2024020261 Goal 672 ===
+
+=== Processing Game 2024020261 Goal 688 ===
+
+=== Processing Game 2024020261 Goal 780 ===
+
+=== Processing Game 2024020262 Goal 1128 ===
+
+=== Processing Game 2024020262 Goal 113 ===
+
+=== Processing Game 2024020262 Goal 351 ===
+  Block ID: 225 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020262 Goal 571 ===
+
+=== Processing Game 2024020262 Goal 782 ===
+  Block ID: 780 (Delta: 12s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020262 Goal 798 ===
+
+=== Processing Game 2024020262 Goal 842 ===
+
+=== Processing Game 2024020262 Goal 856 ===
+
+=== Processing Game 2024020262 Goal 894 ===
+
+=== Processing Game 2024020263 Goal 1023 ===
+
+=== Processing Game 2024020263 Goal 724 ===
+
+=== Processing Game 2024020263 Goal 947 ===
+
+=== Processing Game 2024020264 Goal 1076 ===
+
+=== Processing Game 2024020264 Goal 1149 ===
+
+=== Processing Game 2024020264 Goal 254 ===
+
+=== Processing Game 2024020264 Goal 488 ===
+
+=== Processing Game 2024020264 Goal 581 ===
+
+=== Processing Game 2024020265 Goal 1040 ===
+
+=== Processing Game 2024020265 Goal 1126 ===
+
+=== Processing Game 2024020265 Goal 1251 ===
+
+=== Processing Game 2024020265 Goal 131 ===
+
+=== Processing Game 2024020265 Goal 394 ===
+
+=== Processing Game 2024020265 Goal 429 ===
+
+=== Processing Game 2024020265 Goal 504 ===
+  Block ID: 449 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020266 Goal 517 ===
+
+=== Processing Game 2024020266 Goal 699 ===
+
+=== Processing Game 2024020266 Goal 772 ===
+
+=== Processing Game 2024020266 Goal 950 ===
+
+=== Processing Game 2024020267 Goal 1044 ===
+
+=== Processing Game 2024020267 Goal 1171 ===
+  Block ID: 562 (Delta: 10s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020267 Goal 132 ===
+
+=== Processing Game 2024020267 Goal 271 ===
+
+=== Processing Game 2024020267 Goal 316 ===
+
+=== Processing Game 2024020267 Goal 648 ===
+
+=== Processing Game 2024020267 Goal 736 ===
+
+=== Processing Game 2024020267 Goal 900 ===
+  Block ID: 899 (Delta: 3s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020268 Goal 1140 ===
+  Block ID: 1138 (Delta: 7s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020268 Goal 224 ===
+
+=== Processing Game 2024020268 Goal 250 ===
+
+=== Processing Game 2024020268 Goal 281 ===
+
+=== Processing Game 2024020268 Goal 458 ===
+
+=== Processing Game 2024020268 Goal 479 ===
+
+=== Processing Game 2024020268 Goal 687 ===
+
+=== Processing Game 2024020269 Goal 1041 ===
+
+=== Processing Game 2024020269 Goal 1211 ===
+
+=== Processing Game 2024020270 Goal 1117 ===
+
+=== Processing Game 2024020270 Goal 1126 ===
+
+=== Processing Game 2024020270 Goal 302 ===
+
+=== Processing Game 2024020270 Goal 661 ===
+
+=== Processing Game 2024020270 Goal 747 ===
+
+=== Processing Game 2024020270 Goal 927 ===
+
+=== Processing Game 2024020271 Goal 1002 ===
+
+=== Processing Game 2024020271 Goal 1054 ===
+  Block ID: 1053 (Delta: 2s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020271 Goal 1089 ===
+
+=== Processing Game 2024020271 Goal 168 ===
+
+=== Processing Game 2024020271 Goal 306 ===
+
+=== Processing Game 2024020271 Goal 507 ===
+
+=== Processing Game 2024020271 Goal 528 ===
+
+=== Processing Game 2024020271 Goal 818 ===
+
+=== Processing Game 2024020271 Goal 896 ===
+
+=== Processing Game 2024020271 Goal 997 ===
+
+=== Processing Game 2024020272 Goal 1128 ===
+
+=== Processing Game 2024020272 Goal 178 ===
+
+=== Processing Game 2024020272 Goal 219 ===
+
+=== Processing Game 2024020272 Goal 254 ===
+
+=== Processing Game 2024020272 Goal 916 ===
+
+=== Processing Game 2024020273 Goal 1034 ===
+
+=== Processing Game 2024020273 Goal 302 ===
+
+=== Processing Game 2024020273 Goal 423 ===
+  Block ID: 421 (Delta: 8s)
+  [OK] Identification complete.
+  Generating visualizations...
+
+=== Processing Game 2024020273 Goal 886 ===
+
+=== Processing Game 2024020273 Goal 896 ===
+
+=== Processing Game 2024020274 Goal 102 ===
+
+=== Processing Game 2024020274 Goal 1038 ===
+  Block ID: 210 (Delta: 2s)
+  [OK] Identification complete.
+  [WARN] No output CSV generated.
+
+=== Processing Game 2024020274 Goal 1069 ===
+
+=== Processing Game 2024020274 Goal 498 ===
+  Block ID: 497 (Delta: 2s)
+Traceback (most recent call last):
+  File "C:\Users\harri\Desktop\new_puck\scripts\batch_process_blocked_shots.py", line 183, in <module>
+    main()
+  File "C:\Users\harri\Desktop\new_puck\scripts\batch_process_blocked_shots.py", line 126, in main
+    subprocess.run(cmd_id, check=True, capture_output=True, text=True)
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\subprocess.py", line 1628, in _communicate
+    self.stdout_thread.join(self._remaining_time(endtime))
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1149, in join
+    self._wait_for_tstate_lock()
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\threading.py", line 1169, in _wait_for_tstate_lock
+    if lock.acquire(block, timeout):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt

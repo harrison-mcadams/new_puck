@@ -12,6 +12,44 @@ sys.path.append(os.path.join(os.path.expanduser("~"), "Desktop", "new_puck"))
 from puck import nhl_api
 from puck import rink
 from puck import config
+import requests
+
+def get_goal_metadata(game_id, goal_id):
+    """
+    Fetches scorer name, time and period for a given goal event.
+    """
+    url = f"https://api-web.nhle.com/v1/gamecenter/{game_id}/play-by-play"
+    try:
+        resp = requests.get(url, timeout=10)
+        if resp.status_code != 200: return None
+        data = resp.json()
+    except Exception as e:
+        print(f"  [API Error] {e}")
+        return None
+
+    plays = data.get('plays', [])
+    goal_play = next((p for p in plays if str(p.get('eventId')) == str(goal_id)), None)
+    
+    if not goal_play: return None
+    
+    details = goal_play.get('details', {})
+    scorer_id = details.get('scoringPlayerId')
+    scorer_name = "Unknown"
+    
+    if scorer_id:
+        try:
+            p_resp = requests.get(f"https://api-web.nhle.com/v1/player/{scorer_id}/landing", timeout=5).json()
+            fname = p_resp.get('firstName', {}).get('default', '')
+            lname = p_resp.get('lastName', {}).get('default', '')
+            scorer_name = f"{fname} {lname}".strip()
+        except:
+            pass
+            
+    return {
+        'scorer': scorer_name,
+        'time': goal_play.get('timeInPeriod'),
+        'period': goal_play.get('periodDescriptor', {}).get('number')
+    }
 
 def visualize_candidates():
     # Config
@@ -33,6 +71,11 @@ def visualize_candidates():
 
     df = pd.read_csv(data_path)
     df_cand = pd.read_csv(candidates_path)
+    
+    meta = get_goal_metadata(target_game_id, target_goal_id)
+    meta_str = ""
+    if meta:
+        meta_str = f"{meta['scorer']} | {meta['time']} P{meta['period']}"
     
     # Normalize coords if needed (assume standard -100 to 100 range required by rink.draw_rink?)
     # The data seems to be raw 0-200ft or similar. 
@@ -97,7 +140,7 @@ def visualize_candidates():
     df_players = df[df['entity_type'] == 'player']
 
     # Setup Plot
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 6))
     
     # Frames
     min_f = int(df['frame_idx'].min())
@@ -152,7 +195,11 @@ def visualize_candidates():
             ax.text(row['x'], row['y']+2, f"F{int(row['frame_idx'])}\nDev:{row['dev_deg']:.1f}\nBlk:{row['blocker_dist']:.1f}ft", 
                     color='red', fontsize=8, fontweight='bold')
             
-        ax.set_title(f"Game {target_game_id} | Frame {frame_idx}")
+        title = f"Game {target_game_id} | Goal {target_goal_id}"
+        if meta_str:
+            title += f"\n{meta_str}"
+        title += f" | Frame {frame_idx}"
+        ax.set_title(title)
         ax.set_xlim(-100, 100)
         ax.set_ylim(-42.5, 42.5)
 
@@ -166,8 +213,12 @@ def visualize_candidates():
     print(f"Animation saved to {out_file}")
 
     # Save Best Candidate PNG
-    if 'score' in df_cand.columns:
+    if not df_cand.empty and 'score' in df_cand.columns:
         best_row = df_cand.loc[df_cand['score'].idxmax()]
+        # If best_row is a DataFrame (multiple maxes), take first
+        if isinstance(best_row, pd.DataFrame):
+            best_row = best_row.iloc[0]
+            
         best_frame = int(best_row['frame_idx'])
         print(f"Saving Best Candidate PNG for Frame {best_frame} (Score {best_row['score']:.3f})...")
         

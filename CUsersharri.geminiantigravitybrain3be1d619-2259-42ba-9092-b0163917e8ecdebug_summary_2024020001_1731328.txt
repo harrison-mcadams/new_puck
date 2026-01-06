@@ -1,0 +1,37 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Identifying Shot Attempts for Game 2024020001 Goal 1731328 ---
+DEBUG: Max Abs X: 89.39589999999998
+DEBUG: Raw Frame 8 Y: 40.29974166666667
+PBP Block Event 1731541 Shooter ID: 8479420
+Target Shooter ID: 8479420
+Target Blocker ID: 8481032
+DEBUG STARTS: [np.int64(1), np.int64(17), np.int64(35), np.int64(119)]
+Detected Attack Direction (from candidates): Net at X=89.0
+
+Evaluating 4 Candidate Segments...
+Goalies to exclude: {8474593.0, 8474596.0, 8480045.0, 8482221.0}
+Checking Frame 2...
+  Frame 2 Dist: 29.6
+  -> Dropped F2: Dist 29.6 and Low Speed
+Checking Frame 18...
+  Frame 18 Dist: 7.4
+  -> Blocker Check: Min Dist 7.5ft to ID 8481032
+  -> Candidate F18: Score 0.359 (Q:0.46 DistGate:0.88)
+Checking Frame 37...
+  Frame 37 Dist: 4.3
+  -> Blocker Check: Min Dist 3.9ft to ID 8481032
+  -> Candidate F37: Score 0.322 (Q:0.32 DistGate:1.00)
+Checking Frame 119...
+
+Top Candidates:
+  F18 | Score: 0.359 | Spd: 48.3 | Dist: 7.4ft | BlockDist: 7.5ft | Dev: 13.4°
+  F37 | Score: 0.322 | Spd: 45.2 | Dist: 4.3ft | BlockDist: 3.9ft | Dev: 29.9°
+
+[SUCCESS] Identified Best Shot Candidate: Frame 18
+  Confidence Score: 0.359
+  Location: (-37.1, 33.4)
+  Speed: 48.3 fps
+  Shooter Proximity: 7.4 ft
+  Net Alignment: 13.4 deg deviation
+Candidates saved to C:/Users/harri/Desktop/new_puck/data\..\analysis\blocked_shots\candidate_vectors_2024020001_1731328_v2.csv

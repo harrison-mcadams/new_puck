@@ -90,12 +90,13 @@ def visualize_verified_block():
     
     # --- SHOOTER-FIRST RESULT OVERRIDE ---
     # Findings from 'trace_shot_to_block.py'
-    print("Using Shooter-First Trace Results:")
-    shooter_id = 8483930
-    blocker_id = 8476467
+    # Findings from 'trace_shot_to_block.py'
+    # Use arguments passed or PBP logic
+    print(f"Using Shot Frame: {ov_shot} and Block Frame: {ov_block}")
     
-    block_frame_idx = ov_block # Block at F44
-    origin_frame_idx = ov_shot # Shot at F24
+    block_frame_idx = ov_block 
+    origin_frame_idx = ov_shot 
+    
     
     row_v = {
         'true_origin_x': df_puck[df_puck['frame_idx'] == origin_frame_idx]['x'].iloc[0],
@@ -214,8 +215,8 @@ def visualize_verified_block():
     s_frame = df_shooter[df_shooter['frame_idx'] == origin_frame_idx]
     if not s_frame.empty:
         sx, sy = s_frame.iloc[0]['x'], s_frame.iloc[0]['y']
-        ax.scatter(sx, sy, c='orange', s=200, marker='o', edgecolors='black', label=f'Shooter {int(shooter_id)}', zorder=10)
-        circle = patches.Circle((sx, sy), 6, color='orange', fill=False, linestyle='--', alpha=0.5)
+        ax.scatter(sx, sy, c='green', s=200, marker='^', edgecolors='black', label=f'Shooter {int(shooter_id)}', zorder=10)
+        circle = patches.Circle((sx, sy), 6, color='green', fill=False, linestyle='--', alpha=0.5)
         ax.add_patch(circle)
         ax.text(sx, sy-3, f"Shooter\nDist: {row['dist_to_shooter']:.1f}ft", ha='center', fontsize=9, fontweight='bold', bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
 
@@ -223,10 +224,10 @@ def visualize_verified_block():
     b_frame = df_blocker[df_blocker['frame_idx'] == block_frame_idx]
     if not b_frame.empty:
         bx, by = b_frame.iloc[0]['x'], b_frame.iloc[0]['y']
-        ax.scatter(bx, by, c='blue', s=200, marker='o', edgecolors='black', label=f'Blocker {int(blocker_id)}', zorder=10)
-        circle = patches.Circle((bx, by), 6, color='blue', fill=False, linestyle='--', alpha=0.5)
+        ax.scatter(bx, by, c='magenta', s=200, marker='s', edgecolors='black', label=f'Blocker {int(blocker_id)}', zorder=10)
+        circle = patches.Circle((bx, by), 6, color='magenta', fill=False, linestyle='--', alpha=0.5)
         ax.add_patch(circle)
-        ax.text(bx, by-3, f"Blocker\nDist: {row['dist_to_blocker']:.1f}ft", ha='center', fontsize=9, fontweight='bold', color='blue', bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
+        ax.text(bx, by-3, f"Blocker\nDist: {row['dist_to_blocker']:.1f}ft", ha='center', fontsize=9, fontweight='bold', color='magenta', bbox=dict(facecolor='white', alpha=0.7, edgecolor='none'))
 
     ax.legend(loc='lower center', ncol=4)
     ax.set_title(f"Verified Block Parsing: Game {target_game_id} Event {target_block_id}", fontsize=14)
@@ -247,8 +248,8 @@ def visualize_verified_block():
     puck_point, = ax.plot([], [], 'ko', markersize=6, label='Puck')
     
     # Players
-    shooter_dot, = ax.plot([], [], 'o', color='orange', markersize=10, markeredgecolor='black', label='Shooter')
-    blocker_dot, = ax.plot([], [], 'o', color='blue', markersize=10, markeredgecolor='black', label='Blocker')
+    shooter_dot, = ax.plot([], [], '^', color='green', markersize=10, markeredgecolor='black', label='Shooter')
+    blocker_dot, = ax.plot([], [], 's', color='magenta', markersize=10, markeredgecolor='black', label='Blocker')
     
     # Markers (appear at events)
     origin_mark, = ax.plot([], [], 'g*', markersize=15, label='Shot Origin')
