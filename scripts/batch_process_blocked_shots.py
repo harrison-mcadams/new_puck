@@ -27,7 +27,7 @@ sys.path.append(os.path.join(os.getcwd()))
 
 import subprocess
 
-DATA_DIR = "data/edge_goals/20242025"
+DATA_DIR = "data/edge_goals"
 ANALYSIS_DIR = "analysis/blocked_shots"
 SUMMARY_FILE = os.path.join(ANALYSIS_DIR, "blocked_shots_summary_batch.csv")
 
@@ -87,25 +87,53 @@ def main():
     if not os.path.exists(ANALYSIS_DIR):
         os.makedirs(ANALYSIS_DIR)
 
-    # Find all position files
-    pattern = os.path.join(DATA_DIR, "game_*_goal_*_positions.csv")
-    files = glob.glob(pattern)
-    print(f"Found {len(files)} position files.")
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--resume', action='store_true', help='Resume from existing summary file')
+    args = parser.parse_args()
+
+    # Find all position files across all season subdirectories
+    # Structure: data/edge_goals/20232024/*.csv, data/edge_goals/20242025/*.csv
+    pattern = os.path.join(DATA_DIR, "**", "game_*_goal_*_positions.csv")
+    files = glob.glob(pattern, recursive=True)
+    print(f"Found {len(files)} position files across all seasons.")
 
     # Sort for consistency
     files.sort()
 
     summary_records = []
+    processed_keys = set()
+
+    if args.resume and os.path.exists(SUMMARY_FILE):
+        print(f"Resuming from {SUMMARY_FILE}...")
+        try:
+            df_existing = pd.read_csv(SUMMARY_FILE)
+            for _, row in df_existing.iterrows():
+                processed_keys.add(f"{row['game_id']}_{row['goal_id']}")
+            print(f"  Found {len(processed_keys)} already processed goals.")
+            
+            # Load existing records to keep appending correctly? 
+            # Or just append mode? Using pandas to_csv(mode='a') is cleaner but header management is tricky.
+            # Simpler: We are appending to summary_records list in loop and writing full file.
+            # If resume, we should Load ALL existing into summary_records so they are preserved on overwrite.
+            summary_records = df_existing.to_dict('records')
+            
+        except Exception as e:
+            print(f"  [WARN] Failed to read summary file for resume: {e}")
 
     for fpath in files:
         # Parse Filename: game_2024020151_goal_293_positions.csv
         basename = os.path.basename(fpath)
+
         parts = basename.split('_')
         if len(parts) < 4: continue
         
         game_id = parts[1]
         goal_id = parts[3]
         
+        if f"{game_id}_{goal_id}" in processed_keys:
+            continue
+            
         print(f"\n=== Processing Game {game_id} Goal {goal_id} ===")
         
         # 1. Get Block ID & Timing

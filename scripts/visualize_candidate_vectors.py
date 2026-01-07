@@ -61,13 +61,24 @@ def visualize_candidates():
         target_goal_id = 328
     
     # Load Data
-    base_dir = config.DATA_DIR
-    data_path = os.path.join(base_dir, 'edge_goals', '20242025', f'game_{target_game_id}_goal_{target_goal_id}_positions.csv')
+    # Load Data
+    # Search for the file in any season directory
+    import glob
+    search_pattern = os.path.join(config.DATA_DIR, 'edge_goals', '*', f"game_{target_game_id}_goal_{target_goal_id}_positions.csv")
+    found_files = glob.glob(search_pattern)
+    
     candidates_path = os.path.join(config.ANALYSIS_DIR, 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}_v2.csv')
     
-    if not os.path.exists(data_path) or not os.path.exists(candidates_path):
-        print("Data files not found.")
+    if not found_files:
+        print(f"Tracking data not found for {target_game_id} goal {target_goal_id}.")
         return
+    
+    if not os.path.exists(candidates_path):
+        print(f"Candidates CSV not found: {candidates_path}")
+        return
+
+    data_path = found_files[0]
+    print(f"Loading data from: {data_path}")
 
     df = pd.read_csv(data_path)
     df_cand = pd.read_csv(candidates_path)
@@ -129,12 +140,12 @@ def visualize_candidates():
         df['x'] = norm_x(df['x'])
         df['y'] = norm_y(df['y'])
         
-        df_cand['x'] = norm_x(df_cand['x'])
-        df_cand['y'] = norm_y(df_cand['y'])
-        # VX/VY in candidates need scaling too?
-        # vx = dx/0.1. dx is scaled by 1/12. So vx is scaled by 1/12.
-        df_cand['vx'] = df_cand['vx'] / 12.0
-        df_cand['vy'] = df_cand['vy'] / -12.0 # Invert Y?
+        # Check if candidates are already normalized (usually yes if from identify script)
+        if df_cand['x'].abs().max() > 200:
+             df_cand['x'] = norm_x(df_cand['x'])
+             df_cand['y'] = norm_y(df_cand['y'])
+             df_cand['vx'] = df_cand['vx'] / 12.0
+             df_cand['vy'] = df_cand['vy'] / -12.0 # Invert Y?
         
     df_puck = df[df['entity_type'] == 'puck']
     df_players = df[df['entity_type'] == 'player']
@@ -155,20 +166,33 @@ def visualize_candidates():
         # Plot Players
         frame_players = df_players[df_players['frame_idx'] == frame_idx]
         
-        # Check for Blocker ID in candidates (take first row, assuming same block ID)
+        # Check for IDs in candidates (take first row, assuming same IDs)
         blocker_id = None
-        if 'blocker_id' in df_cand.columns and not df_cand.empty:
-             val = df_cand.iloc[0]['blocker_id']
-             if pd.notnull(val): blocker_id = val
+        shooter_id = None
+        if not df_cand.empty:
+             row0 = df_cand.iloc[0]
+             if 'blocker_id' in row0 and pd.notnull(row0['blocker_id']): blocker_id = row0['blocker_id']
+             if 'shooter_id' in row0 and pd.notnull(row0['shooter_id']): shooter_id = row0['shooter_id']
              
-        # Plot Regular Players
+        # Plot Regular Players (exclude Shooter/Blocker from generic blue)
+        mask = pd.Series([True]*len(frame_players), index=frame_players.index)
+        if blocker_id: mask &= (frame_players[col_id] != blocker_id)
+        if shooter_id: mask &= (frame_players[col_id] != shooter_id)
+        
+        others = frame_players[mask]
+        ax.scatter(others['x'], others['y'], c='blue', s=50, alpha=0.6, label='Players')
+        
+        # Plot Blocker
         if blocker_id:
-             others = frame_players[frame_players[col_id] != blocker_id]
              blocker = frame_players[frame_players[col_id] == blocker_id]
-             ax.scatter(others['x'], others['y'], c='blue', s=50, alpha=0.6, label='Players')
-             ax.scatter(blocker['x'], blocker['y'], c='magenta', marker='s', s=80, edgecolors='black', label='Blocker')
-        else:
-             ax.scatter(frame_players['x'], frame_players['y'], c='blue', s=50, alpha=0.6, label='Players')
+             if not blocker.empty:
+                ax.scatter(blocker['x'], blocker['y'], c='magenta', marker='s', s=80, edgecolors='black', label='Blocker')
+
+        # Plot Shooter
+        if shooter_id:
+             shooter = frame_players[frame_players[col_id] == shooter_id]
+             if not shooter.empty:
+                ax.scatter(shooter['x'], shooter['y'], c='green', marker='^', s=80, edgecolors='black', label='Shooter')
         
         # Plot Puck
         frame_puck = df_puck[df_puck['frame_idx'] == frame_idx]
@@ -206,7 +230,7 @@ def visualize_candidates():
     ani = animation.FuncAnimation(fig, update, frames=range(min_f, max_f), interval=100)
     
     # Save to analysis/blocked_shots
-    out_file = os.path.join(base_dir, '..', 'analysis', 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}.gif')
+    out_file = os.path.join(config.ANALYSIS_DIR, 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}.gif')
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
     
     ani.save(out_file, writer='pillow', fps=10)
@@ -224,7 +248,7 @@ def visualize_candidates():
         
         # Update plot to that frame
         update(best_frame)
-        png_out = os.path.join(base_dir, '..', 'analysis', 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}_best.png')
+        png_out = os.path.join(config.ANALYSIS_DIR, 'blocked_shots', f'candidate_vectors_{target_game_id}_{target_goal_id}_best.png')
         plt.savefig(png_out)
         print(f"PNG saved to {png_out}")
 

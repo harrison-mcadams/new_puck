@@ -17,7 +17,43 @@ def calculate_kinematics(df):
     df = df.sort_values('frame_idx')
     df['dx'] = df['x'].diff()
     df['dy'] = df['y'].diff()
-    df['dt'] = 0.1 # Fixed 10Hz
+    
+    # Calculate dt dynamically from timestamp if available
+    # Edge data timestamps are often integers. We need to determine the frequency.
+    # If delta is ~1, and speed is small, it implies high frequency (e.g. 100Hz -> 0.01s)
+    # OR we can just use the diff and assume a unit? No, unit matters for speed (ft/s).
+    
+    # Heuristic:
+    # 2023 data: delta=1. 2024 data: likely delta=1 too?
+    # If we assume standard NHL tracking is 100Hz -> dt = 0.01s (if delta=1)
+    # The previous code hardcoded 0.1 (10Hz).
+    
+    # Let's derive it from the data if possible, or support the 2023 case.
+    # If timestamp is available:
+    # If timestamp is available:
+    if 'timestamp' in df.columns:
+        t_diff = df['timestamp'].diff().median()
+        if t_diff > 0:
+            # Check unit. 
+            # 2023-2024 Edge data appears to be 10Hz (deciseconds), where delta=1
+            if 0.9 <= t_diff <= 1.1:
+                df['dt'] = 0.1 # 1 unit = 0.1s (10Hz)
+            elif 90 <= t_diff <= 110: # 100ms = 10Hz
+                df['dt'] = 0.1
+            else:
+                 # Fallback/Heuristic: If delta is small (e.g. 0.01), use it directly?
+                 # If delta is huge (milliseconds), divide by 1000.
+                 if t_diff < 0.2:
+                      df['dt'] = t_diff
+                 elif t_diff > 10.0:
+                      df['dt'] = t_diff / 1000.0
+                 else:
+                      df['dt'] = 0.1
+        else:
+             df['dt'] = 0.1
+    else:
+        df['dt'] = 0.1 # Fixed 10Hz default
+
     df['vx'] = df['dx'] / df['dt']
     df['vy'] = df['dy'] / df['dt']
     df['speed'] = np.sqrt(df['vx']**2 + df['vy']**2)
@@ -67,12 +103,18 @@ def identify_shots():
     print(f"--- Identifying Shot Attempts for Game {target_game_id} Goal {target_goal_id} ---")
 
     # 1. Load Data
-    season = '20242025'
-    pos_path = f"data/edge_goals/{season}/game_{target_game_id}_goal_{target_goal_id}_positions.csv"
+    # Search for the file in any season directory
+    # Pattern: data/edge_goals/*/game_{game}_goal_{goal}_positions.csv
+    import glob
+    search_pattern = os.path.join(config.DATA_DIR, 'edge_goals', '*', f"game_{target_game_id}_goal_{target_goal_id}_positions.csv")
+    found_files = glob.glob(search_pattern)
     
-    if not os.path.exists(pos_path):
-        print("Data not found.")
+    if not found_files:
+        print(f"Data not found for {target_game_id} goal {target_goal_id}.")
         return
+        
+    pos_path = found_files[0]
+    print(f"Loading data from: {pos_path}")
         
     df_pos = pd.read_csv(pos_path)
     # Cast IDs
@@ -358,6 +400,7 @@ def identify_shots():
         
         # 4. Blocker Plausibility Check (Forward Trace)
         min_blocker_dist = 99.9
+        min_blocker_time = 0.0 # Time step where min dist occurred
         min_any_player_dist = 99.9 # Generic Closest Player
         any_player_id = None
         
@@ -381,13 +424,14 @@ def identify_shots():
                     d_b = np.sqrt((proj_x - bx)**2 + (proj_y - by)**2)
                     if d_b < min_blocker_dist:
                         min_blocker_dist = d_b
+                        min_blocker_time = t
             
             # Generic Player Check Removed (Strict Verification)
             pass
 
         if blocker_in_data:
             blocker_dist = min_blocker_dist
-            print(f"  -> Blocker Check: Min Dist {blocker_dist:.1f}ft to ID {blocker_id}")
+            print(f"  -> Blocker Check: Min Dist {blocker_dist:.1f}ft to ID {blocker_id} (t={min_blocker_time})")
         else:
              print(f"  -> Blocker Check: ID {blocker_id} not found in tracking (Strict).")
 
@@ -414,6 +458,11 @@ def identify_shots():
         
         print(f"  -> Candidate F{start_frame}: Score {score:.3f} (Q:{base_quality:.2f} DistGate:{s_dist:.2f})")
         
+        # Calculate Travel Distance (Shot Origin to Block Impact)
+        # min_blocker_time is the time step 't' where min_blocker_dist was found
+        # travel_dist = Speed * (t * 0.1)
+        travel_dist = effective_speed * (min_blocker_time * 0.1)
+        
         candidates.append({
             'frame_idx': start_frame,
             'score': score,
@@ -421,6 +470,8 @@ def identify_shots():
             'dist': dist,
             'blocker_dist': min_blocker_dist,
             'blocker_id': blocker_id,
+            'shooter_id': shooter_id, # Added for visualization
+            'travel_dist': travel_dist, # Added for visualization scaling
             'dev_deg': dev,
             'x': row['x'], 'y': row['y'],
             'vx': row['vx'], 'vy': row['vy']
@@ -447,7 +498,7 @@ def identify_shots():
     print(f"  Net Alignment: {best['dev_deg']:.1f} deg deviation")
 
     # Export Candidates for Visualization
-    out_dir = os.path.join(config.DATA_DIR, '..', 'analysis', 'blocked_shots') # Ensure analysis/blocked_shots
+    out_dir = os.path.join(config.ANALYSIS_DIR, 'blocked_shots')
     os.makedirs(out_dir, exist_ok=True)
     out_csv = os.path.join(out_dir, f'candidate_vectors_{target_game_id}_{target_goal_id}_v2.csv')
     pd.DataFrame(candidates).to_csv(out_csv, index=False)
