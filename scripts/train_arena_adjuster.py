@@ -132,6 +132,24 @@ def calculate_adjustments(df):
                 # 3. Adjustment
                 delta = target_v - v
                 arena_adj[coord][str(v)] = round(float(delta), 2)
+                
+        # 4. Smoothing (Rolling Average)
+        # We apply a window-based smoothing to remove jagged spikes while keeping the systematic trend.
+        window = 7
+        for coord in ['x', 'y']:
+            vals = list(arena_adj[coord].values())
+            keys = list(arena_adj[coord].keys())
+            
+            smoothed_vals = []
+            for i in range(len(vals)):
+                start = max(0, i - window // 2)
+                end = min(len(vals), i + window // 2 + 1)
+                avg = sum(vals[start:end]) / (end - start)
+                smoothed_vals.append(round(float(avg), 2))
+            
+            # Update the map
+            for k, sv in zip(keys, smoothed_vals):
+                arena_adj[coord][k] = sv
         
         adjustments[arena] = arena_adj
         
@@ -183,33 +201,62 @@ def summarize_findings(adjustments):
     for a, d in sorted_biases[-5:]:
         print(f"  {a.ljust(30)}: {d:+0.2f} ft adjustment needed")
 
+def get_window_seasons(target_season, all_seasons):
+    """Returns [prior, current, next] seasons if they exist."""
+    sorted_seasons = sorted(all_seasons)
+    try:
+        idx = sorted_seasons.index(target_season)
+        window = []
+        if idx > 0: window.append(sorted_seasons[idx-1])
+        window.append(target_season)
+        if idx < len(sorted_seasons) - 1: window.append(sorted_seasons[idx+1])
+        return window
+    except ValueError:
+        return [target_season]
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--seasons', nargs='+', default=['20232024'], help='Seasons to train on')
+    parser.add_argument('--seasons', nargs='+', default=['20232024'], help='Target seasons to generate adjustments for')
+    parser.add_argument('--all-available', action='store_true', help='Process all seasons in data/ with sliding window')
     args = parser.parse_args()
+    
+    # 1. Identify all available seasons in data/
+    available_seasons = sorted([d for d in os.listdir(DATA_DIR) if os.path.isdir(os.path.join(DATA_DIR, d)) and d.isdigit() and len(d) == 8])
+    
+    target_seasons = args.seasons
+    if args.all_available:
+        target_seasons = available_seasons
+        
+    print(f"Target Seasons: {target_seasons}")
+    print(f"Available for Windows: {available_seasons}")
+    
+    # 2. Pre-load all available season data into memory (to avoid redundant loading)
+    season_data_cache = {}
+    for s in available_seasons:
+        print(f"Pre-loading Season {s}...")
+        season_dir = os.path.join(DATA_DIR, s)
+        df_vals = load_season_shots(season_dir)
+        season_data_cache[s] = df_vals
     
     master_adjustments = {}
     
-    for season in args.seasons:
-        print(f"Processing Season {season}...")
-        season_dir = os.path.join(DATA_DIR, season)
+    for season in target_seasons:
+        window = get_window_seasons(season, available_seasons)
+        print(f"\nTargeting Season {season} using window: {window}")
         
-        if not os.path.exists(season_dir):
-            print(f"  Skipping {season} (Not found)")
+        window_dfs = [season_data_cache[s] for s in window if not season_data_cache[s].empty]
+        if not window_dfs:
+            print(f"  No data for window {window}. Skipping.")
             continue
             
-        df = load_season_shots(season_dir)
-        if df.empty:
-            print("  No shots found.")
-            continue
-            
-        print(f"  Loaded {len(df)} shots.")
+        combined_df = pd.concat(window_dfs)
+        print(f"  Combined data: {len(combined_df)} shots from {len(window_dfs)} seasons.")
         
         # Calculate Adjustments
-        adjs = calculate_adjustments(df)
+        adjs = calculate_adjustments(combined_df)
         master_adjustments[season] = adjs
         
-        # Summarize just for this season
+        # Summarize for this season
         summarize_findings(adjs)
         
     # Save

@@ -1,0 +1,11 @@
+Top 10 Largest Biases (Absolute Value):
+1. Lightning (20182019) | x @ 85ft: 14.00 ft
+2. Ducks (20152016) | x @ 15ft: 13.00 ft
+3. Ducks (20152016) | x @ 16ft: 13.00 ft
+4. Lightning (20182019) | x @ 86ft: 13.00 ft
+5. Devils (20202021) | x @ 28ft: -13.00 ft
+6. Devils (20202021) | x @ 29ft: -13.00 ft
+7. Ducks (20152016) | x @ 14ft: 12.00 ft
+8. Ducks (20152016) | x @ 17ft: 12.00 ft
+9. Lightning (20182019) | x @ 87ft: 12.00 ft
+10. Devils (20202021) | x @ 26ft: -12.00 ft

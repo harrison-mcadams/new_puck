@@ -61,6 +61,29 @@ _TEAM_NAME_MAPPING = {
     "Winnipeg Jets": "Jets"
 }
 
+_ABB_TO_NAME = {
+    "ANA": "Ducks", "ARI": "Coyotes", "BOS": "Bruins", "BUF": "Sabres",
+    "CGY": "Flames", "CAR": "Hurricanes", "CHI": "Blackhawks", "COL": "Avalanche",
+    "CBJ": "Blue Jackets", "DAL": "Stars", "DET": "Red Wings", "EDM": "Oilers",
+    "FLA": "Panthers", "LAK": "Kings", "MIN": "Wild", "MTL": "Canadiens",
+    "NSH": "Predators", "NJD": "Devils", "NYI": "Islanders", "NYR": "Rangers",
+    "OTT": "Senators", "PHI": "Flyers", "PIT": "Penguins", "SJS": "Sharks",
+    "SEA": "Kraken", "STL": "Blues", "TBL": "Lightning", "TOR": "Maple Leafs",
+    "UTA": "Utah Hockey Club", "VAN": "Canucks", "VGK": "Golden Knights",
+    "WSH": "Capitals", "WPG": "Jets"
+}
+
+def resolve_arena(name_or_abb):
+    """Resolves a generic name (Full Name, Abb, or Short Name) to the standardized Short Name used in keys."""
+    if name_or_abb in _TEAM_NAME_MAPPING:
+        return _TEAM_NAME_MAPPING[name_or_abb]
+    if name_or_abb in _ABB_TO_NAME:
+        return _ABB_TO_NAME[name_or_abb]
+    # Check if it's already a value (Short Name)
+    if name_or_abb in _TEAM_NAME_MAPPING.values():
+        return name_or_abb
+    return name_or_abb
+
 def adjust_shot(x, y, arena, season):
     """
     Adjusts shot coordinates based on Shuckers & Curro arena bias model.
@@ -69,14 +92,14 @@ def adjust_shot(x, y, arena, season):
     Args:
         x (float): X coordinate (ft)
         y (float): Y coordinate (ft)
-        arena (str): Home team name (e.g., 'Rangers', 'Maple Leafs')
+        arena (str): Home team name (e.g., 'Rangers', 'NYR')
         season (str or int): Season ID (e.g. 20232024)
         
     Returns:
         (adj_x, adj_y)
     """
-    if arena in _TEAM_NAME_MAPPING:
-        arena = _TEAM_NAME_MAPPING[arena]
+    arena = resolve_arena(arena)
+    
     if x is None: return x, y
     
     adj_map = load_adjustments()
@@ -109,7 +132,7 @@ def adjust_shot(x, y, arena, season):
         lookup_x = str(int(round(abs_x)))
         if lookup_x in arena_data.get('x', {}):
             delta_x = arena_data['x'][lookup_x]
-            # Add delta to absolute value, preserve sign
+            # Add delta to absolute value
             new_abs_x = abs_x + delta_x
             adj_x = math.copysign(new_abs_x, x)
     except Exception:
@@ -123,6 +146,7 @@ def adjust_shot(x, y, arena, season):
             lookup_y = str(int(round(abs_y)))
             if lookup_y in arena_data.get('y', {}):
                 delta_y = arena_data['y'][lookup_y]
+                # Add delta to absolute value
                 new_abs_y = abs_y + delta_y
                 adj_y = math.copysign(new_abs_y, y)
     except Exception:

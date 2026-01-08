@@ -1,0 +1,18 @@
+Spatial Distribution of Large Adjustments (>= 5ft):
+Total significant adjustments: 2223
+
+Breakdown by Zone:
+x_bin
+Net Front        1113
+Mid Slot          784
+Neutral/Point     323
+Behind Net          3
+Name: count, dtype: int64
+
+Sample of 'Net Front' large adjustments:
+         x  x_adj  diff_x
+1935  66.0   71.0     5.0
+1972  69.0   74.0     5.0
+1992  72.0   77.0     5.0
+1997  72.0   77.0     5.0
+2003 -70.0  -75.0     5.0

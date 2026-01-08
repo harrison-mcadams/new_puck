@@ -1,0 +1,9 @@
+CLEANED BASELINE (X <= 89):
+Total Clean League Shots: 117877
+Total Clean Tampa Shots: 3696
+25th Percentile | League: 45.0ft | Tampa: 43.0ft | Delta: 2.0ft
+50th Percentile | League: 63.0ft | Tampa: 61.0ft | Delta: 2.0ft
+75th Percentile | League: 76.0ft | Tampa: 71.0ft | Delta: 5.0ft
+90th Percentile | League: 82.0ft | Tampa: 76.0ft | Delta: 6.0ft
+95th Percentile | League: 84.0ft | Tampa: 78.0ft | Delta: 6.0ft
+99th Percentile | League: 87.0ft | Tampa: 81.0ft | Delta: 6.0ft

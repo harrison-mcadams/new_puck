@@ -18,17 +18,27 @@ def get_home_team_map(season):
     We can fetch the schedule once per season.
     """
     print(f"  Fetching schedule for {season} to map GameID -> HomeTeamName...")
-    games = nhl_api.get_season(season=season) # Returns list of game dicts
+    games = nhl_api.get_season(season=season, team='all') # Returns list of game dicts
     game_map = {}
     for g in games:
         gid = g.get('gamePk') or g.get('id')
         # Extract home team name
-        # Structure varies, let's look for homeTeam.name
-        h = g.get('teams', {}).get('home', {}).get('team', {})
-        name = h.get('name')
+        # 1. Try New API (homeTeam.commonName.default) -> returns Nickname (e.g. "Lightning")
+        #    This matches the JSON keys usually.
+        name = None
+        try:
+            name = g.get('homeTeam', {}).get('commonName', {}).get('default')
+        except:
+            pass
+            
+        # 2. Try simple name (if available)
         if not name:
-            # Try alternate keys
-            name = g.get('homeTeam', {}).get('name')
+             name = g.get('homeTeam', {}).get('name')
+
+        # 3. Try Legacy structure
+        if not name:
+            h = g.get('teams', {}).get('home', {}).get('team', {})
+            name = h.get('name')
             
         if gid and name:
             game_map[gid] = name
@@ -89,7 +99,13 @@ def process_season(season_dir):
                 xa, ya = arena_adjustments.adjust_shot(x, y, current_home_team, season_name)
                 if xa != x or ya != y:
                     count_adj += 1
-            except:
+                
+                # Debug first few attempts per season
+                if idx < 50 and count_adj < 5:
+                     print(f"    [DEBUG] Game {gid} | Home: '{current_home_team}' | ({x},{y}) -> ({xa},{ya}) | Diff: {xa!=x}")
+            except Exception as e:
+                if idx < 5:
+                    print(f"    [ERROR] Adjustment failed: {e}")
                 xa, ya = x, y
         else:
             xa, ya = x, y

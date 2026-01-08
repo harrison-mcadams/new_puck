@@ -1,0 +1,19 @@
+2018-2019 Season Analysis:
+Total events: 198544
+Events with any adjustment: 50754 (25.6%)
+Events shifted by >= 5ft: 2223 (1.1%)
+Events shifted by >= 10ft: 8 (0.0%)
+
+Most common X adjustment values (rounded):
+diff_x
+1.0     23136
+2.0     13623
+3.0      7189
+4.0      4576
+5.0      1331
+6.0       468
+7.0       351
+8.0        69
+10.0        4
+14.0        4
+Name: count, dtype: int64

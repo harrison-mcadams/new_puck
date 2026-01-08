@@ -8,3 +8,4 @@ Next steps:
 5. in our season df we use for training, do some blocked shots have shot types? because shot tyeps are included in the pbp html for at least some blocked shot attempts.
 6. player position (and forward vs d classification) as model features. something blocked crease-front shot by a defenseman more likely to originate from the point
 7. maybe censor out blocked shots from the non-attacking zone? these should have no in-game significance, so making sure don't learn anything stupid might be nice.
+8. think more about whether to arena-adjust blocked shots
