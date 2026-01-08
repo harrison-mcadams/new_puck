@@ -63,6 +63,9 @@ MAX_WORKERS = 4 if not IS_PI else 1
 DATA_DIR = os.path.join(BASE_DIR, 'data')
 ANALYSIS_DIR = os.path.join(BASE_DIR, 'analysis')
 
+# Coordinate Suffix (e.g. '_adj' for arena-adjusted coordinates)
+COORDINATE_SUFFIX = '_adj'
+
 # Load overrides from config file if present
 if os.path.exists(CONFIG_FILE):
     try:

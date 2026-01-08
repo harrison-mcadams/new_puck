@@ -2007,65 +2007,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
 
 
-    def _orient_coordinates(df_in: pd.DataFrame, team_val_local):
-        """Produce x_a/y_a columns for plotting according to orientation rules.
 
-        This preserves previous logic while being slightly more compact.
-        """
-        df = df_in
-        left_goal_x, right_goal_x = plot_mod.rink_goal_xs()
-
-        def attacked_goal_x_for_row(team_id, home_id, home_def):
-            # Returns the x-coordinate of the goal being attacked for the shooter
-            try:
-                if pd.isna(team_id) or pd.isna(home_id):
-                    return right_goal_x
-                if str(team_id) == str(home_id):
-                    # shooter is home: they attack opposite of home's defended side
-                    return right_goal_x if home_def == 'left' else (left_goal_x if home_def == 'right' else right_goal_x)
-                else:
-                    return left_goal_x if home_def == 'left' else (right_goal_x if home_def == 'right' else left_goal_x)
-            except Exception:
-                return right_goal_x
-
-        df['x_a'] = df.get('x')
-        df['y_a'] = df.get('y')
-
-        # compute attacked_x for each row once
-        attacked_x = df.apply(lambda r: attacked_goal_x_for_row(r.get('team_id'), r.get('home_id'), r.get('home_team_defending_side')), axis=1)
-
-        if team_val_local is not None:
-            tstr = str(team_val_local).strip()
-            try:
-                tid = int(tstr)
-            except Exception:
-                tid = None
-            tupper = None if tid is not None else tstr.upper()
-
-            def is_selected(row):
-                try:
-                    if tid is not None:
-                        return str(row.get('team_id')) == str(tid)
-                    shooter_id = row.get('team_id')
-                    if pd.isna(shooter_id):
-                        return False
-                    if str(shooter_id) == str(row.get('home_id')) and row.get('home_abb') is not None:
-                        return str(row.get('home_abb')).upper() == tupper
-                    if str(shooter_id) == str(row.get('away_id')) and row.get('away_abb') is not None:
-                        return str(row.get('away_abb')).upper() == tupper
-                except Exception:
-                    return False
-                return False
-
-            desired_goal = df.apply(lambda r: left_goal_x if is_selected(r) else right_goal_x, axis=1)
-            mask_rotate = (attacked_x != desired_goal) & df['x'].notna() & df['y'].notna()
-            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']].values
-
-        elif orient_all_left:
-            mask_rotate = (attacked_x == right_goal_x) & df['x'].notna() & df['y'].notna()
-            df.loc[mask_rotate, ['x_a', 'y_a']] = -df.loc[mask_rotate, ['x', 'y']].values
-
-        return df
 
     def _apply_intervals(df_in: pd.DataFrame, intervals_obj, time_col: str = 'total_time_elapsed_seconds', team_val: Optional[object] = None, condition: Optional[dict] = None) -> pd.DataFrame:
         """
@@ -2578,7 +2520,15 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
     # Use df_with_xgs directly; plot.plot_events will compute x_a/y_a if missing.
     # Add orientation step here to ensure x_a/y_a are present and correct for plotting
-    df_to_plot = _orient_coordinates(df_with_xgs, team_val)
+    
+    # Check for split mode
+    split_mode = 'home_away'
+    if orient_all_left:
+        split_mode = 'orient_all_left'
+    elif team_val is not None:
+        split_mode = 'team_not_team'
+        
+    df_to_plot = plot_mod.adjust_xy_for_homeaway(df_with_xgs, split_mode=split_mode, team_for_heatmap=team_val)
 
 
     # Compute timing and xG summary now so we can optionally display it on the plot.
@@ -2997,8 +2947,25 @@ def compute_xg_heatmap_from_df(
             from . import plot as _plot
             df_work = _plot.adjust_xy_for_homeaway(df_work)
         except Exception:
-            # fall back to raw x/y passthrough
+            pass
+            
+        # Check if x_col/y_col are present now
+        if x_col not in df_work.columns or y_col not in df_work.columns:
+             # Try suffixed coordinates (e.g. x_adj)
+             try:
+                 from .config import COORDINATE_SUFFIX
+                 cx = f"x{COORDINATE_SUFFIX}"
+                 cy = f"y{COORDINATE_SUFFIX}"
+                 if cx in df_work.columns and cy in df_work.columns:
+                     df_work[x_col] = df_work[cx]
+                     df_work[y_col] = df_work[cy]
+             except Exception:
+                 pass
+
+        # Final fallback to raw x/y
+        if x_col not in df_work.columns:
             df_work[x_col] = df_work.get('x')
+        if y_col not in df_work.columns:
             df_work[y_col] = df_work.get('y')
     else:
         # ensure presence

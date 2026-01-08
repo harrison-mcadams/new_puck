@@ -20,6 +20,7 @@ import pandas as pd
 import requests
 
 from . import nhl_api
+from . import arena_adjustments
 from .rink import rink_goal_xs, BLUE_LINE_X
 
 
@@ -458,10 +459,45 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
         try:
             # Only append main event if it has coordinates; otherwise skip
             if x is not None and y is not None:
+                # Arena Adjustment Logic
+                # 1. Extract context
+                season = game_feed.get('gameData', {}).get('game', {}).get('season')
+                if not season:
+                    # Infer from gamePk (first 4 digits + next 4) -> actually usually season is '20232024'
+                    # gamePk: 2023020001 -> season 20232024
+                    gpk = str(game_feed.get('gamePk', ''))
+                    if len(gpk) > 4:
+                         season = gpk[:4] + str(int(gpk[:4]) + 1)
+
+                # 2. Extract Home Team Name (for Arena Lookup)
+                # Matches training script logic: checks homeTeam.name first, then commonName
+                h_obj = game_feed.get('homeTeam') or game_feed.get('home') or {}
+                # In parsed feed, structure varies. Try 'gameData' if available in feed.
+                home_team_name = 'Unknown'
+                # Check top-level 'gameData' structure which is common in full feeds
+                if 'gameData' in game_feed:
+                    home_team_name = game_feed['gameData'].get('teams', {}).get('home', {}).get('name', 'Unknown')
+                
+                # Fallback to feed root
+                if home_team_name == 'Unknown' and isinstance(h_obj, dict):
+                    home_team_name = h_obj.get('name') or h_obj.get('commonName', {}).get('default') or 'Unknown'
+
+                # 3. Apply Adjustment
+                x_adj, y_adj = float(x), float(y)
+                
+                # User Rule: Only adjust shots, not faceoffs etc.
+                if ev_type in ['shot-on-goal', 'missed-shot', 'goal']:
+                    try:
+                        x_adj, y_adj = arena_adjustments.adjust_shot(x, y, home_team_name, season)
+                    except Exception:
+                        pass # Fallback to raw
+
                 events.append({
                     'event': ev_type,
                     'x': float(x),
                     'y': float(y),
+                    'x_adj': float(x_adj),
+                    'y_adj': float(y_adj),
                     'game_state': game_state,
                     'is_net_empty': is_net_empty,
                     'period': period,

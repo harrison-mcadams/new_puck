@@ -70,6 +70,20 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[is_blocked, 'x'] *= -1
     df.loc[is_blocked, 'y'] *= -1
     
+    # Also flip adjusted coordinates if present
+    try:
+        from .config import COORDINATE_SUFFIX
+    except ImportError:
+        COORDINATE_SUFFIX = '_adj'
+        
+    cx = f"x{COORDINATE_SUFFIX}"
+    cy = f"y{COORDINATE_SUFFIX}"
+    
+    if cx in df.columns:
+        df.loc[is_blocked, cx] *= -1
+    if cy in df.columns:
+        df.loc[is_blocked, cy] *= -1
+    
     # --- 2. Recalculate Distance and Angle ---
     # Now team_id is the Shooter. We need distance to the Goal the Shooter is Attacking.
     

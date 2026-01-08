@@ -44,6 +44,15 @@ def _events(events: pd.DataFrame, events_to_plot: Optional[List[str]] = None) ->
 def adjust_xy_for_homeaway(df, split_mode: str = 'home_away', team_for_heatmap: Optional[object] = None):
     # orient all sides such as home shots are directed to the left,
     # away shots are directed to the right. also need to flip y accordingly
+    
+    from .config import COORDINATE_SUFFIX
+    
+    # Identify Source Columns (Prefer Adjusted)
+    x_col = 'x'
+    y_col = 'y'
+    if f"x{COORDINATE_SUFFIX}" in df.columns and f"y{COORDINATE_SUFFIX}" in df.columns:
+        x_col = f"x{COORDINATE_SUFFIX}"
+        y_col = f"y{COORDINATE_SUFFIX}"
 
     # If another routine already produced adjusted coordinates, don't recompute.
     # Check that both columns exist and at least one valid value is present.
@@ -104,7 +113,11 @@ def adjust_xy_for_homeaway(df, split_mode: str = 'home_away', team_for_heatmap: 
     # 2. Determine Desired Goal
     desired_goal = np.full(len(df), right_goal_x)
     
-    if split_mode == 'team_not_team' and team_for_heatmap is not None:
+    if split_mode == 'orient_all_left':
+        # Force all events to attack the LEFT goal (-89)
+        desired_goal = np.full(len(df), left_goal_x)
+    
+    elif split_mode == 'team_not_team' and team_for_heatmap is not None:
         # Check if shooter is target team
         # Normalize team_for_heatmap
         target = str(team_for_heatmap).strip().upper()
@@ -137,8 +150,8 @@ def adjust_xy_for_homeaway(df, split_mode: str = 'home_away', team_for_heatmap: 
     flip_mask = (attacked_goal != desired_goal)
     
     # Use numpy for speed
-    x_vals = df['x'].astype(float).values
-    y_vals = df['y'].astype(float).values
+    x_vals = df[x_col].astype(float).values
+    y_vals = df[y_col].astype(float).values
     
     x_a = np.where(flip_mask, -x_vals, x_vals)
     y_a = np.where(flip_mask, -y_vals, y_vals)
