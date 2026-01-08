@@ -122,6 +122,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.use_balancing = use_balancing
         self.layer_params = layer_params or {}
         self.calibrator = None
+        self.calibrator_block = None
         
         self.model_block = None
         self.model_accuracy = None
@@ -283,26 +284,45 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         # 4. Calibration
         if self.use_calibration and df_calib_raw is not None:
-            logger.info("Fitting Platt Scaling calibrator...")
-            calib_preds = self.predict_proba(df_calib_raw)[:, 1]
+            logger.info("Fitting Platt Scaling calibrators...")
+            
+            # Prepare Calib Data
+            df_c = preprocess_data(df_calib_raw, features=self.features)
+            
+            # A. Block Model Calibration
+            p_block_raw = self.model_block.predict_proba(df_c[feat_block])[:, 1]
+            self.calibrator_block = LogisticRegression(C=1e5)
+            # check for single class edge case
+            if len(df_c['is_blocked'].unique()) > 1:
+                self.calibrator_block.fit(p_block_raw.reshape(-1, 1), df_c['is_blocked'])
+                logger.info("  Block Model Calibrator FITTED.")
+            else:
+                logger.warning("  Block Model Calibration skipped (only 1 class in calibration set).")
+                self.calibrator_block = None
+
+            # B. Final Model Calibration
+            # Recalculate full probability flow with newly calibrated block prob?
+            # We should probably use the calibrated block prob in the chain.
+            if self.calibrator_block:
+                p_blocked_c = self.calibrator_block.predict_proba(p_block_raw.reshape(-1, 1))[:, 1]
+            else:
+                p_blocked_c = p_block_raw
+            
+            p_unblocked = 1.0 - p_blocked_c
+            p_on_net_cond = self.model_accuracy.predict_proba(df_c[self.features])[:, 1]
+            p_goal_cond = self.model_finish.predict_proba(df_c[self.features])[:, 1]
+            p_goal_est = p_unblocked * p_on_net_cond * p_goal_cond
+
             if 'event' in df_calib_raw.columns:
-                df_c = preprocess_data(df_calib_raw, features=self.features)
                 targets = (df_c['event'] == 'goal').astype(int)
             else:
-                # If we only have subsets, we might need preprocessing
-                # But usually df_calib_raw is just the raw split
-                df_c = preprocess_data(df_calib_raw, features=self.features)
-                targets = df_c['is_goal_layer']
-            
-            # Ensure alignment? predict_proba prepares df -> reset index
-            # targets should match
-            # If df_calib_raw has index, predict_proba resets it?
-            # predict_proba returns array.
-            # targets needs to be array of same length.
+                 targets = df_c['is_goal_layer'] # Fallback if we assumed is_goal_layer is globally correct (it is for goal)
             
             self.calibrator = LogisticRegression(C=1e5) # Large C for Platt Scaling
-            self.calibrator.fit(calib_preds.reshape(-1, 1), targets)
-        
+            if len(targets.unique()) > 1:
+                self.calibrator.fit(p_goal_est.reshape(-1, 1), targets)
+                logger.info("  Final Model Calibrator FITTED.")
+
         self.final_features = self.features
         return self
 
@@ -316,6 +336,11 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
         # 1. P(Blocked)
         p_blocked = self.model_block.predict_proba(df[feat_block])[:, 1]
+        
+        # Apply Block Calibration
+        if getattr(self, 'calibrator_block', None):
+            p_blocked = self.calibrator_block.predict_proba(p_blocked.reshape(-1, 1))[:, 1]
+
         p_unblocked = 1.0 - p_blocked
         
         # 2. P(On Net | Unblocked)
@@ -341,7 +366,10 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = self._prepare_df(X)
         if layer == 'block':
             feat_block = [f for f in self.features if 'shot_type' not in f]
-            return self.model_block.predict_proba(df[feat_block])[:, 1]
+            p = self.model_block.predict_proba(df[feat_block])[:, 1]
+            if getattr(self, 'calibrator_block', None):
+                p = self.calibrator_block.predict_proba(p.reshape(-1, 1))[:, 1]
+            return p
         elif layer == 'accuracy':
             return self.model_accuracy.predict_proba(df[self.features])[:, 1]
         elif layer == 'finish':

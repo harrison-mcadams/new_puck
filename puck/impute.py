@@ -62,7 +62,7 @@ def calculate_geometry(df_in: pd.DataFrame, x_col='x', y_col='y', net_x=89, net_
     
     return dist, angle_deg
 
-def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'point_pull', 
+def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical_model', 
                                 x_col='x', y_col='y') -> pd.DataFrame:
     """
     Updates 'imputed_x', 'imputed_y', 'distance', 'angle_deg'.
@@ -77,7 +77,7 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'point_pull',
        - imputed_x, imputed_y = back-projected coordinates
        - distance, angle = RECALCULATED from imputed coords
     """
-    df_out = df.copy()
+    df_out = df_shots.copy()
     
     # 1. Initialize imputed cols with original
     # (Matches user requirement: imputation should return same x/y for non-blocked)
@@ -85,7 +85,7 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'point_pull',
     df_out['imputed_y'] = df_out[y_col]
 
     # Mask for blocked shots
-    mask_blocked = (df['event'] == 'blocked-shot')
+    mask_blocked = (df_shots['event'] == 'blocked-shot')
     if not mask_blocked.any():
         return df_out
 
@@ -105,10 +105,7 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'point_pull',
         # closer match wins
         net_x = np.where(np.abs(d1 - old_dist) < np.abs(d2 - old_dist), 89, -89)
     else:
-        # Fallback: Guess based on x coordinate (standard NHL coords, +x is one side)
-        # Usually positive x is offensive zone for home? It varies. 
-        # But usually blocking happens in defensive zone.
-        # Safe fallback: assume nearest net.
+        # Fallback: Assume nearest net +x vs -x side
         net_x = np.where(bx > 0, 89, -89)
     
     net_y = 0
@@ -122,49 +119,10 @@ def impute_blocked_shot_origins(df: pd.DataFrame, method: str = 'point_pull',
     ux = vx / mag
     uy = vy / mag
     
-    # Fill NaNs (div by zero)
+    # Fill NaNs
     ux = ux.fillna(0)
     uy = uy.fillna(0)
     
-    # Distance to project back
-    # "Smooth Point Prior" Strategy:
-    # For deep blocks (< 30ft), we assume the shot originated from the 'Point' or 'High Slot'.
-    # We sample target distances from a Normal Distribution (mean=55ft, std=8ft) to create a natural spread.
-    # This prevents artificial "walls" or detectable patterns while eliminating False Slot Shots.
-    
-    # NEW (Verification Step Correction):
-    # If the block is very close to the goal line (e.g. mag < 30 and ux is small), purely radial projection
-    # sends the imputed point to the boards (x=89, y=42). 
-    # We blend the radial vector with a "Center Pull" vector for deep blocks to bias origins towards the Point.
-    
-    # Determine Imputation Method
-    # Default to 'empirical_model' if the model file exists, else 'point_pull'
-    if method is None:
-        method = 'empirical_model'
-        
-    # NEW: Censor blocks that appear to be outside the attacking zone.
-    # Standard Interpretation: Attacking Zone is X >= 25 (approx Blue Line).
-    # If the block is < 25 ft from Center Ice in the attacking direction, it's likely a Neutral Zone block or bad data.
-    # We should probably treat these as "No Imputation" or "Invalid".
-    # Since this function is expected to return valid coordinates, we will fallback to raw X/Y? 
-    # Or just let them be processed? 
-    # The user asked to "censor" them.
-    # Let's set a flag or just skip imputation for them (keep as Raw Block location, which is physically correct but effectively a 'long shot').
-    
-    # We'll use a mask for "Valid Imputation Candidates"
-    # Note: 'bx' is in the dataframe's coordinate system. We don't know the orientation yet unless we assume standard.
-    # But usually 'x' and 'y' are raw.
-    # If we assume 'correction.py' has NOT run, then we don't know which side is attacking.
-    # If 'correction.py' HAS run, then X>0 is usually attacking (or at least corrected relative to shooter).
-    # WITHOUT context, we can't safely censor based on X value alone unless we know the zone logic.
-    # HOWEVER, `impute_blocked_shot_origins` is usually called on RAW data or Corrected?
-    # Usually it's called early in `analyze.py`.
-    # Let's skip censoring for now to avoid false positives, unless we are sure.
-    # User's "Next Step" text file mentioned "censor out blocked shots from the non-attacking zone".
-    # I will implement this by relying on the 'distance' fallback logic:
-    # If distance > 75 (High Slot to own goal is ~64 + 11 = 75), it's very far.
-    # Let's stick to the core task: Empirical Model. I'll add a TODO comment.
-
     _model = None
     if method == 'empirical_model':
         # Load Model

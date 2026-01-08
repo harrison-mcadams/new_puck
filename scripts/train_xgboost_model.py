@@ -39,8 +39,24 @@ print("--- Training XGBoost Nested Model ---")
 
 
 # 1. Load Data
-print("Loading data...")
-df = fit_xgs.load_data()
+print("Loading data from ALL seasons...")
+try:
+    # Try explicit path to data dir relative to project root
+    project_root = Path(__file__).resolve().parent.parent
+    data_dir = project_root / 'data'
+    if data_dir.exists():
+        df = fit_xgs.load_all_seasons_data(base_dir=str(data_dir))
+    else:
+        # Fallback to default
+        df = fit_xgs.load_data()
+except Exception as e:
+    print(f"Error loading all seasons: {e}")
+    print("Falling back to default load_data()...")
+    df = fit_xgs.load_data()
+
+print(f"Loaded {len(df)} rows.")
+if len(df) < 10000:
+    print("WARNING: Dataset size is small. Verify 'data/' directory contains all seasons.")
 
 # 1.5 Fix Blocked Shot Attribution (Swap team_id, Recalc Dist/Angle)
 print("Applying blocked shot attribution correction (Swap ID + Recalc Distance)...")

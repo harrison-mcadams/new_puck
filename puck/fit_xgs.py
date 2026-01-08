@@ -25,6 +25,7 @@ import json
 import sys
 import time
 import os
+print("DEBUG: LOADED PUCK.FIT_XGS modification check")
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Tuple
@@ -204,6 +205,7 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
             
         raise FileNotFoundError(f"Data directory not found. Looked for '{base_dir}' in CWD ({Path.cwd()}) and Project Root ({project_root}).")        
     frames = []
+    loaded_stems = set()
     # 1. Look for files directly in base_path matching {year}.csv or {year}_df.csv
     for item in base_path.iterdir():
         if item.is_file() and (item.name.endswith('.csv')):
@@ -213,40 +215,32 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
                 print(f"Loading season file: {item.name}...")
                 try:
                     df = pd.read_csv(item)
+                    df = pd.read_csv(item)
                     frames.append(df)
+                    year_key = stem[:-3] if stem.endswith('_df') else stem
+                    loaded_stems.add(year_key)
+                    print(f"DEBUG: Step 1 loaded {year_key} from {item.name}")
                     continue # already handled
                 except Exception as e:
                     print(f"Failed to load {item}: {e}")
 
     # 2. Look for {year}/{year}_df.csv structure
-    for year_dir in sorted(base_path.iterdir()):
-        if year_dir.is_dir() and year_dir.name.isdigit():
-            # Already loaded from file? Avoid duplicates
-            if year_dir.name in [Path(f).stem for f in frames if isinstance(f, str)]: # Not perfect but okay
-                continue
-                
-            # Standard naming: {year}_df.csv
-            csv_path = year_dir / f"{year_dir.name}_df.csv"
-            # Fallback naming: {year}.csv
-            alt_path = year_dir / f"{year_dir.name}.csv"
-            
-            target_path = None
-            if csv_path.exists():
-                target_path = csv_path
-            elif alt_path.exists():
-                target_path = alt_path
-                
-            if target_path:
-                # check if we already loaded it from Step 1
-                if any(str(target_path) == str(getattr(f, 'source_path', '')) for f in frames):
-                    continue
-
-                print(f"Loading {year_dir.name} from {target_path}...")
-                try:
-                    df = pd.read_csv(target_path)
-                    frames.append(df)
-                except Exception as e:
-                    print(f"Failed to load {target_path}: {e}")
+    # 2. Look for nested structure using glob (more robust)
+    print(f"DEBUG: Globbing {base_path} for */*_df.csv...")
+    # Matches data/20142015/20142015_df.csv
+    for csv_path in base_path.glob("*/*_df.csv"):
+         year_search = csv_path.parent.name
+         if year_search in loaded_stems:
+             print(f"DEBUG: Skipping {year_search} (already loaded flat)")
+             continue
+         
+         print(f"DEBUG: Compiling {csv_path}...")
+         try:
+             df = pd.read_csv(csv_path)
+             frames.append(df)
+             loaded_stems.add(year_search)
+         except Exception as e:
+             print(f"Failed to load {csv_path}: {e}")
     
     if not frames:
         print("No season data found in data/.")
