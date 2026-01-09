@@ -958,6 +958,12 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             # Predict
             try:
                 preds = clf.predict_proba(df_model)[:, 1]
+                
+                # Fetch Layer probabilities for diagnostics
+                prob_block = clf.predict_proba_layer(df_model, 'block')
+                prob_acc = clf.predict_proba_layer(df_model, 'accuracy')
+                prob_fin = clf.predict_proba_layer(df_model, 'finish')
+                
             except Exception as e:
                 print(f"XGBoost Prediction failed: {e}")
                 return df, clf, (input_features, {})
@@ -967,6 +973,11 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             if 'xgs' not in df.columns:
                 df['xgs'] = np.nan
             df.loc[pred_series.index, 'xgs'] = pred_series
+            
+            # Map back layers
+            df.loc[pred_series.index, 'prob_block'] = pd.Series(prob_block, index=df_model.index)
+            df.loc[pred_series.index, 'prob_accuracy'] = pd.Series(prob_acc, index=df_model.index)
+            df.loc[pred_series.index, 'prob_finish'] = pd.Series(prob_fin, index=df_model.index)
             
             final_features = list(df_model.columns)
             cat_levels = {} # Handled natively

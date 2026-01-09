@@ -38,7 +38,21 @@ def main():
     games = df_sum['game_id'].unique()
     print(f"Processing {len(games)} games...")
     
+    # Pre-fetch bios for efficiency? Or fetch per game season?
+    # Games might span seasons. We'll fetch on demand or simplistic caching.
+    bios_cache = {}
+    
     for gid in games:
+        # Determine season string from game_id (e.g. 202302... -> 20232024)
+        s_str = str(gid)[:4]
+        season_full = f"{s_str}{int(s_str)+1}"
+        
+        if season_full not in bios_cache:
+            print(f"Fetching bios for {season_full}...")
+            bios_cache[season_full] = nhl_api.get_season_player_bios(season_full)
+            
+        current_bios = bios_cache[season_full]
+
         # Load PBP
         try:
              pbp_json = nhl_api.get_game_feed(gid)
@@ -56,6 +70,7 @@ def main():
                      x = details.get('xCoord')
                      y = details.get('yCoord')
                      owner = details.get('eventOwnerTeamId')
+                     shooter_id = details.get('shootingPlayerId') # NEW
                      
                      if x is not None and y is not None:
                          # Append dict matching correction.py expectation (roughly)
@@ -71,7 +86,8 @@ def main():
                              'period': p.get('periodDescriptor', {}).get('number'),
                              'x': float(x),
                              'y': float(y),
-                             'event_id': int(eid) if eid else None
+                             'event_id': int(eid) if eid else None,
+                             'shooter_id': shooter_id
                          })
                          
              if not raw_blocks:
@@ -96,6 +112,18 @@ def main():
                      
                      bx_fixed = block_row['x']
                      by_fixed = block_row['y']
+                     shooter_id_val = block_row['shooter_id']
+                     
+                     # Determine Role
+                     role = 'F' # Default
+                     if shooter_id_val:
+                         # Bio Lookup
+                         # Try int/str
+                         b = current_bios.get(shooter_id_val) or current_bios.get(str(shooter_id_val)) or current_bios.get(int(shooter_id_val))
+                         if b:
+                             pos = b.get('positionCode')
+                             if pos == 'D':
+                                 role = 'D'
                      
                      # Summary 'x'/'y' are True Origin
                      origin_x = row['x']
@@ -125,7 +153,8 @@ def main():
 
                      data_points.append({
                          'bx': bx_norm, 'by': by_norm,
-                         'ox': ox_norm, 'oy': oy_norm
+                         'ox': ox_norm, 'oy': oy_norm,
+                         'role': role
                      })
                      
         except Exception as e:
@@ -146,98 +175,114 @@ def main():
     
     df_data['x_bin'] = pd.cut(df_data['bx'], bins=x_bins, labels=False)
     df_data['y_bin'] = pd.cut(df_data['by'], bins=y_bins, labels=False)
+
+    # Split by Role (F vs D)
+    # We will train two models: 'F' and 'D'.
+    # If role is unknown, maybe we skip or put in F? Let's skip unknown for purity.
     
-    # First Pass: Raw Sums
-    raw_grid = {}
-    grouped = df_data.groupby(['x_bin', 'y_bin'])
+    unique_roles = ['F', 'D']
     
-    for (xb, yb), group in grouped:
-        raw_grid[(xb, yb)] = {
-            'sum_ox': group['ox'].sum(),
-            'sum_oy': group['oy'].sum(),
-            'count': len(group)
+    for role in unique_roles:
+        print(f"\n--- Training Model for Role: {role} ---")
+        
+        subset = df_data[df_data['role'] == role].copy()
+        if subset.empty:
+            print(f"No data for role {role}!")
+            continue
+            
+        print(f"Data points: {len(subset)}")
+
+        # First Pass: Raw Sums
+        raw_grid = {}
+        grouped = subset.groupby(['x_bin', 'y_bin'])
+        
+        for (xb, yb), group in grouped:
+            raw_grid[(xb, yb)] = {
+                'sum_ox': group['ox'].sum(),
+                'sum_oy': group['oy'].sum(),
+                'count': len(group)
+            }
+            
+        # Second Pass: Smoothing
+        model = {}
+        
+        max_x_bin = len(x_bins) - 1
+        max_y_bin = len(y_bins) - 1
+        
+        valid_bins_count = 0
+        
+        for i in range(max_x_bin):
+            for j in range(max_y_bin):
+                
+                # Neighborhood
+                w_sum_ox = 0
+                w_sum_oy = 0
+                w_count = 0
+                
+                for di in [-1, 0, 1]:
+                    for dj in [-1, 0, 1]:
+                        ni, nj = i + di, j + dj
+                        if (ni, nj) in raw_grid:
+                            cell = raw_grid[(ni, nj)]
+                            weight = 2.0 if (di==0 and dj==0) else 1.0
+                            
+                            w_sum_ox += cell['sum_ox'] * weight 
+                            w_sum_oy += cell['sum_oy'] * weight 
+                            w_count += cell['count'] * weight
+                
+                if w_count > 0:
+                    mx = w_sum_ox / w_count
+                    my = w_sum_oy / w_count
+                    real_n = raw_grid.get((i,j), {}).get('count', 0)
+                    
+                    # Threshold for saving bin
+                    if w_count >= 1.0:
+                        
+                        # DAMPING / "Do No Harm"
+                        bx_center = i * BIN_SIZE + BIN_SIZE/2
+                        by_center = j * BIN_SIZE - 50.0 + BIN_SIZE/2
+                        
+                        # Adjustment Vector
+                        adj_x = mx - bx_center
+                        adj_y = my - by_center
+                        
+                        # Damping Factor
+                        N_TRUST = 10.0
+                        damping = min(w_count, N_TRUST) / N_TRUST
+                        
+                        final_mx = bx_center + (adj_x * damping)
+                        final_my = by_center + (adj_y * damping)
+                        
+                        k = f"{int(i)}_{int(j)}"
+                        model[k] = {
+                            'mx': float(final_mx),
+                            'my': float(final_my),
+                            'n': int(real_n),
+                            'w_n': float(w_count),
+                            'damping': float(damping)
+                        }
+                        valid_bins_count += 1
+            
+        print(f"Model {role} trained with {valid_bins_count} bins.")
+        
+        model_struct = {
+            'meta': {
+                'bin_size': BIN_SIZE,
+                'x_min': 0, 'x_max': 100,
+                'y_min': -50, 'y_max': 50,
+                'role': role
+            },
+            'bins': model
         }
         
-    # Second Pass: Smoothing
-    model = {}
-    
-    max_x_bin = len(x_bins) - 1
-    max_y_bin = len(y_bins) - 1
-    
-    for i in range(max_x_bin):
-        for j in range(max_y_bin):
+        # Save F/D specific model
+        # Output: blocked_shot_model_F.json
+        fname = MODEL_OUT.replace('.json', f'_{role}.json')
+        os.makedirs(os.path.dirname(fname), exist_ok=True)
+        with open(fname, 'w') as f:
+            json.dump(model_struct, f, indent=2)
             
-            # Neighborhood
-            w_sum_ox = 0
-            w_sum_oy = 0
-            w_count = 0
-            
-            for di in [-1, 0, 1]:
-                for dj in [-1, 0, 1]:
-                    ni, nj = i + di, j + dj
-                    if (ni, nj) in raw_grid:
-                        cell = raw_grid[(ni, nj)]
-                        weight = 2.0 if (di==0 and dj==0) else 1.0
-                        
-                        w_sum_ox += cell['sum_ox'] * weight 
-                        w_sum_oy += cell['sum_oy'] * weight 
-                        w_count += cell['count'] * weight
-            
-            if w_count > 0:
-                mx = w_sum_ox / w_count
-                my = w_sum_oy / w_count
-                real_n = raw_grid.get((i,j), {}).get('count', 0)
-                
-                # Threshold for saving bin
-                # Lowered from 2.0 to 1.0 to include more bins, but heavily damped
-                if w_count >= 1.0:
-                    
-                    # DAMPING / "Do No Harm"
-                    # If we have low confidence (low w_n), shrinking the "adjustment" 
-                    # vector towards 0 (meaning Imputed Origin = Block Location).
-                    # This ensures that in sparse areas we don't make wild guesses based on 1-2 points.
-                    
-                    bx_center = i * BIN_SIZE + BIN_SIZE/2
-                    by_center = j * BIN_SIZE - 50.0 + BIN_SIZE/2
-                    
-                    # Adjustment Vector
-                    adj_x = mx - bx_center
-                    adj_y = my - by_center
-                    
-                    # Damping Factor
-                    # Full trust at N >= 10?
-                    # Linear ramp: 0.0 at N=0, 1.0 at N=10
-                    N_TRUST = 10.0
-                    damping = min(w_count, N_TRUST) / N_TRUST
-                    
-                    final_mx = bx_center + (adj_x * damping)
-                    final_my = by_center + (adj_y * damping)
-                    
-                    k = f"{int(i)}_{int(j)}"
-                    model[k] = {
-                        'mx': float(final_mx),
-                        'my': float(final_my),
-                        'n': int(real_n),
-                        'w_n': float(w_count),
-                        'damping': float(damping)
-                    }
-        
-    print(f"Model trained with {len(model)} bins using {len(data_points)} observations.")
-    
-    model_struct = {
-        'meta': {
-            'bin_size': BIN_SIZE,
-            'x_min': 0, 'x_max': 100,
-            'y_min': -50, 'y_max': 50
-        },
-        'bins': model
-    }
-    
-    os.makedirs(os.path.dirname(MODEL_OUT), exist_ok=True)
-    with open(MODEL_OUT, 'w') as f:
-        json.dump(model_struct, f, indent=2)
-        
-    print(f"Saved model to {MODEL_OUT}")
+        print(f"Saved model to {fname}")
 
 if __name__ == "__main__":
     main()
