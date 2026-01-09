@@ -83,12 +83,28 @@ if n_blocked > 0:
 # ------------------------------------
 
 # %%
+# %%
 # 3. Impute Coordinates (for blocked shots)
 # Note: shot_type remains NaN for blocked shots (handled by XGBoost)
 try:
-    from puck import impute
-    print("Applying blocked shot coordinate imputation...")
-    df = impute.impute_blocked_shot_origins(df, method='point_pull')
+    from puck import impute, config as p_conf
+    print("Applying blocked shot coordinate imputation (Method: EMPIRICAL)...")
+    
+    # Determine best coordinates to use
+    # Check for arena adjustments
+    suffix = getattr(p_conf, 'COORDINATE_SUFFIX', '_adj')
+    cx = f"x{suffix}"
+    cy = f"y{suffix}"
+    
+    use_x, use_y = 'x', 'y'
+    if cx in df.columns and cy in df.columns:
+        print(f"  Using Adjusted Coordinates: {cx}, {cy}")
+        use_x, use_y = cx, cy
+    else:
+        print("  Using Standard Coordinates: x, y (Adjustments not found)")
+        
+    df = impute.impute_blocked_shot_origins(df, method='empirical_model', x_col=use_x, y_col=use_y)
+    
 except Exception as e:
     print(f"Warning: Could not impute coordinates: {e}")
 

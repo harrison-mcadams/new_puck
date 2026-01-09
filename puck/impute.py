@@ -149,6 +149,12 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
         # Iterate (vectors or loops)
         # Loop is acceptable for typical PBP size
         for x, y in zip(bx, by):
+            if pd.isna(x) or pd.isna(y):
+                # Cannot impute if we don't know where the block happened
+                new_oxs.append(np.nan)
+                new_oys.append(np.nan)
+                continue
+
             # Normalize to Right Attack
             flipped = False
             if x < 0:

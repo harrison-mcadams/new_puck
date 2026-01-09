@@ -255,9 +255,9 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
     return full_df
 
 def enrich_data_with_bios(df: pd.DataFrame) -> pd.DataFrame:
-    """Add player handedness (shoots_catches) to the DataFrame."""
+    """Add player handedness (shoots_catches) and role (shooter_role) to the DataFrame."""
     if nhl_api and 'player_id' in df.columns and 'game_id' in df.columns:
-        # print("Enriching with player handedness...")
+        # print("Enriching with player bios...")
         try:
             # derive season start year from first 4 chars of game_id
             df['temp_season_start'] = df['game_id'].astype(str).str[:4]
@@ -277,31 +277,50 @@ def enrich_data_with_bios(df: pd.DataFrame) -> pd.DataFrame:
                 bios = nhl_api.get_season_player_bios(season_str)
                 master_map.update(bios)
             
-            # Map values
-            # Robust mapping: IDs can be floats in pandas (8.0), so we strip the .0
-            def format_pid(val):
-                if pd.isna(val): return "0"
+            # Helper to safely get value from nested map
+            def get_bio_val(pid_val, field, default=None):
+                if pd.isna(pid_val): return default
                 try:
-                    return str(int(float(val)))
+                    # IDs clean up (handle float/str/int)
+                    # The map keys are strings (e.g. "8478402")
+                    clean_id = str(int(float(pid_val)))
                 except:
-                    return str(val)
+                    clean_id = str(pid_val)
+                    
+                entry = master_map.get(clean_id)
+                if not entry:
+                    return default
+                return entry.get(field, default)
 
-            df['shoots_catches'] = df['player_id'].map(format_pid).map(master_map)
-            # Default missing to 'L' (most common)
-            df['shoots_catches'] = df['shoots_catches'].fillna('L')
+            # 1. Handedness
+            df['shoots_catches'] = df['player_id'].apply(lambda x: get_bio_val(x, 'shootsCatches', 'L'))
+            
+            # 2. Shooter Role (F vs D)
+            # Map positionCode to Role
+            def map_role(pos_code):
+                if not pos_code: return 'F' # Default to F
+                if pos_code == 'D':
+                    return 'D'
+                return 'F' # C, L, R, G -> F
+
+            df['shooter_role'] = df['player_id'].apply(lambda x: map_role(get_bio_val(x, 'positionCode')))
             
             if 'temp_season_start' in df.columns:
                 df.drop(columns=['temp_season_start'], inplace=True)
-            # print("Handedness enrichment complete.")
+            # print("Bio enrichment complete.")
             
         except Exception as e:
-            print(f"Warning: Handedness enrichment failed: {e}")
+            print(f"Warning: Bio enrichment failed: {e}")
             if 'shoots_catches' not in df.columns:
                 df['shoots_catches'] = 'L'
+            if 'shooter_role' not in df.columns:
+                df['shooter_role'] = 'F'
     else:
-        # ensuring column exists if we can't enrich
+        # ensuring columns exist if we can't enrich
         if 'shoots_catches' not in df.columns:
              df['shoots_catches'] = 'L'
+        if 'shooter_role' not in df.columns:
+             df['shooter_role'] = 'F'
              
     return df
 

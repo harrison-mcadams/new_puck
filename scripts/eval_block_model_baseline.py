@@ -62,9 +62,17 @@ def main():
     df = correction.fix_blocked_shot_attribution(df)
     
     # 2. Imputation (The New Standard)
-    print("  2. Imputing Blocked Shot Origins (Empirical Model)...")
-    # Explicitly use empirical_model to be sure (though it is default now)
-    df = impute.impute_blocked_shot_origins(df, method='empirical_model')
+    print("  2. Imputing Blocked Shot Origins (Empirical Model + Adj)...")
+    
+    # Check for arena adjustments
+    suffix = getattr(puck_config, 'COORDINATE_SUFFIX', '_adj')
+    cx, cy = f"x{suffix}", f"y{suffix}"
+    use_x, use_y = 'x', 'y'
+    if cx in df.columns and cy in df.columns:
+        print(f"     Using Adjusted Coordinates: {cx}, {cy}")
+        use_x, use_y = cx, cy
+    
+    df = impute.impute_blocked_shot_origins(df, method='empirical_model', x_col=use_x, y_col=use_y)
     
     # 3. XGB Preprocess
     print("  3. Preprocessing features...")

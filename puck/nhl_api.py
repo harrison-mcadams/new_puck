@@ -2301,18 +2301,18 @@ def compare_shifts(game_id: Any, debug: bool = False) -> Dict[str, Any]:
 
 
 
-def get_season_player_bios(season: str) -> Dict[int, str]:
+def get_season_player_bios(season: str) -> Dict[str, Dict[str, str]]:
     """Fetch all player bios for the given season to build a handedness map.
     
-    Returns: Dict[player_id, 'L'|'R']
+    Returns: Dict[str(player_id), {'shootsCatches': 'L', 'positionCode': 'C'}]
     """
-    cache_key = f"bios_{season}"
+    cache_key = f"bios_v2_{season}"
     cached = _cache_get('player_bios', cache_key)
     if cached:
         return cached
 
     base_url = 'https://api.nhle.com/stats/rest/en/skater/bios'
-    handedness_map = {}
+    bios_map = {}
     
     # We need to page through results
     start = 0
@@ -2334,10 +2334,21 @@ def get_season_player_bios(season: str) -> Dict[int, str]:
                 
             for row in rows:
                 pid = row.get('playerId')
-                hand = row.get('shootsCatches')
-                if pid and hand:
-                    # Use string keys for JSON consistency (cache vs live)
-                    handedness_map[str(pid)] = str(hand).upper()
+                if pid:
+                    pid_str = str(pid)
+                    entry = {}
+                    # Handedness
+                    hand = row.get('shootsCatches')
+                    if hand:
+                        entry['shootsCatches'] = str(hand).upper()
+                    
+                    # Position
+                    pos = row.get('positionCode')
+                    if pos:
+                        entry['positionCode'] = str(pos).upper()
+                        
+                    if entry:
+                        bios_map[pid_str] = entry
             
             # check if we are done
             total = data.get('total', 0)
@@ -2350,10 +2361,10 @@ def get_season_player_bios(season: str) -> Dict[int, str]:
             break
             
     # Save to cache
-    if handedness_map:
-        _cache_put('player_bios', cache_key, handedness_map)
+    if bios_map:
+        _cache_put('player_bios', cache_key, bios_map)
         
-    return handedness_map
+    return bios_map
 
 
 if __name__ == '__main__':

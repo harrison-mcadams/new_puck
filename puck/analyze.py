@@ -913,13 +913,32 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         # Apply Imputation
         try:
             from . import impute
-            # Use same method as training
-            df_imputed = impute.impute_blocked_shot_origins(df_shots, method='point_pull')
+            
+            # Determine best coordinates to use (Match training logic)
+            # Check for arena adjustments
+            try:
+                from . import config as p_conf
+                suffix = getattr(p_conf, 'COORDINATE_SUFFIX', '_adj')
+            except ImportError:
+                 suffix = '_adj'
+                 
+            cx = f"x{suffix}"
+            cy = f"y{suffix}"
+            
+            use_x, use_y = 'x', 'y'
+            # Check if columns are in the passed dataframe
+            if cx in df_shots.columns and cy in df_shots.columns:
+                # print(f"  Using Adjusted Coordinates for Imputation: {cx}, {cy}")
+                use_x, use_y = cx, cy
+
+            # Use EMPIRICAL MODEL
+            df_imputed = impute.impute_blocked_shot_origins(df_shots, method='empirical_model', x_col=use_x, y_col=use_y)
         except ImportError:
              import impute
              df_imputed = impute.impute_blocked_shot_origins(df_shots, method='point_pull')
         except Exception as e:
             print(f"Warning: Imputation failed in _predict_xgs: {e}")
+            df_imputed = df_shots
         if is_xgboost:
             # XGBoost Path: Bypass clean_df_for_model to preserve NaNs (categorical handling)
             # Ensure features exist
