@@ -74,7 +74,8 @@ try:
         apply_arena_adjustments=True,
         apply_imputation=True,
         apply_dithering=True,
-        apply_filtering=True
+        apply_filtering=True,
+        impute_alpha=0.2
     )
     
     # Save Debug CSV

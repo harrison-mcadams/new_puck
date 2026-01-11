@@ -17,7 +17,8 @@ def preprocess_features(df_input: pd.DataFrame,
                         apply_arena_adjustments: bool = True,
                         apply_imputation: bool = True,
                         apply_dithering: bool = False,
-                        apply_filtering: bool = False) -> pd.DataFrame:
+                        apply_filtering: bool = False,
+                        impute_alpha: float = 0.0) -> pd.DataFrame:
     """
     Apply standard preprocessing steps to the dataframe:
     # 1. Fix Blocked Shot Attribution (Swap IDs only, NO coordinate flip)
@@ -224,7 +225,14 @@ def preprocess_features(df_input: pd.DataFrame,
         # the discrete NHL API coordinates for better model lookup. We accept this.
         
         
-        df = impute.impute_blocked_shot_origins(df, method='empirical_model', x_col=use_x, y_col=use_y, is_standardized=True)
+        df = impute.impute_blocked_shot_origins(
+            df, 
+            method='empirical_model', 
+            x_col=use_x, 
+            y_col=use_y, 
+            is_standardized=True,
+            alpha=impute_alpha
+        )
     
     # Merge Imputed into Adjusted
     # If imputation ran, 'imputed_x' contains valid coords for blocked shots.

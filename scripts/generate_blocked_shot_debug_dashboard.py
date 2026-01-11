@@ -70,31 +70,27 @@ def main():
     roles = ['F', 'D']
     game_states = ['5v5', '5v4', '4v5']
     score_states = {'Tied': 0, 'Leading': 2, 'Trailing': -2}
-    
-    # Standardized shot type values matching VOCAB_SHOT_TYPE
     shot_types = ['wrist', 'slap', 'snap', 'backhand', 'tip-in']
-    # Mapping for user-friendly display labels
     shot_type_labels = {
-        'wrist': 'Wrist Shot',
-        'slap': 'Slap Shot',
-        'snap': 'Snap Shot',
-        'backhand': 'Backhand',
-        'tip-in': 'Tip-In'
+        'wrist': 'Wrist Shot', 'slap': 'Slap Shot', 'snap': 'Snap Shot',
+        'backhand': 'Backhand', 'tip-in': 'Tip-In'
     }
     
     combinations = list(itertools.product(roles, game_states, score_states.keys(), shot_types))
     print(f"Pre-computing {len(combinations)} combinations...")
 
     fig = make_subplots(
-        rows=1, cols=2,
-        subplot_titles=("Block Probability", "Expected Goals (xG)"),
+        rows=2, cols=2,
+        subplot_titles=(
+            "Current Block Prob", "Current xG Prob",
+            "Block Delta (vs Baseline)", "xG Delta (vs Baseline)"
+        ),
+        vertical_spacing=0.12,
         horizontal_spacing=0.1
     )
 
-    # We will use "customdata" to store the scenario string for JS filtering
     for i, (role, gs, ss_label, st) in enumerate(combinations):
-        if (i+1) % 10 == 0:
-            print(f"  [{i+1}/{len(combinations)}]")
+        if (i+1) % 20 == 0: print(f"  [{i+1}/{len(combinations)}]")
         
         df = grid_df_base.copy()
         df['shooter_role'] = role
@@ -107,7 +103,6 @@ def main():
             apply_arena_adjustments=False, apply_dithering=False, apply_filtering=False
         )
         
-        # Predictions
         block_probs = model.predict_proba_layer(processed_df, layer='block').reshape(xx.shape)
         xg_probs = model.predict_proba(processed_df)[:, 1].reshape(xx.shape)
         
@@ -119,132 +114,184 @@ def main():
                     xg_probs[r, c] = np.nan
 
         scenario_id = f"{role}_{gs}_{ss_label}_{st.replace('-', '_')}"
-        
-        # Visibility: Default to F | 5v5 | Tied | wrist
         is_visible = (role == 'F' and gs == '5v5' and ss_label == 'Tied' and st == 'wrist')
         st_label = shot_type_labels[st]
         
         # Block Trace
         fig.add_trace(go.Heatmap(
-            x=xs, y=ys, z=block_probs,
+            x=xs, y=ys, z=block_probs.tolist(),
             coloraxis="coloraxis1",
             name=scenario_id,
             visible=is_visible,
-            # Store metadata in customdata for JS to read
-            customdata=[[scenario_id] * len(xs)] * len(ys),
-            hovertemplate=f"<b>{role} | {gs} | {ss_label} | {st_label}</b><br>X: %{{x:.1f}}<br>Y: %{{y:.1f}}<br>Block Prob: %{{z:.4f}}<extra></extra>"
+            hovertemplate=f"<b>{role} | {gs} | {ss_label}</b><br>Block Prob: %{{z:.4f}}<extra></extra>"
         ), row=1, col=1)
         
         # xG Trace
         fig.add_trace(go.Heatmap(
-            x=xs, y=ys, z=xg_probs,
+            x=xs, y=ys, z=xg_probs.tolist(),
             coloraxis="coloraxis2",
             name=scenario_id,
             visible=is_visible,
-            customdata=[[scenario_id] * len(xs)] * len(ys),
-            hovertemplate=f"<b>{role} | {gs} | {ss_label} | {st_label}</b><br>X: %{{x:.1f}}<br>Y: %{{y:.1f}}<br>xG Prob: %{{z:.4f}}<extra></extra>"
+            hovertemplate=f"<b>{role} | {gs} | {ss_label}</b><br>xG Prob: %{{z:.4f}}<extra></extra>"
         ), row=1, col=2)
 
+    # Delta Traces (Traces 2N and 2N+1)
+    zeros = np.zeros_like(xx).tolist()
+    fig.add_trace(go.Heatmap(
+        x=xs, y=ys, z=zeros,
+        coloraxis="coloraxis3",
+        name="delta_block",
+        visible=True,
+        hovertemplate="Block Delta: %{z:.4f}<extra></extra>"
+    ), row=2, col=1)
+
+    fig.add_trace(go.Heatmap(
+        x=xs, y=ys, z=zeros,
+        coloraxis="coloraxis4",
+        name="delta_xg",
+        visible=True,
+        hovertemplate="xG Delta: %{z:.4f}<extra></extra>"
+    ), row=2, col=2)
+
     fig.update_layout(
-        title=dict(text="Blocked Shot & xG Debug Dashboard", x=0.5, font=dict(size=24)),
-        width=1800, height=850,
-        coloraxis1=dict(colorscale='Magma', cmin=0, cmax=1.0, colorbar=dict(title="Block Prob", x=0.45)),
-        coloraxis2=dict(colorscale='Plasma', cmin=0, cmax=0.3, colorbar=dict(title="xG Prob", x=1.0)),
-        shapes=get_rink_shapes(xref='x', yref='y') + get_rink_shapes(xref='x2', yref='y2')
+        title=dict(text="Blocked Shot Comparison Dashboard", x=0.5, font=dict(size=24, color='white')),
+        width=1600, height=1400,
+        paper_bgcolor='#111',
+        plot_bgcolor='#111',
+        coloraxis1=dict(colorscale='Magma', cmin=0, cmax=1.0, colorbar=dict(title="Block Prob", x=0.45, y=0.82, len=0.35)),
+        coloraxis2=dict(colorscale='Plasma', cmin=0, cmax=0.3, colorbar=dict(title="xG Prob", x=1.0, y=0.82, len=0.35)),
+        coloraxis3=dict(colorscale='RdBu_r', cmin=-0.2, cmax=0.2, colorbar=dict(title="Block Δ", x=0.45, y=0.25, len=0.35)),
+        coloraxis4=dict(colorscale='RdBu_r', cmin=-0.1, cmax=0.1, colorbar=dict(title="xG Δ", x=1.0, y=0.25, len=0.35)),
+        shapes=(
+            get_rink_shapes(xref='x', yref='y') + get_rink_shapes(xref='x2', yref='y2') +
+            get_rink_shapes(xref='x3', yref='y3') + get_rink_shapes(xref='x4', yref='y4')
+        )
     )
 
     fig.update_layout(
-        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False),
-        yaxis=dict(range=[-42.5, 42.5], showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1),
-        xaxis2=dict(range=[0, 100], showgrid=False, zeroline=False),
-        yaxis2=dict(range=[-42.5, 42.5], showgrid=False, zeroline=False, scaleanchor="x2", scaleratio=1)
+        xaxis=dict(range=[0, 100], showgrid=False, zeroline=False, color='white'),
+        yaxis=dict(range=[-42.5, 42.5], showgrid=False, zeroline=False, color='white', scaleanchor="x", scaleratio=1),
+        xaxis2=dict(range=[0, 100], showgrid=False, zeroline=False, color='white'),
+        yaxis2=dict(range=[-42.5, 42.5], showgrid=False, zeroline=False, color='white', scaleanchor="x2", scaleratio=1),
+        xaxis3=dict(range=[0, 100], showgrid=False, zeroline=False, color='white'),
+        yaxis3=dict(range=[-42.5, 42.5], showgrid=False, zeroline=False, color='white', scaleanchor="x3", scaleratio=1),
+        xaxis4=dict(range=[0, 100], showgrid=False, zeroline=False, color='white'),
+        yaxis4=dict(range=[-42.5, 42.5], showgrid=False, zeroline=False, color='white', scaleanchor="x4", scaleratio=1)
     )
 
-    # --- HTML / JS Injection ---
-    
-    # Generate the select options
+    # HTML UI
     def gen_options(items, labels=None):
-        if labels:
-            return "".join([f'<option value="{it}">{labels[it]}</option>' for it in items])
-        return "".join([f'<option value="{it}">{it}</option>' for it in items])
+        return "".join([f'<option value="{it}">{labels[it] if labels else it}</option>' for it in items])
 
     controls_html = f"""
-    <div id="controls" style="display: flex; justify-content: center; gap: 20px; padding: 10px; background: #f0f0f0; border-radius: 8px; margin-bottom: 10px; font-family: sans-serif;">
-        <div>
-            <label><b>Role:</b></label>
-            <select id="role-select">{gen_options(roles)}</select>
+    <div id="controls" style="display: flex; justify-content: center; align-items: center; gap: 20px; padding: 15px; background: #222; color: white; border-radius: 8px; margin-bottom: 5px; font-family: sans-serif; border: 1px solid #444;">
+        <div><label><b>Role:</b></label> <select id="role-select" style="background:#444; color:white; border:none; padding:5px;">{gen_options(roles)}</select></div>
+        <div><label><b>Game State:</b></label> <select id="gs-select" style="background:#444; color:white; border:none; padding:5px;">{gen_options(game_states)}</select></div>
+        <div><label><b>Score State:</b></label> <select id="ss-select" style="background:#444; color:white; border:none; padding:5px;">{gen_options(score_states.keys())}</select></div>
+        <div><label><b>Shot Type:</b></label> <select id="st-select" style="background:#444; color:white; border:none; padding:5px;">{gen_options(shot_types, shot_type_labels)}</select></div>
+        <div style="border-left: 1px solid #555; padding-left: 20px; margin-left: 10px; display: flex; gap: 10px;">
+            <button id="set-baseline" style="background: #28a745; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Set Baseline</button>
+            <button id="restore-baseline" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;">Restore Baseline</button>
         </div>
-        <div>
-            <label><b>Game State:</b></label>
-            <select id="gs-select">{gen_options(game_states)}</select>
-        </div>
-        <div>
-            <label><b>Score State:</b></label>
-            <select id="ss-select">{gen_options(score_states.keys())}</select>
-        </div>
-        <div>
-            <label><b>Shot Type:</b></label>
-            <select id="st-select">{gen_options(shot_types, shot_type_labels)}</select>
-        </div>
-        <div style="font-size: 0.8em; color: #666; align-self: center;">
-            <i>Showing 90 pre-computed scenarios</i>
-        </div>
+        <div id="baseline-status" style="font-size: 0.85em; color: #888;">Baseline: None (Standard View)</div>
     </div>
     """
 
     js_code = """
     <script>
-    function updateVisibility() {
-        var role = document.getElementById('role-select').value;
-        var gs = document.getElementById('gs-select').value;
-        var ss = document.getElementById('ss-select').value;
-        var st = document.getElementById('st-select').value.replace(/-/g, '_');
+    let baselineBlock = null;
+    let baselineXG = null;
+    let baselineSettings = null;
+
+    function updateViz() {
+        const role = document.getElementById('role-select').value;
+        const gs = document.getElementById('gs-select').value;
+        const ss = document.getElementById('ss-select').value;
+        const st = document.getElementById('st-select').value.replace(/-/g, '_');
+        const targetID = role + '_' + gs + '_' + ss + '_' + st;
         
-        var targetID = role + '_' + gs + '_' + ss + '_' + st;
-        console.log("Switching to: " + targetID);
+        const gd = document.getElementsByClassName('plotly-graph-div')[0];
+        let currentBlock = null;
+        let currentXG = null;
+        const visibility = [];
         
-        var gd = document.getElementsByClassName('plotly-graph-div')[0];
-        var update = {visible: []};
+        console.log("Searching for targetID: " + targetID);
         
-        for (var i = 0; i < gd.data.length; i++) {
+        for (let i = 0; i < gd.data.length - 2; i++) {
             if (gd.data[i].name === targetID) {
-                update.visible.push(true);
+                visibility.push(true);
+                if (i % 2 === 0) currentBlock = gd.data[i].z;
+                else currentXG = gd.data[i].z;
             } else {
-                update.visible.push(false);
+                visibility.push(false);
             }
         }
         
-        Plotly.restyle(gd, update);
+        visibility.push(true); // Delta Block
+        visibility.push(true); // Delta xG
+        
+        Plotly.restyle(gd, {visible: visibility});
+
+        // Update Delta Rinks
+        if (baselineBlock && currentBlock && baselineXG && currentXG) {
+            console.log("Calculating Deltas...");
+            const deltaBlock = currentBlock.map((row, i) => row.map((val, j) => {
+                if (val === null || baselineBlock[i][j] === null) return null;
+                return val - baselineBlock[i][j];
+            }));
+            const deltaXG = currentXG.map((row, i) => row.map((val, j) => {
+                if (val === null || baselineXG[i][j] === null) return null;
+                return val - baselineXG[i][j];
+            }));
+            
+            Plotly.restyle(gd, {z: [deltaBlock]}, [gd.data.length - 2]);
+            Plotly.restyle(gd, {z: [deltaXG]}, [gd.data.length - 1]);
+        } else {
+            console.log("No baseline or current data found for both layers. Zeroing deltas.");
+            const zeroZ = (currentBlock || gd.data[0].z).map(row => row.map(() => 0));
+            Plotly.restyle(gd, {z: [zeroZ]}, [gd.data.length - 2, gd.data.length - 1]);
+        }
     }
 
-    document.getElementById('role-select').addEventListener('change', updateVisibility);
-    document.getElementById('gs-select').addEventListener('change', updateVisibility);
-    document.getElementById('ss-select').addEventListener('change', updateVisibility);
-    document.getElementById('st-select').addEventListener('change', updateVisibility);
+    document.getElementById('set-baseline').onclick = () => {
+        const role = document.getElementById('role-select').value;
+        const gs = document.getElementById('gs-select').value;
+        const ss = document.getElementById('ss-select').value;
+        const st = document.getElementById('st-select').value.replace(/-/g, '_');
+        const targetID = role + '_' + gs + '_' + ss + '_' + st;
+        
+        const gd = document.getElementsByClassName('plotly-graph-div')[0];
+        for (let i = 0; i < gd.data.length - 2; i++) {
+            if (gd.data[i].name === targetID) {
+                if (i % 2 === 0) baselineBlock = gd.data[i].z;
+                else baselineXG = gd.data[i].z;
+            }
+        }
+        baselineSettings = {role, gs, ss, st};
+        document.getElementById('baseline-status').innerText = `Baseline: ${role} | ${gs} | ${ss} | ${st}`;
+        document.getElementById('baseline-status').style.color = "#28a745";
+        updateViz();
+    };
+
+    document.getElementById('restore-baseline').onclick = () => {
+        if (!baselineSettings) return;
+        document.getElementById('role-select').value = baselineSettings.role;
+        document.getElementById('gs-select').value = baselineSettings.gs;
+        document.getElementById('ss-select').value = baselineSettings.ss;
+        document.getElementById('st-select').value = baselineSettings.st.replace(/_/g, '-');
+        updateViz();
+    };
+
+    ["role-select", "gs-select", "ss-select", "st-select"].forEach(id => {
+        document.getElementById(id).onchange = updateViz;
+    });
     </script>
     """
 
-    print(f"Writing to {output_path}...")
-    
-    # Write Plotly as HTML div and wrap with our custom UI
     plot_html = fig.to_html(include_plotlyjs='cdn', full_html=False)
-    
-    full_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <head><title>Blocked Shot & xG Debug Dashboard</title></head>
-    <body style="margin: 20px;">
-        {controls_html}
-        {plot_html}
-        {js_code}
-    </body>
-    </html>
-    """
-    
     with open(output_path, "w", encoding="utf-8") as f:
-        f.write(full_html)
-        
-    print("Dashboard generated successfully.")
+        f.write(f"<!DOCTYPE html><html><body style='margin:0; background:#111; color:white;'>{controls_html}{plot_html}{js_code}</body></html>")
+    print(f"2x2 Comparison Dashboard generated: {output_path}")
 
 if __name__ == "__main__":
     main()
