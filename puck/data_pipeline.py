@@ -1,0 +1,378 @@
+"""data_pipeline.py
+
+Centralized pipeline for preprocessing PBP data for Training and Inference.
+Refactored from logic previously in scripts/train_xgboost_model.py and puck/analyze.py.
+"""
+
+import pandas as pd
+import numpy as np
+import warnings
+from typing import Optional, List, Tuple
+
+from . import correction, impute, arena_adjustments, features
+
+def preprocess_features(df_input: pd.DataFrame, 
+                        is_training: bool = False, 
+                        verbose: bool = False,
+                        apply_arena_adjustments: bool = True,
+                        apply_imputation: bool = True,
+                        apply_dithering: bool = False,
+                        apply_filtering: bool = False) -> pd.DataFrame:
+    """
+    Apply standard preprocessing steps to the dataframe:
+    # 1. Fix Blocked Shot Attribution (Swap IDs only, NO coordinate flip)
+    # DIAGNOSIS (2025-01-10): The raw data for blocked shots ALREADY attributes the event to the SHOOTER (Offense).
+    # The previous logic assumed it was attributed to the BLOCKER (Defense) and swapped it.
+    # This caused the ownership to flip incorrectly to the Defense.
+    # We disable this step to preserve the correct raw attribution.
+    2. Standardize Orientation (Force Attack Right based on swapped ownership)
+    3. Global Dithering (Optional/Training)
+    4. Arena Adjustments (Calculate or Use Existing)
+    5. Impute Blocked Shot Origins
+    6. Coordinate Swap & Feature Recalculation
+    7. Event Filtering (Optional - Remove non-shots/extreme states)
+    
+    Args:
+        df_input: Raw PBP dataframe.
+        is_training: If True, defaults apply_dithering to True (unless overridden).
+        verbose: Print debug info.
+        apply_arena_adjustments: Whether to apply arena bias corrections.
+        apply_imputation: Whether to impute blocked shots.
+        apply_dithering: Whether to add random noise (for smoothing/training).
+        apply_filtering: Whether to filter out non-shots and extreme situations (empty net, 1v0).
+    
+    Returns:
+        pd.DataFrame: Processed dataframe with 'x', 'y' updated and features (distance, angle) recalculated.
+    """
+    
+    # Work on copy
+    df = df_input.copy()
+    
+    if len(df) == 0:
+        return df
+
+    def vprint(*args):
+        if verbose:
+            print(*args)
+
+    vprint(f"Preprocessing {len(df)} rows. Training={is_training}, Impute={apply_imputation}, Adjust={apply_arena_adjustments}")
+
+    # 1. Blocked Shot Attribution
+    # NOTE (2025-01-10): The raw data for blocked shots ALREADY attributes the event to the SHOOTER (Offense).
+    # Previous logic incorrectly swapped it to the Defense. We disable correction to preserve raw attribution.
+    # if 'event' in df.columns and (df['event'] == 'blocked-shot').any():
+    #     df = correction.fix_blocked_shot_attribution(df)
+
+    # 2. Standardize Orientation (Attack Right)
+    # Ensure all play is oriented towards the goal at x=89.
+    # We must determine the True Attacking Side for each event.
+    
+    # Check if 'x' exists
+    if 'x' not in df.columns:
+        warnings.warn("Column 'x' missing in dataframe. skipping orientation standardization.")
+    else:
+        # Determine Coordinate Flip based on Attacking Side
+        # Goal: Attacking Side should be RIGHT (Positive X).
+        # Logic:
+        # 1. Determine which side the Team is Attacking.
+        # 2. If Team is Attacking Left (-X), Flip Everything.
+        # 3. If Team is Attacking Right (+X), Do Nothing.
+        
+        # Prerequisites: 'team_id', 'home_id', 'home_team_defending_side'
+        # Note: 'team_id' tracks the "Performer" (Shooter for shots, Blocker for blocks due to prev logic)
+        # We assume 'team_id' is the Attacking Team for the event context.
+        
+        can_determine_side = ('team_id' in df.columns and 
+                              'home_id' in df.columns and 
+                              'home_team_defending_side' in df.columns)
+                              
+        if can_determine_side:
+            # Vectorized Logic
+            
+            # Map side string to sign (-1 = Left, +1 = Right)
+            # 'left' -> -1, 'right' -> 1
+            # Careful with case/whitespace
+            def_side_map = df['home_team_defending_side'].astype(str).str.lower().str.strip().map({
+                'left': -1, 
+                'right': 1
+            })
+            # Fill unknown with NaN or default? Let's assume NaN -> Fallback
+            
+            # Is Team Home?
+            # Handle potential string/int mismatch
+            tid = df['team_id'].astype(str)
+            hid = df['home_id'].astype(str)
+            is_home = (tid == hid)
+            
+            # Calculate Attacking Side Sign (-1 or 1)
+            # Home Attacking Side = -1 * Home Defending Side
+            # Away Attacking Side = Home Defending Side
+            
+            attack_sign = np.where(is_home, -1 * def_side_map, def_side_map)
+            
+            # Where attack_sign is -1 (Attacking Left), we must FLIP to make it Right.
+            mask_flip = (attack_sign == -1)
+            
+            # If map failed (NaN), mask_flip is False (no flip). 
+            # We should fallback for NaNs?
+            # Let's handle NaNs by checking for them.
+            mask_nan = def_side_map.isna()
+            if mask_nan.any():
+                vprint(f"  WARNING: {mask_nan.sum()} rows have unknown defending side. Using simplistic fallback.")
+                # Fallback: Blind flip negative X
+                mask_fallback_flip = mask_nan & (df['x'] < 0)
+                mask_flip = mask_flip | mask_fallback_flip
+
+            if mask_flip.any():
+                vprint(f"  Flipping {mask_flip.sum()} events to positive orientation (Attacking Left -> Right).")
+                df.loc[mask_flip, 'x'] *= -1
+                df.loc[mask_flip, 'y'] *= -1
+                if 'x_adj' in df.columns:
+                    df.loc[mask_flip, 'x_adj'] *= -1
+                if 'y_adj' in df.columns:
+                    df.loc[mask_flip, 'y_adj'] *= -1
+                    
+        else:
+             # FALLBACK: Old simplistic logic
+             # Assume all redundant negative X events are offensive zone
+             vprint("  WARNING: Cannot determine true attacking side (missing cols). Using blind flip.")
+             mask_neg = df['x'] < 0
+             if mask_neg.any():
+                vprint(f"  Flipping {mask_neg.sum()} events to positive orientation.")
+                df.loc[mask_neg, 'x'] *= -1
+                df.loc[mask_neg, 'y'] *= -1
+                if 'x_adj' in df.columns:
+                    df.loc[mask_neg, 'x_adj'] *= -1
+                if 'y_adj' in df.columns:
+                    df.loc[mask_neg, 'y_adj'] *= -1
+
+
+
+    
+    # 4. Arena Adjustments
+    use_x, use_y = 'x', 'y'
+    
+    if apply_arena_adjustments:
+        # OPTION A: Use Pre-Calculated Adjustments (Preferred)
+        if 'x_adj' in df.columns and 'y_adj' in df.columns:
+            vprint("  Found existing 'x_adj' columns. Using them.")
+            use_x, use_y = 'x_adj', 'y_adj'
+            
+            # Re-standardize x_adj (ensure positive)
+            mask_neg_adj = df['x_adj'] < 0
+            if mask_neg_adj.any():
+                vprint(f"    Re-standardizing {mask_neg_adj.sum()} x_adj values.")
+                df.loc[mask_neg_adj, 'x_adj'] *= -1
+                df.loc[mask_neg_adj, 'y_adj'] *= -1
+                
+        # OPTION B: Calculate from Team Name
+        elif 'home_team' in df.columns or 'home_abb' in df.columns:
+            vprint("  Calculating Arena Adjustments from team info...")
+            
+            # Create working columns
+            df['x_adj'] = df['x'].copy()
+            df['y_adj'] = df['y'].copy()
+            
+            # Vectorized approach using arena_adjustments module logic might be slow if we loop rows.
+            # But train_xgboost_model.py had a fast GroupBy approach. Let's reuse that.
+            
+            adj_map = arena_adjustments.load_adjustments()
+            
+            # Determine suitable columns
+            c_team = 'home_team' if 'home_team' in df.columns else 'home_abb'
+            c_season = 'season' if 'season' in df.columns else None
+            # If no season col, maybe cannot adjust? Or assume current?
+            # Default to no adjustment if no season
+            
+            if c_season:
+                 # Standardize team names
+                temp_team = df[c_team].map(arena_adjustments.resolve_arena)
+                temp_season = df[c_season].astype(str)
+                
+                # Apply map
+                # Iterate over unique Season/Arena combos
+                groups = df.groupby([temp_season, temp_team])
+                count_adj = 0
+                
+                for (season_val, arena_val), idxs in groups.groups.items():
+                    if season_val in adj_map and arena_val in adj_map[season_val]:
+                         dx = adj_map[season_val][arena_val].get('x_bias', 0.0)
+                         dy = adj_map[season_val][arena_val].get('y_bias', 0.0)
+                         if dx != 0 or dy != 0:
+                             df.loc[idxs, 'x_adj'] = df.loc[idxs, 'x'] - dx
+                             df.loc[idxs, 'y_adj'] = df.loc[idxs, 'y'] - dy
+                             count_adj += 1
+                
+                vprint(f"    Applied adjustments to {count_adj} groups.")
+                
+                # Re-standardize
+                mask_neg_adj = df['x_adj'] < 0
+                if mask_neg_adj.any():
+                    df.loc[mask_neg_adj, 'x_adj'] *= -1
+                    df.loc[mask_neg_adj, 'y_adj'] *= -1
+                    
+                use_x, use_y = 'x_adj', 'y_adj'
+            else:
+                 vprint("    WARNING: 'season' column missing. Cannot apply Arena Adjustments.")
+        else:
+            vprint("    WARNING: No 'home_team' or 'x_adj'. Skipping Arena Adjustments.")
+
+    # 5. Imputation
+    if apply_imputation:
+        vprint(f"  Imputing blocked shots using {use_x}, {use_y}...")
+        # Note: impute.py applies its own internal dithering to blocked shots to smooth
+        # the discrete NHL API coordinates for better model lookup. We accept this.
+        
+        
+        df = impute.impute_blocked_shot_origins(df, method='empirical_model', x_col=use_x, y_col=use_y, is_standardized=True)
+    
+    # Merge Imputed into Adjusted
+    # If imputation ran, 'imputed_x' contains valid coords for blocked shots.
+    # We want x_adj to reflect this for those rows.
+    if 'imputed_x' in df.columns:
+         # Where imputed_x is not null (meaning it was imputed), update x_adj
+         # Note: imputed_x might be full copy of x_col? 
+         # impute.py: df_out['imputed_x'] = df_out[x_col]
+         # So yes, it's safe to just use imputed_x as the new x_adj?
+         # Or only for blocked shots?
+         # User said: "blocked shots now also have an appropriate x_adj"
+         # Let's target blocked shots specifically to be safe/clear.
+         mask_blk = (df['event'] == 'blocked-shot')
+         if mask_blk.any():
+              vprint("  Merging imputed coordinates into x_adj for blocked shots...")
+              df.loc[mask_blk, 'x_adj'] = df.loc[mask_blk, 'imputed_x']
+              df.loc[mask_blk, 'y_adj'] = df.loc[mask_blk, 'imputed_y']
+              
+              # PBP block locations ('block_x') are preserved by impute function automatically
+
+    # 5.5 Global Dithering (Moved per user request)
+    # Apply to x_adj/y_adj BEFORE swap, so it affects features and standardizes precision.
+    if apply_dithering:
+        vprint("  Applying Global Dithering (+/- 0.5ft) to Adjusted Coordinates...")
+        
+        # Ensure x_adj/y_adj exist (if not created by adjustments/imputation)
+        if 'x_adj' not in df.columns:
+            df['x_adj'] = df['x']
+        if 'y_adj' not in df.columns:
+            df['y_adj'] = df['y']
+            
+        rng = np.random.default_rng(42)
+        noise_x = rng.uniform(-0.5, 0.5, size=len(df))
+        noise_y = rng.uniform(-0.5, 0.5, size=len(df))
+        
+        df['x_adj'] = df['x_adj'] + noise_x
+        df['y_adj'] = df['y_adj'] + noise_y
+
+    # 6. Coordinate Swap & Feature Recalculation
+    # "takes x_adj and y_adj, swaps them over into the x and y columns"
+    
+    # Ensure x_adj/y_adj exist (if skipped above)
+    if 'x_adj' not in df.columns:
+        df['x_adj'] = df['x']
+        df['y_adj'] = df['y']
+        
+    vprint("  Swapping Adjusted Coordinates into Main Columns (x,y)...")
+    df['x'] = df['x_adj']
+    df['y'] = df['y_adj']
+    
+    # CRITICAL: Must use 'x_adj' / 'y_adj' if available, as these contain:
+    # A) Arena Adjustments
+    # B) Imputed Origins (for blocked shots)
+    # Using raw 'x' would calculate metrics to the Block Location, causing leakage.
+    
+    calc_x = df['x_adj'] if 'x_adj' in df.columns else df['x']
+    calc_y = df['y_adj'] if 'y_adj' in df.columns else df['y']
+    
+    # x_adj is Standardized to Right Attack (Net at 89)
+    # y_adj is Standardized (-42.5 to 42.5)
+    
+    goal_x = 89.0
+    df['distance'] = np.sqrt((calc_x - goal_x)**2 + calc_y**2)
+    
+    # Angle
+    dx = calc_x - goal_x
+    dy = calc_y
+    # Fixed CCW calc from vectors
+    rx, ry = 0.0, -1.0 
+    cross = rx * dy - ry * dx
+    dot = rx * dx + ry * dy
+    angle_rad_ccw = np.arctan2(cross, dot)
+    df['angle_deg'] = (-np.degrees(angle_rad_ccw)) % 360.0
+
+    # 7. Event Filtering (Optional)
+    if apply_filtering:
+        vprint("  Applying Event Filtering (Step 7)...")
+        initial_len = len(df)
+        
+        # A. Keep only Shot Events
+        shot_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+        if 'event' in df.columns:
+            df = df[df['event'].isin(shot_events)]
+            
+        # B. Remove Empty Net
+        if 'is_net_empty' in df.columns:
+            # removing rows where is_net_empty == 1
+            df = df[df['is_net_empty'] != 1]
+            
+        # C. Remove Extreme Game States (1v0, 0v1)
+        if 'game_state' in df.columns:
+             df = df[~df['game_state'].isin(['1v0', '0v1'])]
+             
+        vprint(f"    Filtered {initial_len - len(df)} rows. Final count: {len(df)}")
+
+    # 8. Feature Formatting (Fill NaNs, Enforce Types)
+    df = _format_features(df, verbose=verbose)
+
+    return df
+
+def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
+    """
+    Ensure all expected features exist and are correctly formatted.
+    Fills missing values with defaults ('Unknown' or 0) and casts types.
+    """
+    if df.empty:
+        return df
+        
+    if verbose:
+        print("  Formatting Features (Step 8)...")
+    
+    # 1. Categoricals
+    # Use lists from features.py where available, plus common metadata
+    categorical_cols = features.SHOT_TYPE + features.HANDEDNESS + features.PLAYER_ROLE + \
+                       ['last_event_type', 'game_state', 'period_time_type', 'home_team_defending_side', 
+                        'player_name', 'team_abbrev', 'home_abb', 'away_abb']
+                        
+    for col in categorical_cols:
+        if col not in df.columns:
+            df[col] = 'Unknown'
+        else:
+            # Object/String columns can have None/NaN
+            df[col] = df[col].fillna('Unknown')
+        
+        # Cast to string to be safe for categorical encoding later
+        df[col] = df[col].astype(str)
+
+    # 2. Numerics
+    # Fill missing numeric features with appropriate defaults (usually 0)
+    numeric_defaults = {
+        'is_rebound': 0,
+        'rebound_angle_change': 0.0,
+        'rebound_time_diff': 0.0,
+        'is_rush': 0,
+        'last_event_time_diff': 0.0,
+        'score_diff': 0,
+        # Ensure coordinates/angles are at least present (though should be calc'd)
+        'distance': -1.0, 
+        'angle_deg': 0.0,
+        # Time
+        'time_elapsed_in_period_s': 0.0,
+        'total_time_elapsed_s': 0.0
+    }
+    
+    for col, default_val in numeric_defaults.items():
+        if col not in df.columns:
+            df[col] = default_val
+        else:
+            df[col] = df[col].fillna(default_val)
+            
+    return df

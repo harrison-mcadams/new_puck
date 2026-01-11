@@ -23,7 +23,7 @@ import json
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config, features as feature_util, correction
+from puck import fit_xgboost_nested, fit_xgs, analyze, config as puck_config, features as feature_util, correction, data_pipeline
 
 def plot_calib(y_true, y_prob, name, ax):
     prob_true, prob_pred = calibration_curve(y_true, y_prob, n_bins=10, strategy='uniform')
@@ -58,55 +58,48 @@ print(f"Loaded {len(df)} rows.")
 if len(df) < 10000:
     print("WARNING: Dataset size is small. Verify 'data/' directory contains all seasons.")
 
-# 1.5 Fix Blocked Shot Attribution (Swap team_id, Recalc Dist/Angle)
-print("Applying blocked shot attribution correction (Swap ID + Recalc Distance)...")
-df = correction.fix_blocked_shot_attribution(df)
+# 1.4 - 3. Unified Preprocessing Pipeline
+# (Standardization, Dithering, Attribution, Arena Adj, Imputation, Recalc)
+print("Applying Unified Preprocessing Pipeline...")
+# Note: debug_imputation_pipeline.csv saving logic is specific to this script's debugging needs.
+# The pipeline returns the FINAL processed df. 
+# But the script wanted to save intermediate states (x_adj, imputed_x) too.
+# The pipeline DOES return a DF with 'x_adj', 'imputed_x' preserved (it doesn't drop them).
 
-# -----------------------------
-
-# %% 
-# 2. Preprocess (Filter & Clean) using XGBoost specific routine
-print("Preprocessing data for XGBoost...")
-df = fit_xgboost_nested.preprocess_data(df)
-
-# --- DEBUG: Verify Data Integrity ---
-blocked_mask = df['is_blocked'] == 1
-n_blocked = blocked_mask.sum()
-# Check nulls (handle categorical NaN which might not show as isna() if not nullable, though typically does)
-n_nan = df.loc[blocked_mask, 'shot_type'].isnull().sum()
-
-print(f"\n[DEBUG] Blocked Shot Analysis:")
-print(f"  Total Blocked Shots: {n_blocked}")
-print(f"  Blocked with NaN shot_type: {n_nan}")
-if n_blocked > 0:
-    print(f"  Sample shot_types (Blocked): {df.loc[blocked_mask, 'shot_type'].unique().tolist()[:5]}")
-# ------------------------------------
-
-# %%
-# %%
-# 3. Impute Coordinates (for blocked shots)
-# Note: shot_type remains NaN for blocked shots (handled by XGBoost)
 try:
-    from puck import impute, config as p_conf
-    print("Applying blocked shot coordinate imputation (Method: EMPIRICAL)...")
+    df = data_pipeline.preprocess_features(
+        df, 
+        is_training=True, 
+        verbose=True, 
+        apply_arena_adjustments=True,
+        apply_imputation=True,
+        apply_dithering=True,
+        apply_filtering=True
+    )
     
-    # Determine best coordinates to use
-    # Check for arena adjustments
-    suffix = getattr(p_conf, 'COORDINATE_SUFFIX', '_adj')
-    cx = f"x{suffix}"
-    cy = f"y{suffix}"
+    # Save Debug CSV
+    print("Saving pre-processed debug CSV (imputed + adjusted)...")
+    debug_cols = ['game_id', 'event', 'x', 'y', 'x_adj', 'y_adj', 'imputed_x', 'imputed_y', 'shooter_role', 'distance', 'angle_deg']
+    save_cols = [c for c in debug_cols if c in df.columns]
     
-    use_x, use_y = 'x', 'y'
-    if cx in df.columns and cy in df.columns:
-        print(f"  Using Adjusted Coordinates: {cx}, {cy}")
-        use_x, use_y = cx, cy
-    else:
-        print("  Using Standard Coordinates: x, y (Adjustments not found)")
-        
-    df = impute.impute_blocked_shot_origins(df, method='empirical_model', x_col=use_x, y_col=use_y)
+    mask_blocks = df['event'] == 'blocked-shot'
+    mask_other = df['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
     
+    df_debug = pd.concat([
+        df[mask_blocks],
+        df[mask_other].sample(min(10000, mask_other.sum()), random_state=42)
+    ])
+    
+    debug_path = Path('analysis/debug_imputation_pipeline.csv')
+    debug_path.parent.mkdir(parents=True, exist_ok=True)
+    df_debug[save_cols].to_csv(debug_path, index=False)
+    print(f"  Saved {len(df_debug)} rows to {debug_path}")
+
 except Exception as e:
-    print(f"Warning: Could not impute coordinates: {e}")
+    print(f"Pipeline failed: {e}")
+    import traceback
+    traceback.print_exc()
+
 
 # %%
 # 4. Split
@@ -131,6 +124,19 @@ if params_path.exists():
         print(f"Loaded optimized parameters from {params_path}")
     except Exception as e:
         print(f"Warning: Could not load optimized params: {e}")
+
+# Strategy 1 Override: Heavy Regularization for Block Model
+print("Reviewing Strategy 1: Applying Manual Regularization Constraints to Block Layer...")
+layer_params['block'] = {
+    "subsample": 0.8,
+    "n_estimators": 500,
+    "min_child_weight": 100, # Increased from 1
+    "max_depth": 4,          # Decreased from 8
+    "learning_rate": 0.1,    # Decreased from 0.2
+    "gamma": 5,              # Increased from 1
+    "colsample_bytree": 0.8
+}
+print(f"Block Layer Params Overridden: {layer_params['block']}")
 
 clf = fit_xgboost_nested.XGBNestedXGClassifier(
     features=feature_list,
@@ -300,7 +306,7 @@ print(f"Saved training report to {report_path}")
 # 9. SAVE MODEL
 # We save to the location analyze.py expects
 # Using "all" as suffix since we might retrain on full data, but for dev we save this one
-model_path = Path('analysis/xgs/xg_model_nested_all.joblib')
+model_path = Path('analysis/xgs/xg_model_nested.joblib')
 model_path.parent.mkdir(parents=True, exist_ok=True)
 joblib.dump(clf, model_path)
 print(f"Model saved to {model_path}")

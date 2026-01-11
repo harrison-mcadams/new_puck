@@ -69,6 +69,14 @@ def preprocess_data(df: pd.DataFrame, features: Optional[List[str]] = None) -> p
         valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
         df = df[df['event'].isin(valid_events)].copy()
         
+        # Filter out Empty Net shots
+        if 'is_net_empty' in df.columns:
+            df = df[df['is_net_empty'] == 0].copy()
+
+        # Filter out Shootout/Penalty Shot states (1v0, 0v1)
+        if 'game_state' in df.columns:
+            df = df[~df['game_state'].isin(['1v0', '0v1'])].copy()
+            
         df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
         df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
         df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
@@ -174,8 +182,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             for col in (self.features or []):
                 if col not in df_out.columns:
                     # If we have a recorded dtype (especially categorical), use it
-                    if self.feature_dtypes and col in self.feature_dtypes:
-                        dt = self.feature_dtypes[col]
+                    feature_dtypes = getattr(self, 'feature_dtypes', {})
+                    if feature_dtypes and col in feature_dtypes:
+                        dt = feature_dtypes[col]
                         if isinstance(dt, pd.CategoricalDtype):
                             df_out[col] = pd.Series([np.nan]*len(df_out), dtype=dt)
                         else:
@@ -184,8 +193,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                         df_out[col] = np.nan
                 
                 # Apply recorded categories if they exist to ensure code mapping is identical
-                if self.feature_dtypes and col in self.feature_dtypes:
-                    dt = self.feature_dtypes[col]
+                feature_dtypes = getattr(self, 'feature_dtypes', {})
+                if feature_dtypes and col in feature_dtypes:
+                    dt = feature_dtypes[col]
                     if isinstance(dt, pd.CategoricalDtype):
                         # Wipe existing if necessary (safety)
                         if hasattr(df_out[col], 'cat'):
@@ -291,7 +301,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             
             # A. Block Model Calibration
             p_block_raw = self.model_block.predict_proba(df_c[feat_block])[:, 1]
-            self.calibrator_block = LogisticRegression(C=1e5)
+            self.calibrator_block = LogisticRegression(C=0.01) # Robust Regularization (Strategy 1)
             # check for single class edge case
             if len(df_c['is_blocked'].unique()) > 1:
                 self.calibrator_block.fit(p_block_raw.reshape(-1, 1), df_c['is_blocked'])

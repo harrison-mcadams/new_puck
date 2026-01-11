@@ -1,0 +1,26 @@
+Loading data...
+Reading data/20242025/20242025_df.csv...
+Enriching data...
+Running Pipeline (Processing)...
+Dataset: 87164 rows. Blocked: 24368 (28.0%)
+Training Adversarial Classifier...
+
+Adversarial AUC: 0.8559
+!! WARNING: High discriminability detected. Model can easily distinguish Blocks !!
+
+Top Discriminating Features:
+                    feature  importance
+0                         x    0.381456
+2                  distance    0.239904
+3                 angle_deg    0.135850
+4                is_rebound    0.086031
+5                   is_rush    0.060747
+1                         y    0.058987
+6  time_elapsed_in_period_s    0.011298
+8                    x_frac    0.009069
+9                    y_frac    0.008375
+7                score_diff    0.008282
+
+Analyzing Top Feature: x
+
+Saved plot to analysis/audit_blocked_artifacts.png

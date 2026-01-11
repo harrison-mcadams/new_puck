@@ -1,0 +1,1 @@
+Question 1: How does our location of blocked shot block locations discovered through tracking compare with all block locations recorded within the pbp?

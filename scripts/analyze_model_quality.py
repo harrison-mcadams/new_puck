@@ -1,88 +1,98 @@
 
 import json
 import os
-import sys
+import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
-# Add project root
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '../puck/data/blocked_shot_model.json')
-
-def analyze():
-    if not os.path.exists(MODEL_PATH):
-        print("Model not found.")
+def analyze_model(role):
+    path = f'puck/data/blocked_shot_model_{role}.json'
+    if not os.path.exists(path):
+        print(f"Model not found: {path}")
         return
 
-    with open(MODEL_PATH, 'r') as f:
+    with open(path, 'r') as f:
         data = json.load(f)
 
-    bins = data.get('bins', {})
-    meta = data.get('meta', {})
-    bin_size = meta.get('bin_size', 5.0)
-    y_min = meta.get('y_min', -50.0)
+    bins = data['bins']
+    meta = data['meta']
+    bin_size = meta['bin_size'] # 5.0
 
-    print(f"Total Bins: {len(bins)}")
+    # Collect stats per X-bin (longitudinal)
+    # Key format: "x_y" (indices)
     
-    # Metrics
-    ns = []
-    backwards_count = 0
-    total_count = 0
+    stats = []
     
-    # Net Location (Attacking Right -> Net at X=89)
-    NET_X = 89.0
-    NET_Y = 0.0
-    
-    backwards_vectors = []
+    for k, v in bins.items():
+        xi, yi = map(int, k.split('_'))
+        
+        # Convert bin index to coordinate (Center of bin)
+        bx = xi * bin_size + bin_size/2
+        by = yi * bin_size - 50.0 + bin_size/2 # Rough y offset from training script
+        
+        # We care mostly about X (distance from center/net)
+        # Note: In training, X range was 0..100.
+        # Blue Line is ~25. (Net at 89).
+        
+        stats.append({
+            'x_bin_idx': xi,
+            'bx_center': bx,
+            'by_center': by,
+            'imputed_x': v['mx'],
+            'imputed_y': v['my'],
+            'n': v['n'],          # Raw count in this specific bin
+            'w_n': v['w_n'],      # Weighted count comparison
+            'damping': v['damping']
+        })
 
-    for key, b_data in bins.items():
-        n = b_data['n']
-        ns.append(n)
-        
-        mx = b_data['mx']
-        my = b_data['my']
-        
-        # Reconstruct Bin Center
-        k_x, k_y = map(int, key.split('_'))
-        bx = k_x * bin_size + bin_size/2
-        by = k_y * bin_size + y_min + bin_size/2
-        
-        # Distances to Net
-        dist_block = np.hypot(bx - NET_X, by - NET_Y)
-        dist_origin = np.hypot(mx - NET_X, my - NET_Y)
-        
-        # Check if "Backwards"
-        # If Origin is Closer to Net than Block, that's suspicious for a blocked shot.
-        # (Allowing small margin for noise/binning measurement error)
-        if dist_origin < (dist_block - 2.0): # 2ft buffer
-            backwards_count += 1
-            backwards_vectors.append({
-                'key': key,
-                'bx': bx, 'by': by,
-                'ox': mx, 'oy': my,
-                'n': n,
-                'diff': dist_block - dist_origin
-            })
-            
-    # Sparsity Analysis
-    ns = np.array(ns)
-    print(f"\n--- Sparsity ---")
-    print(f"N=1: {np.sum(ns == 1)} bins ({np.sum(ns == 1)/len(bins):.1%})")
-    print(f"N<3: {np.sum(ns < 3)} bins ({np.sum(ns < 3)/len(bins):.1%})")
-    print(f"Max N: {np.max(ns)}")
-    print(f"Mean N: {np.mean(ns):.2f}")
+    df = pd.DataFrame(stats)
     
-    # Validity Analysis
-    print(f"\n--- Validity ---")
-    print(f"Total Bins: {len(bins)}")
-    print(f"Suspicious 'Backwards' Bins: {backwards_count} ({backwards_count/len(bins):.1%})")
+    if df.empty:
+        print(f"No data in {role} model.")
+        return
+
+    print(f"\n--- Analysis for {role} Model ---")
     
-    if backwards_vectors:
-        print("\nTop 5 Most 'Backwards' Vectors (Origin much closer to Net):")
-        backwards_vectors.sort(key=lambda x: x['diff'], reverse=True)
-        for v in backwards_vectors[:5]:
-            print(f"  Bin {v['key']} (N={v['n']}): Block({v['bx']:.1f}, {v['by']:.1f}) -> Origin({v['ox']:.1f}, {v['oy']:.1f}) | Closer by {v['diff']:.1f}ft")
+    # Group by X-Bin to see longitudinal distribution
+    # bin 0 -> x=2.5 (Center Ice / Neutral Zone?)
+    # bin 5 -> x=27.5 (Blue Line)
+    # bin 17 -> x=87.5 (Net)
+    
+    x_stats = df.groupby('x_bin_idx').agg({
+        'n': 'sum',           # Total raw samples at this X depth
+        'damping': 'mean',    # Average confidence/damping
+        'bx_center': 'mean',  # Should be const
+        'imputed_x': 'mean'   # Avg imputed origin X
+    }).sort_index()
+    
+    # Calculate "Kickback" (Distance shot originated behind block)
+    # Origin X should be < Block X (further from net, if X increases towards net)
+    # Wait, check training coordinate system:
+    # "Attacking Zone is +X". Net at 89. Blue line at 25.
+    # So "Further from net" means Lower X.
+    # Kickback = Block X - Imputed Origin X. (Positive means origin is further back).
+    
+    x_stats['avg_kickback'] = x_stats['bx_center'] - x_stats['imputed_x']
+    
+    print(f"{'X (ft)':<10} {'N Samples':<10} {'Avg Damp':<10} {'Avg Kickback':<15} {'Description'}")
+    print("-" * 65)
+    
+    for idx, row in x_stats.iterrows():
+        x_val = row['bx_center']
+        n_samp = int(row['n'])
+        damp = row['damping']
+        kick = row['avg_kickback']
+        
+        desc = ""
+        if x_val < 25: desc = "Neutral Zone / Far"
+        elif x_val < 30: desc = "Blue Line"
+        elif x_val > 80: desc = "Near Net"
+        
+        print(f"{x_val:<10.1f} {n_samp:<10} {damp:<10.2f} {kick:<15.1f} {desc}")
+
+    # Check for specific "Very Far" sparsity
+    far_data = df[df['bx_center'] < 25]
+    print(f"\nTotal Neutral Zone (X < 25) Samples: {far_data['n'].sum()}")
 
 if __name__ == "__main__":
-    analyze()
+    analyze_model('F')
+    analyze_model('D')

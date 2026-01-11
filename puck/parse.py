@@ -93,6 +93,7 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
 
     # Build player map for name lookup
     player_map = {}
+    player_roles = {}  # Map ID -> 'F'/'D'/'G'
     try:
         # New API: rosterSpots
         roster = game_feed.get('rosterSpots', [])
@@ -102,8 +103,15 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                 # Name might be nested or direct
                 fname = p.get('firstName', {}).get('default') if isinstance(p.get('firstName'), dict) else p.get('firstName')
                 lname = p.get('lastName', {}).get('default') if isinstance(p.get('lastName'), dict) else p.get('lastName')
+                
+                # Extract Position Code and Map to Role
+                pos_code = p.get('positionCode', 'U')  # Default Unknown
+                # Map: D -> D, G -> G, L/R/C -> F, else -> U
+                role = 'D' if pos_code == 'D' else ('G' if pos_code == 'G' else ('F' if pos_code in ['L', 'R', 'C'] else 'U'))
+                
                 if pid and fname and lname:
                     player_map[pid] = f"{fname} {lname}"
+                    player_roles[pid] = role
         
         # Old API / Fallback: gameData.players
         if not player_map:
@@ -177,10 +185,12 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
 
         player_id = None
         player_name = None
+        shooter_role = None
         if isinstance(details, dict):
             player_id = details.get('shootingPlayerId') or details.get('playerId') or details.get('scoringPlayerId')
             if player_id:
                 player_name = player_map.get(player_id)
+                shooter_role = player_roles.get(player_id)
 
         team_id = details.get('eventOwnerTeamId') if isinstance(details, dict) else None
         team_abbrev = None
@@ -506,6 +516,7 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                     'period_time': period_time,
                     'player_id': player_id,
                     'player_name': player_name,
+                    'shooter_role': shooter_role,
                     'team_id': team_id,
                     'home_id': home_id,
                     'away_id': away_id,

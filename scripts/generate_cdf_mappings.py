@@ -8,7 +8,7 @@ from scipy.interpolate import interp1d
 
 # Add project root to path
 sys.path.append(os.getcwd())
-from puck import fit_xgs, rink
+from puck import fit_xgs, correction, rink
 
 def calculate_distance(x, y):
     dists = []
@@ -19,6 +19,13 @@ def calculate_distance(x, y):
     return np.array(dists)
 
 def get_cdf(data, num_bins=1000):
+    # Add dithering/jitter to break quantization steps
+    # NHL coords are often integers. This creates flat spots in Inverse CDF.
+    # +/- 0.25 ft is within measurement error but ensures unique values.
+    # Use deterministic seed within function if needed, but random is fine for large N.
+    jitter = np.random.uniform(-0.25, 0.25, size=len(data))
+    data = data + jitter
+
     data = np.sort(data[~np.isnan(data)])
     n = len(data)
     if n == 0: return None, None
@@ -29,51 +36,47 @@ def get_cdf(data, num_bins=1000):
     return cdf_func, icdf_func
 
 def main():
-    print("--- Generating Self-Consistent Mapping (Summary-Only) ---")
-    summary_path = 'analysis/blocked_shots/blocked_shots_summary_batch.csv'
-    df = pd.read_csv(summary_path)
+    print("--- Generating Production CDF Mappings (PBP Baseline) ---")
+    all_blocks = []
+    all_origins_f = []
+    all_origins_d = []
     
-    # FILTER BY SCORE > 0.4 (The user's ground truth)
-    df = df[df['score'] > 0.4].copy()
-    print(f"Using {len(df)} records for mapping.")
+    seasons = ['20232024', '20242025', '20252026']
+    for s_str in seasons:
+        path = f"data/{s_str}/{s_str}_df.csv"
+        if not os.path.exists(path): continue
+        print(f"  Loading {s_str}...")
+        df = pd.read_csv(path)
+        
+        # Blocks (PBP)
+        blocks = df[df['event'] == 'blocked-shot'].copy()
+        if not blocks.empty:
+            all_blocks.append(calculate_distance(blocks['x'], blocks['y']))
+            
+        # Unblocked (PBP - Enriched)
+        unblocked = df[df['event'].isin(['shot', 'goal', 'missed-shot'])].copy()
+        if not unblocked.empty:
+            unblocked = fit_xgs.enrich_data_with_bios(unblocked)
+            unblocked['dist'] = calculate_distance(unblocked['x'], unblocked['y'])
+            all_origins_f.append(unblocked[unblocked['shooter_role'] == 'F']['dist'])
+            all_origins_d.append(unblocked[unblocked['shooter_role'] == 'D']['dist'])
+            
+    d_blocks = np.concatenate(all_blocks) if all_blocks else np.array([])
+    d_origins_f = np.concatenate(all_origins_f) if all_origins_f else np.array([])
+    d_origins_d = np.concatenate(all_origins_d) if all_origins_d else np.array([])
+    
+    print(f"Stats:\n  Blocks: {len(d_blocks)}\n  F-Origins: {len(d_origins_f)}\n  D-Origins: {len(d_origins_d)}")
 
-    # Block distance from net
-    # Reconstructed: dist_net_origin - dist_to_blocker? 
-    # Or just use the actual block dist if we had it.
-    # In the summary, d_shooter is distance from shooter to net.
-    # d_blocker is distance from shooter to blocker.
-    # So d_net_block = d_shooter - d_blocker (assuming straight line)
-    d_origins = calculate_distance(df['x'], df['y'])
-    d_blocks = d_origins - df['distance_to_blocker']
-    
-    mappings = {}
-    for role in ['F', 'D']:
-        mask = (df['shooter_role'] == role)
-        d_org_role = d_origins[mask]
-        d_blk_role = d_blocks[mask]
-        
-        print(f"  Role {role}: {len(d_org_role)} samples. Mean Org: {d_org_role.mean():.1f}, Mean Blk: {d_blk_role.mean():.1f}")
-        
-        cdf_blk, _ = get_cdf(d_blk_role)
-        _, icdf_org = get_cdf(d_org_role)
-        
-        mappings[role] = {'cdf_block': cdf_blk, 'icdf_origin': icdf_org}
-    
-    # Global fallback
-    cdf_blk_all, _ = get_cdf(d_blocks)
-    _, icdf_org_all = get_cdf(d_origins)
-    mappings['global'] = {'cdf_block': cdf_blk_all, 'icdf_origin': icdf_org_all}
+    cdf_blk_global, _ = get_cdf(d_blocks)
+    mappings = {
+        'F': {'cdf_block': cdf_blk_global, 'icdf_origin': get_cdf(d_origins_f)[1]},
+        'D': {'cdf_block': cdf_blk_global, 'icdf_origin': get_cdf(d_origins_d)[1]},
+        'global': {'cdf_block': cdf_blk_global, 'icdf_origin': get_cdf(np.concatenate([d_origins_f, d_origins_d]))[1]}
+    }
     
     out_path = 'puck/data/cdf_mappings.joblib'
     joblib.dump(mappings, out_path)
     print(f"Saved to {out_path}")
-
-    # Sanity check
-    print("\nSanity Check (Self-Consistent):")
-    for d in [5, 10, 15, 20]:
-        p = cdf_blk_all(d)
-        o = icdf_org_all(p)
-        print(f"  Block {d:2d} ft -> Origin {o:5.1f} ft")
 
 if __name__ == "__main__":
     main()

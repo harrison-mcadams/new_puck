@@ -1,0 +1,61 @@
+INFO:XGBNestedxG:Predict Proba Input: Index=<class 'pandas.core.indexes.range.RangeIndex'>, Dtypes={'x': dtype('float64'), 'y': dtype('float64'), 'distance': dtype('float64'), 'angle_deg': dtype('float64'), 'score_diff': dtype('float64'), 'period_number': dtype('float64'), 'time_elapsed_in_period_s': dtype('float64'), 'total_time_elapsed_s': dtype('float64'), 'shoots_catches': CategoricalDtype(categories=['L', 'R'], ordered=False, categories_dtype=object), 'is_rush': dtype('float64'), 'last_event_type': CategoricalDtype(categories=['blocked-shot', 'faceoff', 'giveaway', 'goal', 'hit',
+                  'missed-shot', 'penalty', 'shot-on-goal', 'takeaway'],
+, ordered=False, categories_dtype=object), 'last_event_time_diff': dtype('float64'), 'rebound_angle_change': dtype('float64'), 'rebound_time_diff': dtype('float64'), 'is_net_empty': dtype('int64'), 'event': dtype('O'), 'shot_type': CategoricalDtype(categories=['wrist', 'snap', 'slap', 'backhand', 'tip-in', 'deflected',
+                  'wrap-around', 'Unknown'],
+, ordered=False, categories_dtype=object), 'game_state': CategoricalDtype(categories=['5v5', '5v4', '4v5', '4v4', '6v5', '5v6', '3v3', '5v3',
+                  '4v3', '6v4', '3v5', '4v6', '3v4', '6v3', '3v6', '6v6',
+                  '1v0', '0v1'],
+, ordered=False, categories_dtype=object), 'is_rebound': dtype('float64'), 'shooter_role': CategoricalDtype(categories=['D', 'F'], ordered=False, categories_dtype=object)}
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Generating xG Model Explorer Data ---
+  Calculating baseline...
+[DEBUG] Max Baseline xG: 0.4197 at x=75.0, y=1.4655172413793096
+[DEBUG] Grid points near (80, 1):
+x                              80.769231
+y                               1.465517
+distance                        8.360221
+angle_deg                     100.095911
+score_diff                             0
+period_number                          1
+time_elapsed_in_period_s             600
+total_time_elapsed_s                 600
+shoots_catches                         L
+is_rush                                0
+last_event_type                 facetoff
+last_event_time_diff                  10
+rebound_angle_change                   0
+rebound_time_diff                      0
+is_net_empty                           0
+event                       shot-on-goal
+shot_type                          wrist
+game_state                           5v5
+is_rebound                             0
+shooter_role                           F
+Name: 629, dtype: object
+  x=80.77, y=1.47 -> Dist=8.36, Ang=100.10, Prob=0.0081
+[DEBUG] Avg xG Behind Net: 0.0986
+
+[LOUD DEBUG] Baseline xG at Grid(x=80.77, y=1.47): 0.0081
+[LOUD DEBUG] Indices: y_idx=15, x_idx=29
+  Calculating slap_shot...
+
+[LOUD DEBUG] Baseline xG at Grid(x=80.77, y=1.47): 0.0081
+[LOUD DEBUG] Indices: y_idx=15, x_idx=29
+  Calculating backhand...
+
+[LOUD DEBUG] Baseline xG at Grid(x=80.77, y=1.47): 0.0081
+[LOUD DEBUG] Indices: y_idx=15, x_idx=29
+  Calculating defman...
+
+[LOUD DEBUG] Baseline xG at Grid(x=80.77, y=1.47): 0.0080
+[LOUD DEBUG] Indices: y_idx=15, x_idx=29
+  Calculating power_play...
+
+[LOUD DEBUG] Baseline xG at Grid(x=80.77, y=1.47): 0.0084
+[LOUD DEBUG] Indices: y_idx=15, x_idx=29
+  Calculating rebound...
+
+[LOUD DEBUG] Baseline xG at Grid(x=80.77, y=1.47): 0.0082
+[LOUD DEBUG] Indices: y_idx=15, x_idx=29
+Explorer generated: analysis/nested_xgs/model_explorer.html

@@ -38,20 +38,18 @@ def main():
     games = df_sum['game_id'].unique()
     print(f"Processing {len(games)} games...")
     
-    # Pre-fetch bios for efficiency? Or fetch per game season?
-    # Games might span seasons. We'll fetch on demand or simplistic caching.
+    # Prepare Role Column globally
+    if 'shooter_role' in df_sum.columns:
+        df_sum['role'] = df_sum['shooter_role'].fillna('F')
+    else:
+        df_sum['role'] = None
+
     bios_cache = {}
-    
+
     for gid in games:
         # Determine season string from game_id (e.g. 202302... -> 20232024)
         s_str = str(gid)[:4]
         season_full = f"{s_str}{int(s_str)+1}"
-        
-        if season_full not in bios_cache:
-            print(f"Fetching bios for {season_full}...")
-            bios_cache[season_full] = nhl_api.get_season_player_bios(season_full)
-            
-        current_bios = bios_cache[season_full]
 
         # Load PBP
         try:
@@ -112,13 +110,21 @@ def main():
                      
                      bx_fixed = block_row['x']
                      by_fixed = block_row['y']
-                     shooter_id_val = block_row['shooter_id']
                      
                      # Determine Role
                      role = 'F' # Default
-                     if shooter_id_val:
-                         # Bio Lookup
-                         # Try int/str
+                     # 1. Use Summary Role (Fastest)
+                     if row.get('role'):
+                         role = row['role']
+                     # 2. Use Block/PBP Shooter ID (Slower fallback)
+                     elif block_row.get('shooter_id'):
+                         shooter_id_val = block_row['shooter_id']
+                         # Lazy load bios only if needed
+                         if season_full not in bios_cache:
+                             print(f"Fetching bios for {season_full}...")
+                             bios_cache[season_full] = nhl_api.get_season_player_bios(season_full)
+                         
+                         current_bios = bios_cache[season_full]
                          b = current_bios.get(shooter_id_val) or current_bios.get(str(shooter_id_val)) or current_bios.get(int(shooter_id_val))
                          if b:
                              pos = b.get('positionCode')
@@ -130,13 +136,36 @@ def main():
                      origin_y = row['y']
                      
                      # Frame Alignment Check
+                     # If Origin is "flipped" relative to block?
+                     # Block X should generally be same sign as Origin X?
+                     # Not necessarily if near center line.
+                     # But usually both are in attacking zone (positive X for fixed, negative X for raw?)
+                     # correction.py returns "Fixed" coords (Shooter Perspective, Net at +89)
+                     
+                     # Wait, correction.py returns coords where Net is at +/- 89?
+                     # Actually correction.py normalizes so attacking team shoots towards positive X?
+                     # Let's assume bx_fixed satisfies "Attacking Zone is +X" or similar.
+                     # Summary data (Edge) is raw rink coords.
+                     
+                     # Heuristic: If Block is clearly on one side, Origin should be on same side.
+                     # Edge X: -100 to 100.
+                     # Block X (fixed): ?
+                     
+                     # Let's simplisticly assume if they are far apart in sign, flip Origin.
                      if abs(bx_fixed) > 25 and abs(origin_x) > 25:
                          if (bx_fixed > 0 and origin_x < 0) or (bx_fixed < 0 and origin_x > 0):
-                             # Flip Origin to match Block
                              origin_x = -origin_x
-                             origin_y = -origin_y
-
-                     # Normalize to Attack Right (X > 0)
+                             origin_y = -origin_y # Rotate 180
+                             
+                     # Normalize to "Right Attack" (Shooter at X < 89, shooting at 89?)
+                     # Or "Standard Rink" (0..100)
+                     # Let's standardize on: Net at +89.
+                     # If bx_fixed is negative (defending zone blocks are usually in defensive zone...)
+                     # Wait. `correction.fix_blocked_shot_attribution` normalizes coords so they are "Team Shooting Perspective"?
+                     # Usually that means Attacking Zone is X > 0.
+                     # Blocked shots usually happen in Defensive zone of the BLOCKER, which is Offensive Zone of SHOOTER.
+                     # So bx_fixed > 0 is expected.
+                     
                      if bx_fixed < 0:
                          bx_norm, by_norm = -bx_fixed, -by_fixed
                          ox_norm, oy_norm = -origin_x, -origin_y
@@ -144,13 +173,16 @@ def main():
                          bx_norm, by_norm = bx_fixed, by_fixed
                          ox_norm, oy_norm = origin_x, origin_y
                          
-                     # Sanity Check: Is Origin "Backwards"?
+                     # Sanity Check: Is Origin FURTHER than Block?
+                     # Net is at 89.
+                     # Distance from Net:
                      d_block = math.hypot(bx_norm - 89, by_norm)
                      d_origin = math.hypot(ox_norm - 89, oy_norm)
                      
-                     if d_origin < (d_block - 5.0): # 5ft buffer
+                     # Origin should be further from net than Block.
+                     if d_origin < (d_block - 5.0): # 5ft buffer allowing for error
                          continue
-
+ 
                      data_points.append({
                          'bx': bx_norm, 'by': by_norm,
                          'ox': ox_norm, 'oy': oy_norm,
@@ -200,6 +232,8 @@ def main():
             raw_grid[(xb, yb)] = {
                 'sum_ox': group['ox'].sum(),
                 'sum_oy': group['oy'].sum(),
+                'sum_sq_ox': (group['ox']**2).sum(),
+                'sum_sq_oy': (group['oy']**2).sum(),
                 'count': len(group)
             }
             
@@ -217,6 +251,8 @@ def main():
                 # Neighborhood
                 w_sum_ox = 0
                 w_sum_oy = 0
+                w_sum_sq_ox = 0
+                w_sum_sq_oy = 0
                 w_count = 0
                 
                 for di in [-1, 0, 1]:
@@ -227,39 +263,42 @@ def main():
                             weight = 2.0 if (di==0 and dj==0) else 1.0
                             
                             w_sum_ox += cell['sum_ox'] * weight 
-                            w_sum_oy += cell['sum_oy'] * weight 
+                            w_sum_oy += cell['sum_oy'] * weight
+                            w_sum_sq_ox += cell['sum_sq_ox'] * weight
+                            w_sum_sq_oy += cell['sum_sq_oy'] * weight
                             w_count += cell['count'] * weight
                 
                 if w_count > 0:
                     mx = w_sum_ox / w_count
                     my = w_sum_oy / w_count
+                    
+                    # Variance = E[X^2] - (E[X])^2
+                    # Note: Using population variance formula for weighted estimation
+                    mean_sq_x = w_sum_sq_ox / w_count
+                    mean_sq_y = w_sum_sq_oy / w_count
+                    
+                    var_x = max(0, mean_sq_x - mx**2)
+                    var_y = max(0, mean_sq_y - my**2)
+                    
+                    std_x = math.sqrt(var_x)
+                    std_y = math.sqrt(var_y)
+                    
                     real_n = raw_grid.get((i,j), {}).get('count', 0)
                     
                     # Threshold for saving bin
                     if w_count >= 1.0:
                         
-                        # DAMPING / "Do No Harm"
-                        bx_center = i * BIN_SIZE + BIN_SIZE/2
-                        by_center = j * BIN_SIZE - 50.0 + BIN_SIZE/2
-                        
-                        # Adjustment Vector
-                        adj_x = mx - bx_center
-                        adj_y = my - by_center
-                        
-                        # Damping Factor
-                        N_TRUST = 10.0
-                        damping = min(w_count, N_TRUST) / N_TRUST
-                        
-                        final_mx = bx_center + (adj_x * damping)
-                        final_my = by_center + (adj_y * damping)
+                        # NO DAMPING - We trust the empirical data + variance
+                        # We do retain the bin centers for reference if needed, but we output the calculated Mean/Std
                         
                         k = f"{int(i)}_{int(j)}"
                         model[k] = {
-                            'mx': float(final_mx),
-                            'my': float(final_my),
+                            'mx': float(mx),
+                            'my': float(my),
+                            'std_x': float(std_x),
+                            'std_y': float(std_y),
                             'n': int(real_n),
-                            'w_n': float(w_count),
-                            'damping': float(damping)
+                            'w_n': float(w_count)
                         }
                         valid_bins_count += 1
             

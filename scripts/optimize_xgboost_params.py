@@ -40,17 +40,16 @@ def preprocess_for_opt(df):
     print("  Enriching with player bios...")
     df = fit_xgs.enrich_data_with_bios(df)
         
-    # 2. Impute (Empirical + Adj)
-    print("  Imputing blocked shots (Empirical + Adj)...")
+    # 2. Impute (CDF Mapping)
+    print("  Imputing blocked shots (CDF Mapping)...")
     suffix = getattr(p_conf, 'COORDINATE_SUFFIX', '_adj')
     cx, cy = f"x{suffix}", f"y{suffix}"
     use_x, use_y = ('x', 'y')
     if cx in df.columns and cy in df.columns:
         use_x, use_y = cx, cy
     
-    # We must handle cases where imputation fails gracefully, but for Opt we want it to work.
     try:
-        df = impute.impute_blocked_shot_origins(df, method='empirical_model', x_col=use_x, y_col=use_y)
+        df = impute.impute_blocked_shot_origins(df, method='cdf_mapping', x_col=use_x, y_col=use_y)
     except Exception as e:
         print(f"  Imputation warning: {e}")
 
@@ -143,7 +142,7 @@ def main():
     feats_block = [f for f in feats_all if 'shot_type' not in f]
     
     # Target: is_blocked. Input: All attempts.
-    best_block = optimize_layer(df_opt, 'is_blocked', feats_block, 'Block')
+    best_block = optimize_layer(df_opt, 'is_blocked', feats_block, 'Block', n_iter=30)
     results['block'] = best_block
     
     # 2. Accuracy Layer
@@ -151,7 +150,7 @@ def main():
     df_unblocked = df_opt[df_opt['is_blocked'] == 0].copy()
     
     # Target: is_on_net. Features: All standard (including shot_type now as it wasn't blocked)
-    best_acc = optimize_layer(df_unblocked, 'is_on_net', feats_all, 'Accuracy')
+    best_acc = optimize_layer(df_unblocked, 'is_on_net', feats_all, 'Accuracy', n_iter=30)
     results['accuracy'] = best_acc
     
     # 3. Finish Layer
@@ -159,7 +158,7 @@ def main():
     df_on_net = df_unblocked[df_unblocked['is_on_net'] == 1].copy()
     
     # Target: is_goal. Features: All standard
-    best_finish = optimize_layer(df_on_net, 'is_goal', feats_all, 'Finish')
+    best_finish = optimize_layer(df_on_net, 'is_goal', feats_all, 'Finish', n_iter=30)
     results['finish'] = best_finish
     
     # SAVE

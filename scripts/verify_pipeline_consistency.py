@@ -8,15 +8,21 @@ import joblib
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from puck import analyze, fit_xgs, correction, impute, fit_xgboost_nested, config as p_conf
+from puck import analyze, fit_xgs, correction, impute, fit_xgboost_nested, config as p_conf, data_pipeline
 
 def verify_consistency():
     print("--- Verifying Pipeline Consistency ---")
     
     # 1. Load a small sample of raw data
     # We want a mix of events to test all paths
-    print("Loading sample data...")
-    df_raw = fit_xgs.load_data()
+    print("Loading sample data (20232024)...")
+    # Optimize: Load single season directly
+    try:
+        data_path = Path(__file__).resolve().parent.parent / "data" / "20232024" / "20232024_df.csv"
+        df_raw = pd.read_csv(data_path)
+    except Exception as e:
+        print(f"Failed to load season, falling back to all data: {e}")
+        df_raw = fit_xgs.load_data()
     
     # Get a deterministic sample containing blocked shots and other events
     mask_blocked = df_raw['event'] == 'blocked-shot'
@@ -45,19 +51,19 @@ def verify_consistency():
     print("\nRunning Path B: Training Pipeline Steps...")
     df_train = df_sample.copy()
     
-    # B1. Fix Attribution
-    if 'event' in df_train.columns and 'blocked-shot' in df_train['event'].unique():
-        df_train = correction.fix_blocked_shot_attribution(df_train)
-        
-    # B2. Impute (Empirical + Adj) - Explicitly replicating training logic
-    suffix = getattr(p_conf, 'COORDINATE_SUFFIX', '_adj')
-    cx, cy = f"x{suffix}", f"y{suffix}"
-    use_x, use_y = 'x', 'y'
-    if cx in df_train.columns and cy in df_train.columns:
-        print(f"  Training Logic: Using Adjusted Coordinates: {cx}, {cy}")
-        use_x, use_y = cx, cy
+    # B1. Unified Pipeline (Simulating Training/Production Logic)
+    # The "Training" path in verify_pipeline_consistency usually checks if
+    # manually applying steps matches the "Inference" function.
+    # Now both use data_pipeline.
     
-    df_train = impute.impute_blocked_shot_origins(df_train, method='empirical_model', x_col=use_x, y_col=use_y)
+    print("  Applying data_pipeline.preprocess_features (is_training=False)...")
+    df_train = data_pipeline.preprocess_features(
+        df_train,
+        is_training=False, # Match inference for consistency check
+        apply_arena_adjustments=True,
+        apply_imputation=True,
+        apply_dithering=False
+    )
     
     # B3. Preprocess (Categoricals, etc.)
     # We need to simulate the model's internal usage.
@@ -80,10 +86,22 @@ def verify_consistency():
     
     print("\n--- Comparison ---")
     
-    # 1. Check Features
+    # 1. Check Features (Restrict to Shot Attempts)
+    # analyze.py only runs pipeline on shots. Training pipeline (in verification) ran on everything.
+    # So we care only about shots matching.
+    shot_types = ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
+    # Filter both DFs to just shots for comparison (using df_inf's classification if needed, or just event column)
+    
+    # We assume 'event' column is consistent.
+    mask_inf = df_inf['event'].isin(shot_types)
+    # df_train might have 'event' too.
+    
+    print(f"  Comparing features for {mask_inf.sum()} shot events...")
+    
     for col in cols_to_check:
-        vals_inf = df_inf[col].fillna(0).values
-        vals_train = df_train[col].fillna(0).values
+        # subset to mask
+        vals_inf = df_inf.loc[mask_inf, col].fillna(0).values
+        vals_train = df_train.loc[mask_inf, col].fillna(0).values
         
         is_close = np.allclose(vals_inf, vals_train, atol=1e-5)
         if is_close:
@@ -117,6 +135,41 @@ def verify_consistency():
              print("Inf:", vals_inf_imp_x)
              print("Trn:", vals_train_imp_x)
              
+    # 3. Sanity Check: Distances
+    # Ensure we don't have cross-rink distances (e.g. > 100ft) for offensive zone events.
+    # Blocked shots should be relatively close to the net or at least in the zone (< 89+25 ~ 114? No, zone is 64ft long).
+    
+    if 'distance' in df_inf.columns:
+         blocked_dists = df_inf.loc[df_inf['event'] == 'blocked-shot', 'distance']
+         if not blocked_dists.empty:
+             max_dist = blocked_dists.max()
+             mean_dist = blocked_dists.mean()
+             print(f"\nBlocked Shot Distance Check: Max={max_dist:.1f} ft, Mean={mean_dist:.1f} ft")
+             if max_dist > 100:
+                 print("[WARN] Found blocked shots with distance > 100 ft! Orientation might be wrong.")
+             else:
+                 print("[PASS] Blocked shot distances look reasonable (< 100 ft).")
+                 
+    # 4. Check Coordinate Swap (in Pipeline Output)
+    # We check df_train because it comes directly from preprocess_features.
+    # df_inf comes from analyze.py which might preserve raw x/y.
+    
+    if 'x_adj' in df_train.columns and 'x' in df_train.columns:
+        # Check if x == x_adj (ignoring nans)
+        mismatches = 0
+        try:
+             # Fill na with -999 for comparison
+             v1 = df_train['x'].fillna(-999)
+             v2 = df_train['x_adj'].fillna(-999)
+             mismatches = (v1 != v2).sum()
+        except:
+             mismatches = -1
+             
+        if mismatches == 0:
+            print("[PASS] Final 'x' column matches 'x_adj' in pipeline output.")
+        else:
+            print(f"[WARN] Final 'x' does not match 'x_adj' in pipeline output! Mismatches: {mismatches}")
+
     print("\nVerification Complete.")
 
 if __name__ == "__main__":

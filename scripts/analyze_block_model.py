@@ -1,157 +1,150 @@
 
+"""
+Script to analyze the 'Blocked Shot Submodel' within the nested XGBoost framework.
+1. Loads the trained pipeline (`puck/data/xg_model.joblib`).
+2. Extracts the `model_block` (the classifier for P(Blocked)).
+3. Evaluates Feature Importance.
+4. Calculates AUC on a validation set (or estimates it from training data if needed).
+"""
 import sys
+import os
+import joblib
 import pandas as pd
 import numpy as np
-import joblib
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import roc_auc_score, log_loss
-from sklearn.model_selection import train_test_split
 from pathlib import Path
+from sklearn.metrics import roc_auc_score, confusion_matrix, classification_report
+from sklearn.model_selection import train_test_split
 
+# Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from puck import fit_xgboost_nested, fit_xgs, analyze, correction, impute, config
+
+from puck import fit_xgs, features as feature_util, data_pipeline, fit_xgboost_nested
 
 def analyze_block_model():
-    print("--- Analyzing Block Model Performance & Logic ---")
-    
-    # 1. Load Data (Most recent season for "current behavior", + one old season for contrast?)
-    # Let's use 2024-2025 (current) and 2018-2019 (historical baseline)
-    seasons_to_check = ['2018-2019', '2024-2025']
-    
-    # Load Model (to get Block Model)
-    model_path = 'analysis/xgs/xg_model_nested_all.joblib'
-    print(f"Loading Nested Model from {model_path}...")
-    model = joblib.load(model_path)
-    
-    # We need to access the block model directly. 
-    # Wrapper doesn't expose it easily for predict_proba on specific DFs unless we access .model_block
-    if not hasattr(model, 'model_block'):
-        print("Error: Model does not have .model_block attribute. Is it the right class?")
+    model_path = Path('analysis/xgs/xg_model_nested.joblib')
+    if not model_path.exists():
+        print(f"Model not found at {model_path}")
         return
 
-    # Helper to load season
-    def load_season(s_name):
-        base_dir = Path(config.DATA_DIR)
-        # Try finding it
-        for item in base_dir.iterdir():
-            if item.name.replace('-','') == s_name.replace('-',''):
-                csv_path = item / f"{item.name}_df.csv"
-                if csv_path.exists():
-                    df = pd.read_csv(csv_path)
-                    df = correction.fix_blocked_shot_attribution(df)
-                    # We need shots + blocked shots
-                    mask = df['event'].isin(['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot'])
-                    return df[mask].copy()
-        return None
+    print(f"Loading model from {model_path}...")
+    pipeline = joblib.load(model_path)
+    
+    # Extract the actual Nested Classifier
+    # Usually pipeline is a Pipeline object or the model itself?
+    # In train_xgboost_model.py, it dumps `model` which is `XGBNestedXGClassifier`.
+    
+    model = pipeline
+    if hasattr(model, 'steps'): # If it's a generic sklearn pipeline
+        model = model.steps[-1][1]
+        
+    if not hasattr(model, 'model_block'):
+        print("Error: Loaded model does not appear to be an XGBNestedXGClassifier (no 'model_block' attribute).")
+        return
 
-    results = []
+    block_model = model.model_block
+    print("\n--- Blocked Shot Submodel Analysis ---")
+    print(f"Type: {type(block_model)}")
     
-    for s_name in seasons_to_check:
-        print(f"\nProcessing {s_name}...")
-        df = load_season(s_name)
-        if df is None:
-            print(f"  Skipping {s_name} (Not found)")
-            continue
+    # Feature Importance
+    if hasattr(block_model, 'feature_importances_'):
+        importances = block_model.feature_importances_
+        # We need the feature names used for the block model.
+        # model.config_block.feature_cols
+        feature_names = model.config_block.feature_cols
+        
+        if len(importances) != len(feature_names):
+            print(f"Warning: Feature count mismatch ({len(importances)} vs {len(feature_names)})")
+            # Try getting feature names from the booster if possible
+            try:
+                feature_names = block_model.get_booster().feature_names
+            except:
+                pass
+        
+        if len(importances) == len(feature_names):
+            df_imp = pd.DataFrame({
+                'Feature': feature_names,
+                'Importance': importances
+            }).sort_values(by='Importance', ascending=False)
             
-        # Preprocess features using model's pipeline logic
-        # Must replicate fit_xgboost_nested.preprocess_data roughly?
-        # Actually better to use the model's own helper if possible, or replicate it.
-        # The model needs 'distance', 'angle_deg', etc.
-        
-        # We need to impute blocked shot origins to know "where it came from" for the model to predict
-        # This is CRITICAL: The model predicts P(Block) based on ORIGIN.
-        # But actual blocked shots in raw data have coordinates at the BLOCK location (unless fixed).
-        # We applied correction.fix_blocked_shot_attribution, but we ALSO need impute.
-        try:
-             df = impute.impute_blocked_shot_origins(df, method='point_pull')
-        except: pass
-        
-        # Enrich Bios (shoots_catches)
-        print("  Enriching Bios...")
-        df = fit_xgs.enrich_data_with_bios(df)
-        
-        # Prepare for prediction
-        # We'll use the model's features (excluding shot_type for block model)
-        feat_block = [f for f in model.features if 'shot_type' not in f]
-        
-        # We need to ensure cols exist
-        df_prep = fit_xgboost_nested.preprocess_data(df, features=model.features)
-        
-        # Predict
-        # We probably need to handle categorical casting carefully like fit script
-        # Quick hack: use model._prepare_df if available? No, it's internal.
-        # We will trust our manual prep or try to use predict_proba partially?
-        
-        # Actually, let's just strip 'shot_type' and pass to model_block directly
-        # Check dtypes
-        for col in feat_block:
-            if df_prep[col].dtype == 'object':
-                df_prep[col] = df_prep[col].astype('category')
-        
-        try:
-            probs = model.model_block.predict_proba(df_prep[feat_block])[:, 1]
-        except Exception as e:
-            print(f"Prediction failed: {e}")
-            # Try fixing categoricals again
-            # maybe vocab mismatch?
-            continue
+            print("\nTop 20 Features driving P(Blocked):")
+            print(df_imp.head(20))
             
-        df['prob_block'] = probs
-        df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
-        
-        # Metrics
-        auc = roc_auc_score(df['is_blocked'], probs)
-        ll = log_loss(df['is_blocked'], probs)
-        block_rate_actual = df['is_blocked'].mean()
-        block_rate_pred = probs.mean()
-        
-        print(f"  AUC: {auc:.4f}")
-        print(f"  LogLoss: {ll:.4f}")
-        print(f"  Block Rate: {block_rate_actual:.2%} (Actual) vs {block_rate_pred:.2%} (Pred)")
-        
-        # Spatial Binning
-        # Create x_fixed if missing (Simple absolute for one-zone view)
-        if 'x_fixed' not in df.columns:
-            df['x_fixed'] = df['x'].abs()
-        if 'y_fixed' not in df.columns:
-            # Flip Y if X was negative to maintain handedness relative to net? 
-            # Or just raw Y. For blocking, maybe raw Y is fine?
-            # Standard: if we flipped X, we flip Y usually.
-            # But let's just use raw Y for now, or abs(Y) if we want quadrant?
-            # Let's simple use Y.
-            df['y_fixed'] = df['y']
+            # Plot
+            plt.figure(figsize=(10, 8))
+            plt.barh(df_imp['Feature'].head(20)[::-1], df_imp['Importance'].head(20)[::-1])
+            plt.title('Feature Importance: Blocked Shot Model (P(Blocked))')
+            plt.xlabel('Importance (Gain/Gini)')
+            plt.tight_layout()
+            plt.savefig('analysis/nested_xgs/block_model_feature_importance.png')
+            print("Saved importance plot to analysis/nested_xgs/block_model_feature_importance.png")
             
-        df['x_bin'] = (df['x_fixed'] // 10) * 10
-        df['y_bin'] = (df['y_fixed'] // 10) * 10
-        
-        spatial = df.groupby(['x_bin', 'y_bin']).agg({
-            'is_blocked': 'mean',
-            'prob_block': 'mean',
-            'event': 'count'
-        }).reset_index()
-        
-        spatial = spatial[spatial['event'] > 50] # Min sample
-        spatial['diff'] = spatial['prob_block'] - spatial['is_blocked']
-        spatial['season'] = s_name
-        results.append(spatial)
+    # Evaluation (AUC)
+    # We need data to test it. Loading a generic sample.
+    print("\nLoading sample data for evaluation...")
+    df = fit_xgs.load_data() # Load defaults (usually 2023-2024 or similar)
+    if df.empty:
+        print("No data loaded. Skipping evaluation.")
+        return
 
-    # Plotting
-    if not results: return
+    # Preprocess
+    print("Preprocessing...")
+    df_processed = data_pipeline.preprocess_features(
+        df, 
+        is_training=False, 
+        apply_arena_adjustments=True,
+        apply_imputation=True,
+        apply_dithering=False
+    )
     
-    all_spatial = pd.concat(results)
+    # Prepare Inputs for Block Model
+    # We focus on shots that *could* be blocked (Goals, Saves, Misses, Blocks).
+    # The 'is_blocked' target is 1 for blocks, 0 for unblocked attempts.
     
-    # Plot Diff Maps
-    g = sns.FacetGrid(all_spatial, col="season", height=5)
-    def scatter_heatmap(data, color):
-        # We want X, Y, Color=Diff
-        # Use scatter
-        plt.scatter(data['x_bin'], data['y_bin'], c=data['diff'], cmap='coolwarm', vmin=-0.2, vmax=0.2, s=200, marker='s')
-        plt.colorbar(label='Pred - Actual (Red = Overpredict Block)')
-        
-    g.map_dataframe(scatter_heatmap)
-    plt.savefig('analysis/block_model_spatial_diff.png')
-    print("Saved analysis/block_model_spatial_diff.png")
+    valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+    df_eval = df_processed[df_processed['event'].isin(valid_events)].copy()
+    
+    y_true = (df_eval['event'] == 'blocked-shot').astype(int)
+    
+    # X features
+    # We need to transform categorical cols same as training
+    # The XGBNested class has `_prepare_df`.
+    
+    # We can try to use the `block_model` directly if we match the columns.
+    # Or use `model.predict_proba_block(X)` if that method exists?
+    # No, usually not exposed.
+    
+    # Let's rely on the internal feature preparation if possible, or manually replicate.
+    # The simplest way is to use `model._prepare_df` then predict with `block_model`.
+    
+    X_prepared = model._prepare_df(df_eval)
+    
+    # Filter columns to only those expected by block model
+    feat_cols = model.config_block.feature_cols
+    
+    # Ensure cols exist
+    missing = [c for c in feat_cols if c not in X_prepared.columns]
+    if missing:
+        print(f"Missing columns for analysis: {missing}")
+        # Add NaNs
+        for c in missing:
+            X_prepared[c] = np.nan
+            
+    X_input = X_prepared[feat_cols]
+    
+    print("Predicting P(Blocked)...")
+    y_pred_prob = block_model.predict_proba(X_input)[:, 1]
+    
+    auc = roc_auc_score(y_true, y_pred_prob)
+    print(f"\nEvaluation on Default Dataset ({len(y_true)} shots):")
+    print(f"Blocked Shot Model AUC: {auc:.4f}")
+    
+    # Confusion Matrix at 0.25 threshold (just for context)
+    y_pred = (y_pred_prob > 0.25).astype(int)
+    cm = confusion_matrix(y_true, y_pred)
+    print("\nConfusion Matrix (Threshold 0.25):")
+    print(cm)
+    print(classification_report(y_true, y_pred))
 
 if __name__ == "__main__":
     analyze_block_model()

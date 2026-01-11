@@ -63,26 +63,12 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[is_blocked, 'team_id'] = new_t_id[is_blocked]
     
     # --- 1.5. Flip Coordinates (X, Y) ---
-    # The raw data likely normalized coordinates assuming the Event Owner (Blocker) was ATTACKING.
-    # Since they were Defending, the event is actually in the opposite zone.
-    # We flip X and Y to place the event in the correct physical location (Defensive Zone of Blocker).
-    # This ensures consistency when we treat the Shooter as the Attacker.
-    df.loc[is_blocked, 'x'] *= -1
-    df.loc[is_blocked, 'y'] *= -1
-    
-    # Also flip adjusted coordinates if present
-    try:
-        from .config import COORDINATE_SUFFIX
-    except ImportError:
-        COORDINATE_SUFFIX = '_adj'
-        
-    cx = f"x{COORDINATE_SUFFIX}"
-    cy = f"y{COORDINATE_SUFFIX}"
-    
-    if cx in df.columns:
-        df.loc[is_blocked, cx] *= -1
-    if cy in df.columns:
-        df.loc[is_blocked, cy] *= -1
+    # UPDATED: We do NOT flip coordinates here.
+    # The event location is physically correct (rink-absolute).
+    # We only change the OWNER (Attribution).
+    # Orientation Standardization (later in pipeline) will handle
+    # ensuring the perspective is "Attacking Right".
+    pass
     
     # --- 2. Recalculate Distance and Angle ---
     # Now team_id is the Shooter. We need distance to the Goal the Shooter is Attacking.

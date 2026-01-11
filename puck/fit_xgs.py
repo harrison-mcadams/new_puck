@@ -142,9 +142,19 @@ class SingleXGClassifier:
             
         # Extract features for RF
         # Ensure columns exist
-        missing = [f for f in self.features if f not in X.columns]
         if missing:
-             raise KeyError(f"Missing features: {missing}")
+             # Try to generate missing encoded columns if raw columns exist
+             for m in missing:
+                 if m.endswith('_code'):
+                     base = m[:-5]
+                     if base in X.columns:
+                         # We need the categorical map to encode
+                         # But we don't have it here easily unless we store it in self.
+                         pass
+             
+             missing_after = [f for f in self.features if f not in X.columns]
+             if missing_after:
+                 raise KeyError(f"Missing features: {missing_after}")
              
         vals = X[self.features].values
         probs = self.clf.predict_proba(vals)
@@ -1051,59 +1061,112 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
             return int(cat_value)
         except Exception:
             return 0
+    
+    # Defaults for Shot Type (if model uses it)
+    shot_type_values = ['wrist', 'snap', 'slap', 'backhand', 'tip-in', 'deflected']
+    default_shot_type = 'wrist'
 
     from itertools import product
-    combos = list(product(game_state_values, is_net_empty_values))
+    # We now iterate Shot Types too if the model cares?
+    # Or we just add it to the GUI selectors.
+    # To keep combinatorics sane, we might stick to ONE shot type for the static generation loop
+    # but strictly use the interactive mode for exploring.
+    # Actually, let's keep combos simple (GS + Net) but assume a fixed Shot Type for the specific loop 
+    # UNLESS interactive mode requests updates.
     
-    # Iterate over ALL models and compute heatmaps
+    # Wait, the interactive mode uses `results` cache.
+    # So `results` must contain all combos or be generated on fly.
+    # Generating on fly is better for interactive mode if combos define dimensionality.
+    # But `debug_model` structure pre-calculates `results`.
+    # Let's add shot_type to combos only if interactive, or just use default.
+    # The user wants proper GUI support.
+    
+    # If interactive, we will pre-calc A LOT if we multiply by shot types (6 types * 3 GS * 2 Net = 36 maps).
+    # That's fast enough for modern CPUs (3000 points * 36 = 100k predictions).
+    
+    combos = list(product(game_state_values, is_net_empty_values, shot_type_values))
+    
+    # Loop
     for model_name, clf in models.items():
         conf = model_configs.get(model_name)
         model_feats = conf.features if conf else feature_cols
         
-        if verbose:
-            print(f"debug_model: computing heatmaps for '{model_name}' ({len(combos)} combos)")
+        # Check if model actually USES shot_type
+        # If not, we don't need to re-calc for every shot type.
+        # But for simplicity of the cache key structure, might be easier to just do it.
+        # Or checking overlap.
+        uses_shot_type = any('shot_type' in f for f in model_feats)
+        
+        # Reduced combos if shot_type not used?
+        current_combos = combos
+        if not uses_shot_type:
+            # just use default shot type once
+            # But we want the GUI to work consistently.
+            # We can store result under (model, gs, net, st)
+            pass
 
-        for gs, nne in combos:
-            # build feature matrix
-            Xgrid = []
-            for k in range(len(xs)):
-                row_feats = []
-                for f in model_feats:
-                    if f == 'distance':
-                        row_feats.append(dists[k])
-                    elif f in ('angle_deg', 'angle'):
-                        row_feats.append(angles[k])
-                    elif f == 'dist_center':
-                        row_feats.append(math.hypot(xs[k], ys[k]))
-                    elif f == 'is_net_empty':
-                        row_feats.append(int(nne))
-                    elif f.endswith('_code'):
-                        base = f[:-5]
-                        if base == 'game_state':
-                            code = category_value_to_code(f, gs)
-                            row_feats.append(code)
-                        else:
-                            val = fixed_map.get(base, None)
-                            code = category_value_to_code(f, val) if val is not None else 0
-                            row_feats.append(code)
-                    else:
-                        row_feats.append(float('nan'))
-                Xgrid.append(row_feats)
-            Xgrid = np.array(Xgrid)
+        if verbose:
+            print(f"debug_model: computing heatmaps for '{model_name}' (uses_shot_type={uses_shot_type})")
+
+        for gs, nne, st in current_combos:
+            # Skip redundant calcs if model ignores shot type
+            # optimization: if not uses_shot_type and st != default, just copy default result?
+            # Let's just run it, it's cheap prediction.
+            
+            # Construct DataFrame for Vectorized Prediction
+            n_pts = len(xs)
+            df_grid = pd.DataFrame({
+                'distance': dists,
+                'angle_deg': angles,
+                'game_state': [gs] * n_pts,
+                'is_net_empty': [int(nne)] * n_pts,
+                'shot_type': [st] * n_pts,
+                # Add commonly used extra features just in case
+                'dist_center': np.hypot(xs, ys)
+            })
+            
+            # Also populate encoded columns if the model requires them
+            # (Check model_feats for _code columns)
+            for f in model_feats:
+                if f not in df_grid.columns and f.endswith('_code'):
+                    base = f[:-5]
+                    if base in df_grid.columns:
+                        # Vectorized map/apply
+                        # Since base is constant for the whole grid chunk (except maybe if we varied it?), 
+                        # actually here game_state/shot_type are CONSTANT for the chunk.
+                        # So we can just calc code once.
+                        val = df_grid[base].iloc[0]
+                        code = category_value_to_code(f, val)
+                        df_grid[f] = code
+            
+            # Ensure all needed columns exist (fill NaN/0 for others)
+            # This is important for some models that look for diverse columns
+            for f in model_feats:
+                if f not in df_grid.columns:
+                    df_grid[f] = 0
 
             try:
-                probs = clf.predict_proba(Xgrid)[:, 1]
+                # Support both array and DF capable classifiers
+                # Most robust is to pass DF if it works
+                probs = clf.predict_proba(df_grid)[:, 1]
             except Exception as e:
-                print(f"Error predicting for {model_name}: {e}")
-                probs = np.zeros(len(Xgrid))
+                # Fallback to array construction if DF failed (unlikely for our classifiers)
+                # print(f"DF predict failed, trying array: {e}")
+                Xgrid = df_grid[model_feats].values
+                try:
+                    probs = clf.predict_proba(Xgrid)[:, 1]
+                except Exception as e2:
+                    print(f"Error predicting for {model_name}: {e2}")
+                    probs = np.zeros(n_pts)
 
             # fill heat grid
             heat = np.full(XX.shape, np.nan)
             for (i, j), p in zip(coord_indices, probs):
                 heat[i, j] = p
 
-            # Store result key: (model_name, gs, nne)
-            results[(model_name, gs, nne)] = heat
+            # Store result key: (model_name, gs, nne, st)
+            results[(model_name, gs, nne, st)] = heat
+
 
     # Just calc global max for scaling roughly
     all_max = 0.0
@@ -1117,16 +1180,21 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
 
     # Save static images: only for the FIRST model in the list to preserve backward compatibility behavior
     # or save all? Let's save all with prefix.
+    # Save static images
+    # Use default shot type for static save
+    static_combos = list(product(game_state_values, is_net_empty_values))
+
     for model_name in models:
-        for gs, nne in combos:
-            heat = results.get((model_name, gs, nne))
+        for gs, nne in static_combos:
+            st = default_shot_type
+            heat = results.get((model_name, gs, nne, st))
             if heat is None: continue
             
             fig, ax = plt.subplots(figsize=(8, 4.5))
             draw_rink(ax=ax)
             extent = (gx[0] - x_res / 2.0, gx[-1] + x_res / 2.0, gy[0] - y_res / 2.0, gy[-1] + y_res / 2.0)
             im = ax.imshow(heat, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax, zorder=1)
-            ax.set_title(f'{model_name} xG — gs: {gs} | net: {nne}', fontsize=10)
+            ax.set_title(f'{model_name} xG\ngs: {gs} | net: {nne} | {st}', fontsize=10)
             ax.axis('off')
             fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
@@ -1136,7 +1204,7 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
             if ext == '': ext = '.png'
             safe_name = model_name.replace(' ', '_').lower()
             gs_tag = str(gs).replace(' ', '_')
-            save_path = f"{base}_{safe_name}_gs-{gs_tag}_net-{nne}{ext}"
+            save_path = f"{base}_{safe_name}_gs-{gs_tag}_net-{nne}_st-{st}{ext}"
             
             Path(out_path).parent.mkdir(parents=True, exist_ok=True)
             fig.tight_layout()
@@ -1160,51 +1228,60 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
             init_model = possible_models[0]
             init_gs = game_state_values[0]
             init_net = is_net_empty_values[0]
+            init_st = shot_type_values[0]
             
-            heat0 = results.get((init_model, init_gs, init_net), np.full(XX.shape, np.nan))
+            heat0 = results.get((init_model, init_gs, init_net, init_st), np.full(XX.shape, np.nan))
             im = ax.imshow(heat0, extent=extent, origin='lower', cmap=cmap, vmin=vmin, vmax=vmax, zorder=1)
-            title = ax.set_title(f'{init_model} — {init_gs} | net: {init_net}', fontsize=10)
+            title = ax.set_title(f'{init_model} — {init_gs} | net: {init_net} | {init_st}', fontsize=10)
             ax.axis('off')
             cbar = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
             cbar.set_label('xG probability')
 
             # Controls
             # Model Selector
-            model_ax = plt.axes((0.02, 0.65, 0.18, 0.25))
+            model_ax = plt.axes((0.02, 0.70, 0.18, 0.20))
             model_ax.set_title('Model', fontsize=10)
             r_model = widgets.RadioButtons(model_ax, possible_models, active=0)
 
             # Game State Selector
             gs_labels = [str(v) for v in game_state_values]
-            gs_ax = plt.axes((0.02, 0.35, 0.18, 0.25))
+            gs_ax = plt.axes((0.02, 0.45, 0.18, 0.20))
             gs_ax.set_title('Game State', fontsize=10)
             r_gs = widgets.RadioButtons(gs_ax, gs_labels, active=0)
 
+            # Shot Type Selector
+            st_ax = plt.axes((0.02, 0.20, 0.18, 0.20))
+            st_ax.set_title('Shot Type', fontsize=10)
+            r_st = widgets.RadioButtons(st_ax, shot_type_values, active=0)
+
             # Empty Net Selector
             net_labels = [str(v) for v in is_net_empty_values]
-            net_ax = plt.axes((0.02, 0.10, 0.18, 0.20))
+            net_ax = plt.axes((0.02, 0.05, 0.18, 0.10))
             net_ax.set_title('Empty Net', fontsize=10)
             r_net = widgets.RadioButtons(net_ax, net_labels, active=0)
             
-            selected = {'model': init_model, 'gs': init_gs, 'net': init_net}
+            selected = {'model': init_model, 'gs': init_gs, 'net': init_net, 'st': init_st}
 
             def update_plot():
                 m = selected['model']
                 g = selected['gs']
                 n = selected['net']
-                h = results.get((m, g, n), np.full(XX.shape, np.nan))
+                s = selected['st']
+                h = results.get((m, g, n, s), np.full(XX.shape, np.nan))
                 im.set_data(h)
-                title.set_text(f'{m} — {g} | net: {n}')
+                title.set_text(f'{m} — {g} | net: {n} | {s}')
                 fig.canvas.draw_idle()
 
             def on_model(label):
                 selected['model'] = label
                 update_plot()
             def on_gs(label):
-                # map label back to value
                 try: idx = gs_labels.index(label); val = game_state_values[idx]
                 except: val = label
                 selected['gs'] = val
+                update_plot()
+            def on_st(label):
+                selected['st'] = label
                 update_plot()
             def on_net(label):
                 try: idx = net_labels.index(label); val = is_net_empty_values[idx]
@@ -1214,9 +1291,10 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
 
             r_model.on_clicked(on_model)
             r_gs.on_clicked(on_gs)
+            r_st.on_clicked(on_st)
             r_net.on_clicked(on_net)
             
-            print('Interactive mode: Select Model, Game State, and Net Status.')
+            print('Interactive mode: Select Model, Game State, Shot Type, and Net Status.')
             plt.show(block=True)
             
         except Exception as e:
@@ -1322,32 +1400,52 @@ if __name__ == '__main__':
     # 3. Load Baseline Model
     baseline_path = 'analysis/xgs/xg_model.joblib'
     print(f"\n--- Loading 'Baseline' from {baseline_path} ---")
+    
+    clf_baseline = None
+    final_feats_baseline = None
+    cat_map_baseline = None
+
     try:
-        clf_baseline, final_feats_baseline, _ = get_clf(baseline_path, behavior='load')
+        clf_baseline, final_feats_baseline, cat_map_baseline = get_clf(baseline_path, behavior='load')
+        print("Baseline loaded.")
+    except Exception:
+        print("Baseline model not found or failed to load. Training new Baseline...")
+        try:
+             # Train Baseline
+             # Note: get_clf will handle feature cleaning
+             clf_baseline, final_feats_baseline, cat_map_baseline = get_clf(
+                 baseline_path, 
+                 behavior='train', 
+                 features=['distance', 'angle_deg', 'game_state', 'is_net_empty'],
+                 data_df=train_df, # Use our pre-split training data (get_clf will internally split it again, but that's safe)
+                 n_estimators=200
+             )
+        except Exception as ex:
+             print(f"Failed to train Baseline: {ex}")
+
+    if clf_baseline:
         models['Baseline'] = clf_baseline
         
-        # Performance Fix: Reconstruct the categorical mapping from the TRAINING data.
-        # The loaded model was trained on `train_df`. We must use the same mapping (OneHot codes)
-        # that was generated during that training. We cannot rely on the test set to generate it
-        # (codes might shift) or metadata if it's missing.
+        # If we just trained it, cat_map_baseline is correct.
+        # If we loaded it, we might want to re-learn mapping from training data to be safe, 
+        # or just trust the loaded map. The original code re-learned it. 
+        # But if we trained, we don't need to relearn.
+        
         baseline_feats_input = ['distance', 'angle_deg', 'game_state', 'is_net_empty']
-        print(f"Re-learning categorical mapping from training data for feature consistency...")
-        _, _, cat_map_relearned = clean_df_for_model(train_df.copy(), baseline_feats_input)
         
-        # Now clean test_df using the RELEARNED mapping
-        test_df_bl, _, _ = clean_df_for_model(test_df.copy(), baseline_feats_input, fixed_categorical_levels=cat_map_relearned)
+        # For consistency, let's map the test set using the map we have (loaded or trained)
+        if not cat_map_baseline:
+             # Re-learn if missing from load
+             print(f"Re-learning categorical mapping from training data...")
+             _, _, cat_map_baseline = clean_df_for_model(train_df.copy(), baseline_feats_input)
         
-        # Use final_feats_baseline from loaded model if available (best source), or derive it
+        # Now clean test_df using the mapping
+        test_df_bl, _, _ = clean_df_for_model(test_df.copy(), baseline_feats_input, fixed_categorical_levels=cat_map_baseline)
+        
+        # Use final_feats_baseline 
         if not final_feats_baseline:
-             # If metadata missing, we assume standard derivation
              _, final_feats_baseline, _ = clean_df_for_model(train_df.head(1).copy(), baseline_feats_input)
 
-        # Check for column mismatches (e.g. if code vs non-code naming changed)
-        missing_feats = [f for f in final_feats_baseline if f not in test_df_bl.columns]
-        if missing_feats:
-            print(f"WARNING: Feature mismatch for Baseline. Missing: {missing_feats}")
-            print("Trying to proceed with available columns (might fail or give garbage)...")
-            
         X_test_bl = test_df_bl[final_feats_baseline].values
         y_test_bl = test_df_bl['is_goal'].values
         
@@ -1357,14 +1455,7 @@ if __name__ == '__main__':
         metrics_bl['N Features'] = len(final_feats_baseline)
         results.append(metrics_bl)
         print(f"  -> Log Loss: {metrics_bl['log_loss']:.4f}, AUC: {metrics_bl['roc_auc']:.4f}")
-        
-        # Use this map for the heatmap debugger too
-        cat_map_baseline = cat_map_relearned
-        
-    except Exception as e:
-        print(f"Failed to load or evaluate Baseline: {e}")
-        # import traceback
-        # traceback.print_exc()
+    else:
         print("Skipping Baseline comparison.")
 
 
@@ -1566,32 +1657,78 @@ if __name__ == '__main__':
         print("NestedXGClassifier could not be imported. Skipping.")
 
 
-    # 8. Compare Results (Final)
+    # 8. Train 'Nested XGB' Model (New)
+    try:
+        if XGBNestedXGClassifier:
+            print(f"\n--- Training 'Nested XGBoost' ---")
+            # XGBNested handles dataframe natively
+            # We don't need manual encoding of columns, just raw strings
+            
+            # Ensure shot_type has no nan (filled with Unknown)
+            train_df_xgb = train_df.copy()
+            train_df_xgb['shot_type'] = train_df_xgb['shot_type'].fillna('Unknown')
+            # Ensure event column exists
+            
+            clf_xgb = XGBNestedXGClassifier(n_estimators=500, random_state=42)
+            clf_xgb.fit(train_df_xgb)
+            
+            # Evaluate
+            y_prob_xgb = clf_xgb.predict_proba(test_df.copy())[:, 1]
+            y_test_xgb = test_df['is_goal'].values
+            
+            auc_xgb = roc_auc_score(y_test_xgb, y_prob_xgb)
+            ll_xgb = log_loss(y_test_xgb, y_prob_xgb)
+            metrics_xgb = {
+                'Model': 'Nested XGBoost',
+                'log_loss': ll_xgb,
+                'roc_auc': auc_xgb,
+                'brier': brier_score_loss(y_test_xgb, y_prob_xgb),
+                'accuracy': accuracy_score(y_test_xgb, (y_prob_xgb >= 0.5).astype(int)),
+                'N Features': '3 Layers',
+                'Features': 'Nested XGB'
+            }
+            results.append(metrics_xgb)
+            models['Nested XGBoost'] = clf_xgb
+            print(f"  -> Log Loss: {ll_xgb:.4f}, AUC: {auc_xgb:.4f}")
+            
+            # Save
+            save_path_xgb = 'analysis/nested_xgs/xgb_nested_xg_model.joblib'
+            Path(save_path_xgb).parent.mkdir(parents=True, exist_ok=True)
+            joblib.dump(clf_xgb, save_path_xgb)
+    
+    except Exception as e:
+        print(f"Failed to train XGBoost Nested: {e}")
+        # import traceback
+        # traceback.print_exc()
+
+    # 9. Compare Results (Final)
     print("\n--- Final Model Comparison Results ---")
     results_df = pd.DataFrame(results)
-    cols = ['Model', 'log_loss', 'roc_auc', 'brier', 'accuracy', 'N Features', 'Features']
+    cols = ['Model', 'log_loss', 'roc_auc', 'brier', 'accuracy']
     print(results_df[cols].to_string(index=False))
 
 
-    # 9. Generate Comparative Heatmaps
+    # 10. Generate Comparative Heatmaps
     print("\nGenerating heatmaps...")
     
     # Config map for debug_model
     configs_map = {
         'Baseline': ModelConfig(name='Baseline', features=['distance', 'angle_deg', 'game_state', 'is_net_empty']),
         'With Shot Type': shot_type_conf,
-        # 'Nested xG': ... debug_model might struggle with Nested if it expects simple OneHot structure.
-        # debug_model simulates data. NestedXGClassifier expects specific columns (shot_type_encoded).
-        # We might skip heatmap for Nested for now to avoid complexity blowup, 
-        # or we try to hack it.
-        # Let's skip heatmap for Nested for this iteration to ensure stability of the main task.
     }
+    
+    if 'Nested xG' in models:
+        # We need to map options for it, even if we hacked the features
+        configs_map['Nested xG'] = ModelConfig(name='Nested xG', features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'])
+        
+    if 'Nested XGBoost' in models:
+        configs_map['Nested XGBoost'] = ModelConfig(name='Nested XGBoost', features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type'])
+    
     
     combined_cat_map = {}
     if cat_map_baseline: combined_cat_map.update(cat_map_baseline)
     if cat_map_st: combined_cat_map.update(cat_map_st)
     
-    # Only run debug_model for the standard models for now
-    models_subset = {k: v for k, v in models.items() if k in configs_map}
-    debug_model(models_subset, model_configs=configs_map, categorical_levels_map=combined_cat_map, interactive=interactive_mode)
+    debug_model(models, model_configs=configs_map, categorical_levels_map=combined_cat_map, interactive=interactive_mode)
+
 

@@ -1,0 +1,36 @@
+Loading puck\data\quantile_mappings.joblib...
+Keys found: dict_keys(['F', 'D'])
+
+--- Role: F ---
+Keys: dict_keys(['block_x_dist', 'block_y_dist', 'origin_x_dist', 'origin_y_dist'])
+Block X Percentiles (0, 50, 100): 4.49, 63.84, 98.76
+Origin X Percentiles (0, 50, 100): -0.90, 57.35, 101.81
+Mean Shift (Origin - Block): -5.72
+Median Shift: -5.99
+Shift at 10th percentile (Deep Block): -7.84
+Shift at 90th percentile (High Block): -4.36
+--- Table (Percentile | Block X -> Origin X | Shift) ---
+  0% |   4.5 ->  -0.9 |  -5.4
+ 10% |  44.7 ->  36.8 |  -7.8
+ 25% |  53.9 ->  48.3 |  -5.6
+ 50% |  63.8 ->  57.3 |  -6.5
+ 75% |  72.7 ->  67.2 |  -5.5
+ 90% |  80.3 ->  76.0 |  -4.4
+100% |  98.8 -> 101.8 |   3.1
+
+--- Role: D ---
+Keys: dict_keys(['block_x_dist', 'block_y_dist', 'origin_x_dist', 'origin_y_dist'])
+Block X Percentiles (0, 50, 100): 22.80, 45.68, 87.57
+Origin X Percentiles (0, 50, 100): 16.87, 37.80, 86.89
+Mean Shift (Origin - Block): -7.03
+Median Shift: -7.15
+Shift at 10th percentile (Deep Block): -6.90
+Shift at 90th percentile (High Block): -6.77
+--- Table (Percentile | Block X -> Origin X | Shift) ---
+  0% |  22.8 ->  16.9 |  -5.9
+ 10% |  35.4 ->  28.5 |  -6.9
+ 25% |  39.1 ->  31.0 |  -8.1
+ 50% |  45.7 ->  37.8 |  -7.9
+ 75% |  56.1 ->  49.6 |  -6.5
+ 90% |  67.7 ->  60.9 |  -6.8
+100% |  87.6 ->  86.9 |  -0.7

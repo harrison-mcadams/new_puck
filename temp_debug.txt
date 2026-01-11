@@ -1,0 +1,2 @@
+# We need to work on blocked shot imputation. Let's start over from scratch. We're going to need to debug it stepwise given complexity of the project.
+# 

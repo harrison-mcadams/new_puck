@@ -78,7 +78,7 @@ def process_season(season_dir):
     current_game_id = None
     current_home_team = None
     
-    shot_types = ['shot-on-goal', 'missed-shot', 'goal']
+    shot_types = ['shot-on-goal', 'missed-shot', 'goal', 'blocked-shot']
     
     count_adj = 0
     
