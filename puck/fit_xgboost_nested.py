@@ -31,8 +31,18 @@ VOCAB_GAME_STATE = [
     '6v4', '3v5', '4v6', '3v4', '6v3', '3v6', '6v6', '1v0', '0v1'
 ]
 VOCAB_SHOT_TYPE = [
-    'wrist', 'snap', 'slap', 'backhand', 'tip-in', 'deflected', 'wrap-around', 'Unknown'
+    'wrist', 'snap', 'slap', 'backhand', 'tip-in', 'deflected', 'wrap-around'
 ]
+VOCAB_SHOOTER_ROLE = ['F', 'D']
+VOCAB_SHOOTS_CATCHES = ['L', 'R']
+
+# Map feature names to their vocabulary
+CATEGORICAL_VOCABS = {
+    'shot_type': VOCAB_SHOT_TYPE,
+    'shooter_role': VOCAB_SHOOTER_ROLE,
+    'shoots_catches': VOCAB_SHOOTS_CATCHES,
+    'game_state': VOCAB_GAME_STATE,
+}
 
 # --- LOGGING SETUP ---
 logging.basicConfig(
@@ -125,7 +135,6 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.learning_rate = learning_rate
         self.random_state = random_state
         self.enable_categorical = enable_categorical
-        self.nan_mask_rate = 0.05
         self.use_calibration = use_calibration
         self.use_balancing = use_balancing
         self.layer_params = layer_params or {}
@@ -143,6 +152,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.config_accuracy = LayerConfig(name='accuracy', target_col='is_on_net', feature_cols=self.features)
         self.config_finish = LayerConfig(name='finish', target_col='is_goal_layer', feature_cols=self.features)
         
+        # Marginalization Support
+        self.categorical_priors_ = {}  # Dict[str, Dict[str, float]] - priors for each categorical feature
+        
     def _get_xgb_params(self, layer_name: str) -> Dict[str, Any]:
         params = {
             'n_estimators': int(self.n_estimators),
@@ -153,7 +165,8 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             'eval_metric': 'logloss',
             'tree_method': 'hist',
             'device': 'cpu',
-            'objective': 'binary:logistic'
+            'objective': 'binary:logistic',
+            'base_score': 0.5  # Explicitly set to avoid "must be in (0,1)" error
         }
         if layer_name in self.layer_params:
             overrides = self.layer_params[layer_name]
@@ -176,10 +189,12 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                 df_out['game_state'] = pd.Categorical(df_out['game_state'], categories=VOCAB_GAME_STATE)
             
             if 'shot_type' in df_out.columns:
-                df_out['shot_type'] = df_out['shot_type'].fillna('Unknown')
+                # If 'Unknown' is passed, map to NaN (since we removed Unknown from VOCAB)
+                df_out['shot_type'] = df_out['shot_type'].replace('Unknown', np.nan)
                 df_out['shot_type'] = pd.Categorical(df_out['shot_type'], categories=VOCAB_SHOT_TYPE)
 
             for col in (self.features or []):
+                pass # (Snipped for brevity in replacement search)
                 if col not in df_out.columns:
                     # If we have a recorded dtype (especially categorical), use it
                     feature_dtypes = getattr(self, 'feature_dtypes', {})
@@ -238,28 +253,49 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
         df = preprocess_data(df_train_raw, features=self.features)
         
+        # Filter out 'Unknown' shot types from training data (for unblocked shots only)
+        if 'shot_type' in df.columns:
+            # We want to train only on valid shot types for accuracy/finish layers.
+            # However, Blocked shots rarely have shot_type recorded (NaN). 
+            # We MUST preserve them for the block layer.
+            # We filter out rows where shot_type is NaN AND the shot was NOT blocked.
+            valid_mask = ~df['shot_type'].isna() | (df['is_blocked'] == 1)
+            
+            if valid_mask.sum() < len(df):
+                logger.info(f"Dropping {len(df) - valid_mask.sum()} rows with Unknown/NaN shot_type (unblocked shots only) from training.")
+                df = df[valid_mask].reset_index(drop=True)
+
+
+        # Calculate Priors for Marginalization (all categorical features)
+        self.categorical_priors_ = {}
+        for col, vocab in CATEGORICAL_VOCABS.items():
+            if col in df.columns:
+                counts = df[col].value_counts(normalize=True, dropna=True)
+                priors = {k: v for k, v in counts.items() if k in vocab}
+                # Re-normalize 
+                total_prob = sum(priors.values())
+                if total_prob > 0:
+                    priors = {k: v/total_prob for k, v in priors.items()}
+                    self.categorical_priors_[col] = priors
+                    logger.info(f"Learned {col} priors: {priors}")
+        
+        # Backward compatibility
+        self.shot_type_priors_ = self.categorical_priors_.get('shot_type')
+        
         feat_block = [f for f in self.features if 'shot_type' not in f]
         feat_full = self.features
         
         # 1. Block Model
         logger.info(f"Training Block Model... Index: {df.index}")
+        y_block = df['is_blocked']
+        logger.info(f"Block Target Stats: Mean={y_block.mean():.4f}, Min={y_block.min()}, Max={y_block.max()}, Unique={y_block.unique()}")
+        
         p_block = self._get_xgb_params('block')
         self.model_block = XGBClassifier(**p_block)
-        self.model_block.fit(df[feat_block], df['is_blocked'])
+        self.model_block.fit(df[feat_block], y_block)
         
         # 2. Accuracy Model
         df_unblocked = df[df['is_blocked'] == 0].copy().reset_index(drop=True)
-        
-        if self.nan_mask_rate > 0 and 'shot_type' in df_unblocked.columns:
-            n_mask = int(len(df_unblocked) * self.nan_mask_rate)
-            if n_mask > 0:
-                rng = np.random.default_rng(self.random_state)
-                # Mask to Unknown which is handled natively by NaN in most cases, 
-                # OR we set it to 'Unknown' and let categorical handle it.
-                # Since we use Native Categorical, we can check if 'Unknown' is in categories.
-                # Our VOCAB has 'Unknown'.
-                mask_idx = rng.choice(df_unblocked.index, size=n_mask, replace=False)
-                df_unblocked.loc[mask_idx, 'shot_type'] = 'Unknown'
         
         logger.info(f"Training Accuracy Model (N={len(df_unblocked)})... Index: {df_unblocked.index}")
         p_acc = self._get_xgb_params('accuracy')
@@ -268,13 +304,6 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         # 3. Finish Model
         df_on_net = df[df['is_on_net'] == 1].copy().reset_index(drop=True)
-        
-        if self.nan_mask_rate > 0 and 'shot_type' in df_on_net.columns:
-            n_mask = int(len(df_on_net) * self.nan_mask_rate)
-            if n_mask > 0:
-                rng = np.random.default_rng(self.random_state)
-                mask_idx = rng.choice(df_on_net.index, size=n_mask, replace=False)
-                df_on_net.loc[mask_idx, 'shot_type'] = 'Unknown'
         
         logger.info(f"Training Finish Model (N={len(df_on_net)})... Index: {df_on_net.index}")
         p_finish = self._get_xgb_params('finish')
@@ -353,24 +382,122 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
         p_unblocked = 1.0 - p_blocked
         
-        # 2. P(On Net | Unblocked)
-        p_on_net_cond = self.model_accuracy.predict_proba(df[self.features])[:, 1]
+        # Standard Calculation (will be overwritten for NaNs)
+        p_start_acc = self.model_accuracy.predict_proba(df[self.features])[:, 1]
+        p_start_fin = self.model_finish.predict_proba(df[self.features])[:, 1]
+        p_goal = p_unblocked * p_start_acc * p_start_fin
         
-        # 3. P(Goal | On Net)
-        p_goal_cond = self.model_finish.predict_proba(df[self.features])[:, 1]
+        # 4. Integrate Marginalization for Missing/Unknown Shot Types
+        # Note: If no shot_types are missing, this loop is skipped or p_goal is returned directly.
         
-        # 4. Combine
-        p_goal = p_unblocked * p_on_net_cond * p_goal_cond
+        mask_nan = df['shot_type'].isna()
+        if self.shot_type_priors_ and mask_nan.any():
+            # Standard Calculation already done for NaNs (using default branch), 
+            # BUT we want to replace it with weighted average.
+            
+            # Marginalize P(Goal | Unblocked) = E[P(Acc)*P(Fin)]
+            # We assume p_unblocked is constant w.r.t shot_type.
+            
+            df_nan = df[mask_nan].copy()
+            n_nan = len(df_nan)
+            weighted_cond_prob = np.zeros(n_nan)
+            
+            for st_cat, weight in self.shot_type_priors_.items():
+                df_nan['shot_type'] = st_cat
+                df_nan['shot_type'] = pd.Categorical(df_nan['shot_type'], categories=VOCAB_SHOT_TYPE)
+                
+                p_acc_st = self.model_accuracy.predict_proba(df_nan[self.features])[:, 1]
+                p_fin_st = self.model_finish.predict_proba(df_nan[self.features])[:, 1]
+                
+                weighted_cond_prob += (p_acc_st * p_fin_st) * weight
+            
+            # Reconstruct P(Goal) for NaNs
+            p_goal[mask_nan] = p_unblocked[mask_nan] * weighted_cond_prob
         
         # 5. Apply Calibration
         if self.use_calibration and self.calibrator:
             p_goal = self.calibrator.predict_proba(p_goal.reshape(-1, 1))[:, 1]
-        
+            
         return np.column_stack((1 - p_goal, p_goal))
 
     def predict(self, X: pd.DataFrame) -> np.ndarray:
         return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
         
+    def _predict_marginalized(self, model, df, features):
+        """
+        Predict with marginalization over ALL categorical features with missing values.
+        
+        For each row with NaN in any categorical feature, computes weighted average
+        over all possible values of that feature (or combination of features if multiple are missing).
+        
+        E[P(y|x, missing)] = Σ P(y|x, cat=k) × P(cat=k) for each missing categorical
+        """
+        from itertools import product
+        
+        # 1. Standard Prediction (baseline)
+        p_base = model.predict_proba(df[features])[:, 1]
+        
+        if not self.categorical_priors_:
+            return p_base
+        
+        # 2. Find which categorical features have NaNs in this data
+        cat_cols_with_nan = []
+        for col, priors in self.categorical_priors_.items():
+            if col in df.columns and col in features:
+                if df[col].isna().any():
+                    cat_cols_with_nan.append(col)
+        
+        if not cat_cols_with_nan:
+            return p_base
+        
+        # 3. For each row, determine which categoricals are NaN
+        # We'll process rows that have ANY categorical NaN
+        nan_masks = {}
+        combined_nan_mask = pd.Series(False, index=df.index)
+        for col in cat_cols_with_nan:
+            nan_masks[col] = df[col].isna()
+            combined_nan_mask |= nan_masks[col]
+        
+        if not combined_nan_mask.any():
+            return p_base
+        
+        # 4. Marginalize for rows with NaN categoricals
+        # For simplicity and performance, we marginalize one feature at a time
+        # For rows with multiple NaN categoricals, we iterate through each
+        
+        df_work = df.copy()
+        p_result = p_base.copy()
+        
+        for col in cat_cols_with_nan:
+            mask_nan = df_work[col].isna()
+            if not mask_nan.any():
+                continue
+            
+            priors = self.categorical_priors_.get(col, {})
+            if not priors:
+                continue
+            
+            vocab = CATEGORICAL_VOCABS.get(col, list(priors.keys()))
+            
+            # Calculate weighted sum for rows with NaN in this column
+            df_nan_rows = df_work[mask_nan].copy()
+            weighted_sum = np.zeros(mask_nan.sum())
+            
+            for cat_val, weight in priors.items():
+                # Set the categorical to this value
+                df_nan_rows[col] = cat_val
+                # Ensure proper categorical dtype
+                df_nan_rows[col] = pd.Categorical(df_nan_rows[col], categories=vocab)
+                
+                # Predict
+                p_cat = model.predict_proba(df_nan_rows[features])[:, 1]
+                weighted_sum += p_cat * weight
+            
+            # Update result for these rows
+            p_result[mask_nan] = weighted_sum
+        
+        return p_result
+
     def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
         """Helper for diagnostics."""
         df = self._prepare_df(X)
@@ -380,9 +507,13 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             if getattr(self, 'calibrator_block', None):
                 p = self.calibrator_block.predict_proba(p.reshape(-1, 1))[:, 1]
             return p
+            
         elif layer == 'accuracy':
-            return self.model_accuracy.predict_proba(df[self.features])[:, 1]
+            return self._predict_marginalized(self.model_accuracy, df, self.features)
+            
         elif layer == 'finish':
-            return self.model_finish.predict_proba(df[self.features])[:, 1]
+            # Use _predict_marginalized
+             return self._predict_marginalized(self.model_finish, df, self.features)
+             
         else:
             raise ValueError(f"Unknown layer: {layer}")

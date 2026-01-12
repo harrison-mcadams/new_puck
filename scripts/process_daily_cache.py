@@ -294,7 +294,10 @@ def main():
         return
         
     # Ensure xGs
-    xg_behavior = 'skip' if str(season).startswith('fake') else 'overwrite'
+    # Optimization: Use 'load' behavior.
+    # If run via daily.py, xG is already in CSV -> Skips prediction (Fast).
+    # If run standalone and xG missing -> Runs prediction (Robust).
+    xg_behavior = 'skip' if str(season).startswith('fake') else 'load'
     df_data, _, _ = analyze._predict_xgs(df_data, behavior=xg_behavior)
     
     partials_dir = ensure_dirs(season)

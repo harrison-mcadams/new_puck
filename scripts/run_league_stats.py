@@ -510,8 +510,12 @@ def run_league_analysis():
                 import matplotlib.ticker as ticker
                 cbar = fig.colorbar(im, cax=cax)
                 
-                # Hardcoded ticks
-                cbar.locator = ticker.FixedLocator([-0.02, -0.01, 0, 0.01, 0.02])
+                # Dynamic ticks
+                if global_vmax:
+                    tick_vals = [-global_vmax, -global_vmax/2, 0, global_vmax/2, global_vmax]
+                    cbar.locator = ticker.FixedLocator(tick_vals)
+                else:
+                    cbar.locator = ticker.MaxNLocator(nbins=5)
                 cbar.update_ticks()
                 cbar.set_label('Excess xG/60 (per 100 sq ft)', rotation=270, labelpad=15)
 

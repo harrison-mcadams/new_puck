@@ -109,6 +109,25 @@ def main():
         print("No data found. Exiting.")
         return
 
+    # 1c. Centralized xG Prediction
+    # We run this ONCE for the whole season to avoid redundant calculations in subprocesses.
+    print(f"\n[1c/4] Running Centralized xG Prediction (Nested Model)...")
+    try:
+        # Predict (will use Nested Model by default as per analyze.py update)
+        # behavior='overwrite' ensures we actually run it even if 'xgs' column exists 
+        # (to ensure fresh model usage)
+        df_season, _, _ = analyze._predict_xgs(df_season, behavior='overwrite')
+        
+        # Save back to CSV to be used by subprocesses
+        # Note: parse._season saves to data/{season}.csv or data/{season}/{season}.csv depending on logic
+        # We strictly save to data/{season}.csv which is what process_daily_cache loads by default via timing.
+        out_csv = os.path.join('data', f"{season}.csv")
+        df_season.to_csv(out_csv, index=False)
+        print(f"Saved updated xG data to {out_csv}")
+        
+    except Exception as e:
+        print(f"Warning: Centralized prediction failed: {e}")
+
     # 2. Pre-Compute Intervals (Shared Cache)
     print("\n[2/4] Pre-Computing Intervals...")
     # We want to ensure the cache is populated for standard conditions
@@ -240,8 +259,11 @@ def main():
         else:
             return math.ceil(x * 100) / 100.0
             
-    vmax_l = 0.02
-    vmax_p = 0.02
+    vmax_l = smart_ceil(max_l)
+    if vmax_l < 0.02: vmax_l = 0.02
+    
+    vmax_p = smart_ceil(max_p)
+    if vmax_p < 0.02: vmax_p = 0.02
     
     print(f"   League 5v5 VMAX: {vmax_l} (Raw: {max_l})")
     print(f"   Player 5v5 VMAX: {vmax_p} (Raw: {max_p})")

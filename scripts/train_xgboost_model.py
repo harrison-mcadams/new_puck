@@ -126,18 +126,16 @@ if params_path.exists():
     except Exception as e:
         print(f"Warning: Could not load optimized params: {e}")
 
-# Strategy 1 Override: Heavy Regularization for Block Model
-print("Reviewing Strategy 1: Applying Manual Regularization Constraints to Block Layer...")
-layer_params['block'] = {
-    "subsample": 0.8,
-    "n_estimators": 500,
-    "min_child_weight": 100, # Increased from 1
-    "max_depth": 4,          # Decreased from 8
-    "learning_rate": 0.1,    # Decreased from 0.2
-    "gamma": 5,              # Increased from 1
-    "colsample_bytree": 0.8
-}
-print(f"Block Layer Params Overridden: {layer_params['block']}")
+# The training script will now use the optimized parameters loaded from 
+# analysis/nested_xgs/best_params_xgboost.json if available.
+# We've removed Strategy 1/Fixed overrides to allow the auto-optimizer to take lead.
+print("Using parameters from best_params_xgboost.json (if available)...")
+
+
+
+
+
+
 
 clf = fit_xgboost_nested.XGBNestedXGClassifier(
     features=feature_list,

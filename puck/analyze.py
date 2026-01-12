@@ -820,9 +820,9 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
 
 
-def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None):
+def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True):
     if model_path is None:
-        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested_all.joblib')
+        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
 
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
@@ -969,15 +969,19 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         # Apply Unified Preprocessing Pipeline
         # (Attribution, Orientation, Arena Adj, Imputation, Recalc)
         try:
-            # We use is_training=False to avoid Dithering during inference
-            df_imputed = data_pipeline.preprocess_features(
-                df_shots, 
-                is_training=False, 
-                verbose=False, # cleaner output
-                apply_arena_adjustments=True, 
-                apply_imputation=True,
-                apply_dithering=False 
-            )
+            if preprocess:
+                # We use is_training=False to avoid Dithering during inference
+                df_imputed = data_pipeline.preprocess_features(
+                    df_shots, 
+                    is_training=False, 
+                    verbose=False, # cleaner output
+                    apply_arena_adjustments=True, 
+                    apply_imputation=True,
+                    apply_dithering=False 
+                )
+            else:
+                # Assume Input is already processed
+                df_imputed = df_shots
         except Exception as e:
             print(f"Warning: Preprocessing pipeline failed in _predict_xgs: {e}")
             # Fallback to whatever we have
@@ -1003,9 +1007,14 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
                 preds = clf.predict_proba(df_model)[:, 1]
                 
                 # Fetch Layer probabilities for diagnostics
-                prob_block = clf.predict_proba_layer(df_model, 'block')
-                prob_acc = clf.predict_proba_layer(df_model, 'accuracy')
-                prob_fin = clf.predict_proba_layer(df_model, 'finish')
+                if hasattr(clf, 'predict_proba_layer'):
+                    prob_block = clf.predict_proba_layer(df_model, 'block')
+                    prob_acc = clf.predict_proba_layer(df_model, 'accuracy')
+                    prob_fin = clf.predict_proba_layer(df_model, 'finish')
+                else:
+                    prob_block = np.full(len(preds), np.nan)
+                    prob_acc = np.full(len(preds), np.nan)
+                    prob_fin = np.full(len(preds), np.nan)
                 
             except Exception as e:
                 print(f"XGBoost Prediction failed: {e}")
@@ -1713,7 +1722,8 @@ def season(season: str = '20252026',
                     show=False,
                     total_seconds=g_seconds,
                     use_intervals=True,
-                    intervals_input={'per_game': {game_id: {'intersection_intervals': g_intervals}}}
+                    intervals_input={'per_game': {game_id: {'intersection_intervals': g_intervals}}},
+                    preprocess=False  # Data already processed via _predict_xgs above
                 )
                 
                 tm = heatmaps.get('team') if heatmaps else None
@@ -1987,6 +1997,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
               title: Optional[str] = None,
               interval_time_col: str = 'total_time_elapsed_seconds',
               force_refresh: bool = False,
+              preprocess: bool = True,
               debug: bool = False):
     
     if total_seconds is None:
@@ -2024,6 +2035,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     from . import parse as _parse
     # Import for blocked shot logic distance/angle recalc
     from . import correction
+    from . import data_pipeline
 
 
     # --- Helpers ------------------------------------------------------------
@@ -2490,6 +2502,11 @@ def xgs_map(season: Optional[str] = '20252026', *,
             print('xgs_map: loading CSV ->', chosen_csv)
             df_all = pd.read_csv(chosen_csv)
 
+    # --- Preprocessing: Standardize coordinates and extract features early
+    if preprocess and df_all is not None and not df_all.empty:
+        print('xgs_map: applying early preprocessing (standardizing coordinates and extracting features)...')
+        df_all = data_pipeline.preprocess_features(df_all)
+
     # --- Single timing call: call timing.compute_game_timing once on the full dataset
     timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
     if timing is not None:
@@ -2575,16 +2592,10 @@ def xgs_map(season: Optional[str] = '20252026', *,
     else:
         df_filtered, team_val = _apply_condition(df_all)
 
-    # --- CRITICAL FIX: BLOCKED SHOT ATTRIBUTION ---
-    # The NHL API attributes 'blocked-shot' events to the blocking team (Defense).
-    # For xG analysis, we want these events attributed to the SHOOTER (Offense).
-    # We utilize the centralized correction module which handles:
-    # 1. Swapping team_id (Home <-> Away)
-    # 2. Flipping coordinates (-X, -Y) for correct zone placement
-    # 3. Recalculating distance/angle relative to the Shooter's Attack Goal
-    
-    if int(df_filtered.shape[0]) > 0:
-        df_filtered = correction.fix_blocked_shot_attribution(df_filtered)
+    # Removed manual correction: Handled by preprocess=True (calling data_pipeline)
+    # or assumed done if preprocess=False.
+    # if int(df_filtered.shape[0]) > 0:
+    #     df_filtered = correction.fix_blocked_shot_attribution(df_filtered)
 
     if df_filtered.shape[0] == 0:
         print(f"Warning: condition {condition!r} (team={team_val!r}) matched 0 rows; producing an empty plot without training/loading model")
@@ -2592,7 +2603,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
         pass # print(f"Filtered season dataframe to {len(df_filtered)} events by condition {condition!r} team={team_val!r}")
 
     # Predict xgs only when needed and possible
-    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered, model_path=model_path, behavior=behavior, csv_path=chosen_csv)
+    # We pass preprocess=False because we either did it at the top, or caller said skip.
+    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered, model_path=model_path, behavior=behavior, csv_path=chosen_csv, preprocess=False)
 
     # Orientation deprecation: plotting routines now decide orientation and
     # splitting (team vs not-team or home vs away). Do not perform an

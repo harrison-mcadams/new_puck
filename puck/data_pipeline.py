@@ -18,6 +18,7 @@ def preprocess_features(df_input: pd.DataFrame,
                         apply_imputation: bool = True,
                         apply_dithering: bool = False,
                         apply_filtering: bool = False,
+                        apply_bio_enrichment: bool = True,
                         impute_alpha: float = 0.0) -> pd.DataFrame:
     """
     Apply standard preprocessing steps to the dataframe:
@@ -32,6 +33,8 @@ def preprocess_features(df_input: pd.DataFrame,
     5. Impute Blocked Shot Origins
     6. Coordinate Swap & Feature Recalculation
     7. Event Filtering (Optional - Remove non-shots/extreme states)
+    8. Bio Enrichment (Optional - Add shoots_catches, shooter_role)
+    9. Feature Formatting (Fill NaNs, Enforce Types)
     
     Args:
         df_input: Raw PBP dataframe.
@@ -41,6 +44,7 @@ def preprocess_features(df_input: pd.DataFrame,
         apply_imputation: Whether to impute blocked shots.
         apply_dithering: Whether to add random noise (for smoothing/training).
         apply_filtering: Whether to filter out non-shots and extreme situations (empty net, 1v0).
+        apply_bio_enrichment: Whether to enrich with player bios (handedness, role). Won't overwrite existing data.
     
     Returns:
         pd.DataFrame: Processed dataframe with 'x', 'y' updated and features (distance, angle) recalculated.
@@ -59,10 +63,10 @@ def preprocess_features(df_input: pd.DataFrame,
     vprint(f"Preprocessing {len(df)} rows. Training={is_training}, Impute={apply_imputation}, Adjust={apply_arena_adjustments}")
 
     # 1. Blocked Shot Attribution
-    # NOTE (2025-01-10): The raw data for blocked shots ALREADY attributes the event to the SHOOTER (Offense).
-    # Previous logic incorrectly swapped it to the Defense. We disable correction to preserve raw attribution.
-    # if 'event' in df.columns and (df['event'] == 'blocked-shot').any():
-    #     df = correction.fix_blocked_shot_attribution(df)
+    # VERIFIED (2025-01-11): Raw data attributes blocked shots to the BLOCKER (Team ID = Defending Team).
+    # We MUST correct this to attribute to the SHOOTER (Offense) for xG modeling.
+    if 'event' in df.columns and (df['event'] == 'blocked-shot').any():
+        df = correction.fix_blocked_shot_attribution(df)
 
     # 2. Standardize Orientation (Attack Right)
     # Ensure all play is oriented towards the goal at x=89.
@@ -132,6 +136,15 @@ def preprocess_features(df_input: pd.DataFrame,
                     df.loc[mask_flip, 'x_adj'] *= -1
                 if 'y_adj' in df.columns:
                     df.loc[mask_flip, 'y_adj'] *= -1
+                
+                # CRITICAL: Synchronize Metadata
+                # Once we've flipped to "Attack Right", the team is effectively attacking the +X goal (Right).
+                # This means they are defending the -X goal (Left).
+                # If the team is HOME, then Home defends Left -> 'left'.
+                # If the team is AWAY, then Away defends Left, which means Home defends RIGHT -> 'right'.
+                if 'home_team_defending_side' in df.columns:
+                    df.loc[mask_flip & is_home, 'home_team_defending_side'] = 'left'
+                    df.loc[mask_flip & ~is_home, 'home_team_defending_side'] = 'right'
                     
         else:
              # FALLBACK: Old simplistic logic
@@ -146,6 +159,10 @@ def preprocess_features(df_input: pd.DataFrame,
                     df.loc[mask_neg, 'x_adj'] *= -1
                 if 'y_adj' in df.columns:
                     df.loc[mask_neg, 'y_adj'] *= -1
+                
+                # Update metadata for fallback as well
+                if 'home_team_defending_side' in df.columns:
+                    df.loc[mask_neg, 'home_team_defending_side'] = 'left'
 
 
 
@@ -328,9 +345,124 @@ def preprocess_features(df_input: pd.DataFrame,
              
         vprint(f"    Filtered {initial_len - len(df)} rows. Final count: {len(df)}")
 
-    # 8. Feature Formatting (Fill NaNs, Enforce Types)
+    # 8. Bio Enrichment (Optional)
+    if apply_bio_enrichment:
+        df = _enrich_bios_if_needed(df, verbose=verbose)
+
+    # 9. Feature Formatting (Fill NaNs, Enforce Types)
     df = _format_features(df, verbose=verbose)
 
+    return df
+
+def _enrich_bios_if_needed(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
+    """
+    Add player handedness (shoots_catches) and role (shooter_role) if missing or empty.
+    
+    Only enriches if:
+    - Column doesn't exist
+    - Column is all NaN
+    - Column is all 'Unknown'
+    """
+    if df.empty:
+        return df
+    
+    def vprint(*args):
+        if verbose:
+            print(*args)
+    
+    # Check if enrichment is needed
+    needs_shoots_catches = (
+        'shoots_catches' not in df.columns or
+        df['shoots_catches'].isna().all() or
+        (df['shoots_catches'].astype(str).str.upper() == 'UNKNOWN').all()
+    )
+    
+    needs_shooter_role = (
+        'shooter_role' not in df.columns or
+        df['shooter_role'].isna().all() or
+        (df['shooter_role'].astype(str).str.upper() == 'UNKNOWN').all()
+    )
+    
+    if not needs_shoots_catches and not needs_shooter_role:
+        vprint("  Bio columns already populated. Skipping enrichment.")
+        return df
+    
+    # Need player_id and game_id to enrich
+    if 'player_id' not in df.columns or 'game_id' not in df.columns:
+        vprint("  Missing player_id or game_id. Cannot enrich bios. Using NaN for marginalization.")
+        if needs_shoots_catches:
+            df['shoots_catches'] = np.nan
+        if needs_shooter_role:
+            df['shooter_role'] = np.nan
+        return df
+    
+    vprint("  Enriching Bio Data (shoots_catches, shooter_role)...")
+    
+    try:
+        from . import nhl_api
+        
+        # Derive season from game_id
+        df['_temp_season_start'] = df['game_id'].astype(str).str[:4]
+        mask_valid = df['_temp_season_start'].str.isdigit()
+        unique_starts = df.loc[mask_valid, '_temp_season_start'].astype(int).unique()
+        
+        master_map = {}
+        for start_year in unique_starts:
+            if start_year < 1900 or start_year > 2100:
+                continue
+            season_str = f"{start_year}{start_year + 1}"
+            try:
+                bios = nhl_api.get_season_player_bios(season_str)
+                master_map.update(bios)
+            except Exception as e:
+                vprint(f"    Warning: Failed to fetch bios for {season_str}: {e}")
+        
+        # Drop temp column
+        df.drop(columns=['_temp_season_start'], inplace=True, errors='ignore')
+        
+        if not master_map:
+            vprint("    No bios loaded. Using NaN for marginalization.")
+            if needs_shoots_catches:
+                df['shoots_catches'] = np.nan
+            if needs_shooter_role:
+                df['shooter_role'] = np.nan
+            return df
+        
+        # Helper to get value from bio map
+        def get_bio_val(pid_val, field, default=None):
+            if pd.isna(pid_val):
+                return default
+            try:
+                clean_id = str(int(float(pid_val)))
+            except:
+                clean_id = str(pid_val)
+            entry = master_map.get(clean_id)
+            if not entry:
+                return default
+            return entry.get(field, default)
+        
+        # Enrich only if needed
+        if needs_shoots_catches:
+            df['shoots_catches'] = df['player_id'].apply(lambda x: get_bio_val(x, 'shootsCatches', np.nan))
+            vprint(f"    Enriched 'shoots_catches' for {len(df)} rows.")
+        
+        if needs_shooter_role:
+            def map_role(pos_code):
+                if not pos_code:
+                    return np.nan  # Let marginalization handle unknowns
+                return 'D' if pos_code == 'D' else 'F'
+            
+            df['shooter_role'] = df['player_id'].apply(lambda x: map_role(get_bio_val(x, 'positionCode')))
+            vprint(f"    Enriched 'shooter_role' for {len(df)} rows.")
+            
+    except Exception as e:
+        warnings.warn(f"Bio enrichment failed: {e}. Using NaN for marginalization.")
+        if needs_shoots_catches and 'shoots_catches' not in df.columns:
+            df['shoots_catches'] = np.nan
+        if needs_shooter_role and 'shooter_role' not in df.columns:
+            df['shooter_role'] = np.nan
+    
+    
     return df
 
 def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:

@@ -4,6 +4,7 @@ import math
 import sys
 import os
 import json
+import warnings
 
 _BLOCKED_SHOT_MODEL = None
 # Relative path to data directory
@@ -44,20 +45,24 @@ def load_blocked_models():
             try:
                 with open(path_f, 'r') as f:
                     _BLOCKED_SHOT_MODEL_F = json.load(f)
-            except Exception:
+            except Exception as e:
+                warnings.warn(f"Failed to load blocked shot model F: {e}")
                 _BLOCKED_SHOT_MODEL_F = {}
         else:
-             pass
+            warnings.warn(f"Blocked shot model file not found: {path_f}. Using fallback imputation.")
+            _BLOCKED_SHOT_MODEL_F = {}
 
     if _BLOCKED_SHOT_MODEL_D is None:
         if os.path.exists(path_d):
             try:
                 with open(path_d, 'r') as f:
                     _BLOCKED_SHOT_MODEL_D = json.load(f)
-            except Exception:
+            except Exception as e:
+                warnings.warn(f"Failed to load blocked shot model D: {e}")
                 _BLOCKED_SHOT_MODEL_D = {}
         else:
-            pass
+            warnings.warn(f"Blocked shot model file not found: {path_d}. Using fallback imputation.")
+            _BLOCKED_SHOT_MODEL_D = {}
             
     return _BLOCKED_SHOT_MODEL_F, _BLOCKED_SHOT_MODEL_D
 
@@ -91,7 +96,21 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
                                 alpha: float = 0.0) -> pd.DataFrame:
     """
     Updates 'imputed_x', 'imputed_y', 'distance', 'angle_deg'.
+    
+    Args:
+        method: One of 'empirical_model', 'mixture_model', 'quantile_matching', 'cdf_mapping'
+        alpha: Mixing parameter for mixture_model (0.0 to 1.0)
     """
+    # Input Validation
+    valid_methods = ['empirical_model', 'mixture_model', 'quantile_matching', 'cdf_mapping']
+    if method not in valid_methods:
+        warnings.warn(f"Unknown imputation method '{method}'. Defaulting to 'empirical_model'.")
+        method = 'empirical_model'
+    
+    if not (0.0 <= alpha <= 1.0):
+        warnings.warn(f"Alpha={alpha} out of range [0, 1]. Clipping.")
+        alpha = max(0.0, min(1.0, alpha))
+    
     df_out = df_shots.copy()
     
     # 1. Initialize imputed cols with original
@@ -294,6 +313,7 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
                 angles_adj.append(a)
             df_out.loc[idxs, 'distance'] = dists_adj
             df_out.loc[idxs, 'angle_deg'] = angles_adj
-        except: pass
+        except Exception as e:
+            warnings.warn(f"Failed to apply arena adjustments during imputation: {e}")
             
     return df_out
