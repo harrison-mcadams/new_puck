@@ -1045,18 +1045,34 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
 
             # --- Sequence and Rebound Features ---
             # Initialize potential feature fields
-            rec['last_event_type'] = None
-            rec['last_event_time_diff'] = None
-            rec['is_rebound'] = 0
-            rec['rebound_angle_change'] = None
-            rec['rebound_time_diff'] = None
-            rec['is_rush'] = 0
+            rec['dist_from_last_event'] = None
+            rec['speed_from_last_event'] = None
 
             # 1. Prior Event Context (independent of team)
             if last_event:
                 rec['last_event_type'] = last_event.get('event')
                 if total_elapsed is not None and last_event.get('total_time_elapsed_s') is not None:
-                    rec['last_event_time_diff'] = float(total_elapsed - last_event.get('total_time_elapsed_s'))
+                    dt = float(total_elapsed - last_event.get('total_time_elapsed_s'))
+                    rec['last_event_time_diff'] = dt
+                    
+                    # Calculate speed/distance
+                    lx = last_event.get('x')
+                    ly = last_event.get('y')
+                    cx = rec.get('x')
+                    cy = rec.get('y')
+                    
+                    if lx is not None and ly is not None and cx is not None and cy is not None:
+                        import math
+                        dist = math.hypot(cx - lx, cy - ly)
+                        rec['dist_from_last_event'] = dist
+                        
+                        if dt > 0.01: # Avoid division by zero/tiny numbers
+                             rec['speed_from_last_event'] = dist / dt
+                        elif dist > 0:
+                             # Moved far in 0 time? High speed. Cap at 100 ft/s (approx max puck speed)
+                             rec['speed_from_last_event'] = 100.0
+                        else:
+                             rec['speed_from_last_event'] = 0.0
 
             # 2. Rebound Logic (specific to shot attempts by the same team)
             shot_attempt_types = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']

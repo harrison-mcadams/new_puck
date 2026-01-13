@@ -19,6 +19,10 @@ from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss, classific
 from sklearn.calibration import calibration_curve
 import joblib
 import json
+import logging
+
+# Configure Logging to show INFO logs from modules
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 # Add project root to path
 sys.path.append(str(Path(__file__).resolve().parent.parent))

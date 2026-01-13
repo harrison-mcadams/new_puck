@@ -45,6 +45,7 @@ def run_league_analysis():
     parser.add_argument('--condition', type=str, help='Specific condition to process (e.g., 5v5). If not set, runs all.')
     parser.add_argument('--vmax', type=float, default=None, help='Global colorbar limit')
     parser.add_argument('--scan-limit', action='store_true', help='Scan for global max limit instead of plotting')
+    parser.add_argument('--turbo', action='store_true', help='Enable parallel processing for aggregation')
     args = parser.parse_args()
     
     season = args.season
@@ -173,126 +174,215 @@ def run_league_analysis():
         # Standard Grid Shape check
         # We assume all cached grids are same shape
         
-        for idx, fname in enumerate(files):
-            if idx % 50 == 0:
-                print(f"  Aggregating file {idx}/{len(files)}...", end='\r')
+        # Helper function for parallel processing
+        def process_single_npz(fname):
+            """Process a single NPZ file and return partial aggregates."""
+            result = {'team_grids': {}, 'team_stats': {}, 'league_grid': None}
             try:
                 path = os.path.join(cache_dir, fname)
                 with np.load(path, allow_pickle=True) as data:
-                    if 'empty' in data: continue
+                    if 'empty' in data:
+                        return result
                     
                     keys = list(data.keys())
-                    
-                    # Identify Teams in this file
-                    # Keys: team_{tid}_grid_team
                     tids_in_game = []
                     for k in keys:
                         if k.startswith('team_') and k.endswith('_grid_team'):
                             tids_in_game.append(int(k.split('_')[1]))
                     
-                    # We expect exactly 2 teams per game usually
-                    # But handle whatever is there
-                    
-                    # First pass: Load 'For' grids and Stats
-                    game_grids = {} # tid -> grid
-                    
+                    game_grids = {}
                     for tid in tids_in_game:
-                        # Load Stats
                         k_stat = f"team_{tid}_stats"
                         if k_stat in data:
                             if data[k_stat].dtype.kind in {'U', 'S'}:
                                 s = json.loads(str(data[k_stat].item()))
                             else:
                                 s = json.loads(str(data[k_stat]))
-                                
-                            if tid not in team_stats:
-                                team_stats[tid] = {'team_xgs': 0.0, 'other_xgs': 0.0, 
-                                                   'team_seconds': 0.0, 'team_goals': 0, 
-                                                   'other_goals': 0, 'team_attempts': 0, 
-                                                   'other_attempts': 0, 'n_games': 0}
-                            ts = team_stats[tid]
-                            ts['team_xgs'] += s.get('team_xgs', 0.0)
-                            ts['other_xgs'] += s.get('other_xgs', 0.0)
-                            ts['team_seconds'] += s.get('team_seconds', 0.0)
-                            ts['team_goals'] += s.get('team_goals', 0)
-                            ts['other_goals'] += s.get('other_goals', 0)
-                            ts['team_attempts'] += s.get('team_attempts', 0)
-                            ts['other_attempts'] += s.get('other_attempts', 0)
-                            ts['n_games'] += 1
+                            result['team_stats'][tid] = s
                         
-                        # Load 'For' Grid
                         k_grid = f"team_{tid}_grid_team"
                         if k_grid in data:
-                            g = data[k_grid]
-                            game_grids[tid] = g
-                            
-                    # Second pass: Accumulate Full Grids (For + Against)
-                    # Against comes from OPPONENT'S 'For' grid, ROTATED.
+                            game_grids[tid] = data[k_grid]
                     
-                    # Identify opponents. If 2 teams, they are opponents.
                     if len(tids_in_game) == 2:
                         t1, t2 = tids_in_game
                         opp_map = {t1: t2, t2: t1}
                     else:
-                        # Fallback/Edge case? Ignore cross-fill if not strictly 1v1
                         opp_map = {}
-                        
+                    
                     for tid in tids_in_game:
-                         # Ensure we loaded the grid
-                        if tid not in game_grids: continue
-                            
+                        if tid not in game_grids:
+                            continue
+                        grid_for = game_grids[tid]
+                        if grid_for is None:
+                            continue
+                        
+                        grid_against = np.zeros_like(grid_for)
+                        if tid in opp_map:
+                            opp_id = opp_map[tid]
+                            if opp_id in game_grids and game_grids[opp_id] is not None:
+                                grid_against = np.rot90(game_grids[opp_id], 2)
+                        
+                        full_game_grid = grid_for + grid_against
+                        if np.isfinite(full_game_grid).all():
+                            result['team_grids'][tid] = full_game_grid.astype(np.float64)
+                            if result['league_grid'] is None:
+                                result['league_grid'] = full_game_grid.astype(np.float64)
+                            else:
+                                result['league_grid'] += full_game_grid
             except Exception as e:
-                print(f"Error processing {fname}: {e}")
-                continue # Ensure we skip helper logic below if load failed
-                
-            # --- DEFENSIVE CHECK ---
-            try:
-                # Verify grids before adding
-                for tid in tids_in_game:
-                    if tid not in game_grids: continue
-                    
-                    grid_for = game_grids[tid]
-                    
-                    # Since process_daily_cache now guarantees clean float32 arrays, 
-                    # we can directly use them.
-                    # Basic check for shape consistency could be good, but assuming consistency for now.
-                    if grid_for is None: continue
+                pass  # Silently skip bad files in parallel mode
+            return result
 
-                    # Find Opponent Grid (Against)
-                    grid_against = np.zeros_like(grid_for)
-                    if tid in opp_map:
-                        opp_id = opp_map[tid]
-                        if opp_id in game_grids:
-                            op_grid = game_grids[opp_id]
-                            if op_grid is not None:
-                                # Rotate Opponent's For Grid to become This Team's Against Grid
-                                grid_against = np.rot90(op_grid, 2)
-                            
-                    full_game_grid = grid_for + grid_against
-                    
-                    # Sanity check (rare edge case where sum overflows or something)
-                    if not np.isfinite(full_game_grid).all():
-                         print(f"CRITICAL WARNING: infinite/NaN values in full_game_grid for team {tid} in {fname}. Skipping.")
-                         continue
-                    
-                    # Add to Team Accumulator
+        # Aggregation Phase
+        if args.turbo:
+            from joblib import Parallel, delayed
+            print(f"  [TURBO] Aggregating {len(files)} files in parallel...")
+            partial_results = Parallel(n_jobs=-1, verbose=1)(
+                delayed(process_single_npz)(f) for f in files
+            )
+            
+            # Merge partials
+            for pr in partial_results:
+                for tid, s in pr['team_stats'].items():
+                    if tid not in team_stats:
+                        team_stats[tid] = {'team_xgs': 0.0, 'other_xgs': 0.0,
+                                           'team_seconds': 0.0, 'team_goals': 0,
+                                           'other_goals': 0, 'team_attempts': 0,
+                                           'other_attempts': 0, 'n_games': 0}
+                    ts = team_stats[tid]
+                    ts['team_xgs'] += s.get('team_xgs', 0.0)
+                    ts['other_xgs'] += s.get('other_xgs', 0.0)
+                    ts['team_seconds'] += s.get('team_seconds', 0.0)
+                    ts['team_goals'] += s.get('team_goals', 0)
+                    ts['other_goals'] += s.get('other_goals', 0)
+                    ts['team_attempts'] += s.get('team_attempts', 0)
+                    ts['other_attempts'] += s.get('other_attempts', 0)
+                    ts['n_games'] += 1
+                
+                for tid, g in pr['team_grids'].items():
                     if tid not in team_grids:
-                        team_grids[tid] = full_game_grid.astype(np.float64)
+                        team_grids[tid] = g
                     else:
-                        team_grids[tid] += full_game_grid
-                        
-                    # Add to League Accumulator
+                        team_grids[tid] += g
+                
+                if pr['league_grid'] is not None:
                     if league_grid_sum is None:
-                        league_grid_sum = full_game_grid.astype(np.float64)
+                        league_grid_sum = pr['league_grid']
                     else:
-                        league_grid_sum += full_game_grid
+                        league_grid_sum += pr['league_grid']
+            print(f"  [TURBO] Aggregation complete.")
+        else:
+            # Serial fallback
+            for idx, fname in enumerate(files):
+                if idx % 50 == 0:
+                    print(f"  Aggregating file {idx}/{len(files)}...", end='\r')
+                try:
+                    path = os.path.join(cache_dir, fname)
+                    with np.load(path, allow_pickle=True) as data:
+                        if 'empty' in data: continue
                         
-                    # Sanity check league sum
-                    if not np.isfinite(league_grid_sum).all():
-                        print(f"CRITICAL ERROR: League Grid somehow became NaN after processing {fname} team {tid}!")
-            except Exception as e:
-                print(f"Error accumulating grids for {fname}: {e}")
-                continue 
+                        keys = list(data.keys())
+                        
+                        # Identify Teams in this file
+                        # Keys: team_{tid}_grid_team
+                        tids_in_game = []
+                        for k in keys:
+                            if k.startswith('team_') and k.endswith('_grid_team'):
+                                tids_in_game.append(int(k.split('_')[1]))
+                        
+                        # We expect exactly 2 teams per game usually
+                        # But handle whatever is there
+                        
+                        # First pass: Load 'For' grids and Stats
+                        game_grids = {} # tid -> grid
+                        
+                        for tid in tids_in_game:
+                            # Load Stats
+                            k_stat = f"team_{tid}_stats"
+                            if k_stat in data:
+                                if data[k_stat].dtype.kind in {'U', 'S'}:
+                                    s = json.loads(str(data[k_stat].item()))
+                                else:
+                                    s = json.loads(str(data[k_stat]))
+                                    
+                                if tid not in team_stats:
+                                    team_stats[tid] = {'team_xgs': 0.0, 'other_xgs': 0.0, 
+                                                       'team_seconds': 0.0, 'team_goals': 0, 
+                                                       'other_goals': 0, 'team_attempts': 0, 
+                                                       'other_attempts': 0, 'n_games': 0}
+                                ts = team_stats[tid]
+                                ts['team_xgs'] += s.get('team_xgs', 0.0)
+                                ts['other_xgs'] += s.get('other_xgs', 0.0)
+                                ts['team_seconds'] += s.get('team_seconds', 0.0)
+                                ts['team_goals'] += s.get('team_goals', 0)
+                                ts['other_goals'] += s.get('other_goals', 0)
+                                ts['team_attempts'] += s.get('team_attempts', 0)
+                                ts['other_attempts'] += s.get('other_attempts', 0)
+                                ts['n_games'] += 1
+                            
+                            # Load 'For' Grid
+                            k_grid = f"team_{tid}_grid_team"
+                            if k_grid in data:
+                                g = data[k_grid]
+                                game_grids[tid] = g
+                                
+                        # Second pass: Accumulate Full Grids (For + Against)
+                        # Against comes from OPPONENT'S 'For' grid, ROTATED.
+                        
+                        # Identify opponents. If 2 teams, they are opponents.
+                        if len(tids_in_game) == 2:
+                            t1, t2 = tids_in_game
+                            opp_map = {t1: t2, t2: t1}
+                        else:
+                            # Fallback/Edge case? Ignore cross-fill if not strictly 1v1
+                            opp_map = {}
+                            
+                        for tid in tids_in_game:
+                            # Ensure we loaded the grid
+                            if tid not in game_grids: continue
+                            
+                            grid_for = game_grids[tid]
+                            
+                            # Since process_daily_cache now guarantees clean float32 arrays, 
+                            # we can directly use them.
+                            if grid_for is None: continue
+
+                            # Find Opponent Grid (Against)
+                            grid_against = np.zeros_like(grid_for)
+                            if tid in opp_map:
+                                opp_id = opp_map[tid]
+                                if opp_id in game_grids:
+                                    op_grid = game_grids[opp_id]
+                                    if op_grid is not None:
+                                        # Rotate Opponent's For Grid to become This Team's Against Grid
+                                        grid_against = np.rot90(op_grid, 2)
+                                    
+                            full_game_grid = grid_for + grid_against
+                            
+                            # Sanity check (rare edge case where sum overflows or something)
+                            if not np.isfinite(full_game_grid).all():
+                                 print(f"CRITICAL WARNING: infinite/NaN values in full_game_grid for team {tid} in {fname}. Skipping.")
+                                 continue
+                            
+                            # Add to Team Accumulator
+                            if tid not in team_grids:
+                                team_grids[tid] = full_game_grid.astype(np.float64)
+                            else:
+                                team_grids[tid] += full_game_grid
+                                
+                            # Add to League Accumulator
+                            if league_grid_sum is None:
+                                league_grid_sum = full_game_grid.astype(np.float64)
+                            else:
+                                league_grid_sum += full_game_grid
+                                
+                            # Sanity check league sum
+                            if not np.isfinite(league_grid_sum).all():
+                                print(f"CRITICAL ERROR: League Grid somehow became NaN after processing {fname} team {tid}!")
+                except Exception as e:
+                    print(f"Error processing {fname}: {e}")
+                    continue
 
         if not team_stats:
             print(f"  No stats found for {cond}.")

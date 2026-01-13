@@ -506,7 +506,9 @@ def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
         'angle_deg': 0.0,
         # Time
         'time_elapsed_in_period_s': 0.0,
-        'total_time_elapsed_s': 0.0
+        'total_time_elapsed_s': 0.0,
+        'dist_from_last_event': 0.0,
+        'speed_from_last_event': 0.0
     }
     
     for col, default_val in numeric_defaults.items():

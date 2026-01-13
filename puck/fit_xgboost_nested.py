@@ -21,6 +21,7 @@ from xgboost import XGBClassifier
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
+from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import log_loss, roc_auc_score
 
 from . import features as feature_util
@@ -355,12 +356,25 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             if 'event' in df_calib_raw.columns:
                 targets = (df_c['event'] == 'goal').astype(int)
             else:
-                 targets = df_c['is_goal_layer'] # Fallback if we assumed is_goal_layer is globally correct (it is for goal)
+                 targets = df_c['is_goal_layer'] # Fallback
             
-            self.calibrator = LogisticRegression(C=1e5) # Large C for Platt Scaling
+            # Switch to Isotonic for aggressive upper-tail calibration
+            # Logic: We prefer to uncap high-danger probabilities even if curve is step-function
+            self.calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0, y_max=1)
+            
+            # DEBUG: Inspect inputs to Isotonic Fit
+            print(f"Isotonic Fit Debug: p_goal_est shape={p_goal_est.shape}, targets shape={targets.shape}")
+            print(f"  p_goal_est stats: Min={p_goal_est.min():.4f}, Max={p_goal_est.max():.4f}, Mean={p_goal_est.mean():.4f}")
+            print(f"  targets stats:    Sum={targets.sum()}, Mean={targets.mean():.4f}")
+            
             if len(targets.unique()) > 1:
-                self.calibrator.fit(p_goal_est.reshape(-1, 1), targets)
-                logger.info("  Final Model Calibrator FITTED.")
+                try:
+                    self.calibrator.fit(p_goal_est, targets) # Isotonic expects 1D input (n_samples,)
+                    print("  Final Model Calibrator FITTED (Isotonic).")
+                except Exception as e:
+                    print(f"  Isotonic Fit FAILED: {e}")
+            else:
+                print("  Skipping calibration: Targets have only 1 unique value.")
 
         self.final_features = self.features
         return self
@@ -416,7 +430,8 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         # 5. Apply Calibration
         if self.use_calibration and self.calibrator:
-            p_goal = self.calibrator.predict_proba(p_goal.reshape(-1, 1))[:, 1]
+            # Isotonic .predict() takes 1D array and outputs probabilities directly
+            p_goal = self.calibrator.predict(p_goal)
             
         return np.column_stack((1 - p_goal, p_goal))
 

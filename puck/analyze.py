@@ -933,12 +933,21 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             is_nested = True
     except ImportError:
         pass
+
+    # GLM Support
+    try:
+        from .fit_glm_nested import NestedGLM
+        if isinstance(clf, NestedGLM):
+            is_nested = True
+    except ImportError:
+        pass
     
     # Also check via string just in case of reload/import issues
-    if not is_nested and type(clf).__name__ == 'NestedXGClassifier':
+    if not is_nested and type(clf).__name__ in ['NestedXGClassifier', 'NestedGLM']:
         is_nested = True
         
-    is_xgboost = (type(clf).__name__ == 'XGBNestedXGClassifier')
+    # Treat GLM same as XGBoost for data flow (bypass legacy RF cleaning)
+    is_xgboost = (type(clf).__name__ in ['XGBNestedXGClassifier', 'NestedGLM'])
     if is_xgboost:
         is_nested = True
 

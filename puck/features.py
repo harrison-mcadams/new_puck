@@ -19,7 +19,7 @@ PLAYER_ROLE = ['shooter_role']
 # prior event
 REBOUND = ['is_rebound', 'rebound_angle_change', 'rebound_time_diff']
 RUSH = ['is_rush']
-PRIOR_EVENT = ['last_event_type', 'last_event_time_diff']
+PRIOR_EVENT = ['last_event_type', 'last_event_time_diff', 'dist_from_last_event', 'speed_from_last_event']
 
 # Named Feature Sets
 FEATURE_SETS = {
