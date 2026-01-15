@@ -236,10 +236,16 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
 
     # 2. Look for {year}/{year}_df.csv structure
     # 2. Look for nested structure using glob (more robust)
-    print(f"DEBUG: Globbing {base_path} for */*_df.csv...")
-    # Matches data/20142015/20142015_df.csv
-    for csv_path in base_path.glob("*/*_df.csv"):
+    # 2. Look for nested structure using glob (more robust)
+    print(f"DEBUG: Globbing {base_path} for */*.csv...")
+    # Matches data/20142015/20142015_df.csv or data/20142015/20142015.csv
+    for csv_path in base_path.glob("*/*.csv"):
          year_search = csv_path.parent.name
+         # Strict check: Must be 8 digits (e.g. 20142015)
+         if not (year_search.isdigit() and len(year_search) == 8):
+             # vprint(f"DEBUG: Skipping non-season dir {year_search}")
+             continue
+
          if year_search in loaded_stems:
              print(f"DEBUG: Skipping {year_search} (already loaded flat)")
              continue

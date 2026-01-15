@@ -326,6 +326,10 @@ try:
     
     # Load raw again for a small batch
     df_raw = fit_xgs.load_data().sample(50, random_state=42)
+    # Ensure raw df doesn't have prediction columns which would skip processing
+    for col in ['xgs', 'xG', 'prob_block', 'prob_accuracy', 'prob_finish']:
+        if col in df_raw.columns:
+            df_raw = df_raw.drop(columns=[col])
     
     # Run _predict_xgs
     # This will load the model we just saved!

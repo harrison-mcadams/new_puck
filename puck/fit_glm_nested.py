@@ -38,6 +38,10 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         self.features = features or feature_util.get_features('all_inclusive')
         self.poly_degree = poly_degree
         self.use_splines = use_splines
+        
+        # Interaction Feature Name
+        self.interact_col = 'dist_angle' if use_splines else None
+
         self.enable_marginalization = enable_marginalization
         
         # Sub-models
@@ -49,12 +53,23 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         self.shot_type_priors_ = {}
         
     def fit(self, X, y=None):
-        logger.info(f"Fitting NestedGLM on {len(X)} rows with {len(self.features)} features. Poly Degree={self.poly_degree}, Splines={self.use_splines}")
+        logger.info(f"Fitting NestedGLM on {len(X)} rows. Poly Degree={self.poly_degree}, Splines={self.use_splines}")
+
+        # --- Dynamic Interaction Term for Splines ---
+        df = X.copy()
+        if self.use_splines:
+            df = self._enrich_interaction(df)
+            # Add interaction column to features if not already present
+            if self.interact_col and self.interact_col not in self.features:
+                logger.info(f"Adding explicit interaction term '{self.interact_col}' to features.")
+                self.features.append(self.interact_col)
+
+        logger.info(f"Final Feature Set ({len(self.features)}): {self.features}")
         
         # 0. Learn Priors for Marginalization
-        if self.enable_marginalization and 'shot_type' in X.columns:
+        if self.enable_marginalization and 'shot_type' in df.columns:
             # Normalize to lowercase for counting
-            st_lower = X['shot_type'].astype(str).str.lower()
+            st_lower = df['shot_type'].astype(str).str.lower()
             vc = st_lower.value_counts(normalize=True)
             # Filter to known vocabulary
             self.shot_type_priors_ = {k: v for k, v in vc.items() if k in VOCAB_SHOT_TYPE}
@@ -71,14 +86,14 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         logger.info(f"  Fitting Block Model (Features: {len(block_features)})...")
         
         self.model_block = self._build_pipeline(features=block_features)
-        y_block = (X['event'] == 'blocked-shot').astype(int)
-        self.model_block.fit(X[block_features], y_block)
+        y_block = (df['event'] == 'blocked-shot').astype(int)
+        self.model_block.fit(df[block_features], y_block)
         
         # 2. Accuracy Model (Trained on Unblocked shots)
         logger.info("  Fitting Accuracy Model...")
         self.model_acc = self._build_pipeline(features=self.features)
-        mask_unblocked = X['event'] != 'blocked-shot'
-        X_unblocked = X[mask_unblocked]
+        mask_unblocked = df['event'] != 'blocked-shot'
+        X_unblocked = df[mask_unblocked]
         y_acc = X_unblocked['event'].isin(['shot-on-goal', 'goal']).astype(int)
         if len(X_unblocked) > 0:
             self.model_acc.fit(X_unblocked[self.features], y_acc)
@@ -88,8 +103,8 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         # 3. Finish Model (Trained on Shots On Net)
         logger.info("  Fitting Finish Model...")
         self.model_finish = self._build_pipeline(features=self.features)
-        mask_on_net = X['event'].isin(['shot-on-goal', 'goal'])
-        X_on_net = X[mask_on_net]
+        mask_on_net = df['event'].isin(['shot-on-goal', 'goal'])
+        X_on_net = df[mask_on_net]
         y_finish = (X_on_net['event'] == 'goal').astype(int)
         if len(X_on_net) > 0:
             self.model_finish.fit(X_on_net[self.features], y_finish)
@@ -110,14 +125,18 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         num_features = [f for f in features if f not in cat_features]
         
         # Numeric Pipeline: Impute -> Poly/Spline -> Scale
-        
         steps = [('imputer', SimpleImputer(strategy='median'))]
         
         if self.use_splines:
             # Splines (Flexible, Piecewise)
+            # CRITICAL: SplineTransformer does NOT generate interactions between features.
+            # We explicitly want Distance * Angle interaction.
+            # We rely on the caller (fit/predict) to have added explicitly constructed interaction columns
+            # to X before calling this pipeline if needed. 
+            # If we are in Spline mode, we treat all numeric features (including custom interactions) with splines.
             steps.append(('spline', SplineTransformer(n_knots=7, degree=3, include_bias=False)))
         else:
-            # Polynomials (Global curve)
+            # Polynomials (Global curve) - Automatically generates interactions
             steps.append(('poly', PolynomialFeatures(degree=self.poly_degree, include_bias=False)))
             
         steps.append(('scaler', StandardScaler()))
@@ -143,10 +162,47 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         
         return pipeline
 
+    def _enrich_interaction(self, df):
+        """Adds Distance * Angle interaction term if using Splines."""
+        if not self.use_splines:
+            return df
+            
+        df = df.copy()
+        
+        # Ensure we have distance and angle
+        if 'distance' in df.columns and 'angle_deg' in df.columns:
+            # We use absolute angle because symmetry is usually assumed, 
+            # but let's stick to raw product? 
+            # Actually, angle is usually absolute in meaningfulness but signed for side.
+            # PolynomialFeatures(degree=2) produces x*y.
+            # If we want to capture "Sharp Angle at Long Distance" vs "Sharp Angle at Short Distance",
+            # abs(angle) is probably what matters most for xG, unless we model strong/weak side issues.
+            # But standard polynomial features would produce dist * angle (signed).
+            # Let's standardize on ABSOLUTE angle for the interaction, 
+            # as geometry for blockage/visible net is symmetric.
+            
+            # NOTE: We simply multiply them.
+            # However, since 'angle_deg' can be negative, dist * angle would be negative.
+            # Does left side vs right side matter for interaction? Probably not much if we assume symmetry.
+            # Let's use ABS angle to force symmetry and keep the interaction monotonic with "difficulty".
+            # Distance = Harder, Abs(Angle) = Harder.
+            # Interaction = Distance * Abs(Angle) = Extremity.
+            
+            df[self.interact_col] = df['distance'] * df['angle_deg'].abs()
+        else:
+            # Should not happen in standard pipeline
+            # If missing, fill 0
+            df[self.interact_col] = 0.0
+            
+        return df
+
     def predict_proba_layer(self, X, layer):
         """Returns probability of success (1) for a specific layer.
            Applies marginalization for 'accuracy' and 'finish' layers if shot_type is unknown.
         """
+        # Enrich interaction term
+        X = self._enrich_interaction(X)
+        
         if layer == 'block':
             # Block model predicts 'is_blocked'.
             # Must exclude shot_type. Marginalization not needed as shot_type is excluded.
@@ -193,6 +249,9 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         Predicts P(Goal) using the nested chain.
         Applies Marginalization for rows with missing shot_type.
         """
+        # Enrich Interaction
+        X = self._enrich_interaction(X)
+        
         df = X[self.features].copy()
         
         # 1. Identify rows needing marginalization

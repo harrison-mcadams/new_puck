@@ -22,11 +22,13 @@ def preprocess_features(df_input: pd.DataFrame,
                         impute_alpha: float = 0.0) -> pd.DataFrame:
     """
     Apply standard preprocessing steps to the dataframe:
-    # 1. Fix Blocked Shot Attribution (Swap IDs only, NO coordinate flip)
-    # DIAGNOSIS (2025-01-10): The raw data for blocked shots ALREADY attributes the event to the SHOOTER (Offense).
+    # 1. Blocked Shot Attribution
+    # DIAGNOSIS (2025-01-14): The raw data for blocked shots ALREADY attributes the event to the SHOOTER (Offense).
     # The previous logic assumed it was attributed to the BLOCKER (Defense) and swapped it.
-    # This caused the ownership to flip incorrectly to the Defense.
-    # We disable this step to preserve the correct raw attribution.
+    # We disable this step to preserve the correct 'team_id' (Shooter).
+    # if 'event' in df.columns and (df['event'] == 'blocked-shot').any():
+    #     vprint("  Correcting Ref: Blocked Shots (Disabled, trusting raw attribution)...")
+    #     # df = correction.fix_blocked_shot_attribution(df).
     2. Standardize Orientation (Force Attack Right based on swapped ownership)
     3. Global Dithering (Optional/Training)
     4. Arena Adjustments (Calculate or Use Existing)
@@ -63,10 +65,11 @@ def preprocess_features(df_input: pd.DataFrame,
     vprint(f"Preprocessing {len(df)} rows. Training={is_training}, Impute={apply_imputation}, Adjust={apply_arena_adjustments}")
 
     # 1. Blocked Shot Attribution
-    # VERIFIED (2025-01-11): Raw data attributes blocked shots to the BLOCKER (Team ID = Defending Team).
-    # We MUST correct this to attribute to the SHOOTER (Offense) for xG modeling.
-    if 'event' in df.columns and (df['event'] == 'blocked-shot').any():
-        df = correction.fix_blocked_shot_attribution(df)
+    # NOTE: The raw data for blocked shots attributes the event to the SHOOTER (Offense).
+    # Previous versions of this pipeline attempted to swap this, assuming it was attributed to the blocker.
+    # Verification (Jan 2025) confirmed that 'team_id' correctly points to the shooting team.
+    # Therefore, no manual attribution swap is required here.
+
 
     # 2. Standardize Orientation (Attack Right)
     # Ensure all play is oriented towards the goal at x=89.
@@ -97,54 +100,45 @@ def preprocess_features(df_input: pd.DataFrame,
             # Map side string to sign (-1 = Left, +1 = Right)
             # 'left' -> -1, 'right' -> 1
             # Careful with case/whitespace
-            def_side_map = df['home_team_defending_side'].astype(str).str.lower().str.strip().map({
-                'left': -1, 
-                'right': 1
-            })
-            # Fill unknown with NaN or default? Let's assume NaN -> Fallback
+            # --- 2. Standardize Orientation (Attack Right) ---
+            # Ensure all play is oriented towards the goal at x=89.
             
-            # Is Team Home?
-            # Handle potential string/int mismatch
-            tid = df['team_id'].astype(str)
-            hid = df['home_id'].astype(str)
-            is_home = (tid == hid)
+            # Robust extraction of side map
+            # normalize to 'left' or 'right'
+            side_str = df['home_team_defending_side'].astype(str).str.lower().str.strip()
+            def_side_map = side_str.map({'left': -1, 'right': 1})
             
-            # Calculate Attacking Side Sign (-1 or 1)
-            # Home Attacking Side = -1 * Home Defending Side
-            # Away Attacking Side = Home Defending Side
+            # Robust Is_Home check (Force String Comparison)
+            # handle NaNs gracefully
+            tid_str = df['team_id'].fillna(-1).astype(str).str.split('.').str[0] # Handle float strings e.g. "6.0"
+            hid_str = df['home_id'].fillna(-2).astype(str).str.split('.').str[0]
+            is_home_series = (tid_str == hid_str)
             
-            attack_sign = np.where(is_home, -1 * def_side_map, def_side_map)
+            # Side Multiplier: Home = -1, Away = 1
+            # Logic: If Home (-1 side) * Home (-1 mult) = +1 Attack
+            side_multiplier = np.where(is_home_series, -1, 1)
             
-            # Where attack_sign is -1 (Attacking Left), we must FLIP to make it Right.
-            mask_flip = (attack_sign == -1)
+            # Attacking Side = Def Side * Multiplier
+            attacking_side = def_side_map * side_multiplier
             
-            # If map failed (NaN), mask_flip is False (no flip). 
-            # We should fallback for NaNs?
-            # Let's handle NaNs by checking for them.
-            mask_nan = def_side_map.isna()
-            if mask_nan.any():
-                vprint(f"  WARNING: {mask_nan.sum()} rows have unknown defending side. Using simplistic fallback.")
-                # Fallback: Blind flip negative X
-                mask_fallback_flip = mask_nan & (df['x'] < 0)
-                mask_flip = mask_flip | mask_fallback_flip
-
+            # Filter rows where Attack is Left (-1)
+            mask_flip = (attacking_side == -1)
+            
             if mask_flip.any():
-                vprint(f"  Flipping {mask_flip.sum()} events to positive orientation (Attacking Left -> Right).")
+                vprint(f"  Flipping {mask_flip.sum()} events (attacking left).")
                 df.loc[mask_flip, 'x'] *= -1
                 df.loc[mask_flip, 'y'] *= -1
-                if 'x_adj' in df.columns:
-                    df.loc[mask_flip, 'x_adj'] *= -1
-                if 'y_adj' in df.columns:
-                    df.loc[mask_flip, 'y_adj'] *= -1
+            
+            # Update Copies if present (though usually created later)
+            if 'x_adj' in df.columns:
+                 df['x_adj'] = df['x']
+            if 'y_adj' in df.columns:
+                 df['y_adj'] = df['y']
                 
-                # CRITICAL: Synchronize Metadata
-                # Once we've flipped to "Attack Right", the team is effectively attacking the +X goal (Right).
-                # This means they are defending the -X goal (Left).
-                # If the team is HOME, then Home defends Left -> 'left'.
-                # If the team is AWAY, then Away defends Left, which means Home defends RIGHT -> 'right'.
-                if 'home_team_defending_side' in df.columns:
-                    df.loc[mask_flip & is_home, 'home_team_defending_side'] = 'left'
-                    df.loc[mask_flip & ~is_home, 'home_team_defending_side'] = 'right'
+            # CRITICAL: Synchronize Metadata
+            if 'home_team_defending_side' in df.columns:
+                 df.loc[mask_flip & is_home_series, 'home_team_defending_side'] = 'left'
+                 df.loc[mask_flip & ~is_home_series, 'home_team_defending_side'] = 'right'
                     
         else:
              # FALLBACK: Old simplistic logic
@@ -176,12 +170,13 @@ def preprocess_features(df_input: pd.DataFrame,
             vprint("  Found existing 'x_adj' columns. Using them.")
             use_x, use_y = 'x_adj', 'y_adj'
             
-            # Re-standardize x_adj (ensure positive)
-            mask_neg_adj = df['x_adj'] < 0
-            if mask_neg_adj.any():
-                vprint(f"    Re-standardizing {mask_neg_adj.sum()} x_adj values.")
-                df.loc[mask_neg_adj, 'x_adj'] *= -1
-                df.loc[mask_neg_adj, 'y_adj'] *= -1
+            # Valid negative x_adj (Defensive Zone) should NOT be flipped if we trust inputs
+            # Re-standardize logic removed to prevent mirroring defensive zone blocks
+            # mask_neg_adj = df['x_adj'] < 0
+            # if mask_neg_adj.any():
+            #    vprint(f"    Re-standardizing {mask_neg_adj.sum()} x_adj values.")
+            #    df.loc[mask_neg_adj, 'x_adj'] *= -1
+            #    df.loc[mask_neg_adj, 'y_adj'] *= -1
                 
         # OPTION B: Calculate from Team Name
         elif 'home_team' in df.columns or 'home_abb' in df.columns:
@@ -223,11 +218,11 @@ def preprocess_features(df_input: pd.DataFrame,
                 
                 vprint(f"    Applied adjustments to {count_adj} groups.")
                 
-                # Re-standardize
-                mask_neg_adj = df['x_adj'] < 0
-                if mask_neg_adj.any():
-                    df.loc[mask_neg_adj, 'x_adj'] *= -1
-                    df.loc[mask_neg_adj, 'y_adj'] *= -1
+                # Re-standardize check removed
+                # mask_neg_adj = df['x_adj'] < 0
+                # if mask_neg_adj.any():
+                #    df.loc[mask_neg_adj, 'x_adj'] *= -1
+                #    df.loc[mask_neg_adj, 'y_adj'] *= -1
                     
                 use_x, use_y = 'x_adj', 'y_adj'
             else:
@@ -338,7 +333,8 @@ def preprocess_features(df_input: pd.DataFrame,
         if 'is_net_empty' in df.columns:
             # removing rows where is_net_empty == 1
             df = df[df['is_net_empty'] != 1]
-            
+
+
         # C. Remove Extreme Game States (1v0, 0v1)
         if 'game_state' in df.columns:
              df = df[~df['game_state'].isin(['1v0', '0v1'])]

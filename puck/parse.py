@@ -463,6 +463,7 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                 'synthetic': True,
                 'predicted_penalty_duration_seconds': int(dur_secs),
                 'predicted_penalty_end_total_seconds': int(scheduled_end_total),
+                'total_time_elapsed_s': int(scheduled_end_total),
             }
             synthetic_events.append(synth)
 
@@ -501,6 +502,8 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
                         x_adj, y_adj = arena_adjustments.adjust_shot(x, y, home_team_name, season)
                     except Exception:
                         pass # Fallback to raw
+
+
 
                 events.append({
                     'event': ev_type,
@@ -555,6 +558,15 @@ def _game(game_feed: Dict[str, Any]) -> pd.DataFrame:
             events.extend(synthetic_events)
         except Exception:
             pass
+
+    # Sort events chronologically by total_time_elapsed_s to prevent
+    # synthetic events from appearing out of order at the end.
+    # We use a stable sort (key) and fill None with -1 or similar to be safe, 
+    # though total_time_elapsed_s should be populated.
+    try:
+        events.sort(key=lambda x: x.get('total_time_elapsed_s') or -1)
+    except Exception:
+        pass
 
     try:
         return pd.DataFrame.from_records(events)
@@ -1073,6 +1085,26 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                              rec['speed_from_last_event'] = 100.0
                         else:
                              rec['speed_from_last_event'] = 0.0
+
+                        # Angle Change Calculation
+                        # We utilize the goal_x determined for the *current* event context (from the block above)
+                        # to calculate the angle of the PREVIOUS event relative to the CURRENT target.
+                        # This works because python scopes `goal_x` to the function, and it is bound if `x` (cx) is not None.
+                        try:
+                            from .rink import calculate_distance_and_angle
+                            # Calculate last angle relative to current goal
+                            _, last_angle = calculate_distance_and_angle(lx, ly, goal_x, 0.0)
+                            curr_angle = rec.get('angle_deg')
+                            
+                            if curr_angle is not None and last_angle is not None:
+                                diff = abs(curr_angle - last_angle) % 360.0
+                                if diff > 180.0:
+                                    diff = 360.0 - diff
+                                rec['angle_change_last_event'] = diff
+                            else:
+                                rec['angle_change_last_event'] = None
+                        except Exception:
+                            rec['angle_change_last_event'] = None
 
             # 2. Rebound Logic (specific to shot attempts by the same team)
             shot_attempt_types = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']

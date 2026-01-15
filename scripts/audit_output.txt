@@ -1,0 +1,105 @@
+INFO:__main__:Loading raw feeds from data/20252026_raw_game_feeds.csv...
+INFO:__main__:Generated DataFrame with 14621 rows and 41 columns.
+INFO:__main__:
+--- Audit: last_event_type ---
+INFO:__main__:Unique values: 11
+INFO:__main__:
+Top 20 values:
+last_event_type
+faceoff         2961
+shot-on-goal    2574
+hit             2440
+giveaway        1733
+blocked-shot    1720
+missed-shot     1422
+penalty_end      529
+takeaway         456
+penalty          419
+goal             317
+Unknown           50
+Name: count, dtype: int64
+INFO:__main__:
+Tail 20 values (Potential Noise?):
+last_event_type
+faceoff         2961
+shot-on-goal    2574
+hit             2440
+giveaway        1733
+blocked-shot    1720
+missed-shot     1422
+penalty_end      529
+takeaway         456
+penalty          419
+goal             317
+Unknown           50
+Name: count, dtype: int64
+INFO:__main__:
+Number of types with < 5 occurrences: 0
+INFO:__main__:
+--- Audit: dist_from_last_event ---
+INFO:__main__:
+Distribution:
+count    13992.000000
+mean        60.308978
+std         45.397598
+min          0.000000
+1%           1.414214
+5%           7.615773
+25%         25.074886
+50%         47.381431
+75%         83.054199
+95%        155.366823
+99%        177.080516
+max        198.116128
+Name: dist_from_last_event, dtype: float64
+INFO:__main__:Count of Zeros: 94 (0.7%)
+INFO:__main__:
+--- Audit: speed_from_last_event ---
+INFO:__main__:
+Distribution:
+count    14241.000000
+mean        14.089912
+std         24.224294
+min          0.000000
+1%           0.000000
+5%           0.535591
+25%          2.593260
+50%          6.082763
+75%         12.730527
+95%        100.000000
+99%        100.000000
+max        177.045192
+Name: speed_from_last_event, dtype: float64
+INFO:__main__:Count of Zeros: 343 (2.4%)
+INFO:__main__:High Speed (>50 ft/s) count: 1006
+INFO:__main__:
+--- Audit: last_event_time_diff ---
+INFO:__main__:
+Distribution:
+count    14571.000000
+mean        10.902134
+std        190.651939
+min      -3821.000000
+1%           0.000000
+5%           0.000000
+25%          3.000000
+50%          8.000000
+75%         19.000000
+95%         50.000000
+99%        330.200000
+max       1967.000000
+Name: last_event_time_diff, dtype: float64
+INFO:__main__:Count of Zeros: 1117 (7.7%)
+INFO:__main__:
+--- Correlations with is_goal ---
+INFO:__main__:
+dist_from_last_event     0.006486
+speed_from_last_event   -0.030304
+last_event_time_diff     0.003553
+is_goal                  1.000000
+Name: is_goal, dtype: float64
+INFO:__main__:
+--- Missing Data Checks ---
+INFO:__main__:Missing dist_from_last_event: 629 (4.3%)
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
