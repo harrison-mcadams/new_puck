@@ -91,7 +91,7 @@ def visualize_flow():
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    out_path = 'analysis/imputation_flow.png'
+    out_path = 'analysis/imputation_flow_v3.png'
     plt.savefig(out_path)
     print(f"Saved flow map to {out_path}")
     

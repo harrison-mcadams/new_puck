@@ -191,13 +191,30 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
         if alpha > 0:
             method_to_use = 'mixture_model'
 
+        # Helper for physics check (Net is at 89.0 in standardized frame)
+        def _is_physically_valid(ox, oy, bx, by):
+            d_shoot = math.hypot(ox - 89.0, oy)
+            d_block = math.hypot(bx - 89.0, by)
+            return d_shoot > d_block
+
         if method_to_use == 'mixture_model':
             if p_flat is not None and x_mids_flat is not None and y_mids_flat is not None and rng.random() < alpha:
-                idx = rng.choice(len(p_flat), p=p_flat)
-                ox = x_mids_flat[idx] + rng.uniform(-1, 1)
-                oy = y_mids_flat[idx] + rng.uniform(-1, 1)
+                # Mixture Component
+                for _ in range(10): # Retry loop
+                    idx = rng.choice(len(p_flat), p=p_flat)
+                    ox = x_mids_flat[idx] + rng.uniform(-1, 1)
+                    oy = y_mids_flat[idx] + rng.uniform(-1, 1)
+                    if _is_physically_valid(ox, oy, nx, ny):
+                        break
+                else:
+                     # Fallback
+                     vx, vy = (nx - 89.0), ny
+                     mag = math.hypot(vx, vy)
+                     if mag > 0: vx, vy = vx/mag, vy/mag
+                     ox, oy = _smooth_coordinates(nx + vx*15, ny + vy*15)
+
             else:
-                # Local Empirical
+                # Local Empirical (inside mixture logic)
                 if _model:
                     bins = _model.get('bins', {})
                     meta = _model.get('meta', {})
@@ -208,8 +225,17 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
                     key = f"{k_x}_{k_y}"
                     if key in bins:
                         b = bins[key]
-                        ox = rng.normal(b['mx'], b.get('std_x', 5.0))
-                        oy = rng.normal(b['my'], b.get('std_y', 5.0))
+                        for _ in range(10):
+                            ox = rng.normal(b['mx'], b.get('std_x', 5.0))
+                            oy = rng.normal(b['my'], b.get('std_y', 5.0))
+                            if _is_physically_valid(ox, oy, nx, ny):
+                                break
+                        else:
+                             # Fallback
+                             vx, vy = (nx - 89.0), ny
+                             mag = math.hypot(vx, vy)
+                             if mag > 0: vx, vy = vx/mag, vy/mag
+                             ox, oy = _smooth_coordinates(nx + vx*15, ny + vy*15)
                     else:
                         vx, vy = (nx-89.0), ny
                         mag = math.hypot(vx, vy)
@@ -217,6 +243,7 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
                         ox, oy = _smooth_coordinates(nx + vx*15, ny + vy*15)
                 else:
                     ox, oy = nx, ny
+                    
         elif method == 'empirical_model' and _model:
             bins = _model.get('bins', {})
             meta = _model.get('meta', {})
@@ -227,8 +254,17 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
             key = f"{k_x}_{k_y}"
             if key in bins:
                 b = bins[key]
-                ox = rng.normal(b['mx'], b.get('std_x', 5.0))
-                oy = rng.normal(b['my'], b.get('std_y', 5.0))
+                for _ in range(10):
+                    ox = rng.normal(b['mx'], b.get('std_x', 5.0))
+                    oy = rng.normal(b['my'], b.get('std_y', 5.0))
+                    if _is_physically_valid(ox, oy, nx, ny):
+                        break
+                else:
+                     # Fallback
+                     vx, vy = (nx - 89.0), ny
+                     mag = math.hypot(vx, vy)
+                     if mag > 0: vx, vy = vx/mag, vy/mag
+                     ox, oy = _smooth_coordinates(nx + vx*15, ny + vy*15)
             else:
                 vx, vy = (nx-89.0), ny
                 mag = math.hypot(vx, vy)

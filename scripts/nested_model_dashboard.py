@@ -56,6 +56,9 @@ def main():
     grid_df_base['period_time_type'] = 'elapsed'
     grid_df_base['home_team_defending_side'] = 'left' 
     grid_df_base['player_name'] = 'Simulated Shooter'
+    grid_df_base['angle_change_last_event'] = 0.0
+    grid_df_base['speed_from_last_event'] = 0.0
+    grid_df_base['dist_from_last_event'] = 0.0
     
     # --- Feature Dimensions ---
     roles = ['F', 'D']

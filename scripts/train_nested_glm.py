@@ -147,15 +147,73 @@ print(f"Saved calibration plots to {out_path}")
 
 # 7. Text Report
 report_path = Path('analysis/nested_xgs/training_report.txt')
+
+# Calculate Sub-model Metrics
+metrics = {}
+
+# 1. Block Layer
+b_targets = df_test['is_blocked']
+b_probs = df_test['prob_block']
+metrics['Block'] = {
+    'AUC': roc_auc_score(b_targets, b_probs),
+    'LogLoss': log_loss(b_targets, b_probs),
+    'Brier': brier_score_loss(b_targets, b_probs),
+    'Count': len(df_test),
+    'EventRate': b_targets.mean()
+}
+
+# 2. Accuracy Layer (Unblocked)
+mask_unblocked = df_test['is_blocked'] == 0
+if mask_unblocked.any():
+    df_acc = df_test[mask_unblocked]
+    a_targets = df_acc['event'].isin(['shot-on-goal', 'goal']).astype(int)
+    a_probs = df_acc['prob_accuracy']
+    metrics['Accuracy'] = {
+        'AUC': roc_auc_score(a_targets, a_probs),
+        'LogLoss': log_loss(a_targets, a_probs),
+        'Brier': brier_score_loss(a_targets, a_probs),
+        'Count': len(df_acc),
+        'EventRate': a_targets.mean()
+    }
+
+# 3. Finish Layer (On Net)
+mask_on_net = (df_test['is_blocked'] == 0) & (df_test['event'].isin(['shot-on-goal', 'goal']))
+if mask_on_net.any():
+    df_fin = df_test[mask_on_net]
+    f_targets = (df_fin['event'] == 'goal').astype(int)
+    f_probs = df_fin['prob_finish']
+    metrics['Finish'] = {
+        'AUC': roc_auc_score(f_targets, f_probs),
+        'LogLoss': log_loss(f_targets, f_probs),
+        'Brier': brier_score_loss(f_targets, f_probs),
+        'Count': len(df_fin),
+        'EventRate': f_targets.mean()
+    }
+
 with open(report_path, 'w') as f:
     f.write("Nested GLM Model Training Report\n")
     f.write("================================\n\n")
     model_desc = "Nested Spline Logistic Regression" if clf.use_splines else f"Nested Polynomial Logistic Regression (Degree={clf.poly_degree})"
     f.write(f"Model: {model_desc}\n")
-    f.write(f"Marginalization: Enabled\n\n")
-    f.write(f"AUC: {auc:.4f}\n")
-    f.write(f"LogLoss: {ll:.4f}\n")
-    f.write(f"Avg xG: {probs.mean():.4f} (Actual: {y_test_goal.mean():.4f})\n\n")
+    f.write(f"Marginalization: {getattr(clf, 'enable_marginalization', 'Unknown')}\n\n")
+    
+    f.write("Overall Performance (xG):\n")
+    f.write(f"  AUC:     {auc:.4f}\n")
+    f.write(f"  LogLoss: {ll:.4f}\n")
+    f.write(f"  Avg xG:  {probs.mean():.4f} (Actual: {y_test_goal.mean():.4f})\n\n")
+    
+    f.write("Sub-Model Performance:\n")
+    for layer in ['Block', 'Accuracy', 'Finish']:
+        if layer in metrics:
+            m = metrics[layer]
+            f.write(f"  {layer} Model (n={m['Count']}, Rate={m['EventRate']:.1%}):\n")
+            f.write(f"    AUC:     {m['AUC']:.4f}\n")
+            f.write(f"    LogLoss: {m['LogLoss']:.4f}\n")
+            f.write(f"    Brier:   {m['Brier']:.4f}\n")
+        else:
+            f.write(f"  {layer} Model: No data\n")
+    f.write("\n")
+
     f.write("High Danger Stats (Test Set):\n")
     f.write(f"  > 0.3 xG: {len(df_test[df_test['xG'] > 0.3])}\n")
     f.write(f"  > 0.5 xG: {len(df_test[df_test['xG'] > 0.5])}\n")

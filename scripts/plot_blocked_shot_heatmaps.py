@@ -39,109 +39,99 @@ def main():
         verbose=True
     )
     
-    # 4. Filter for Blocked Shots
+    # 4. Filters
+    # Unblocked: SOG, Miss, Goal
+    mask_unblocked = df_processed['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
     mask_blocks = df_processed['event'] == 'blocked-shot'
+    
+    df_unblocked = df_processed[mask_unblocked].copy()
     df_blocks = df_processed[mask_blocks].copy()
-    print(f"Found {len(df_blocks)} blocked shots.")
+    
+    print(f"Unblocked Shots: {len(df_unblocked)}")
+    print(f"Blocked Shots:   {len(df_blocks)}")
 
     if df_blocks.empty:
         print("No blocked shots found.")
         return
 
-    # Ensure Forward/Defense separation
-    # shooter_role might be 'F', 'D', 'G', or 'Unknown'
-    # We want F vs D.
-    df_f = df_blocks[df_blocks['shooter_role'] == 'F']
-    df_d = df_blocks[df_blocks['shooter_role'] == 'D']
+    # 5. Generate Comparison Heatmaps (F vs D)
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
     
-    print(f"Forwards: {len(df_f)}")
-    print(f"Defensemen: {len(df_d)}")
-
-    # 5. Generate Heatmaps
-    # We want 3 plots:
-    # A. Imputed Origin (F)
-    # B. Imputed Origin (D)
-    # C. PBP Block Location (All) - Comparison
+    extent = [0, 100, -42.5, 42.5]
     
-    # Imputed Coordinates: 'x_adj', 'y_adj' (which contain imputed values for blocks after pipeline)
-    # PBP Coordinates: 'block_x', 'block_y' (preserved from raw)
-    
-    fig, axes = plt.subplots(1, 3, figsize=(18, 6))
-    
-    # Standardize Plot Ranges (Attack Zone to Net)
-    # Rink X: -100 to 100. Attack usually > 25.
-    extent = [0, 100, -42.5, 42.5] 
-    
-    # Helper to clean data for plotting (remove NaNs, infinite)
-    def clean_coords(sub_df, x_col, y_col):
-        temp = sub_df[[x_col, y_col]].dropna()
-        # Filter strictly reasonable bounds to avoid plotting errors
-        temp = temp[(temp[x_col] >= -100) & (temp[x_col] <= 100)]
-        temp = temp[(temp[y_col] >= -45) & (temp[y_col] <= 45)]
+    def clean_coords(sub_df):
+        temp = sub_df[['x_adj', 'y_adj']].dropna()
+        temp = temp[(temp['x_adj'] >= -100) & (temp['x_adj'] <= 100)]
+        temp = temp[(temp['y_adj'] >= -45) & (temp['y_adj'] <= 45)]
+        # Filter for offensive zone roughly
         return temp
 
-    # Plot A: F Imputed
-    clean_f = clean_coords(df_f, 'x_adj', 'y_adj')
-    if not clean_f.empty:
-        # Standardize to Positive X if not already (Pipeline usually does, but double check)
-        # Pipeline Step 2 standardizes.
-        sns.kdeplot(
-            data=clean_f, x='x_adj', y='y_adj', fill=True, cmap='Reds', ax=axes[0], levels=15, thresh=0.05
-        )
-        axes[0].set_title(f"Imputed Origins: Forwards (n={len(clean_f)})")
-    else:
-        axes[0].text(0.5, 0.5, "No Data", ha='center')
-
-    # Plot B: D Imputed
-    clean_d = clean_coords(df_d, 'x_adj', 'y_adj')
-    if not clean_d.empty:
-        sns.kdeplot(
-            data=clean_d, x='x_adj', y='y_adj', fill=True, cmap='Blues', ax=axes[1], levels=15, thresh=0.05
-        )
-        axes[1].set_title(f"Imputed Origins: Defensemen (n={len(clean_d)})")
-    else:
-        axes[1].text(0.5, 0.5, "No Data", ha='center')
-
-    # Plot C: PBP Locations (All)
-    # Use block_x, block_y if available, else fallback to raw 'x'/'y' (which might be swapped/imputed? 
-    # 'x' in df_processed IS swapped/imputed. We needed the RAW.
-    # Fortunately, 'block_x' shouldn't be touched by the pipeline's x adjustment logic 
-    # EXCEPT ensuring it stays with the row. It is NOT standardized orientation-wise by default 
-    # unless we added that logic.
-    # Wait. 'block_x' comes from 'impute.py' which takes 'x_col' (standardized x passed in?? No.)
-    # In data_pipeline.py: 
-    #   Step 2: Orientation Standardization (modifies 'x', 'y' in place!).
-    #   Step 5: Imputation (calls impute...).
-    # Inside impute.py: "df_out['block_x'] = df_out[x_col]"
-    # So 'block_x' will be the STANDARDIZED x at the time of imputation.
-    # This is GOOD. It means it's oriented correctly (Attack Right).
+    # -- Forward Comparison --
+    ax_f = axes[0]
     
-    clean_blocks = clean_coords(df_blocks, 'block_x', 'block_y')
-    if not clean_blocks.empty:
+    # Unblocked F
+    f_unblocked = df_unblocked[df_unblocked['shooter_role'] == 'F']
+    clean_f_unb = clean_coords(f_unblocked)
+    if not clean_f_unb.empty:
         sns.kdeplot(
-            data=clean_blocks, x='block_x', y='block_y', fill=True, cmap='Greys', ax=axes[2], levels=15, thresh=0.05
+            data=clean_f_unb, x='x_adj', y='y_adj', 
+            fill=False, color='blue', linewidths=2, alpha=0.8,
+            ax=ax_f, levels=8, thresh=0.05, label='Unblocked (Blue)'
         )
-        axes[2].set_title(f"PBP Block Locations (All n={len(clean_blocks)})")
-    else:
-        axes[2].text(0.5, 0.5, "No Data", ha='center')
+    
+    # Imputed F
+    f_blocks = df_blocks[df_blocks['shooter_role'] == 'F']
+    clean_f_blk = clean_coords(f_blocks)
+    if not clean_f_blk.empty:
+        sns.kdeplot(
+            data=clean_f_blk, x='x_adj', y='y_adj', 
+            fill=True, cmap='Reds', alpha=0.5,
+            ax=ax_f, levels=8, thresh=0.05, label='Imputed Blocks (Red)'
+        )
 
-    # Rink details (Simple lines)
+    ax_f.set_title(f"Forwards: Unblocked (n={len(clean_f_unb)}) vs Imputed (n={len(clean_f_blk)})")
+    ax_f.legend()
+
+    # -- Defense Comparison --
+    ax_d = axes[1]
+    
+    # Unblocked D
+    d_unblocked = df_unblocked[df_unblocked['shooter_role'] == 'D']
+    clean_d_unb = clean_coords(d_unblocked)
+    if not clean_d_unb.empty:
+        sns.kdeplot(
+            data=clean_d_unb, x='x_adj', y='y_adj', 
+            fill=False, color='green', linewidths=2, alpha=0.8,
+            ax=ax_d, levels=8, thresh=0.05, label='Unblocked (Green)'
+        )
+    
+    # Imputed D
+    d_blocks = df_blocks[df_blocks['shooter_role'] == 'D']
+    clean_d_blk = clean_coords(d_blocks)
+    if not clean_d_blk.empty:
+        sns.kdeplot(
+            data=clean_d_blk, x='x_adj', y='y_adj', 
+            fill=True, cmap='Purples', alpha=0.5,
+            ax=ax_d, levels=8, thresh=0.05, label='Imputed Blocks (Purple)'
+        )
+
+    ax_d.set_title(f"Defensemen: Unblocked (n={len(clean_d_unb)}) vs Imputed (n={len(clean_d_blk)})")
+    ax_d.legend()
+
+    # Rink details
     for ax in axes:
         ax.set_xlim(0, 100)
         ax.set_ylim(-42.5, 42.5)
         ax.set_aspect('equal')
-        # Goal Line
-        ax.axvline(89, color='black', linestyle='-', alpha=0.3)
-        # Blue Line
-        ax.axvline(25, color='blue', linestyle='-', alpha=0.3)
-        # Faceoff dots (approx)
-        ax.scatter([69, 69], [22, -22], color='red', s=10, alpha=0.3)
+        ax.axvline(89, color='black', linestyle='-', alpha=0.3) # Goal Line
+        ax.axvline(25, color='blue', linestyle='-', alpha=0.3)  # Blue Line
+        ax.scatter([69, 69], [22, -22], color='red', s=10, alpha=0.3) # Dots
 
     plt.tight_layout()
-    out_file = Path("analysis/blocked_shot_heatmaps_20242025.png")
+    out_file = Path("analysis/blocked_shot_comparison_heatmaps.png")
     out_file.parent.mkdir(exist_ok=True)
     plt.savefig(out_file, dpi=150)
-    print(f"Saved heatmaps to {out_file}")
+    print(f"Saved comparison heatmaps to {out_file}")
 
 if __name__ == "__main__":
     main()

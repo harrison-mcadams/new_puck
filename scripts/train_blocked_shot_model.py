@@ -180,7 +180,8 @@ def main():
                      d_origin = math.hypot(ox_norm - 89, oy_norm)
                      
                      # Origin should be further from net than Block.
-                     if d_origin < (d_block - 5.0): # 5ft buffer allowing for error
+                     # Origin should be further from net than Block.
+                     if d_origin < d_block: # Strict physics check (no buffer)
                          continue
  
                      data_points.append({
@@ -255,12 +256,15 @@ def main():
                 w_sum_sq_oy = 0
                 w_count = 0
                 
-                for di in [-1, 0, 1]:
-                    for dj in [-1, 0, 1]:
+                for di in range(-2, 3): # 5x5 Kernel
+                    for dj in range(-2, 3):
                         ni, nj = i + di, j + dj
                         if (ni, nj) in raw_grid:
                             cell = raw_grid[(ni, nj)]
-                            weight = 2.0 if (di==0 and dj==0) else 1.0
+                            
+                            # Gaussian Weight (sigma = 1.0 bin unit)
+                            dist_sq = di**2 + dj**2
+                            weight = math.exp(-dist_sq / 2.0)
                             
                             w_sum_ox += cell['sum_ox'] * weight 
                             w_sum_oy += cell['sum_oy'] * weight

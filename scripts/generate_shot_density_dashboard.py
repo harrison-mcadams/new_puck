@@ -95,6 +95,30 @@ def main():
     d_un = df_d[df_d['is_blocked'] == 0]
     d_bl = df_d[df_d['is_blocked'] == 1]
     
+    # -- Defensemen Counts --
+    d_un = df_d[df_d['is_blocked'] == 0]
+    d_bl = df_d[df_d['is_blocked'] == 1]
+    
+    # --- DEBUG: Print Point Zone / High Slot Ratios ---
+    print("\n--- DASHBOARD DATA DIAGNOSTIC ---")
+    
+    # Point Zone (X: 25-53, Y: +/-20)
+    mask_point = (df['x'].between(25, 53)) & (df['y'].between(-20, 20))
+    df_point = df[mask_point]
+    n_point_bl = len(df_point[df_point['is_blocked'] == 1])
+    n_point_all = len(df_point)
+    ratio_point = n_point_bl / n_point_all if n_point_all > 0 else 0
+    print(f"Point Zone (X 25-53): {n_point_bl}/{n_point_all} Blocked ({ratio_point:.1%})")
+    
+    # High Slot (X: 60-70, Y: +/-10)
+    mask_high = (df['x'].between(60, 70)) & (df['y'].between(-10, 10))
+    df_high = df[mask_high]
+    n_high_bl = len(df_high[df_high['is_blocked'] == 1])
+    n_high_all = len(df_high)
+    ratio_high = n_high_bl / n_high_all if n_high_all > 0 else 0
+    print(f"High Slot (X 60-70): {n_high_bl}/{n_high_all} Blocked ({ratio_high:.1%})")
+    print("---------------------------------\n")
+
     # Subplots: 2 Rows (F, D), 3 Cols (Unblocked, Blocked, Difference)
     fig = make_subplots(
         rows=2, cols=3,
