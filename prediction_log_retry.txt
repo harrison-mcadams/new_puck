@@ -1,0 +1,33 @@
+2026-01-16 10:48:55,446 - INFO - Initializing Predictor...
+2026-01-16 10:48:55,447 - INFO - Loading season data from data\20252026.csv...
+2026-01-16 10:48:55,858 - INFO - Calculating base xG rates and TOI defaults...
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Traceback (most recent call last):
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 510, in <module>
+    main()
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 482, in main
+    pred._load_data()
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 208, in _load_data_refined
+    df = fit_xgs.load_data(f"data/{self.season}/{self.season}_df.csv")
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\Desktop\new_puck\puck\fit_xgs.py", line 751, in load_data
+    df = pd.read_csv(path)
+         ^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\io\parsers\readers.py", line 1026, in read_csv
+    return _read(filepath_or_buffer, kwds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\io\parsers\readers.py", line 620, in _read
+    parser = TextFileReader(filepath_or_buffer, **kwds)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\io\parsers\readers.py", line 1620, in __init__
+    self._engine = self._make_engine(f, self.engine)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\io\parsers\readers.py", line 1880, in _make_engine
+    self.handles = get_handle(
+                   ^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\io\common.py", line 873, in get_handle
+    handle = open(
+             ^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: 'data/20252026/20252026_df.csv'

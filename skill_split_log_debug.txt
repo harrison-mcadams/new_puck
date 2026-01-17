@@ -1,0 +1,37 @@
+2026-01-16 10:42:12,160 - INFO - --- Quantifying Team Skill Proxies for 20252026 (By State) ---
+2026-01-16 10:42:12,160 - INFO - Loading data from data\20252026.csv...
+2026-01-16 10:42:12,559 - INFO - Loaded DF Columns: ['event', 'x', 'y', 'x_adj', 'y_adj', 'game_state', 'is_net_empty', 'period', 'period_time', 'player_id', 'player_name', 'shooter_role', 'team_id', 'home_id', 'away_id', 'home_abb', 'away_abb', 'home_team_defending_side', 'game_id', 'shot_type', 'score_diff', 'home_score', 'away_score', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s', 'synthetic', 'predicted_penalty_duration_seconds', 'predicted_penalty_end_total_seconds', 'periodTime_seconds_elapsed', 'total_time_elapsed_seconds', 'distance', 'angle_deg', 'dist_from_last_event', 'speed_from_last_event', 'last_event_type', 'last_event_time_diff', 'angle_change_last_event', 'is_rebound', 'rebound_time_diff', 'rebound_angle_change', 'is_rush', 'xgs', 'prob_block', 'prob_accuracy', 'prob_finish', 'imputed_x', 'imputed_y']
+2026-01-16 10:42:12,562 - INFO - Generating xG predictions using analysis\xgs\xg_model_nested_all.joblib...
+2026-01-16 10:42:12,573 - INFO - Pred DF Columns: ['event', 'x', 'y', 'x_adj', 'y_adj', 'game_state', 'is_net_empty', 'period', 'period_time', 'player_id', 'player_name', 'shooter_role', 'team_id', 'home_id', 'away_id', 'home_abb', 'away_abb', 'home_team_defending_side', 'game_id', 'shot_type', 'score_diff', 'home_score', 'away_score', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s', 'synthetic', 'predicted_penalty_duration_seconds', 'predicted_penalty_end_total_seconds', 'periodTime_seconds_elapsed', 'total_time_elapsed_seconds', 'distance', 'angle_deg', 'dist_from_last_event', 'speed_from_last_event', 'last_event_type', 'last_event_time_diff', 'angle_change_last_event', 'is_rebound', 'rebound_time_diff', 'rebound_angle_change', 'is_rush', 'xgs', 'prob_block', 'prob_accuracy', 'prob_finish', 'imputed_x', 'imputed_y']
+2026-01-16 10:42:12,610 - INFO - Total Goals: 4431, Total xG: 4844.3
+2026-01-16 10:42:12,617 - WARNING - Skater counts missing! Defaulting to 5v5 for all.
+2026-01-16 10:42:12,926 - INFO - Processing State: 5v5 (S:5 v D:5)
+2026-01-16 10:42:12,962 - INFO - Fitting Offense_5v5 Poisson (alpha=5.0) on 87734 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:42:12,974 - INFO - Fit Offense_5v5: Intercept=-0.0915 (exp=0.9126)
+2026-01-16 10:42:12,994 - INFO - Fitting Defense_5v5 Poisson (alpha=5.0) on 87734 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:42:13,009 - INFO - Fit Defense_5v5: Intercept=-0.0901 (exp=0.9138)
+2026-01-16 10:42:13,013 - INFO - Processing State: 5v4 (S:5 v D:4)
+2026-01-16 10:42:13,015 - WARNING - Skipping 5v4: Insufficient data (0)
+2026-01-16 10:42:13,015 - INFO - Processing State: 4v5 (S:4 v D:5)
+2026-01-16 10:42:13,015 - WARNING - Skipping 4v5: Insufficient data (0)
+2026-01-16 10:42:13,018 - INFO - Skill proxies saved to analysis\team_skill_proxies.csv
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+=== TEAM SKILL PROXIES (SPLIT BY STATE) ===
+   TeamID TeamAbbrev  Defense_5v5  Offense_5v5
+19     21        COL     0.766045     1.063327
+9      10        TOR     0.988970     1.040593
+8       9        OTT     1.148883     1.026463
+5       6        BOS     0.842859     1.013209
+12     14        TBL     0.816160     0.998450
+23     25        DAL     0.850443     0.988166
+25     28        SJS     0.977515     0.986542
+28     52        WPG     0.965051     0.984397
+7       8        MTL     0.964611     0.981893
+6       7        BUF     0.900859     0.960568

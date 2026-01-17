@@ -1,0 +1,39 @@
+2026-01-16 10:33:04,717 - INFO - --- Quantifying Team Skill Proxies for 20252026 (Poisson) ---
+2026-01-16 10:33:04,717 - INFO - Loading data from data\20252026.csv...
+2026-01-16 10:33:05,117 - INFO - Generating xG predictions using analysis\xgs\xg_model_nested_all.joblib...
+2026-01-16 10:33:05,158 - INFO - Event types in df_pred: {'faceoff': 42259, 'shot-on-goal': 37592, 'hit': 30456, 'blocked-shot': 24042, 'giveaway': 23140, 'missed-shot': 22100, 'penalty_end': 7606, 'takeaway': 6885, 'penalty': 5592, 'goal': 4709, 'failed-shot-attempt': 8}
+2026-01-16 10:33:05,179 - INFO - Filtered to 88443 shot attempts.
+2026-01-16 10:33:05,197 - INFO - Total Goals: 4431, Total xG: 4844.3
+2026-01-16 10:33:05,197 - INFO - Global Ratio: 0.9147
+2026-01-16 10:33:05,197 - INFO - Modeling Offensive Finishing Skill...
+2026-01-16 10:33:05,219 - INFO - Fitting PoissonRegressor with alpha=0.5 on 87734 events...
+2026-01-16 10:33:07,101 - INFO - Model Fit for is_goal. ln(xG) Coef: 0.0966 (Target ~1.0), Intercept: -2.6497
+2026-01-16 10:33:07,105 - INFO - Modeling Defensive Suppression Skill...
+2026-01-16 10:33:07,139 - INFO - Fitting PoissonRegressor with alpha=0.5 on 87734 events...
+2026-01-16 10:33:07,156 - INFO - Model Fit for is_goal. ln(xG) Coef: 0.0966 (Target ~1.0), Intercept: -2.6497
+2026-01-16 10:33:07,158 - INFO - Finalizing Skill Proxies...
+2026-01-16 10:33:07,486 - INFO - Skill proxies saved to analysis\team_skill_proxies.csv
+2026-01-16 10:33:07,650 - INFO - Shrinkage visualization saved to analysis\skill_proxy_shrinkage.png
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+=== TEAM SKILL PROXIES (POISSON SHRUNKEN) ===
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+16        DAL            0.070719            0.070667
+4         TBL            0.070708            0.070649
+12        COL            0.070706            0.070622
+30        MTL            0.070697            0.070704
+31        OTT            0.070696            0.070713
+18        SJS            0.070696            0.070693
+25        VGK            0.070692            0.070689
+1         TOR            0.070689            0.070679
+27        BOS            0.070685            0.070662
+13        EDM            0.070684            0.070695
+...
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+26        SEA            0.070649            0.070652
+14        VAN            0.070644            0.070687
+20        NYR            0.070644            0.070650
+0         NJD            0.070638            0.070670
+11        CGY            0.070633            0.070657

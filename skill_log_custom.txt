@@ -1,0 +1,41 @@
+2026-01-16 10:35:08,306 - INFO - --- Quantifying Team Skill Proxies for 20252026 (Custom Poisson) ---
+2026-01-16 10:35:08,306 - INFO - Loading data from data\20252026.csv...
+2026-01-16 10:35:08,706 - INFO - Generating xG predictions using analysis\xgs\xg_model_nested_all.joblib...
+2026-01-16 10:35:08,755 - INFO - Total Goals: 4431, Total xG: 4844.3
+2026-01-16 10:35:08,756 - INFO - Global Ratio: 0.9147
+2026-01-16 10:35:08,756 - INFO - Modeling Offensive Finishing Skill...
+2026-01-16 10:35:08,781 - INFO - Fitting Custom Poisson (alpha=5.0) on 87734 events using L-BFGS-B...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:113: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:35:08,797 - INFO - Model Fit for is_goal. Intercept (Global Bias): -0.0915 (exp=0.9126)
+2026-01-16 10:35:08,799 - INFO - Modeling Defensive Suppression Skill...
+2026-01-16 10:35:08,831 - INFO - Fitting Custom Poisson (alpha=5.0) on 87734 events using L-BFGS-B...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:113: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:35:08,846 - INFO - Model Fit for is_goal. Intercept (Global Bias): -0.0901 (exp=0.9138)
+2026-01-16 10:35:08,848 - INFO - Finalizing Skill Proxies...
+2026-01-16 10:35:09,162 - INFO - Skill proxies saved to analysis\team_skill_proxies.csv
+2026-01-16 10:35:09,303 - INFO - Shrinkage visualization saved to analysis\skill_proxy_shrinkage.png
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+=== TEAM SKILL PROXIES (CUSTOM POISSON SHRUNKEN) ===
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+12        COL            1.063327            0.766045
+1         TOR            1.040593            0.988970
+31        OTT            1.026463            1.148883
+27        BOS            1.013209            0.842859
+4         TBL            0.998450            0.816160
+16        DAL            0.988166            0.850443
+18        SJS            0.986542            0.977515
+24        WPG            0.984397            0.965051
+30        MTL            0.981893            0.964611
+29        BUF            0.960568            0.900859
+...
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+7         DET            0.845428            0.935702
+17        LAK            0.815852            0.853697
+0         NJD            0.809186            0.916660
+14        VAN            0.799150            0.919462
+11        CGY            0.773308            0.857064

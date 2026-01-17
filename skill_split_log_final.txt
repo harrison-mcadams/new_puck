@@ -1,0 +1,55 @@
+2026-01-16 10:43:12,048 - INFO - --- Quantifying Team Skill Proxies for 20252026 (By State) ---
+2026-01-16 10:43:12,048 - INFO - Loading data from data\20252026.csv...
+2026-01-16 10:43:12,477 - INFO - Loaded DF Columns: ['event', 'x', 'y', 'x_adj', 'y_adj', 'game_state', 'is_net_empty', 'period', 'period_time', 'player_id', 'player_name', 'shooter_role', 'team_id', 'home_id', 'away_id', 'home_abb', 'away_abb', 'home_team_defending_side', 'game_id', 'shot_type', 'score_diff', 'home_score', 'away_score', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s', 'synthetic', 'predicted_penalty_duration_seconds', 'predicted_penalty_end_total_seconds', 'periodTime_seconds_elapsed', 'total_time_elapsed_seconds', 'distance', 'angle_deg', 'dist_from_last_event', 'speed_from_last_event', 'last_event_type', 'last_event_time_diff', 'angle_change_last_event', 'is_rebound', 'rebound_time_diff', 'rebound_angle_change', 'is_rush', 'xgs', 'prob_block', 'prob_accuracy', 'prob_finish', 'imputed_x', 'imputed_y']
+2026-01-16 10:43:12,482 - INFO - Unique Game States: ['5v5' '4v5' '5v4' '4v4' '5v6' '6v5' '5v3' '3v3' '4v6' '6v4' '4v3' '3v5'
+ '1v0' '3v4' '3v6' '6v6']
+2026-01-16 10:43:12,482 - INFO - Generating xG predictions using analysis\xgs\xg_model_nested_all.joblib...
+2026-01-16 10:43:12,534 - INFO - Total Goals: 4431, Total xG: 4844.3
+2026-01-16 10:43:12,542 - INFO - Parsing skater counts from game_state...
+2026-01-16 10:43:12,878 - INFO - Processing State: 5v5 (S:5 v D:5)
+2026-01-16 10:43:12,913 - INFO - Fitting Offense_5v5 Poisson (alpha=5.0) on 69271 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:43:12,925 - INFO - Fit Offense_5v5: Intercept=-0.0570 (exp=0.9446)
+2026-01-16 10:43:12,940 - INFO - Fitting Defense_5v5 Poisson (alpha=5.0) on 69271 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:43:12,949 - INFO - Fit Defense_5v5: Intercept=-0.0577 (exp=0.9440)
+2026-01-16 10:43:12,952 - INFO - Processing State: 5v4 (S:5 v D:4)
+2026-01-16 10:43:12,961 - INFO - Fitting Offense_5v4 Poisson (alpha=10.0) on 6834 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:43:12,963 - INFO - Fit Offense_5v4: Intercept=-0.1266 (exp=0.8811)
+2026-01-16 10:43:12,967 - INFO - Fitting Defense_5v4 Poisson (alpha=10.0) on 6834 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:43:12,969 - INFO - Fit Defense_5v4: Intercept=-0.1280 (exp=0.8799)
+2026-01-16 10:43:12,970 - INFO - Processing State: 4v5 (S:4 v D:5)
+2026-01-16 10:43:12,976 - INFO - Fitting Offense_4v5 Poisson (alpha=20.0) on 6521 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:43:12,978 - INFO - Fit Offense_4v5: Intercept=-0.1642 (exp=0.8486)
+2026-01-16 10:43:12,981 - INFO - Fitting Defense_4v5 Poisson (alpha=20.0) on 6521 events...
+C:\Users\harri\Desktop\new_puck\scripts\quantify_team_skill.py:120: DeprecationWarning: scipy.optimize: The `disp` and `iprint` options of the L-BFGS-B solver are deprecated and will be removed in SciPy 1.18.0.
+  res = minimize(
+2026-01-16 10:43:12,983 - INFO - Fit Defense_4v5: Intercept=-0.1590 (exp=0.8530)
+2026-01-16 10:43:12,989 - INFO - Skill proxies saved to analysis\team_skill_proxies.csv
+2026-01-16 10:43:13,130 - INFO - State comparison viz saved to analysis\skill_proxy_state_compare.png
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+=== TEAM SKILL PROXIES (SPLIT BY STATE) ===
+   TeamID TeamAbbrev  Defense_4v5  ...  Offense_4v5  Offense_5v4  Offense_5v5
+19     21        COL     0.819697  ...     0.795517     0.869458     1.177377
+9      10        TOR     0.770009  ...     0.770591     0.892295     1.135822
+28     52        WPG     0.859720  ...     0.853251     0.871013     1.107859
+12     14        TBL     0.822886  ...     0.871904     0.836684     1.082788
+8       9        OTT     0.888284  ...     0.881178     1.016192     1.044445
+5       6        BOS     0.842633  ...     0.878828     0.936990     1.036620
+7       8        MTL     0.851121  ...     0.882024     0.898762     1.023604
+6       7        BUF     0.770681  ...     0.802892     1.026073     1.013739
+23     25        DAL     0.847232  ...     0.883878     0.952619     1.011547
+25     28        SJS     0.832895  ...     0.855031     0.787152     1.008443
+
+[10 rows x 8 columns]

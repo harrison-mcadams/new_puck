@@ -1,0 +1,41 @@
+2026-01-16 10:30:47,050 - INFO - --- Quantifying Team Skill Proxies for 20252026 ---
+2026-01-16 10:30:47,050 - INFO - Loading data from data\20252026.csv...
+2026-01-16 10:30:47,458 - INFO - Generating xG predictions using analysis\xgs\xg_model_nested_all.joblib...
+2026-01-16 10:30:47,504 - INFO - Event types in df_pred: {'faceoff': 42259, 'shot-on-goal': 37592, 'hit': 30456, 'blocked-shot': 24042, 'giveaway': 23140, 'missed-shot': 22100, 'penalty_end': 7606, 'takeaway': 6885, 'penalty': 5592, 'goal': 4709, 'failed-shot-attempt': 8}
+2026-01-16 10:30:47,525 - INFO - Filtered to 88443 shot attempts.
+2026-01-16 10:30:47,542 - INFO - Total Goals: 4431, Total xG: 4844.3
+2026-01-16 10:30:47,542 - INFO - Global Ratio: 0.9147
+2026-01-16 10:30:47,542 - INFO - Modeling Offensive Finishing Skill...
+C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\linear_model\_logistic.py:1135: FutureWarning: 'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its default value and use 'l1_ratio' or 'C' instead. Use l1_ratio=0 instead of penalty='l2', l1_ratio=1 instead of penalty='l1', and C=np.inf instead of penalty=None.
+  warnings.warn(
+2026-01-16 10:30:47,609 - INFO - Model Fit for is_goal. Intercept (Global Bias): -0.4750 (exp=0.6219)
+2026-01-16 10:30:47,611 - INFO - Modeling Defensive Suppression Skill...
+C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\linear_model\_logistic.py:1135: FutureWarning: 'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its default value and use 'l1_ratio' or 'C' instead. Use l1_ratio=0 instead of penalty='l2', l1_ratio=1 instead of penalty='l1', and C=np.inf instead of penalty=None.
+  warnings.warn(
+2026-01-16 10:30:47,682 - INFO - Model Fit for is_goal. Intercept (Global Bias): -0.4699 (exp=0.6251)
+2026-01-16 10:30:47,684 - INFO - Finalizing Skill Proxies...
+2026-01-16 10:30:47,972 - INFO - Skill proxies saved to analysis\team_skill_proxies.csv
+2026-01-16 10:30:48,108 - INFO - Shrinkage visualization saved to analysis\skill_proxy_shrinkage.png
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+=== TEAM SKILL PROXIES (SHRUNKEN) ===
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+12        COL            0.734208            0.512178
+1         TOR            0.701365            0.668137
+31        OTT            0.698440            0.788153
+16        DAL            0.688090            0.572557
+4         TBL            0.686280            0.547829
+27        BOS            0.685779            0.564277
+18        SJS            0.671934            0.670263
+30        MTL            0.669312            0.667030
+24        WPG            0.661786            0.651448
+29        BUF            0.646920            0.604792
+...
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+7         DET            0.560920            0.626362
+17        LAK            0.544838            0.571712
+0         NJD            0.535583            0.617439
+14        VAN            0.531522            0.626943
+11        CGY            0.513924            0.572272

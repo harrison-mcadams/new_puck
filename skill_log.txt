@@ -1,0 +1,37 @@
+2026-01-16 10:30:17,172 - INFO - --- Quantifying Team Skill Proxies for 20252026 ---
+2026-01-16 10:30:17,172 - INFO - Loading data from data\20252026.csv...
+2026-01-16 10:30:17,560 - INFO - Generating xG predictions using analysis\xgs\xg_model_nested_all.joblib...
+2026-01-16 10:30:17,644 - INFO - Modeling Offensive Finishing Skill...
+C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\linear_model\_logistic.py:1135: FutureWarning: 'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its default value and use 'l1_ratio' or 'C' instead. Use l1_ratio=0 instead of penalty='l2', l1_ratio=1 instead of penalty='l1', and C=np.inf instead of penalty=None.
+  warnings.warn(
+2026-01-16 10:30:17,820 - INFO - Model Fit for is_goal. Intercept (Global Bias): -0.4597 (exp=0.6315)
+2026-01-16 10:30:17,827 - INFO - Modeling Defensive Suppression Skill...
+C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\sklearn\linear_model\_logistic.py:1135: FutureWarning: 'penalty' was deprecated in version 1.8 and will be removed in 1.10. To avoid this warning, leave 'penalty' set to its default value and use 'l1_ratio' or 'C' instead. Use l1_ratio=0 instead of penalty='l2', l1_ratio=1 instead of penalty='l1', and C=np.inf instead of penalty=None.
+  warnings.warn(
+2026-01-16 10:30:18,009 - INFO - Model Fit for is_goal. Intercept (Global Bias): -0.4546 (exp=0.6347)
+2026-01-16 10:30:18,015 - INFO - Finalizing Skill Proxies...
+2026-01-16 10:30:18,358 - INFO - Skill proxies saved to analysis\team_skill_proxies.csv
+2026-01-16 10:30:18,490 - INFO - Shrinkage visualization saved to analysis\skill_proxy_shrinkage.png
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+
+=== TEAM SKILL PROXIES (SHRUNKEN) ===
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+12        COL            0.747261            0.519458
+1         TOR            0.713687            0.679708
+31        OTT            0.710388            0.802716
+16        DAL            0.698999            0.580867
+4         TBL            0.697629            0.555841
+27        BOS            0.697435            0.572549
+18        SJS            0.682893            0.681440
+30        MTL            0.680400            0.677727
+24        WPG            0.672830            0.662362
+29        BUF            0.657603            0.614214
+...
+   TeamAbbrev  Offense_Multiplier  Defense_Multiplier
+7         DET            0.569498            0.636683
+17        LAK            0.552666            0.580079
+0         NJD            0.543638            0.627310
+14        VAN            0.539187            0.636751
+11        CGY            0.521234            0.580862

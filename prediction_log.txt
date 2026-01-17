@@ -1,0 +1,25 @@
+2026-01-16 10:48:32,442 - INFO - Initializing Predictor...
+2026-01-16 10:48:32,444 - INFO - Loading season data from data\20252026.csv...
+2026-01-16 10:48:32,943 - INFO - Calculating base xG rates and TOI defaults...
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Traceback (most recent call last):
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 518, in <module>
+    main()
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 488, in main
+    pred = TeamPredictor()
+           ^^^^^^^^^^^^^^^
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 38, in __init__
+    self._load_data()
+  File "C:\Users\harri\Desktop\new_puck\scripts\prediction.py", line 134, in _load_data
+    home_df = df[['home_id', 'Home_State', 'xgs', 'is_goal']].rename(
+              ~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\core\frame.py", line 4119, in __getitem__
+    indexer = self.columns._get_indexer_strict(key, "columns")[1]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\core\indexes\base.py", line 6212, in _get_indexer_strict
+    self._raise_if_missing(keyarr, indexer, axis_name)
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\core\indexes\base.py", line 6264, in _raise_if_missing
+    raise KeyError(f"{not_found} not in index")
+KeyError: "['is_goal'] not in index"

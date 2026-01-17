@@ -111,22 +111,22 @@ def main():
 
     # 1c. Centralized xG Prediction
     # We run this ONCE for the whole season to avoid redundant calculations in subprocesses.
-    print(f"\n[1c/4] Running Centralized xG Prediction (Nested Model)...")
-    try:
-        # Predict (will use Nested Model by default as per analyze.py update)
-        # behavior='overwrite' ensures we actually run it even if 'xgs' column exists 
-        # (to ensure fresh model usage)
-        df_season, _, _ = analyze._predict_xgs(df_season, behavior='overwrite')
-        
-        # Save back to CSV to be used by subprocesses
-        # Note: parse._season saves to data/{season}.csv or data/{season}/{season}.csv depending on logic
-        # We strictly save to data/{season}.csv which is what process_daily_cache loads by default via timing.
-        out_csv = os.path.join('data', f"{season}.csv")
-        df_season.to_csv(out_csv, index=False)
-        print(f"Saved updated xG data to {out_csv}")
-        
-    except Exception as e:
-        print(f"Warning: Centralized prediction failed: {e}")
+    # We run this if we fetched data OR if --force is used (to ensure new model is applied to existing data).
+    run_xg_calc = (not args.skip_fetch) or args.force
+    if run_xg_calc and not df_season.empty:
+        print(f"\n[1c/4] Running Centralized xG Prediction (Nested Model)...")
+        try:
+            # Predict (will use Nested Model by default as per analyze.py update)
+            # behavior='overwrite' ensures we actually run it even if 'xgs' column exists 
+            df_season, _, _ = analyze._predict_xgs(df_season, behavior='overwrite')
+            
+            # Save back to CSV to be used by subprocesses
+            out_csv = os.path.join('data', f"{season}.csv")
+            df_season.to_csv(out_csv, index=False)
+            print(f"Saved updated xG data to {out_csv}")
+            
+        except Exception as e:
+            print(f"Warning: Centralized prediction failed: {e}")
 
     # 2. Pre-Compute Intervals (Shared Cache)
     print("\n[2/4] Pre-Computing Intervals...")
