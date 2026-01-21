@@ -88,11 +88,27 @@ def adjust_xy_for_homeaway(df, split_mode: str = 'home_away', team_for_heatmap: 
     # Default to right goal
     attacked_goal = np.full(len(df), right_goal_x)
     
-    if 'home_team_defending_side' in cols:
+    # Check if we are using pre-adjusted coordinates (e.g. x_adj)
+    # If so, we can't use period-based logic ('home_team_defending_side') because
+    # the coordinates are already normalized.
+    # DATA INSPECTION FOLLOW-UP: x_adj standardizes ALL offense to the Right (+X).
+    # (i.e. Mean x_adj is positive for both Home and Away shots).
+    using_adjusted_source = (x_col != 'x' and 'x' in x_col and 'adj' in x_col)
+    
+    shooter_is_home = (df['team_id'].astype(str) == df['home_id'].astype(str))
+    
+    if using_adjusted_source:
+        # Assumption: x_adj implies ALL offense attacks Right (+X).
+        # So we leave attacked_goal as right_goal_x for everyone.
+        # This ensures:
+        # - If Desired=Left (Team Offense) -> Right != Left -> Flip (Correct)
+        # - If Desired=Right (Team Defense) -> Right == Right -> No Flip (Correct)
+        pass 
+    
+    elif 'home_team_defending_side' in cols:
         home_def_left = (df['home_team_defending_side'] == 'left')
         home_def_right = (df['home_team_defending_side'] == 'right')
         
-        shooter_is_home = (df['team_id'].astype(str) == df['home_id'].astype(str))
         shooter_is_away = (df['team_id'].astype(str) == df['away_id'].astype(str))
         
         # Logic:
@@ -438,10 +454,24 @@ def plot_events(
         away_name = ''
 
     # compute goals (count events with 'goal')
-    ev_lc = events['event'].astype(str).str.strip().str.lower() if 'event' in events.columns else pd.Series([], dtype=object)
-    is_goal = ev_lc == 'goal'
+    # Check if we have pre-computed goals in summary_stats (PREFERRED)
+    goals_precomputed = False
+    if summary_stats and 'home_goals' in summary_stats and 'away_goals' in summary_stats:
+        try:
+            home_goals = int(summary_stats['home_goals'])
+            away_goals = int(summary_stats['away_goals'])
+            goals_precomputed = True
+        except Exception:
+            pass
+            
+    if not goals_precomputed:
+        ev_lc = events['event'].astype(str).str.strip().str.lower() if 'event' in events.columns else pd.Series([], dtype=object)
+        is_goal = ev_lc == 'goal'
+    else:
+        is_goal = pd.Series([False] * len(events), index=events.index) # Dummy to prevent crash if referenced later
+
     # Count goals using the original events DataFrame (more complete than filtered df)
-    if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+    if not goals_precomputed and heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
         # compute group1 (team) vs group2 (not team) goal counts
         def _is_team_row_events(r):
             try:

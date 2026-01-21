@@ -1,0 +1,20 @@
+2026-01-17 11:22:27,287 - INFO - Initializing Predictor...
+2026-01-17 11:22:27,291 - INFO - Loading season data from data\20252026.csv...
+2026-01-17 11:22:27,977 - INFO - Calculating base xG rates and TOI defaults...
+2026-01-17 11:22:33,489 - INFO - Predicting for all teams...
+2026-01-17 11:22:33,490 - INFO - DEBUG PREDICT COL: Pace=273.2
+2026-01-17 11:22:33,490 - INFO -   5v5: BaseRate=0.0104, Share=0.862, Mult=1.177 -> Pred=2.890
+2026-01-17 11:22:33,490 - INFO -        (xG Sum in Data: 111.9)
+2026-01-17 11:22:33,490 - INFO -   5v4: BaseRate=0.0201, Share=0.071, Mult=0.869 -> Pred=0.340
+2026-01-17 11:22:33,490 - INFO -        (xG Sum in Data: 17.8)
+2026-01-17 11:22:33,491 - INFO -   4v5: BaseRate=0.0174, Share=0.067, Mult=0.796 -> Pred=0.254
+2026-01-17 11:22:33,491 - INFO -        (xG Sum in Data: 14.6)
+2026-01-17 11:22:34,362 - INFO - Saved plot to analysis\prediction\scatter_overall.png
+2026-01-17 11:22:34,576 - INFO - Saved plot to analysis\prediction\scatter_5v5.png
+2026-01-17 11:22:34,823 - INFO - Saved plot to analysis\prediction\scatter_5v4.png
+2026-01-17 11:22:35,021 - INFO - Saved plot to analysis\prediction\scatter_4v5.png
+2026-01-17 11:22:35,167 - INFO - Saved breakdown to analysis\prediction\breakdown_top5.png
+2026-01-17 11:22:35,171 - INFO - Predictions saved to analysis/team_predictions.csv
+DEBUG: LOADED PUCK.FIT_XGS modification check
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data

@@ -1,0 +1,31 @@
+Loading CSV from data/20252026.csv
+Loading JSON from analysis/league/20252026/5v5/20252026_team_summary.json
+
+--- Shift-based Stats (from JSON) ---
+Keys found in summary: ['team', 'team_xg_per60', 'other_xg_per60', 'gf_pct', 'xgf_pct', 'team_xgs', 'other_xgs', 'team_goals', 'other_goals', 'team_seconds']
+Goals: 98
+Attempts: N/A
+xG: 102.81399561552493
+
+--- API-based Stats (from CSV) ---
+ANA Attempts: 2429
+ANA Goals: 102
+
+--- Game-by-Game Breakdown (API) ---
+Top 5 Games (Most Attempts):
+       game_id  attempts  goals
+41  2025020663        73    4.0
+28  2025020460        72    5.0
+0   2025020021        72    1.0
+30  2025020482        66    0.0
+1   2025020036        65    3.0
+
+Bottom 5 Games (Fewest Attempts):
+       game_id  attempts  goals
+43  2025020688        27    2.0
+8   2025020153        33    0.0
+32  2025020515        34    1.0
+17  2025020284        35    0.0
+9   2025020180        40    2.0
+
+No games with 0 attempts found.

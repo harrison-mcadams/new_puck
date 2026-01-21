@@ -1,0 +1,4 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Computing intervals for 2025020655...
+Error: compute_intervals_for_game() missing 1 required positional argument: 'condition'

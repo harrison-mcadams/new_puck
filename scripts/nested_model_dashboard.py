@@ -303,7 +303,8 @@ def main():
             'last_event_type': 'faceoff' # Lowercase default
         },
         'options': {
-            'shooter_role': ['F', 'D'],
+            'shooter_role': ['F', 'D', 'Marginalized'],
+            'score_diff': ['-2', '-1', '0', '1', '2'],
             'game_state': ['5v5', '5v4', '4v5', '5v3', '3v5', '4v4', '3v3', '6v5', '5v6', '6v6', 'Marginalized'],
             'shot_type': ['wrist', 'slap', 'snap', 'backhand', 'tip-in', 'deflected', 'wrap-around', 'Marginalized'],
             'shoots_catches': ['L', 'R', 'Marginalized'],

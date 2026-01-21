@@ -1,0 +1,6 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loading CSV...
+API-based ANA 5v5 Attempts: 4655
+Computing Shift-based stats...
+DEBUG: gs_timeline len=7

@@ -599,13 +599,13 @@ DEBUG: gs_timeline len=15
 DEBUG: gs_timeline len=18
 DEBUG: gs_timeline len=13
 DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=3
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=14
+DEBUG: gs_timeline len=21
+Processed 600/753...DEBUG: gs_timeline len=12
 DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=2
-Processed 600/753...DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=5
+DEBUG: gs_timeline len=14
+DEBUG: gs_timeline len=19
 DEBUG: gs_timeline len=12
 DEBUG: gs_timeline len=12
 DEBUG: gs_timeline len=19
@@ -626,7 +626,7 @@ Processed 620/753...DEBUG: gs_timeline len=13
 DEBUG: gs_timeline len=18
 DEBUG: gs_timeline len=12
 DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=3
+DEBUG: gs_timeline len=14
 DEBUG: gs_timeline len=11
 DEBUG: gs_timeline len=14
 DEBUG: gs_timeline len=58
@@ -642,26 +642,26 @@ DEBUG: gs_timeline len=17
 DEBUG: gs_timeline len=15
 DEBUG: gs_timeline len=10
 DEBUG: gs_timeline len=13
-Processed 640/753...DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=10
+Processed 640/753...DEBUG: gs_timeline len=65
+DEBUG: gs_timeline len=75
 DEBUG: gs_timeline len=63
+DEBUG: gs_timeline len=73
+DEBUG: gs_timeline len=69
+DEBUG: gs_timeline len=65
+DEBUG: gs_timeline len=53
+DEBUG: gs_timeline len=64
+DEBUG: gs_timeline len=68
+DEBUG: gs_timeline len=62
+DEBUG: gs_timeline len=73
+DEBUG: gs_timeline len=70
+DEBUG: gs_timeline len=72
+DEBUG: gs_timeline len=64
+DEBUG: gs_timeline len=71
+DEBUG: gs_timeline len=67
+DEBUG: gs_timeline len=59
+DEBUG: gs_timeline len=79
+DEBUG: gs_timeline len=58
+DEBUG: gs_timeline len=58
 Processed 660/753...DEBUG: gs_timeline len=18
 DEBUG: gs_timeline len=9
 DEBUG: gs_timeline len=53
@@ -714,7 +714,7 @@ DEBUG: gs_timeline len=60
 DEBUG: gs_timeline len=13
 DEBUG: gs_timeline len=9
 DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=1
 DEBUG: gs_timeline len=29
 DEBUG: gs_timeline len=11
 DEBUG: gs_timeline len=23
@@ -761,34 +761,34 @@ Audit Complete. Saved to audit_shift_stats.csv
 
 --- Summary Stats ---
 count    753.000000
-mean       8.613546
-std       20.037549
+mean       7.984064
+std       18.689007
 min        0.000000
 25%        1.000000
 50%        2.000000
 75%        3.000000
-max      122.000000
+max      123.000000
 Name: abs_diff, dtype: float64
 
 --- Top 20 Outliers ({API} > {Shift} indicates Shift data data missing) ---
         game_id home away  api_n  shift_n  diff
+657  2025020658  CBJ  PIT    123        0   123
 654  2025020655  LAK  MIN    122        0   122
-599  2025020600  VGK  COL    120        0   120
 642  2025020643  ANA  MIN    119        0   119
-596  2025020597  LAK  ANA    112        0   112
 645  2025020646  CBJ  BUF    112        0   112
 651  2025020652  WSH  CHI    106        0   106
-602  2025020603  CBJ  NYI    105        0   105
 653  2025020654  CGY  NSH    105        0   105
-597  2025020598  CGY  EDM    104        0   104
-601  2025020602  TBL  MTL    104        0   104
 641  2025020642  VAN  SEA    102        0   102
-640  2025020641  FLA  NYR     98        0    98
 650  2025020651  NYI  TOR     98        0    98
-646  2025020647  EDM  PHI     97        0    97
+640  2025020641  FLA  NYR     98        0    98
 711  2025020712  BOS  PIT     97        0    97
-598  2025020599  VAN  SJS     91        0    91
+646  2025020647  EDM  PHI     97        0    97
 644  2025020645  NJD  UTA     91        0    91
 652  2025020653  CAR  COL     90        0    90
 655  2025020656  VAN  BOS     85        0    85
 643  2025020644  DET  PIT     85        0    85
+658  2025020659  FLA  COL     84        0    84
+648  2025020649  SJS  TBL     83        0    83
+639  2025020640  STL  VGK     78        0    78
+649  2025020650  OTT  WPG     77        0    77
+647  2025020648  STL  MTL     75        0    75

@@ -1,0 +1,13 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Deep debugging 1 games...
+DEBUG: Game 2025020642
+DEBUG: Home ID: 23, Name: 
+DEBUG: Away ID: 55, Name: 
+DEBUG: Team Zones: []
+DEBUG: No zones found! Heading Pat: <td[^>]*class="[^"]*teamHeading[^"]*"[^>]*>(.+?)</td>
+DEBUG: Sample match: <re.Match object; span=(5217, 5284), match='<td class="teamHeading + border" align="center">S>
+Game 2025020642 Raw DF: 369 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020642, 'player_id': 'LARSSON_ADAM_6', 'team_id': 'Away', 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020642 Intervals: 0

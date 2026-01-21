@@ -1,0 +1,7 @@
+HTML Length: 227647
+Home Time On Ice: -1
+Visitor Time On Ice: -1
+Seattle: -1
+Vancouver: -1
+--- Context around first playerHeading ---
+

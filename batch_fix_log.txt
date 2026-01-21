@@ -1,0 +1,51 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Starting batch fix for 22 games...
+Processing Game 2025020640...DEBUG: gs_timeline len=65
+ [OK] (Intervals: 3)
+Processing Game 2025020641...DEBUG: gs_timeline len=75
+ [OK] (Intervals: 3)
+Processing Game 2025020642...DEBUG: gs_timeline len=63
+ [OK] (Intervals: 4)
+Processing Game 2025020643...DEBUG: gs_timeline len=73
+ [OK] (Intervals: 3)
+Processing Game 2025020644...DEBUG: gs_timeline len=69
+ [OK] (Intervals: 3)
+Processing Game 2025020645...DEBUG: gs_timeline len=65
+ [OK] (Intervals: 3)
+Processing Game 2025020646...DEBUG: gs_timeline len=53
+ [OK] (Intervals: 5)
+Processing Game 2025020647...DEBUG: gs_timeline len=64
+ [OK] (Intervals: 5)
+Processing Game 2025020648...DEBUG: gs_timeline len=68
+ [OK] (Intervals: 4)
+Processing Game 2025020649...DEBUG: gs_timeline len=62
+ [OK] (Intervals: 3)
+Processing Game 2025020650...DEBUG: gs_timeline len=73
+ [OK] (Intervals: 3)
+Processing Game 2025020651...DEBUG: gs_timeline len=70
+ [OK] (Intervals: 3)
+Processing Game 2025020652...DEBUG: gs_timeline len=72
+ [OK] (Intervals: 3)
+Processing Game 2025020653...DEBUG: gs_timeline len=64
+ [OK] (Intervals: 3)
+Processing Game 2025020654...DEBUG: gs_timeline len=71
+ [OK] (Intervals: 3)
+Processing Game 2025020655...DEBUG: gs_timeline len=67
+ [OK] (Intervals: 4)
+Processing Game 2025020656...DEBUG: gs_timeline len=59
+ [OK] (Intervals: 4)
+Processing Game 2025020657...DEBUG: gs_timeline len=79
+ [OK] (Intervals: 3)
+Processing Game 2025020658...DEBUG: gs_timeline len=58
+ [OK] (Intervals: 4)
+Processing Game 2025020659...DEBUG: gs_timeline len=58
+ [OK] (Intervals: 3)
+Processing Game 2025020597...DEBUG: gs_timeline len=16
+ [OK] (Intervals: 2)
+Processing Game 2025020624...DEBUG: gs_timeline len=14
+ [OK] (Intervals: 1)
+----------------------------------------
+Batch Fix Complete.
+Success: 22
+Failed:  0

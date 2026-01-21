@@ -440,35 +440,131 @@ class TeamPredictor:
 
         return {'GF_60': gf_60, 'GA_60': ga_60, 'details': details}
 
-def visualize_results(predictor, all_preds):
-    """Generates verification plots."""
-    df = pd.DataFrame(all_preds)
+def generate_scatter_plot(df, x_col, y_col, title, output_path, team_col='TeamAbbrev'):
+    """Helper to generate consistent scatter plots."""
+    plt.figure(figsize=(10, 10))
     
-    # 1. Scatter: Predicted GF vs GA
-    plt.figure(figsize=(10, 8))
-    sns.scatterplot(data=df, x='GF_60', y='GA_60', hue='TeamAbbrev', palette='tab20', s=100)
+    # Calculate limits
+    max_val = max(df[x_col].max(), df[y_col].max())
+    min_val = min(df[x_col].min(), df[y_col].min())
+    padding = (max_val - min_val) * 0.1 if (max_val - min_val) > 0 else 0.5
+    limit_max = max_val + padding
+    limit_min = max(0, min_val - padding)
     
-    # Add labels
+    plt.xlim(limit_min, limit_max)
+    plt.ylim(limit_min, limit_max)
+    
+    # Invert Y axis (lower GA is better)
+    plt.gca().invert_yaxis()
+    
+    # Unity line
+    plt.plot([limit_min, limit_max], [limit_min, limit_max], color='gray', linestyle='--', alpha=0.5, label='x=y')
+    
+    # League Averages
+    avg_x = df[x_col].mean()
+    avg_y = df[y_col].mean()
+    plt.axvline(avg_x, color='k', linestyle=':', alpha=0.3, label=f'Avg GF ({avg_x:.2f})')
+    plt.axhline(avg_y, color='k', linestyle=':', alpha=0.3, label=f'Avg GA ({avg_y:.2f})')
+    
+    # Plot
+    sns.scatterplot(data=df, x=x_col, y=y_col, hue=team_col, palette='tab20', s=100, legend=False)
+    
+    # Labels
     for i, r in df.iterrows():
-        plt.text(r['GF_60']+0.02, r['GA_60'], r['TeamAbbrev'], fontsize=9)
+        plt.text(r[x_col]+(padding*0.05), r[y_col], r[team_col], fontsize=9)
         
-    plt.title(f'Predicted Performance (Skill Adjusted Goals/60) - {predictor.season}')
-    plt.xlabel('Predicted Goals For / 60')
-    plt.ylabel('Predicted Goals Against / 60')
-    plt.gca().invert_yaxis() # Good defense is low
+    plt.title(title)
+    plt.xlabel(x_col.replace('_', ' '))
+    plt.ylabel(y_col.replace('_', ' '))
     plt.grid(True, alpha=0.3)
     
-    out_path = Path('analysis/prediction_scatter.png')
-    plt.savefig(out_path)
-    logger.info(f"Saved scatter to {out_path}")
+    plt.savefig(output_path, bbox_inches='tight')
+    plt.close()
+    logger.info(f"Saved plot to {output_path}")
+
+def visualize_results(predictor, all_preds):
+    """Generates verification plots."""
+    out_dir = Path('analysis/prediction')
+    out_dir.mkdir(parents=True, exist_ok=True)
     
-    # 2. Team Breakdown (Top 5 Offense)
+    df = pd.DataFrame(all_preds)
+    
+    # 1. Overall Scatter (Skill + Game State Adjusted)
+    generate_scatter_plot(
+        df, 'GF_60', 'GA_60', 
+        f'Predicted Performance (Skill & Game State Adjusted) - {predictor.season}',
+        out_dir / 'scatter_overall.png'
+    )
+    
+    # 2. Per-State Scatters (Rate per 60 in State)
+    # We need to extract the rates from 'details'
+    # details[st]['GF'] is the Contribution (Rate * Share).
+    # We want Rate = Contribution / Share.
+    # But wait, 'pace' in predict() is global.
+    # Rate_State = base_xf * mult_f * pace.
+    # Let's re-calculate or extract.
+    # Easier: Iterate and build new dataframe for each state.
+    
+    states = ['5v5', '5v4', '4v5']
+    for st in states:
+        st_data = []
+        for r in all_preds:
+            det = r['details'].get(st)
+            if not det: continue
+            
+            # Reconstruct Rate: Contribution / Share?
+            # Or just calc: xGF_Base / Share * Mult_F?
+            # xGF_Base in details is also * Share.
+            # So Rate = GF / Share.
+            # We assume predictor used the shares we know. 
+            # Does `all_preds` have the share? No.
+            # But the Predictor has base stats.
+            
+            # Let's assume standard shares were used (from visualize flow).
+            # WAIT. If we want "Skill Adjusted Only", we effectively want the projection 
+            # if they played 100% of time in that state.
+            # Rate_60 = Base_Rate * Mult * Pace.
+            
+            # Let's extract 'Mult_F', 'Mult_A', 'Base_Rate_F', 'Base_Rate_A' from details?
+            # details has 'xGF_Base' which is (base * pace * share).
+            # To get (base * pace), we need share.
+            # predictor.base_stats has the shares.
+            
+            # Let's just recalculate for plotting cleanliness
+            t_stats = predictor.base_stats.get(r['TeamID'])
+            if not t_stats: continue
+            
+            # Use same pace as prediction
+            pace = predictor.league_pace
+            
+            base_xf = t_stats['rates'][st]
+            base_xa = t_stats['def_rates'][st]
+            
+            mult_f = det['Mult_F']
+            mult_a = det['Mult_A']
+            
+            # Rate per 60 of State Time
+            rate_f = base_xf * mult_f * pace
+            rate_a = base_xa * mult_a * pace
+            
+            st_data.append({
+                'TeamAbbrev': r['TeamAbbrev'],
+                f'{st}_GF_60': rate_f,
+                f'{st}_GA_60': rate_a
+            })
+            
+        if st_data:
+            st_df = pd.DataFrame(st_data)
+            generate_scatter_plot(
+                st_df, f'{st}_GF_60', f'{st}_GA_60',
+                f'{st} Skill Adjusted Performance (Rate per 60m) - {predictor.season}',
+                out_dir / f'scatter_{st}.png'
+            )
+
+    # 3. Team Breakdown (Top 5 Offense)
     top_off = df.sort_values('GF_60', ascending=False).head(5)
     
-    ids = top_off['TeamID'].tolist()
-    # Collect components
     bfs = []
-    
     for _, r in top_off.iterrows():
         d = r['details']
         for st in ['5v5', '5v4', '4v5']:
@@ -484,8 +580,9 @@ def visualize_results(predictor, all_preds):
     sns.barplot(data=bf_df, x='Team', y='GF', hue='State')
     plt.title('Predicted GF Sources (Top 5 Offense Teams)')
     plt.ylabel('Goals Contribution / 60')
+    plt.grid(True, axis='y', alpha=0.3)
     
-    out_path2 = Path('analysis/prediction_breakdown_top5.png')
+    out_path2 = out_dir / 'breakdown_top5.png'
     plt.savefig(out_path2)
     logger.info(f"Saved breakdown to {out_path2}")
 

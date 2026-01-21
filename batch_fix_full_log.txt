@@ -1,0 +1,91 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Batch fixing 22 games...
+Game 2025020640 Raw DF: 375 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020640, 'player_id': 'WHITECLOUD_ZACH_2', 'team_id': 54, 'period': 1, 'start_raw': '0:35', 'end_raw': '19:25', 'start_seconds': 35, 'end_seconds': 1165, 'start_total_seconds': 35, 'end_total_seconds': 1165, 'duration_seconds': 1130, 'raw': 'html_fallback'}
+Game 2025020640 Intervals: 0
+Game 2025020641 Raw DF: 398 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020641, 'player_id': 'SCHNEIDER_BRADEN_4', 'team_id': 3, 'period': 1, 'start_raw': '0:33', 'end_raw': '19:27', 'start_seconds': 33, 'end_seconds': 1167, 'start_total_seconds': 33, 'end_total_seconds': 1167, 'duration_seconds': 1134, 'raw': 'html_fallback'}
+Game 2025020641 Intervals: 0
+Game 2025020642 Raw DF: 369 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020642, 'player_id': 'LARSSON_ADAM_6', 'team_id': 55, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020642 Intervals: 0
+Game 2025020643 Raw DF: 340 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020643, 'player_id': 'MIDDLETON_JAKE_5', 'team_id': 30, 'period': 1, 'start_raw': '2:12', 'end_raw': '17:48', 'start_seconds': 132, 'end_seconds': 1068, 'start_total_seconds': 132, 'end_total_seconds': 1068, 'duration_seconds': 936, 'raw': 'html_fallback'}
+Game 2025020643 Intervals: 0
+Game 2025020644 Raw DF: 360 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020644, 'player_id': 'MCGROARTY_RUTGER_2', 'team_id': 5, 'period': 1, 'start_raw': '1:35', 'end_raw': '18:25', 'start_seconds': 95, 'end_seconds': 1105, 'start_total_seconds': 95, 'end_total_seconds': 1105, 'duration_seconds': 1010, 'raw': 'html_fallback'}
+Game 2025020644 Intervals: 0
+Game 2025020645 Raw DF: 388 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020645, 'player_id': 'MARINO_JOHN_6', 'team_id': 68, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020645 Intervals: 0
+Game 2025020646 Raw DF: 356 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020646, 'player_id': 'LUUKKONEN_UKKO-PEKKA_1', 'team_id': 7, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020646 Intervals: 0
+Game 2025020647 Raw DF: 404 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020647, 'player_id': 'SANHEIM_TRAVIS_6', 'team_id': 4, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020647 Intervals: 0
+Game 2025020648 Raw DF: 341 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020648, 'player_id': 'MATHESON_MIKE_8', 'team_id': 8, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020648 Intervals: 0
+Game 2025020649 Raw DF: 347 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020649, 'player_id': 'JAMES_DOMINIC_17', 'team_id': 14, 'period': 1, 'start_raw': '2:37', 'end_raw': '17:23', 'start_seconds': 157, 'end_seconds': 1043, 'start_total_seconds': 157, 'end_total_seconds': 1043, 'duration_seconds': 886, 'raw': 'html_fallback'}
+Game 2025020649 Intervals: 0
+Game 2025020650 Raw DF: 363 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020650, 'player_id': 'DEMELO_DYLAN_2', 'team_id': 52, 'period': 1, 'start_raw': '0:45', 'end_raw': '19:15', 'start_seconds': 45, 'end_seconds': 1155, 'start_total_seconds': 45, 'end_total_seconds': 1155, 'duration_seconds': 1110, 'raw': 'html_fallback'}
+Game 2025020650 Intervals: 0
+Game 2025020651 Raw DF: 439 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020651, 'player_id': 'BENOIT_SIMON_2', 'team_id': 10, 'period': 1, 'start_raw': '1:32', 'end_raw': '18:28', 'start_seconds': 92, 'end_seconds': 1108, 'start_total_seconds': 92, 'end_total_seconds': 1108, 'duration_seconds': 1016, 'raw': 'html_fallback'}
+Game 2025020651 Intervals: 0
+Game 2025020652 Raw DF: 394 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020652, 'player_id': 'MURPHY_CONNOR_5', 'team_id': 16, 'period': 1, 'start_raw': '1:47', 'end_raw': '18:13', 'start_seconds': 107, 'end_seconds': 1093, 'start_total_seconds': 107, 'end_total_seconds': 1093, 'duration_seconds': 986, 'raw': 'html_fallback'}
+Game 2025020652 Intervals: 0
+Game 2025020653 Raw DF: 372 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020653, 'player_id': 'TOEWS_DEVON_7', 'team_id': 21, 'period': 1, 'start_raw': '0:29', 'end_raw': '19:31', 'start_seconds': 29, 'end_seconds': 1171, 'start_total_seconds': 29, 'end_total_seconds': 1171, 'duration_seconds': 1142, 'raw': 'html_fallback'}
+Game 2025020653 Intervals: 0
+Game 2025020654 Raw DF: 404 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020654, 'player_id': 'FORSBERG_FILIP_9', 'team_id': 18, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020654 Intervals: 0
+Game 2025020655 Raw DF: 321 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020655, 'player_id': 'MIDDLETON_JAKE_5', 'team_id': 30, 'period': 1, 'start_raw': '1:43', 'end_raw': '18:17', 'start_seconds': 103, 'end_seconds': 1097, 'start_total_seconds': 103, 'end_total_seconds': 1097, 'duration_seconds': 994, 'raw': 'html_fallback'}
+Game 2025020655 Intervals: 0
+Game 2025020656 Raw DF: 373 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020656, 'player_id': 'SWAYMAN_JEREMY_1', 'team_id': 6, 'period': 1, 'start_raw': '0:00', 'end_raw': '20:00', 'start_seconds': 0, 'end_seconds': 1200, 'start_total_seconds': 0, 'end_total_seconds': 1200, 'duration_seconds': 1200, 'raw': 'html_fallback'}
+Game 2025020656 Intervals: 0
+Game 2025020657 Raw DF: 343 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020657, 'player_id': 'MATHESON_MIKE_8', 'team_id': 8, 'period': 1, 'start_raw': '1:06', 'end_raw': '18:54', 'start_seconds': 66, 'end_seconds': 1134, 'start_total_seconds': 66, 'end_total_seconds': 1134, 'duration_seconds': 1068, 'raw': 'html_fallback'}
+Game 2025020657 Intervals: 0
+Game 2025020658 Raw DF: 330 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020658, 'player_id': 'ST._IVANY_JACK_3', 'team_id': 5, 'period': 1, 'start_raw': '1:05', 'end_raw': '18:55', 'start_seconds': 65, 'end_seconds': 1135, 'start_total_seconds': 65, 'end_total_seconds': 1135, 'duration_seconds': 1070, 'raw': 'html_fallback'}
+Game 2025020658 Intervals: 0
+Game 2025020659 Raw DF: 373 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020659, 'player_id': 'MAKAR_CALE_8', 'team_id': 21, 'period': 1, 'start_raw': '0:26', 'end_raw': '19:34', 'start_seconds': 26, 'end_seconds': 1174, 'start_total_seconds': 26, 'end_total_seconds': 1174, 'duration_seconds': 1148, 'raw': 'html_fallback'}
+Game 2025020659 Intervals: 0
+Game 2025020597 Raw DF: 700 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020597, 'player_id': 8470621, 'team_id': 26, 'period': 1, 'start_raw': '02:19', 'end_raw': '03:03', 'start_seconds': 139.0, 'end_seconds': 183.0, 'start_total_seconds': 139, 'end_total_seconds': 183, 'duration_seconds': 44, 'raw': {'id': 15989825, 'detailCode': 0, 'duration': '00:44', 'endTime': '03:03', 'eventDescription': None, 'eventDetails': None, 'eventNumber': 86, 'firstName': 'Corey', 'gameId': 2025020597, 'hexValue': '#111111', 'lastName': 'Perry', 'period': 1, 'playerId': 8470621, 'shiftNumber': 1, 'startTime': '02:19', 'teamAbbrev': 'LAK', 'teamId': 26, 'teamName': 'Los Angeles Kings', 'typeCode': 517}}
+Game 2025020597 Intervals: 0
+Game 2025020624 Raw DF: 768 rows
+Sample columns: ['game_id', 'player_id', 'team_id', 'period', 'start_raw', 'end_raw', 'start_seconds', 'end_seconds', 'start_total_seconds', 'end_total_seconds', 'duration_seconds', 'raw']
+Sample row: {'game_id': 2025020624, 'player_id': 8473986, 'team_id': 24, 'period': 1, 'start_raw': '01:53', 'end_raw': '02:46', 'start_seconds': 113.0, 'end_seconds': 166.0, 'start_total_seconds': 113, 'end_total_seconds': 166, 'duration_seconds': 53, 'raw': {'id': 16011169, 'detailCode': 0, 'duration': '00:53', 'endTime': '02:46', 'eventDescription': None, 'eventDetails': None, 'eventNumber': 75, 'firstName': 'Alex', 'gameId': 2025020624, 'hexValue': '#111111', 'lastName': 'Killorn', 'period': 1, 'playerId': 8473986, 'shiftNumber': 1, 'startTime': '01:53', 'teamAbbrev': 'ANA', 'teamId': 24, 'teamName': 'Anaheim Ducks', 'typeCode': 517}}
+Game 2025020624 Intervals: 0

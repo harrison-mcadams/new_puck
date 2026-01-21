@@ -21,6 +21,7 @@ def get_game_state(game_id, condition=None, return_df=False, return_per_game=Fal
     try:
         from . import nhl_api
         from . import parse as _parse
+        from . import roles as _roles
     except Exception:
         logging.exception('Failed to import nhl_api or parse modules')
         return (None, None) if return_df else ([], [])
@@ -73,6 +74,10 @@ def get_game_state(game_id, condition=None, return_df=False, return_per_game=Fal
         logging.warning('get_game_state: no shifts with total-second bounds for %s', gid)
         return (None, None) if return_df else ([], [])
 
+    # Classify Roles
+    roles_res = _roles.classify_player_roles(df_shifts)
+    player_roles = roles_res.get('roles', {})
+
     # Fetch feed metadata to map home/away ids and abbs
     feed = nhl_api.get_game_feed(gid) or {}
     home_id = None; away_id = None; home_abb = None; away_abb = None
@@ -121,11 +126,16 @@ def get_game_state(game_id, condition=None, return_df=False, return_per_game=Fal
 
     # Helper to compute skaters from active players set
     def skaters_from_active(sset):
-        # heuristic: assume one goalie when count>=1 -> skaters = max(0, n-1)
-        n = len(sset)
-        if n == 0:
+        if not sset:
             return 0
-        return max(0, n - 1)
+        # Count players whose role is NOT 'G'
+        # Default to 'S' if unknown
+        count = 0
+        for pid in sset:
+            role = player_roles.get(str(pid), 'S')
+            if role != 'G':
+                count += 1
+        return count
 
     i = 0
     n_events = len(events)
@@ -179,10 +189,11 @@ def get_game_state(game_id, condition=None, return_df=False, return_per_game=Fal
         # coerce numeric and sort
         df2 = df_int.copy()
         try:
-            df2['start'] = pd.to_numeric(df2['start'], errors='coerce')
-            df2['end'] = pd.to_numeric(df2['end'], errors='coerce')
+            df2['start'] = _pd.to_numeric(df2['start'], errors='coerce')
+            df2['end'] = _pd.to_numeric(df2['end'], errors='coerce')
         except Exception:
             pass
+
         df2 = df2.sort_values(by=['label', 'start']).reset_index(drop=True)
         merged_rows = []
         epsilon = 1e-6

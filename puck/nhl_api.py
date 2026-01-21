@@ -2234,7 +2234,342 @@ def get_pbp_from_nhl_html(game_id: Any, force_refresh: bool = False) -> str:
         return {'game_id': game_id, 'raw': None, 'all_shifts': [], 'shifts_by_player': {}, 'debug': {'error': str(e)}}
 
 
+
+def get_shifts_from_nhl_html(game_id, force_refresh: bool = False, debug: bool = False):
+    """
+    Fallback method to fetch shifts by parsing the NHL HTML 'TV' (Time On Ice) reports.
+    URL Format: http://www.nhl.com/scores/htmlreports/{season}/TV{game_number}.HTM
+    
+    Args:
+        game_id: Full Game ID (e.g. 2025020597)
+        force_refresh: Ignore cache
+        debug: logging verbosity
+        
+    Returns:
+        Dict with 'all_shifts', 'shifts_by_player', etc. (same schema as get_shifts)
+    """
+    game_str = str(game_id)
+    if len(game_str) < 10:
+        return None
+        
+    year_start = int(game_str[:4])
+    # season string e.g. 20252026
+    season = f"{year_start}{year_start + 1}"
+    # game number is valid from 6th char
+    # standard format: 2025 02 0597
+    # report uses TV020597
+# GAMES_TO_CHECK = [
+#     2025020640, 2025020641, 2025020642, 2025020643, 2025020644, 
+#     2025020645, 2025020646, 2025020647, 2025020648, 2025020649, 
+#     2025020650, 2025020651, 2025020652, 2025020653, 2025020654, 
+#     2025020655, 2025020656, 2025020657, 2025020658, 2025020659,
+#     2025020597, 2025020624
+# ]
+    GAMES_TO_CHECK = [2025020642]
+    game_number = game_str[4:]
+    
+    url = f"http://www.nhl.com/scores/htmlreports/{season}/TV{game_number}.HTM"
+    
+    if debug:
+        logging.info(f"get_shifts_from_nhl_html: fetching {url}")
+        
+    try:
+        _throttle()
+        resp = SESSION.get(url, timeout=5)
+        if resp.status_code == 404:
+            logging.warning(f"HTML Report not found: {url}")
+            return None
+        resp.raise_for_status()
+        html = resp.text
+    except Exception as e:
+        logging.warning(f"get_shifts_from_nhl_html: failed to fetch {url}: {e}")
+        return None
+
+    all_shifts = []
+    import re
+    
+    # 1. Normalize HTML detection
+    home_start_idx = html.find('Home Time On Ice')
+    
+    # 2. Find all player blocks
+    # Use lax class match for 'playerHeading' (can be 'playerHeading + border', etc)
+    # Content pattern captures the inner text which we will parse manually
+    player_header_pat = re.compile(r'<td[^>]*class="[^"]*playerHeading[^"]*"[^>]*>(.+?)</td>', re.IGNORECASE)
+    matches = list(player_header_pat.finditer(html))
+    
+    def parse_time(mm_ss):
+        if not mm_ss: return None
+        try:
+           m, s = mm_ss.split(':')
+           return int(m) * 60 + int(s)
+        except: return None
+    
+    # Regexes for parsing header content
+    # Standard: "8 L &nbsp; OVECHKIN, ALEX"
+    # Variant: "2 WHITECLOUD, ZACH"
+    re_standard_header = re.compile(r'^(\d+)\s+([A-Z]+)\s+&nbsp;(.+)$')
+    re_variant_header = re.compile(r'^(\d+)\s+(.+)$')
+
+    # --- Start of Team ID Setup ---
+    # Fetch proper Team IDs from Game Feed to ensure compatibility with compute_intervals
+    feed = get_game_feed(game_id) or {}
+    home_id = None
+    away_id = None
+    home_name = None
+    away_name = None
+    
+    try:
+        h = feed.get('homeTeam') or feed.get('home') or {}
+        a = feed.get('awayTeam') or feed.get('away') or {}
+        home_id = h.get('id')
+        away_id = a.get('id')
+        
+        # Handle localized names in New API
+        # Collect tokens for matching (e.g. "VANCOUVER", "CANUCKS")
+        home_tokens = set()
+        away_tokens = set()
+        
+        def add_tokens(team_dict, token_set):
+            for key in ['name', 'teamName', 'commonName', 'placeName']:
+                val = team_dict.get(key)
+                if isinstance(val, dict): val = val.get('default')
+                if val:
+                    token_set.add(str(val).upper())
+        
+        add_tokens(h, home_tokens)
+        add_tokens(a, away_tokens)
+        
+        # Build Roster Map for Position Lookup: (TeamID, NumberStr) -> PosCode
+        # Need to parse boxscore from feed
+        roster_map = {}
+        try:
+            # Check for 'rosterSpots' at top level (e.g. 2025/2026 feed)
+            roster_spots = feed.get('rosterSpots', [])
+            if roster_spots:
+                for p in roster_spots:
+                    try:
+                        tid = p.get('teamId')
+                        num = p.get('sweaterNumber')
+                        pos = p.get('positionCode')
+                        if tid and num and pos:
+                            roster_map[(str(tid), str(num))] = pos
+                    except: pass
+            
+            # Fallback: check for boxscore structure (older API)
+            elif 'liveData' in feed:
+                box = feed.get('liveData', {}).get('boxscore', {}).get('teams', {})
+                for side in ['home', 'away']:
+                    team_data = box.get(side, {})
+                    tid = team_data.get('team', {}).get('id')
+                    players = team_data.get('players', {})
+                    for k, p_data in players.items():
+                        try:
+                            num = str(p_data.get('jerseyNumber', ''))
+                            if not num: continue
+                            pos_obj = p_data.get('position', {})
+                            pos_code = pos_obj.get('code') or pos_obj.get('abbreviation')
+                            if tid and pos_code:
+                                roster_map[(str(tid), num)] = pos_code
+                        except: pass
+            
+        except Exception as e:
+            pass
+
+        
+    except Exception:
+        pass
+
+    # Find Team Heading Zones (for Variant reports)
+    # They separate sections with <td class="teamHeading + border">TEAM NAME</td>
+    team_heading_pat = re.compile(r'<td[^>]*class="[^"]*teamHeading[^"]*"[^>]*>(.+?)</td>', re.IGNORECASE)
+    team_zones = []
+    
+    for tm in team_heading_pat.finditer(html):
+        t_text = tm.group(1).strip().upper()
+        # Map to ID
+        tid = None
+        
+        # Robust Check: If any token (e.g. CANUCKS or VANCOUVER) appears in the Heading Text
+        # Check Home
+        for token in home_tokens:
+            if token in t_text:
+                tid = home_id
+                break
+        
+        # Check Away (if not Home)
+        if not tid:
+            for token in away_tokens:
+                if token in t_text:
+                    tid = away_id
+                    break
+
+        
+        if tid:
+            team_zones.append({'start': tm.start(), 'id': tid, 'name': t_text})
+    # --- End of Team ID Setup ---
+
+    for i, m in enumerate(matches):
+        p_text = m.group(1).strip()
+        
+        # Parse Player Info
+        p_num, p_pos, p_name = None, None, None
+        
+        # Try Standard
+        m_std = re_standard_header.search(p_text)
+        if m_std:
+            p_num = m_std.group(1)
+            p_pos = m_std.group(2)
+            p_name = m_std.group(3)
+        else:
+            # Try Variant
+            m_var = re_variant_header.search(p_text)
+            if m_var:
+                p_num = m_var.group(1)
+                raw_name = m_var.group(2).strip()
+                # Extract position suffix if present e.g. "NAME (G)"
+                m_pos_suffix = re.search(r'\(([A-Z]+)\)$', raw_name)
+                if m_pos_suffix:
+                    p_pos = m_pos_suffix.group(1)
+                    p_name = raw_name[:m_pos_suffix.start()].strip()
+                else:
+                    p_pos = 'UNK' 
+                    p_name = raw_name
+        
+        if not p_num:
+            # Fallback/skip if we can't parse header
+            continue
+
+        block_start = m.end()
+        block_end = matches[i+1].start() if (i + 1 < len(matches)) else len(html)
+        block_html = html[block_start:block_end]
+        
+        # Determine team using Zones (Variant) or Splitter (Standard)
+        current_team_id = 'Away' # Default
+        
+        # 1. Try Zones
+        if team_zones:
+            # Find the last zone that started before this player block
+            # Zones are ordered by start index
+            best_zone = None
+            for z in team_zones:
+                 if z['start'] < m.start():
+                     best_zone = z
+                 else:
+                     break
+            if best_zone:
+                current_team_id = best_zone['id']  # Use numeric ID from Feed
+        
+        # 2. Try Standard Splitter if no zones (or fallback)
+        elif home_start_idx > 0:
+            if m.start() > home_start_idx:
+                 current_team_id = home_id # Numeric
+            else:
+                 current_team_id = away_id # Numeric
+        
+        # Fallback to Strings if IDs missing (shouldn't happen with valid Feed)
+        if not current_team_id:
+             current_team_id = 'Home' if (home_start_idx > 0 and m.start() > home_start_idx) else 'Away'
+        
+        # 2. Try Standard Splitter if no zones (or fallback)
+        elif home_start_idx > 0:
+            if m.start() > home_start_idx:
+                 current_team_id = home_id # Numeric
+            else:
+                 current_team_id = away_id # Numeric
+        
+        # Fallback to Strings if IDs missing (shouldn't happen with valid Feed)
+        if not current_team_id:
+             current_team_id = 'Home' if (home_start_idx > 0 and m.start() > home_start_idx) else 'Away'
+             
+        team_code = current_team_id
+        
+        # Try to resolve Position using Roster Map if UNK
+        if p_pos == 'UNK' and roster_map and team_code not in ('Home', 'Away', None):
+             # lookup (str(team_id), str(num))
+             lookup_key = (str(team_code), str(p_num))
+             mapped_pos = roster_map.get(lookup_key)
+             if mapped_pos:
+                 p_pos = mapped_pos
+        
+        # Standard: >(\d+)</td> (Per) ... >(\d+:\d+) / (\d+:\d+)</td>
+        # Variant:  >(\d+)</td> (Per) ... >(\d+:\d+)</td> ... >(\d+:\d+)</td>
+        
+        # We can scan the block looking for Period-like cells, then check subsequent cells.
+        # But `re.finditer` is easier. Try both patterns.
+        
+        # Pattern 1: Combined "Start / End"
+        pat_combined = re.compile(r'>(\d+)</td>[^<]*<td[^>]*>(\d{1,2}:\d{2})\s*/\s*(\d{1,2}:\d{2})</td>')
+        shifts_combined = list(pat_combined.finditer(block_html))
+        
+        # Pattern 2: Separate "Start" and "End"
+        # We look for: >Per</td> ... >Start</td> ... >End</td>
+        # Note: minimal intervening tags. 
+        # CAUTION: Variant also has Shift # before Per. 
+        # Variant row: <td...>Shift#</td> <td...>Per</td> <td...>Start</td> <td...>End</td> ...
+        # Regex needs to be reasonably loose on intervening chars but strict on order
+        pat_separate = re.compile(r'>(\d+)</td>(?:[^<]*<[^>]+>)*?[^<]*>(\d{1,2}:\d{2})</td>(?:[^<]*<[^>]+>)*?[^<]*>(\d{1,2}:\d{2})</td>')
+        
+        # Decide which to use?
+        # If combined found, use it. If not, try separate.
+        current_shifts = []
+        if shifts_combined:
+            for sm in shifts_combined:
+                current_shifts.append((sm.group(1), sm.group(2), sm.group(3)))
+        else:
+            shifts_separate = list(pat_separate.finditer(block_html))
+            for sm in shifts_separate:
+                current_shifts.append((sm.group(1), sm.group(2), sm.group(3)))
+        
+        for per_str, start_str, end_str in current_shifts:
+            try:
+                per = int(per_str)
+                start_sec = parse_time(start_str)
+                end_sec = parse_time(end_str)
+                
+                if start_sec is not None and end_sec is not None:
+                    # Period Start Offset
+                    offset = (per - 1) * 1200
+                    abs_start = offset + start_sec
+                    abs_end = offset + end_sec
+                    
+                    # Store
+                    clean_name = p_name.replace(',','').replace(' ','_').strip().upper()
+                    # clean HTML entities if any
+                    clean_name = clean_name.replace('&NBSP;', '')
+                    
+                    pid = f"{clean_name}_{p_num}"
+                    
+                    all_shifts.append({
+                        'game_id': int(game_id),
+                        'player_id': pid, 
+                        'team_id': team_code,
+                        'period': per,
+                        'start_seconds': abs_start,
+                        'end_seconds': abs_end,
+                        'start_raw': start_str,
+                        'end_raw': end_str,
+                        'raw': {'position': p_pos, 'source': 'html_fallback'},
+                        'player_name': p_name,
+                        'player_number': p_num,
+                        'player_pos': p_pos
+                    })
+            except Exception:
+                pass
+
+    shifts_by_player = {}
+    for s in all_shifts:
+        pid = s['player_id']
+        shifts_by_player.setdefault(pid, []).append(s)
+        
+    if debug:
+        logging.info(f"get_shifts_from_nhl_html: found {len(all_shifts)} shifts for {len(shifts_by_player)} players")
+
+    # Important: API consumers expect 'raw'
+    return {'game_id': int(game_id), 'raw': {'source': 'html_fallback'}, 'all_shifts': all_shifts, 'shifts_by_player': shifts_by_player}
+
+
 def compare_shifts(game_id: Any, debug: bool = False) -> Dict[str, Any]:
+
     """Compare outputs from get_shifts and get_shifts_from_nhl_html for a game_id.
 
     Returns a dict containing both raw results and a small "diff" summary useful

@@ -1,0 +1,236 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loading CSV...
+API-based ANA 5v5 Attempts: 4655
+Computing Shift-based stats...
+DEBUG: gs_timeline len=7
+DEBUG: gs_timeline len=22
+DEBUG: gs_timeline len=14
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=27
+DEBUG: gs_timeline len=7
+DEBUG: gs_timeline len=25
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=10
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=8
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=21
+DEBUG: gs_timeline len=8
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=13
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=14
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=13
+DEBUG: gs_timeline len=3
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=3
+DEBUG: gs_timeline len=0
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=23
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=9
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=14
+Shift-based ANA 5v5 Attempts: 4614
+Difference: 41
+
+--- Top Discrepancy Games (API - Shift) ---
+       game_id  api_count  shift_count  diff  abs_diff
+37  2025020597        112           17    95        95
+39  2025020624         90           62    28        28
+22  2025020374        108          122   -14        14
+0   2025020021        121          132   -11        11
+10  2025020197        119          130   -11        11
+44  2025020734         98          107    -9         9
+30  2025020482        116          125    -9         9
+19  2025020318        126          134    -8         8
+20  2025020329         92          100    -8         8
+24  2025020403         81           89    -8         8
+
+--- Sample Discrepancies ---
+[
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020021,
+    "time": "02:35",
+    "period": 3,
+    "event": "missed-shot",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 3445.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020021,
+    "time": "02:32",
+    "period": 3,
+    "event": "blocked-shot",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 3448.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020021,
+    "time": "02:20",
+    "period": 3,
+    "event": "missed-shot",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 3460.0
+  },
+  {
+    "type": "API_only (Excluded by Shifts)",
+    "game_id": 2025020036,
+    "time": "00:27",
+    "period": 3,
+    "event": "missed-shot",
+    "desc": "N/A",
+    "game_state_api": "5v5",
+    "is_net_empty": 0,
+    "total_time": 3573.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020036,
+    "time": "01:30",
+    "period": 3,
+    "event": "blocked-shot",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 3510.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020036,
+    "time": "00:53",
+    "period": 3,
+    "event": "shot-on-goal",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 3547.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020036,
+    "time": "00:52",
+    "period": 3,
+    "event": "shot-on-goal",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 3548.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020056,
+    "time": "10:18",
+    "period": 1,
+    "event": "goal",
+    "desc": "N/A",
+    "game_state_api": "5v4",
+    "is_net_empty": 0,
+    "total_time": 582.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020056,
+    "time": "01:27",
+    "period": 3,
+    "event": "goal",
+    "desc": "N/A",
+    "game_state_api": "5v4",
+    "is_net_empty": 0,
+    "total_time": 3513.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020070,
+    "time": "09:38",
+    "period": 2,
+    "event": "goal",
+    "desc": "N/A",
+    "game_state_api": "5v4",
+    "is_net_empty": 0,
+    "total_time": 1822.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020070,
+    "time": "14:23",
+    "period": 3,
+    "event": "blocked-shot",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 2737.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020091,
+    "time": "00:36",
+    "period": 3,
+    "event": "goal",
+    "desc": "N/A",
+    "game_state_api": "6v4",
+    "is_net_empty": 0,
+    "total_time": 3564.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020105,
+    "time": "03:54",
+    "period": 1,
+    "event": "missed-shot",
+    "desc": "N/A",
+    "game_state_api": "6v5",
+    "is_net_empty": 0,
+    "total_time": 966.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020105,
+    "time": "01:51",
+    "period": 1,
+    "event": "missed-shot",
+    "desc": "N/A",
+    "game_state_api": "5v4",
+    "is_net_empty": 0,
+    "total_time": 1089.0
+  },
+  {
+    "type": "Shift_only (Excluded by API Labels)",
+    "game_id": 2025020111,
+    "time": "17:08",
+    "period": 3,
+    "event": "goal",
+    "desc": "N/A",
+    "game_state_api": "5v4",
+    "is_net_empty": 0,
+    "total_time": 2572.0
+  }
+]

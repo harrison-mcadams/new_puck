@@ -1,0 +1,8 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Verifying 5 games...
+Game 2025020655: 0 intervals found.
+Game 2025020600: 0 intervals found.
+Game 2025020643: 0 intervals found.
+Game 2025020597: 0 intervals found.
+Game 2025020640: 0 intervals found.
