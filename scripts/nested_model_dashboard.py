@@ -14,6 +14,112 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from puck import data_pipeline, fit_glm_nested, fit_xgs, features as feature_util, rink
 
+import math
+try:
+    from puck.rink import calculate_distance_and_angle
+except ImportError:
+    # Fallback
+    def calculate_distance_and_angle(x, y, goal_x, goal_y=0.0):
+        # Simplified copy
+        distance = math.hypot(x - goal_x, y - goal_y)
+        vx = x - goal_x
+        vy = y - goal_y
+        if goal_x < 0: rx, ry = 0.0, 1.0
+        else: rx, ry = 0.0, -1.0
+        cross = rx * vy - ry * vx
+        dot = rx * vx + ry * vy
+        angle_rad_ccw = math.atan2(cross, dot)
+        angle_deg = (-math.degrees(angle_rad_ccw)) % 360.0
+        return distance, angle_deg
+
+def compute_spatial_grid(pipeline, feature_names):
+    """
+    Computes the spatial component score for the standard 50x43 grid.
+    Returns a flattened list or 2D list of scores.
+    """
+    # Grid definition (Matches JS)
+    X_POINTS = 50
+    Y_POINTS = 43
+    xs = np.linspace(0, 100, X_POINTS)
+    ys = np.linspace(-42.5, 42.5, Y_POINTS)
+    
+    # Generate points
+    # We need to simulate the pipeline for just the spatial features.
+    # 1. Identify spatial coefs
+    clf = pipeline.named_steps['clf']
+    pre = pipeline.named_steps['preprocessor']
+    
+    try:
+        # Get feature names out to align coefs
+        # Note: NestedGLM pipelines might be intricate.
+        # Let's rely on the transformer name 'spatial_tensor' if it exists.
+        
+        # We need to run the transformation on the grid points relative to the 'spatial_tensor' step.
+        # Then multiply by the corresponding coefficients.
+        
+        # Find the spatial_tensor step in ColumnTransformer
+        tensor_transformer = None
+        for name, trans, cols in pre.transformers_:
+            if name == 'spatial_tensor':
+                tensor_transformer = trans
+                break
+        
+        if tensor_transformer is None:
+            return None # No spatial tensor
+            
+        # Extract indices of spatial features in the final feature vector
+        all_out_feats = pre.get_feature_names_out()
+        spatial_indices = [i for i, f in enumerate(all_out_feats) if f.startswith('spatial_tensor__')]
+        
+        if not spatial_indices:
+            return None
+
+        spatial_coefs = clf.coef_[0][spatial_indices]
+        # Note: We DON'T include intercept in the "Spatial Grid" usually, 
+        # or we do and then later add non-spatial parts.
+        # Let's include ONLY the spatial contribution. Intercept is handled in JS base.
+        
+        # Generate Grid Data
+        grid_rows = []
+        for y in ys:
+            for x in xs:
+                # Goal at 89, 0 assumption (Standard)
+                dist, ang = calculate_distance_and_angle(x, y, 89.0, 0.0)
+                grid_rows.append({'distance': dist, 'angle_deg': ang})
+        
+        grid_df = pd.DataFrame(grid_rows)
+        
+        # Transform
+        # tensor_transformer is a Pipeline([imputer, tensor, scaler]) of just the spatial cols
+        # It expects a DF with 'distance', 'angle_deg' if that's what it was fitted on.
+        # Check fitted cols
+        # input columns for spatial_tensor were defined in fit_glm_nested as spatial_cols
+        
+        # We can just call transform
+        X_trans = tensor_transformer.transform(grid_df)
+        
+        # Calculate Scores
+        scores = X_trans @ spatial_coefs
+        
+        # Reshape to 2D list [row][col] -> [y][x]
+        # Our loop was y outer, x inner
+        grid_2d = []
+        idx = 0
+        for _ in ys:
+            row = []
+            for _ in xs:
+                row.append(float(scores[idx]))
+                idx += 1
+            grid_2d.append(row)
+            
+        return grid_2d
+
+    except Exception as e:
+        print(f"Error computing spatial grid: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
 def get_rink_shapes(xref='x', yref='y'):
     """Full rink shapes for offensive zone."""
     shapes = []
@@ -60,7 +166,7 @@ def load_data_and_priors(features):
         print(f"Error loading data: {e}")
         return {}
 
-def extract_pipeline_params(pipeline, feature_names):
+def extract_pipeline_params(pipeline, features):
     """Extracts weights, scales, knots, etc from a single layer pipeline."""
     
     # 1. Pipeline Steps
@@ -73,195 +179,148 @@ def extract_pipeline_params(pipeline, feature_names):
     intercept = clf.intercept_[0]
     
     # 3. Extract Transformers
-    # ColumnTransformer transformers_: [('num', Pipeline, [cols]), ('cat', Pipeline, [cols])]
-    
     transformers = {}
     
-    # Helper to map input feature names to their output implementations
-    feature_map = [] # Ordered list of operations to produce the final feature vector
-    
     current_coef_idx = 0
+    spatial_data = None
     
     for name, trans, cols in preprocessor.transformers_:
         if name == 'remainder': continue
         
-        # 'trans' is a Pipeline
-        # Numeric pipeline: [imputer, (poly/spline), scaler]
-        # Cat pipeline: [imputer, ohe]
+        # Calculate output size to advance coef index
+        n_out = 0
+        if hasattr(trans, 'get_feature_names_out'):
+             try:
+                 # Try with input cols if needed (sklearn version dependent)
+                 # But trans is usually a pipeline, so no args needed if fitted
+                 out_names = trans.get_feature_names_out()
+             except:
+                 try:
+                    out_names = trans.get_feature_names_out(cols)
+                 except: 
+                    # Fallback for old sklearn or complex pipelines
+                     out_names = [] # Dangerous
+             n_out = len(out_names)
+        elif hasattr(trans, 'categories_'): # OHE direct
+             n_out = sum(len(c) for c in trans.categories_)
         
-        # We need to preserve the ORDER because Coefs match the concatenations
+        # If we failed to get size, we might desync. 
+        # But specifically for our known pipeline structure:
         
-        if name == 'num':
-            # Numeric Pipeline
-            # Check for Spline or Poly
-            spline = None
-            poly = None
-            scaler = None
-            
-            for step_name, step in trans.steps:
-                if isinstance(step, SplineTransformer):
-                    spline = step
-                elif isinstance(step, PolynomialFeatures):
-                    poly = step
-                elif isinstance(step, StandardScaler):
-                    scaler = step
-            
-            # Extract Params
-            if spline:
-                # SplineTransformer output size per feature: n_knots + degree - 1
-                # (default n_knots=7, degree=3 -> 9 features per input)
-                # But include_bias=False? Default True in newer sklearn?
-                # Code says: include_bias=False
-                knots = spline.bsplines_[0].t.tolist() # Uniform knots usually same for all? 
-                # Actually, sklearn SplineTransformer fits knots PER FEATURE if using quantiles.
-                # Check strategy. Default 'uniform'.
-                # bsplines_ is list of scipy bsps? No.
-                # In sklearn < 1.0 it was different.
-                # Let's inspect `bsplines_`
-                
-                # We need: knots for each feature
-                # If uniform, min/max matter.
-                
-                # Sklearn SplineTransformer logic:
-                # processing is independent per feature.
-                
-                num_feats_data = {}
-                
-                for idx, col in enumerate(cols):
-                    # Find knots for this column
-                    # bsplines_ is list of size n_features
-                    # Each element has .t (knots), .k (degree)
-                    bs = spline.bsplines_[idx]
-                    
-                    # Scaler mean/scale for the OUTPUT features of this column
-                    # The scaler is applied AFTER spline expansion.
-                    # Output features for this col: (n_knots + degree - 1) - (1 if no bias)
-                    n_out = spline.n_features_out_ // len(cols) # Approximation
-                    # Actually better to track indices
-                    
-                    # We need precise mapping.
-                    # Since we implement spline in JS, we need:
-                    #  - degree
-                    #  - knots
-                    #  - scaler means/scales for the expanded features
-                    
-                    # Get slice of scaler
-                    scale_slice_mean = scaler.mean_[current_coef_idx : current_coef_idx + n_out].tolist()
-                    scale_slice_scale = scaler.scale_[current_coef_idx : current_coef_idx + n_out].tolist()
-                    
-                    # Get slice of Coefs
-                    coef_slice = coef[current_coef_idx : current_coef_idx + n_out]
-                    
-                    num_feats_data[col] = {
-                        'type': 'spline',
-                        'knots': bs.t.tolist(),
-                        'degree': bs.k,
-                        'coefs': coef_slice,
-                        'scaler_mean': scale_slice_mean,
-                        'scaler_scale': scale_slice_scale,
-                        'idx_start': current_coef_idx
-                    }
-                    
-                    current_coef_idx += n_out
-                    
-                transformers['num'] = num_feats_data
+        if name == 'spatial_tensor':
+             # We SKIP extracting parameters for JS.
+             # Instead we compute the grid!
+             # We assume compute_spatial_grid handles finding this step.
+             current_coef_idx += n_out
+             continue
+             
+        # Slice Coefs for this block
+        block_coefs = coef[current_coef_idx : current_coef_idx + n_out]
+        
+        # Identify type
+        # Check for SplineTransformer vs OHE
+        is_spline = False
+        is_ohe = False
+        step_obj = None
+        
+        if hasattr(trans, 'steps'):
+             for _, step in trans.steps:
+                 if isinstance(step, SplineTransformer):
+                     is_spline = True
+                     step_obj = step
+                 elif isinstance(step, OneHotEncoder):
+                     is_ohe = True
+                     step_obj = step
+                     
+        if is_spline:
+             # Independent Splines (num_spline)
+             # trans is Pipeline([imputer, spline, scaler])
+             scaler = trans.named_steps['scaler']
+             
+             feats_data = {}
+             # n_out is total. n_per_col = n_out / len(cols)
+             if len(cols) > 0:
+                 n_per_col = n_out // len(cols)
+                 local_idx = 0
+                 
+                 for i, col in enumerate(cols):
+                     # Coefs
+                     col_c = block_coefs[local_idx : local_idx + n_per_col]
+                     # Scaler
+                     col_m = scaler.mean_[local_idx : local_idx + n_per_col].tolist()
+                     col_s = scaler.scale_[local_idx : local_idx + n_per_col].tolist()
+                     
+                     bs = step_obj.bsplines_[i]
+                     
+                     feats_data[col] = {
+                         'type': 'spline',
+                         'knots': bs.t.tolist(),
+                         'degree': bs.k,
+                         'coefs': col_c,
+                         'scaler_mean': col_m,
+                         'scaler_scale': col_s
+                     }
+                     local_idx += n_per_col
+             
+             transformers['num_spline'] = feats_data
+             
+        elif is_ohe:
+             # Categorical
+             feats_data = {}
+             local_idx = 0
+             for i, col in enumerate(cols):
+                 cats = step_obj.categories_[i].tolist()
+                 w = {}
+                 for c_val in cats:
+                     w[str(c_val)] = block_coefs[local_idx]
+                     local_idx += 1
+                 feats_data[col] = {'type': 'ohe', 'weights': w}
+             
+             transformers['cat'] = feats_data
+             
+        elif name == 'num_poly':
+             # Poly fallback
+             # ... simplified ...
+             pass
+             
+        current_coef_idx += n_out
 
-            elif poly:
-                # Poly logic
-                # Only 1 feature usually? Or multiple?
-                # Poly expands interactions too if multiple num features passed together
-                # The NestedGLM splits num features into a block?
-                # "num_trans" applies to ALL num_features.
-                # So if we have [dist, speed], poly(2) -> d, s, d^2, d*s, s^2
-                
-                # JS implementation of generic PolyFeatures is tricky if we don't know the mapping.
-                # Luckily sklearn provides `get_feature_names_out`.
-                
-                poly_out_names = poly.get_feature_names_out(cols)
-                scaler_mean = scaler.mean_
-                scaler_scale = scaler.scale_
-                
-                # We need to map each output term 'd^2 s' to a coef and scaler
-                poly_data = []
-                for i, name in enumerate(poly_out_names):
-                     poly_data.append({
-                         'term': name, # e.g. "distance^2 speed"
-                         'coef': coef[current_coef_idx + i],
-                         'mean': scaler.mean_[current_coef_idx + i],
-                         'scale': scaler.scale_[current_coef_idx + i]
-                     })
-                
-                transformers['num_poly'] = poly_data
-                current_coef_idx += len(poly_out_names)
-
-        elif name == 'cat':
-            # Categorical Pipeline
-            # [imputer, ohe]
-            ohe = trans.named_steps['ohe']
-            
-            # OHE categories_ is list of arrays
-            # For each input col, we have categories
-            
-            cat_feats_data = {}
-            
-            for idx, col in enumerate(cols):
-                cats = ohe.categories_[idx].tolist()
-                
-                # OHE drops? sparse_output=False, handle_unknown='ignore'.
-                # If drop='first'? Check config. Usually None for robustness.
-                # Code says: drop=None (default)
-                
-                feat_dict = {}
-                for cat_idx, cat_val in enumerate(cats):
-                    # Coef for this specific category
-                    c = coef[current_coef_idx]
-                    feat_dict[str(cat_val)] = c
-                    current_coef_idx += 1
-                
-                # If handle_unknown='ignore', all 0s -> 0 contribution.
-                # Effectively base intercept absorbs unknown if bias?
-                
-                cat_feats_data[col] = {
-                    'type': 'ohe',
-                    'weights': feat_dict
-                }
-                
-            transformers['cat'] = cat_feats_data
-            
+    # Compute Spatial Grid if 'spatial_tensor' was in modules (implied by features passed)
+    spatial_grid = compute_spatial_grid(pipeline, features)
+        
     return {
         'intercept': intercept,
-        'transformers': transformers
+        'transformers': transformers,
+        'spatial_grid': spatial_grid
     }
 
 def main():
-    model_path = "analysis/xgs/xg_model_nested.joblib"
-    output_path = "analysis/nested_xgs/nested_model_dashboard.html"
+    # Allow command line arg for model path
+    if len(sys.argv) > 1:
+        model_path = sys.argv[1]
+    else:
+        model_path = "analysis/xgs/xg_model_nested.joblib"
+        
+    # Derive output name from model name
+    base_name = os.path.basename(model_path).replace('.joblib', '')
+    output_path = f"analysis/nested_xgs/{base_name}_dashboard.html"
     
     print(f"Loading model from {model_path}...")
     if not os.path.exists(model_path):
         print(f"Error: Model not found at {model_path}")
         return
+        
+    # Hack to allow loading Custom Class from __main__ or module 
+    # (Since we defined TensorSpline in fit_glm_nested, standard load should work if imports match)
     model = joblib.load(model_path)
     
     print("Extracting model parameters...")
     
-    # Extract Metadata
-    # We need to know which features go where
-    # Model stores 'features' list.
-    # The pipeline splits them inside using 'cat_features' listing.
-    
-    # We have to replicate the split logic to know which features are Num vs Cat
     all_features = model.features
     cat_features_list = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state']
     
-    # Refine cat list based on actual features present
     actual_cats = [f for f in cat_features_list if f in all_features]
     actual_nums = [f for f in all_features if f not in actual_cats]
-    
-    # Also interact_col logic
-    if hasattr(model, 'interact_col') and model.interact_col and model.interact_col in all_features:
-        # It's numeric
-        pass
 
     # Layers
     layers_data = {
@@ -273,7 +332,7 @@ def main():
     # Priors
     priors = load_data_and_priors(all_features)
     
-    # Additional Metadata to export
+    # Export Data
     export_data = {
         'features': all_features,
         'cat_features': actual_cats,
@@ -300,7 +359,7 @@ def main():
             'is_rebound': 0,
             'rebound_angle_change': 0,
             'rebound_time_diff': 0,
-            'last_event_type': 'faceoff' # Lowercase default
+            'last_event_type': 'faceoff' 
         },
         'options': {
             'shooter_role': ['F', 'D', 'Marginalized'],
@@ -312,25 +371,18 @@ def main():
             'is_rebound': ['0', '1', 'Marginalized'],
             'last_event_type': sorted(list(priors.get('last_event_type', {}).keys())) + ['Marginalized']
         },
-         # Interaction logic flag
-        'use_splines': getattr(model, 'use_splines', False),
-        'interact_col': getattr(model, 'interact_col', 'dist_angle')
+        'use_splines': getattr(model, 'use_splines', False)
     }
     
-    # Include numeric feature default ranges for sliders?
-    # Or just use arbitrary inputs in UI?
-    # User wanted "All options". For numeric, we can give a slider or input.
-    # We will provide default bins [Low, Med, High] for quick select + Slider custom.
-
     json_str = json.dumps(export_data)
     
-    print("Generating HTML...")
+    print(f"Generating HTML to {output_path}...")
     
     html_content = f"""
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Nested Model Dashboard (Client-Side)</title>
+    <title>Model Dashboard - {base_name}</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
         body {{ margin: 0; background: #111; color: white; font-family: sans-serif; overflow: hidden; }}
@@ -363,12 +415,14 @@ def main():
     
     <div id="controls">
         <h3>Model Controls</h3>
+        <small>{base_name}</small>
         <div id="inputs"></div>
         <button class="btn" style="background: #28a745" onclick="setBaseline()">Set Baseline</button>
         <button class="btn" style="background: #dc3545" onclick="clearBaseline()">Clear Top</button>
     </div>
     
     <div id="plot"></div>
+    <div id="debug_log" style="background: #eee; padding: 10px; margin-top: 20px; font-family: monospace; max-height: 200px; overflow: auto;"></div>
 
 <script>
     const MODEL = {json_str};
@@ -384,36 +438,37 @@ def main():
     for(let i=0; i<X_POINTS; i++) gridX.push(i * (100/(X_POINTS-1)));
     for(let i=0; i<Y_POINTS; i++) gridY.push(-42.5 + i * (85/(Y_POINTS-1)));
     
-    // Baseline Storage
     let baselineData = null;
 
     // --- MATH ENGINE ---
-    
-    function dot(v1, v2) {{
-        let s = 0;
-        for(let i=0; i<v1.length; i++) s += v1[i] * v2[i];
-        return s;
-    }}
     
     function sigmoid(z) {{
         return 1 / (1 + Math.exp(-z));
     }}
     
-    // BSpline Evaluation (De Boor's Algo simplified for single point or recurring)
-    // We need to evaluate basis functions for a value 'x' given knots 't' and degree 'k'
-    // Returns array of basis values.
+    // BSpline Helper
     function bspline_basis(x, t, k) {{
-        // t is array of knots. length = n_bases + k + 1
-        // output size = len(t) - k - 1
-        const n = t.length - k - 1;
-        let N = new Array(n).fill(0);
+        // Robust Iterative De Boor Algorithm
+        // Returns the full vector of k-th degree basis functions N_i,p(x)
+        // t is knots array.
+        // x is evaluation point.
+        // k is degree.
         
-        // Find span index i such that t[i] <= x < t[i+1]
-        // (with special handling for max value)
+        const n = t.length - k - 1; // Number of basis functions
+        let N = new Array(n).fill(0);
+
+        // 1. Find span index 'idx' such that t[idx] <= x < t[idx+1]
         let idx = -1;
-        if (x >= t[t.length - k - 1]) {{
-             idx = t.length - k - 2; // Last span
+        
+        // Handle boundaries
+        if (x < t[0] || x > t[t.length-1]) return N; // Out of bounds
+        
+        // Special case: x == max knot (right endpoint)
+        // Scikit-learn includes the right endpoint in the last interval.
+        if (x === t[t.length - 1]) {{
+            idx = t.length - k - 2;
         }} else {{
+            // Linear search for span
             for(let i=0; i < t.length - 1; i++) {{
                 if (x >= t[i] && x < t[i+1]) {{
                     idx = i;
@@ -422,73 +477,56 @@ def main():
             }}
         }}
 
-        if (idx === -1) return N; // Out of bounds?
+        if (idx === -1) return N;
+
+        // 2. Compute non-zero basis functions
+        // "NURBS Book" Algorithm A2.2
+        // Compute basis functions N[idx-k] ... N[idx]
         
-        // Initialize degree 0
-        let b = new Array(k+1).fill(0);
-        b[k] = 1; // Corresponding to the span idx
+        let basis = new Array(k + 1).fill(0);
+        let left = new Array(k + 1).fill(0);
+        let right = new Array(k + 1).fill(0);
         
-        // We only care about basis functions non-zero in this span.
-        // There are at most k+1 such functions: N_{{idx-k, k}} ... N_{{idx, k}}
-        // Actually sklearn implementation might differ slightly.
-        // Let's use generic recursive eval for N_{{i,p}}(x)
+        basis[0] = 1.0;
         
-        // Faster approach:
-        // We calculate all non-zero basis functions at x.
-        // Returns array of size n, mostly zeros.
-        
-        // For p=0 to k
-        //   Calculate N_{{i,p}}
-        
-        // Implementation of Cox-De Boor
-        // Let's rely on the fact that sklearn splines are standard B-splines.
-        
-        // Create full N array
-        for(let i=0; i<n; i++) {{
-           // Determine N_i,k(x)
-           // This is slow O(n*k^2).
-           // Optimization: Only compute relevant ones.
-           N[i] = bspline_recur(i, k, t, x);
-        }}
-        return N;
-    }}
-    
-    function bspline_recur(i, p, t, x) {{
-        if (p === 0) {{
-            // N_{{i,0}}(x) = 1 if t[i] <= x < t[i+1], else 0
-            // Handle right boundary (== last knot) for last interval
-            if (t[i+1] === t[t.length-1] && i === t.length - p - 2) {{
-                 return (x >= t[i] && x <= t[i+1]) ? 1 : 0;
+        for (let j = 1; j <= k; j++) {{
+            left[j] = x - t[idx + 1 - j];
+            right[j] = t[idx + j] - x;
+            let saved = 0.0;
+            
+            for (let r = 0; r < j; r++) {{
+                let term = basis[r] / (right[r + 1] + left[j - r]);
+                basis[r] = saved + right[r + 1] * term;
+                saved = left[j - r] * term;
             }}
-            return (x >= t[i] && x < t[i+1]) ? 1 : 0;
-        }} else {{
-            let left = 0, right = 0;
-            const d1 = t[i+p] - t[i];
-            const d2 = t[i+p+1] - t[i+1];
-            
-            if (d1 > 0) left = ((x - t[i]) / d1) * bspline_recur(i, p-1, t, x);
-            if (d2 > 0) right = ((t[i+p+1] - x) / d2) * bspline_recur(i+1, p-1, t, x);
-            
-            return left + right;
+            basis[j] = saved;
         }}
+        
+        // 3. Scatter into full vector
+        // basis[0] corresponds to index (idx - k)
+        // basis[k] corresponds to index (idx)
+        
+        for(let j = 0; j <= k; j++) {{
+            let map_idx = idx - k + j;
+            if (map_idx >= 0 && map_idx < n) {{
+                N[map_idx] = basis[j];
+            }}
+        }}
+
+        return N;
     }}
     
     function transform_numeric_feature(val, config) {{
         if (config.type === 'spline') {{
-            // BSpline Expansion
-            // 1. Basis
             let basis = bspline_basis(val, config.knots, config.degree);
-            
-            // 2. Align dimensions
-            // Python SplineTransformer(include_bias=False) seems to keep the first basis function
-            // and drop the last one (or similar), based on empirical verification.
-            // We must match the scaler_mean length.
+            // Reverting to Drop First based on Visual Continuity.
+            // Even though script suggested Drop Last, the visual result was discontinous.
+            // Let's ensure we match the scaler length by dropping from start.
             if (basis.length > config.scaler_mean.length) {{
-                // Keep the first N elements
-                basis = basis.slice(0, config.scaler_mean.length);
+                 basis = basis.slice(basis.length - config.scaler_mean.length);
             }}
             
-            // 3. Scale
+            // Scale
             let out = [];
             for(let i=0; i<basis.length; i++) {{
                 out.push( (basis[i] - config.scaler_mean[i]) / config.scaler_scale[i] );
@@ -497,48 +535,64 @@ def main():
         }}
         return [0];
     }}
+
     
-    function get_layer_score(features_dict, layer_name) {{
+    function transform_tensor(inputs, config) {{
+        // Obsolete: Spatial Logic moved to Python pre-calculation
+        return [];
+    }}
+    
+    function get_layer_score(features_dict, layer_name, grid_r, grid_c) {{
         const layer = MODEL.layers[layer_name];
         if (!layer) return -999;
         
         let score = layer.intercept;
         
-        // Numeric
-        const num_trans = layer.transformers.num;
-        for (const [feat_name, config] of Object.entries(num_trans)) {{
-            let val = features_dict[feat_name];
-            
-            // Calculate vector
-            let vec = transform_numeric_feature(val, config);
-            
-            // Dot with coefs
-            // Coefs are slice stored in config
-            for(let i=0; i<vec.length; i++) {{
-                score += vec[i] * config.coefs[i];
-            }}
+        // Transformers
+        const trans = layer.transformers;
+        
+        // 1. Spatial Grid Lookup
+        if (layer.spatial_grid) {{
+             // grid_r, grid_c correspond to the indices in the mesh
+             // We access them by passing them as args
+             if (grid_r !== undefined && layer.spatial_grid[grid_r] && layer.spatial_grid[grid_r][grid_c] !== undefined) {{
+                 score += layer.spatial_grid[grid_r][grid_c];
+             }}
+        }}
+        
+        // 2. Independent Splines
+        if (trans.num_spline) {{
+             for (const [feat_name, config] of Object.entries(trans.num_spline)) {{
+                let val = features_dict[feat_name];
+                let vec = transform_numeric_feature(val, config);
+                for(let i=0; i<vec.length; i++) {{
+                    score += vec[i] * config.coefs[i];
+                }}
+             }}
+        }}
+        
+        // 3. Poly (Legacy/Fallback)
+        if (trans.num_poly) {{
+            // ... (Simple poly implementation omitted for brevity unless needed)
+            // Assuming we are in Spline mode mainly
         }}
 
-        // Categorical
-        const cat_trans = layer.transformers.cat;
-        for (const [feat_name, config] of Object.entries(cat_trans)) {{
-            let val = String(features_dict[feat_name]);
-            let w = config.weights[val];
-            if (w !== undefined) {{
-                score += w;
+        // 4. Categorical
+        if (trans.cat) {{
+            for (const [feat_name, config] of Object.entries(trans.cat)) {{
+                let val = String(features_dict[feat_name]);
+                let w = config.weights[val];
+                if (w !== undefined) score += w;
             }}
-            // else 0 (unknown/reference)
         }}
         
         return score;
     }}
     
     function predict_scenario(inputs) {{
-        // Returns [p_block, p_acc, p_finish, p_xg]
+        // Standard marginalization logic...
+        // Copied from previous, preserving structure
         
-        // ... (standard inputs logic)
-        
-        // Recursive Marginalization Setup
         let marg_keys = [];
         let fixed_inputs = {{...inputs}};
         
@@ -548,17 +602,13 @@ def main():
             }}
         }}
         
-        // Resolve Non-Marginalized Inputs first
         for (const k in fixed_inputs) {{
             if (marg_keys.includes(k)) continue;
-            
-            // Check if it's a numeric keyword
             if (['Low', 'Med', 'High', 'Marginalized'].includes(fixed_inputs[k])) {{
-                fixed_inputs[k] = 0.0; // Todo: embed stats
+                fixed_inputs[k] = 0.0; 
             }}
         }}
         
-        // Prepare Marginalization Loop
         let scenarios = [{{weight: 1.0, inputs: fixed_inputs}}];
         
         for (const key of marg_keys) {{
@@ -569,10 +619,7 @@ def main():
             for (const scen of scenarios) {{
                 for (const opt of opts) {{
                     let p = (MODEL.priors[key] && MODEL.priors[key][opt]) || (1.0/opts.length);
-                    let s = {{
-                        weight: scen.weight * p,
-                        inputs: {{...scen.inputs}}
-                    }};
+                    let s = {{ weight: scen.weight * p, inputs: {{...scen.inputs}} }};
                     s.inputs[key] = opt;
                     new_scenarios.push(s);
                 }}
@@ -580,10 +627,8 @@ def main():
             scenarios = new_scenarios;
         }}
         
-        // Prune low weight scenarios
         scenarios = scenarios.filter(s => s.weight > 0.001);
         
-        // Now we calculate Grids for each scenario and sum
         let H = Y_POINTS;
         let W = X_POINTS;
         let Z_block = new Float32Array(H*W);
@@ -597,20 +642,14 @@ def main():
             const w = scen.weight;
             total_weight += w;
             
-            // Calc Grid for this atomic scenario
-            // X, Y loops
             for(let r=0; r<H; r++) {{
                 for(let c=0; c<W; c++) {{
                     const x = gridX[c];
                     const y = gridY[r];
                     const idx = r*W + c;
                     
-                    // Geometry
-                    // Geometry
                     const dist = Math.sqrt((x-89)**2 + y**2);
                     
-                    // Angle match Python (puck/data_pipeline.py)
-                    // Reference vector (0, -1) -> South
                     const dx = x - 89;
                     const dy = y;
                     const angle_rad = Math.atan2(dx, -dy);
@@ -618,20 +657,16 @@ def main():
                     angle_deg = angle_deg % 360;
                     if (angle_deg < 0) angle_deg += 360;
                     
-                    // Apply Interaction
                     let feats = {{...scen.inputs}};
                     feats.distance = dist;
                     feats.angle_deg = angle_deg;
-                    feats.dist_angle = dist * Math.abs(angle_deg);
+                    // Note: dist_angle interaction is now handled by Tensor logic automatically if used
                     
-                    // Layers
-                    let s_block = get_layer_score(feats, 'block');
+                    let s_block = get_layer_score(feats, 'block', r, c);
                     let p_block = sigmoid(s_block);
-                    
-                    let s_acc = get_layer_score(feats, 'accuracy');
+                    let s_acc = get_layer_score(feats, 'accuracy', r, c);
                     let p_acc = sigmoid(s_acc);
-                    
-                    let s_fin = get_layer_score(feats, 'finish');
+                    let s_fin = get_layer_score(feats, 'finish', r, c);
                     let p_fin = sigmoid(s_fin);
                     
                     let p_xg = (1 - p_block) * p_acc * p_fin;
@@ -644,7 +679,6 @@ def main():
             }}
         }}
         
-        // Normalize
         if(total_weight > 0) {{
             for(let i=0; i<Z_block.length; i++) {{
                 Z_block[i] /= total_weight;

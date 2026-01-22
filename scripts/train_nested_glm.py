@@ -263,12 +263,12 @@ except Exception as e:
 print(f"Saved report to {report_path}")
 
 # 8. SAVE MODEL
-# Overwrite the main model file so all scripts pick up the GLM
-model_path = Path('analysis/xgs/xg_model_nested.joblib')
+# Save as TENSOR model to allow side-by-side comparison
+model_path = Path('analysis/xgs/xg_model_nested_tensor.joblib')
 model_path.parent.mkdir(parents=True, exist_ok=True)
 print(f"Saving model to {model_path}...")
 joblib.dump(clf, model_path)
-print(f"Model saved successfully (REPLACING OLD MODEL)")
+print(f"Model saved successfully (NEW TENSOR MODEL)")
 
 # 8b. SAVE METADATA (Compatibility)
 meta_path = str(model_path) + '.meta.json'
@@ -276,8 +276,8 @@ try:
     meta = {
         'final_features': clf.features,
         'categorical_levels_map': {}, # GLM pipeline handles this internally
-        'feature_set_name': 'nested_glm',
-        'model_type': 'nested',
+        'feature_set_name': 'nested_glm_tensor',
+        'model_type': 'nested_tensor',
         'raw_features': clf.features
     }
     with open(meta_path, 'w') as f:
@@ -314,7 +314,9 @@ except Exception as e:
 # 10. Generate Comprehensive Model Summary
 print("\n--- Generating Model Summary ---")
 try:
-    model_summary.generate_model_summary(model_path=str(model_path), verbose=True)
+    # Use output dir specific to tensor model
+    out_dir = 'analysis/nested_xgs_tensor'
+    model_summary.generate_model_summary(model_path=str(model_path), output_dir=out_dir, verbose=True)
 except Exception as e:
     print(f"Model summary generation failed: {e}")
     import traceback
