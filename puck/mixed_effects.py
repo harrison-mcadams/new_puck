@@ -54,6 +54,7 @@ from . import features as feature_util
 class MixedEffectsXG(BaseEstimator, ClassifierMixin):
     def __init__(self, 
                  base_model_path: str = None, 
+                 base_model = None,
                  group_col: str = 'team_name', 
                  feature_set: List[str] = None,
                  l1_reg: float = 0.0,
@@ -70,10 +71,11 @@ class MixedEffectsXG(BaseEstimator, ClassifierMixin):
         self.n_estimators = n_estimators
         
         # State
-        self.base_model_ = None
+        self.base_model_ = base_model  # FIX: Store passed base_model directly
         self.group_models_ = {} # Dict[group_key, XGBClassifier]
         self.global_bias_ = 0.0 # Correction if base model is biased on current data
         self.feature_names_ = None
+
         
     def fit(self, X: pd.DataFrame, y=None):
         """
@@ -126,8 +128,10 @@ class MixedEffectsXG(BaseEstimator, ClassifierMixin):
         base_margins = np.log(base_probs / (1 - base_probs))
         
         # 4. Identify Features for Random Slopes
-        #    We use numeric features. Categorical features (OHE) could be used too but sparse.
-        if self.feature_names_ is None:
+        #    Prioritize user-provided feature_set
+        if self.feature_set is not None:
+            self.feature_names_ = self.feature_set
+        elif self.feature_names_ is None:
              if hasattr(self.base_model_, 'features'):
                  self.feature_names_ = self.base_model_.features
              else:
@@ -138,10 +142,14 @@ class MixedEffectsXG(BaseEstimator, ClassifierMixin):
         fit_feats = [f for f in self.feature_names_ if f in df.columns]
         #    We primarily want random slopes for continuos variables like distance, angle.
         #    Maybe exclude complex categorical OHEs to keep it lightweight? 
-        #    For now, use all numeric columns found.
+        #    For now, use all numeric columns found in the list.
         fit_feats = [f for f in fit_feats if pd.api.types.is_numeric_dtype(df[f])]
         
+        # Save exact features used for later reference
+        self.feature_names_ = fit_feats
+        
         logger.info(f"Fitting Mixed Effects to {len(fit_feats)} features locally per {self.group_col}.")
+
         
         # 5. Fit Group Models
         groups = df[self.group_col].unique()
@@ -152,6 +160,14 @@ class MixedEffectsXG(BaseEstimator, ClassifierMixin):
             X_g = df.loc[mask, fit_feats]
             y_g = y[mask]
             margin_g = base_margins[mask]
+            
+            # DEBUG: Check residuals
+            prob_g = 1.0 / (1.0 + np.exp(-margin_g))
+            resid = y_g - prob_g
+            mean_resid = np.mean(resid)
+            if g in ['EDM', 'NYR', 'TOR']:
+                print(f"[MixedEffects DEBUG] Group {g}: n={len(X_g)}, Mean y={np.mean(y_g):.4f}, Mean Base Prob={np.mean(prob_g):.4f}, Mean Resid={mean_resid:.4f}")
+
             
             if len(X_g) < 10: 
                 # Too few samples to fit random slopes safely

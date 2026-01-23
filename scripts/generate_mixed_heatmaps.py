@@ -16,6 +16,8 @@ import json
 from scipy.stats import percentileofscore
 from scipy.ndimage import gaussian_filter
 from joblib import Parallel, delayed
+import joblib
+import pickle
 
 # Add project root
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -56,6 +58,8 @@ def main():
     
     # Preprocess
     df = fit_nested_xgs.preprocess_features(df)
+    
+
     # Enrich (Handedness etc)
     df = fit_xgs.enrich_data_with_bios(df)
     
@@ -78,10 +82,68 @@ def main():
             
     df = df[df['team_name'] != "UNKNOWN"].copy()
     print(f"Data Loaded: {len(df)} rows")
+    
+    # Ensure Context Features exist (if raw data didn't have them)
+    # We sort by Game -> Period -> Time to compute deltas
+    # Only if essential columns missing
+    if 'time_since_last_event' not in df.columns:
+        print("  Computing Context Features (Deltas)...")
+        # Ensure we have time seconds
+        if 'period_seconds' not in df.columns and 'period_time' in df.columns:
+            # period_time usually mm:ss
+            def time_to_sec(x):
+                try:
+                    m, s = x.split(':')
+                    return int(m)*60 + int(s)
+                except: return 0
+            df['period_seconds'] = df['period_time'].apply(time_to_sec)
+            
+        # Sort
+        df.sort_values(['game_id', 'period', 'period_seconds'], inplace=True)
+        
+        # Shift
+        df['last_event_time'] = df.groupby('game_id')['period_seconds'].shift(1)
+        df['last_event_period'] = df.groupby('game_id')['period'].shift(1)
+        
+        # Time Delta (handle period changes? assume 0 if diff period for simplicity, or just treat within period)
+        # Actually usually time_since_last_event resets on period start.
+        df['time_since_last_event'] = df['period_seconds'] - df['last_event_time']
+        df.loc[df['period'] != df['last_event_period'], 'time_since_last_event'] = 0
+        df['time_since_last_event'] = df['time_since_last_event'].fillna(0).clip(lower=0)
+        
+        # Last Event Type/Team
+        df['last_event_type'] = df.groupby('game_id')['event'].shift(1).fillna('None')
+        df['last_event_team'] = df.groupby('game_id')['team_name'].shift(1).fillna('None')
+        
+        # Spatial Deltas (if x_adj/y_adj exist)
+        if 'x_adj' in df.columns:
+            df['last_x'] = df.groupby('game_id')['x_adj'].shift(1).fillna(0)
+            df['last_y'] = df.groupby('game_id')['y_adj'].shift(1).fillna(0)
+            df['dist_from_last_event'] = np.sqrt((df['x_adj'] - df['last_x'])**2 + (df['y_adj'] - df['last_y'])**2)
+            df.loc[df['period'] != df['last_event_period'], 'dist_from_last_event'] = 0
+            
+            # Speed
+            df['speed_from_last_event'] = df['dist_from_last_event'] / df['time_since_last_event']
+            df['speed_from_last_event'] = df['speed_from_last_event'].replace([np.inf, -np.inf], 0).fillna(0)
+            
+            # Angle Change? Complex, requires velocity vector. Placeholder 0.
+            df['angle_change_last_event'] = 0.0
+            
+        # Is Rebound? (Shot within 3s of another shot)
+        # df['last_event_type'] might include 'shot-on-goal', 'blocked-shot', 'missed-shot'
+        shot_events = ['shot-on-goal', 'blocked-shot', 'missed-shot', 'goal']
+        df['is_rebound'] = (df['time_since_last_event'] <= 3.0) & (df['last_event_type'].isin(shot_events))
+        
+        # Is Rush? (Speed > threshold? or Time < threshold & Dist > threshold?)
+        # Simple proxy:
+        df['is_rush'] = (df['speed_from_last_event'] > 20.0).astype(int)
 
     # Grid Specs
     BIN_X = np.linspace(-100, 100, 201) 
     BIN_Y = np.linspace(-42.5, 42.5, 86)
+    
+    out_dir = Path(f"analysis/mixed_effects_heatmaps_{season}")
+    out_dir.mkdir(parents=True, exist_ok=True)
     
     # GRAND STATS BUCKET
     # Structure: grand_stats[team][condition]
@@ -90,7 +152,19 @@ def main():
     
     processed_states = ['5v5', '5v4', '4v5'] 
     
-    for state in processed_states:
+    # Define features to use for Mixed Effects (consistent with events bank)
+    # These must match what we export to events_bank for simulation!
+    me_features = [
+        'x_adj', 'y_adj', 'distance', 'angle_deg',
+        'time_since_last_event', 'angle_change_last_event', 
+        'speed_from_last_event', 'dist_from_last_event',
+        'rebound_angle_change', 'rebound_time_diff', 'rebound_speed', 'rebound_dist_change'
+    ]
+    # Filter to what exists in df
+    me_features = [f for f in me_features if f in df.columns]
+    print(f"  Mixed Effects Feature Set ({len(me_features)}): {me_features}")
+
+    for state in ['5v5', '5v4', '4v5']:
         print(f"\n=== Processing Mixed Effects Model and Events for Global State: {state} ===")
         
         # Filter for current state
@@ -103,19 +177,41 @@ def main():
             
         print(f"  Data for {state}: {len(df_state)} rows")
 
-        # 2. Train/Fit Mixed Effects Model (State Specific)
-        print(f"  Fitting Mixed Effects Model for {state}...")
-        me_model = mixed_effects.MixedEffectsXG(
-            n_estimators=100, 
-            l2_reg=1.0, 
-            learning_rate=0.5,
-            group_col='team_name'
-        )
-        me_model.fit(df_state)
+        # Derive Opponent
+        df_state['opp_team_name'] = np.where(df_state['team_name'] == df_state['home_abb'], df_state['away_abb'], df_state['home_abb'])
         
-        # 3. Predict & Overwrite xGs
-        print(f"  Predicting Mixed xG for {state}...")
-        probs = me_model.predict_proba(df_state)[:, 1]
+        # 2. Train/Fit Mixed Effects Model (Dual Layer)
+        print(f"  Fitting Mixed Effects Model (Offense Layer) for {state}...")
+        me_model_off = mixed_effects.MixedEffectsXG(
+            n_estimators=500, 
+            l2_reg=1.0, 
+            learning_rate=0.1,
+            group_col='team_name',
+            feature_set=me_features
+        )
+        me_model_off.fit(df_state)
+        
+        print(f"  Fitting Mixed Effects Model (Defense Layer) for {state}...")
+        me_model_def = mixed_effects.MixedEffectsXG(
+            base_model=me_model_off,
+            n_estimators=500,
+            l2_reg=1.0,
+            learning_rate=0.1,
+            group_col='opp_team_name',
+            feature_set=me_features
+        )
+        me_model_def.fit(df_state)
+
+
+        
+        # Save Final Model (Defense Layer wraps Offense Layer)
+        model_out = Path(f"analysis/mixed_effects_heatmaps_{season}/models")
+        model_out.mkdir(parents=True, exist_ok=True)
+        joblib.dump(me_model_def, model_out / f"mixed_model_{state}.pkl")
+        
+        # 3. Predict & Overwrite xGs using FINAL model
+        print(f"  Predicting Dual Mixed xG for {state}...")
+        probs = me_model_def.predict_proba(df_state)[:, 1]
         df_state['xgs'] = probs
         
         # 5. Process Games (Parallel)
@@ -452,6 +548,74 @@ def main():
     
     with open(out_dir / "team_stats_summary.json", 'w') as f:
         json.dump(serializable_stats, f, indent=2)
+
+    # 5. Export Grids (Pickle)
+    print("  Exporting Team Grids (Pickle)...")
+    # We only need grids, but saving full grand_stats is massive.
+    # Let's clean it up or save a specific dict.
+    grid_export = {}
+    for team, buckets in grand_stats.items():
+        grid_export[team] = {}
+        for cond, s in buckets.items():
+            grid_export[team][cond] = {
+                'grid_for': s['grid_for'],       # numpy array 85x200
+                'grid_against': s['grid_against'] # numpy array 85x200
+            }
+            
+    with open(out_dir / "team_grids.pkl", 'wb') as f:
+        pickle.dump(grid_export, f)
+
+    with open(out_dir / "team_grids.pkl", 'wb') as f:
+        pickle.dump(grid_export, f)
+
+    # 6. Export Events Bank (for Matchup Simulation)
+    print("  Exporting Events Bank (Pickle)...")
+    
+    # Ensure opp_team_name exists in global df
+    if 'opp_team_name' not in df.columns:
+        df['opp_team_name'] = np.where(df['team_name'] == df['home_abb'], df['away_abb'], df['home_abb'])
+        
+    # Columns for context sampling & Simulation
+    # START with Basic Metadata
+    bank_cols = [
+        'game_id', 'team_name', 'opp_team_name', 'game_state',
+        'event', 'period', 'period_seconds', 
+        'x_adj', 'y_adj' # spatial
+    ]
+    
+    # ADD All Features required by the Model
+    # 1. Mixed Effects Features (Random Slopes)
+    print(f"  Adding {len(me_features)} Mixed Effects Features to Events Bank export...")
+    bank_cols.extend(me_features)
+    
+    # 2. Base GLM Features (Fixed Effects)
+    # Hardcoded list from inspection to avoid scope/NameError issues
+    base_glm_features = [
+        'distance', 'angle_deg', 'game_state', 'score_diff', 
+        'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s',
+        'shot_type', 'shoots_catches', 'is_rebound', 'is_rush',
+        'rebound_angle_change', 'rebound_time_diff', 
+        'last_event_type', 'last_event_time_diff', 
+        'dist_from_last_event', 'speed_from_last_event', 'angle_change_last_event',
+        'shooter_role'
+    ]
+    bank_cols.extend(base_glm_features)
+    
+    # Deduplicate
+    bank_cols = list(set(bank_cols))
+    
+    # Filter only what exists in df
+    bank_cols = [c for c in bank_cols if c in df.columns]
+    
+    events_bank = df[bank_cols].copy()
+
+
+
+    # Compress types to save space?
+    for c in events_bank.select_dtypes(include=['float64']).columns:
+        events_bank[c] = events_bank[c].astype('float32')
+        
+    events_bank.to_pickle(out_dir / "events_bank.pkl")
 
     print(f"Done. Maps saved to {out_dir}")
 

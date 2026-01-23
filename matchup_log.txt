@@ -1,0 +1,28 @@
+Traceback (most recent call last):
+  File "C:\Users\harri\Desktop\new_puck\scripts\matchup.py", line 238, in simulate_matchup
+    probs_h = model_5v5.predict_proba(shots_h)[:, 1]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\Desktop\new_puck\puck\mixed_effects.py", line 207, in predict_proba
+    base_probs = self.base_model_.predict_proba(df)[:, 1]
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\Desktop\new_puck\puck\fit_glm_nested.py", line 314, in predict_proba
+    df = X[self.features].copy()
+         ~^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\core\frame.py", line 4119, in __getitem__
+    indexer = self.columns._get_indexer_strict(key, "columns")[1]
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\core\indexes\base.py", line 6212, in _get_indexer_strict
+    self._raise_if_missing(keyarr, indexer, axis_name)
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\pandas\core\indexes\base.py", line 6264, in _raise_if_missing
+    raise KeyError(f"{not_found} not in index")
+KeyError: "['score_diff', 'period_number', 'time_elapsed_in_period_s'] not in index"
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Loading model: analysis\mixed_effects_heatmaps_20252026\models\mixed_model_5v5.pkl
+Loading model: analysis\mixed_effects_heatmaps_20252026\models\mixed_model_5v4.pkl
+Loading model: analysis\mixed_effects_heatmaps_20252026\models\mixed_model_4v5.pkl
+Loading grids: analysis\mixed_effects_heatmaps_20252026\team_grids.pkl
+
+--- Simulating NYR vs EDM ---
+DEBUG: Synthetic DF Columns: ['x_adj', 'y_adj', 'distance', 'angle_deg', 'game_state', 'shot_type', 'is_net_empty', 'team_name', 'opp_team_name', 'home_abb', 'away_abb', 'time_since_last_event', 'time_diff', 'last_event_time_diff', 'period_time_diff', 'angle_change_last_event', 'dist_from_last_event', 'speed_from_last_event', 'shooter_role', 'shoots_catches', 'period', 'period_seconds', 'total_time_elapsed_s', 'period_s', 'last_period_s', 'is_rebound', 'rebound_angle_change', 'rebound_time_diff', 'rebound_dist_change', 'rebound_speed', 'last_event_type', 'last_event_team', 'is_rush']
+Error simulating: "['score_diff', 'period_number', 'time_elapsed_in_period_s'] not in index"
