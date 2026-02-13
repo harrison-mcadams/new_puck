@@ -165,10 +165,12 @@ def run_league_analysis():
         # Right Side = AGAINST (Defense) => From Opponent's FOR (Rotated 180)
         
         team_grids = {} # tid -> np.array (Accumulator)
+        team_grids_xtg = {} # tid -> np.array (Accumulator)
         team_stats = {} # tid -> dict (Accumulator)
         
         # League Accumulator
         league_grid_sum = None # Sum of all team full grids
+        league_grid_xtg_sum = None # Sum of all team full xtG grids
         league_seconds_sum = 0.0 # Sum of all team seconds
         
         # Standard Grid Shape check
@@ -177,7 +179,7 @@ def run_league_analysis():
         # Helper function for parallel processing
         def process_single_npz(fname):
             """Process a single NPZ file and return partial aggregates."""
-            result = {'team_grids': {}, 'team_stats': {}, 'league_grid': None}
+            result = {'team_grids': {}, 'team_grids_xtg': {}, 'team_stats': {}, 'league_grid': None, 'league_grid_xtg': None}
             try:
                 path = os.path.join(cache_dir, fname)
                 with np.load(path, allow_pickle=True) as data:
@@ -190,7 +192,9 @@ def run_league_analysis():
                         if k.startswith('team_') and k.endswith('_grid_team'):
                             tids_in_game.append(int(k.split('_')[1]))
                     
-                    game_grids = {}
+                    game_grids = {} # tid -> grid
+                    game_grids_xtg = {} # tid -> xtg_grid
+
                     for tid in tids_in_game:
                         k_stat = f"team_{tid}_stats"
                         if k_stat in data:
@@ -203,6 +207,11 @@ def run_league_analysis():
                         k_grid = f"team_{tid}_grid_team"
                         if k_grid in data:
                             game_grids[tid] = data[k_grid]
+                            
+                        # Load xtG Grid
+                        k_grid_xtg = f"team_{tid}_grid_xtg_team"
+                        if k_grid_xtg in data:
+                            game_grids_xtg[tid] = data[k_grid_xtg]
                     
                     if len(tids_in_game) == 2:
                         t1, t2 = tids_in_game
@@ -210,6 +219,7 @@ def run_league_analysis():
                     else:
                         opp_map = {}
                     
+                    # Process Base Grids
                     for tid in tids_in_game:
                         if tid not in game_grids:
                             continue
@@ -230,6 +240,29 @@ def run_league_analysis():
                                 result['league_grid'] = full_game_grid.astype(np.float64)
                             else:
                                 result['league_grid'] += full_game_grid
+                                
+                    # Process xtG Grids
+                    for tid in tids_in_game:
+                        if tid not in game_grids_xtg:
+                            continue
+                        grid_for = game_grids_xtg[tid]
+                        if grid_for is None:
+                            continue
+                        
+                        grid_against = np.zeros_like(grid_for)
+                        if tid in opp_map:
+                            opp_id = opp_map[tid]
+                            if opp_id in game_grids_xtg and game_grids_xtg[opp_id] is not None:
+                                grid_against = np.rot90(game_grids_xtg[opp_id], 2)
+                        
+                        full_game_grid = grid_for + grid_against
+                        if np.isfinite(full_game_grid).all():
+                            result['team_grids_xtg'][tid] = full_game_grid.astype(np.float64)
+                            if result['league_grid_xtg'] is None:
+                                result['league_grid_xtg'] = full_game_grid.astype(np.float64)
+                            else:
+                                result['league_grid_xtg'] += full_game_grid
+
             except Exception as e:
                 pass  # Silently skip bad files in parallel mode
             return result
@@ -265,12 +298,26 @@ def run_league_analysis():
                         team_grids[tid] = g
                     else:
                         team_grids[tid] += g
+
+                # Merge xtG Grids
+                if 'team_grids_xtg' in pr:
+                    for tid, g in pr['team_grids_xtg'].items():
+                        if tid not in team_grids_xtg:
+                            team_grids_xtg[tid] = g
+                        else:
+                            team_grids_xtg[tid] += g
                 
                 if pr['league_grid'] is not None:
                     if league_grid_sum is None:
                         league_grid_sum = pr['league_grid']
                     else:
                         league_grid_sum += pr['league_grid']
+
+                if pr.get('league_grid_xtg') is not None:
+                    if league_grid_xtg_sum is None:
+                        league_grid_xtg_sum = pr['league_grid_xtg']
+                    else:
+                        league_grid_xtg_sum += pr['league_grid_xtg']
             print(f"  [TURBO] Aggregation complete.")
         else:
             # Serial fallback
@@ -296,6 +343,7 @@ def run_league_analysis():
                         
                         # First pass: Load 'For' grids and Stats
                         game_grids = {} # tid -> grid
+                        game_grids_xtg = {} # tid -> grid_xtg
                         
                         for tid in tids_in_game:
                             # Load Stats
@@ -326,6 +374,11 @@ def run_league_analysis():
                             if k_grid in data:
                                 g = data[k_grid]
                                 game_grids[tid] = g
+                                
+                            # Load 'xtG' Grid
+                            k_grid_xtg = f"team_{tid}_grid_xtg_team"
+                            if k_grid_xtg in data:
+                                game_grids_xtg[tid] = data[k_grid_xtg]
                                 
                         # Second pass: Accumulate Full Grids (For + Against)
                         # Against comes from OPPONENT'S 'For' grid, ROTATED.
@@ -380,6 +433,35 @@ def run_league_analysis():
                             # Sanity check league sum
                             if not np.isfinite(league_grid_sum).all():
                                 print(f"CRITICAL ERROR: League Grid somehow became NaN after processing {fname} team {tid}!")
+
+                        # Second pass (Repeated for xtG)
+                        for tid in tids_in_game:
+                            if tid not in game_grids_xtg: continue
+                            grid_for = game_grids_xtg[tid]
+                            if grid_for is None: continue
+                            
+                            grid_against = np.zeros_like(grid_for)
+                            if tid in opp_map:
+                                opp_id = opp_map[tid]
+                                if opp_id in game_grids_xtg:
+                                    op_grid = game_grids_xtg[opp_id]
+                                    if op_grid is not None:
+                                        grid_against = np.rot90(op_grid, 2)
+                            
+                            full_game_grid = grid_for + grid_against
+                            
+                            if not np.isfinite(full_game_grid).all(): continue
+
+                            if tid not in team_grids_xtg:
+                                team_grids_xtg[tid] = full_game_grid.astype(np.float64)
+                            else:
+                                team_grids_xtg[tid] += full_game_grid
+                            
+                            if league_grid_xtg_sum is None:
+                                league_grid_xtg_sum = full_game_grid.astype(np.float64)
+                            else:
+                                league_grid_xtg_sum += full_game_grid
+
                 except Exception as e:
                     print(f"Error processing {fname}: {e}")
                     continue
@@ -403,7 +485,21 @@ def run_league_analysis():
         # Basically 2 * (All Shots).
         # And Total Team Seconds is 2 * (Real Time).
         # So ratios work out.
+        if league_grid_sum is None:
+            print(f"  No league grid data for {cond}. Skipping.")
+            continue
+            
         league_norm_grid = league_grid_sum / total_team_seconds
+        
+        # League Average Grid xtG
+        if league_grid_xtg_sum is not None:
+             league_norm_grid_xtg = league_grid_xtg_sum / total_team_seconds
+        else:
+             # Fallback if no xtG found (e.g. old cache)
+             if league_norm_grid is not None:
+                 league_norm_grid_xtg = np.zeros_like(league_norm_grid)
+             else:
+                 league_norm_grid_xtg = None
         
         # Save Baseline (Per 60, Split by Side)
         # league_norm_grid contains full-rink rates (both sides).
@@ -422,6 +518,16 @@ def run_league_analysis():
         # Typically x < 0 is Left, x >= 0 is Right or x > 0.
         # Let's cleanly split.
         np.save(os.path.join(out_root, f'{season}_league_baseline_right.npy'), baseline_right * 3600.0)
+        
+        # Save xtG Baselines
+        if league_norm_grid_xtg is not None:
+            baseline_xml_left = league_norm_grid_xtg.copy()
+            baseline_xml_left[:, mid:] = 0.0
+            np.save(os.path.join(out_root, f'{season}_league_baseline_xtg.npy'), baseline_xml_left * 3600.0)
+            
+            baseline_xml_right = league_norm_grid_xtg.copy()
+            baseline_xml_right[:, :mid] = 0.0
+            np.save(os.path.join(out_root, f'{season}_league_baseline_xtg_right.npy'), baseline_xml_right * 3600.0)
         
         # 2. Compute Rates and Percentiles
         # Prepare lists for percentile calculation
@@ -619,6 +725,59 @@ def run_league_analysis():
                 print(f"Error plotting relative for {tname}: {e}")
                 try: plt.close(fig)
                 except: pass
+
+            # 2b. Mixed Effects Relative Map
+            if league_norm_grid_xtg is not None and tid in team_grids_xtg:
+                fig_xtg = None
+                try:
+                    grid_xtg = team_grids_xtg[tid]
+                    # Normalize
+                    team_norm_grid_xtg = grid_xtg / s['team_seconds']
+                    rel_grid_xtg = (team_norm_grid_xtg - league_norm_grid_xtg) * 3600.0 * 100.0
+                    
+                    out_path_xtg = os.path.join(out_root, f"{tname}_relative_mixed.png")
+                    
+                    # Save NPY
+                    np.save(os.path.join(out_root, f"{tname}_relative_mixed.npy"), rel_grid_xtg)
+                    
+                    fig_xtg, ax_xtg = plt.subplots(figsize=(10, 6))
+                    
+                    # Use same plot_relative_map
+                    im = plot_relative_map(
+                        ax=ax_xtg,
+                        rel_grid=rel_grid_xtg,
+                        title=f"{tname} Relative Mixed Effects xG",
+                        stats=s, # Using Base stats for now
+                        team_name=tname,
+                        full_team_name=tname,
+                        cond=f"{cond}",
+                        mask_neutral_zone=True,
+                        vmax=global_vmax
+                    )
+                    
+                    fig_xtg.patch.set_facecolor('white')
+                    ax_xtg.set_facecolor('white')
+                    
+                    divider = make_axes_locatable(ax_xtg)
+                    cax = divider.append_axes("right", size="3%", pad=0.05)
+                    cbar = fig_xtg.colorbar(im, cax=cax)
+                    
+                    if global_vmax:
+                        tick_vals = [-global_vmax, -global_vmax/2, 0, global_vmax/2, global_vmax]
+                        cbar.locator = ticker.FixedLocator(tick_vals)
+                    else:
+                        cbar.locator = ticker.MaxNLocator(nbins=5)
+                    cbar.update_ticks()
+                    cbar.set_label('Excess xG/60 (per 100 sq ft)', rotation=270, labelpad=15)
+                    
+                    ax_xtg.axis('off')
+                    fig_xtg.savefig(out_path_xtg, dpi=120, bbox_inches='tight')
+                    plt.close(fig_xtg)
+                    
+                except Exception as e:
+                    print(f"Error plotting mixed relative for {tname}: {e}")
+                    try: plt.close(fig_xtg)
+                    except: pass
                 
         if scan_limit:
              print(f"SCAN COMPLETE for {cond}. Max 80th Percentile (Saturated): {global_scan_max}")

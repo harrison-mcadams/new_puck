@@ -1,0 +1,33 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+DEBUG: LOADED PUCK.FIT_XGS modification check
+  Computing Context Features (Deltas)...
+Investigating 47 games for COL...
+
+Summary for COL PP (5v4):
+Total Time: 4.51 hours (16238.0 seconds)
+Total xG: 15.964
+Total Attempts: 327
+Calculated xG/60: 3.539
+
+Per Game Details (PP Only):
+Game 2025020003 (4v5): 605.0s | xG: 0.273 | N:  7 | Rate:  1.624
+Game 2025020018 (5v4): 419.0s | xG: 0.243 | N:  2 | Rate:  2.086
+Game 2025020034 (5v4): 548.0s | xG: 0.966 | N: 10 | Rate:  6.348
+Game 2025020039 (4v5): 480.0s | xG: 0.286 | N:  9 | Rate:  2.146
+Game 2025020067 (4v5): 120.0s | xG: 0.362 | N:  7 | Rate: 10.856
+Game 2025020085 (5v4): 600.0s | xG: 1.137 | N: 21 | Rate:  6.823
+Game 2025020107 (4v5): 120.0s | xG: 0.003 | N:  1 | Rate:  0.091
+Game 2025020121 (5v4): 241.0s | xG: 0.352 | N:  5 | Rate:  5.251
+Game 2025020128 (4v5): 260.0s | xG: 0.846 | N:  8 | Rate: 11.720
+Game 2025020140 (4v5): 178.0s | xG: 0.125 | N:  7 | Rate:  2.537
+Game 2025020161 (5v4): 326.0s | xG: 0.066 | N:  2 | Rate:  0.732
+Game 2025020178 (4v5): 136.0s | xG: 0.089 | N:  1 | Rate:  2.357
+Game 2025020184 (4v5): 240.0s | xG: 0.212 | N:  5 | Rate:  3.176
+Game 2025020209 (5v4): 377.0s | xG: 0.751 | N:  9 | Rate:  7.169
+Game 2025020240 (4v5): 971.0s | xG: 0.929 | N: 18 | Rate:  3.444
+Game 2025020250 (4v5): 213.0s | xG: 0.157 | N:  5 | Rate:  2.647
+Game 2025020262 (5v4): 435.0s | xG: 0.257 | N:  9 | Rate:  2.130
+Game 2025020275 (5v4): 240.0s | xG: 0.191 | N:  8 | Rate:  2.866
+Game 2025020300 (5v4): 337.0s | xG: 0.049 | N:  2 | Rate:  0.527
+Game 2025020326 (5v4): 705.0s | xG: 0.768 | N: 10 | Rate:  3.921

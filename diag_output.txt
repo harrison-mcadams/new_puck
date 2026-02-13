@@ -1,0 +1,119 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+DEBUG: LOADED PUCK.FIT_XGS modification check
+  Computing Context Features (Deltas)...
+Investigating 47 games for COL...
+DEBUG: gs_timeline len=27
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=14
+DEBUG: gs_timeline len=14
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=11
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=8
+DEBUG: gs_timeline len=8
+DEBUG: gs_timeline len=75
+DEBUG: gs_timeline len=75
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=8
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=68
+DEBUG: gs_timeline len=68
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=23
+DEBUG: gs_timeline len=23
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=7
+DEBUG: gs_timeline len=7
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=54
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=17
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=10
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=21
+DEBUG: gs_timeline len=21
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=19
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=18
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=15
+DEBUG: gs_timeline len=64
+DEBUG: gs_timeline len=64
+DEBUG: gs_timeline len=58
+DEBUG: gs_timeline len=58
+DEBUG: gs_timeline len=12
+DEBUG: gs_timeline len=21
+DEBUG: gs_timeline len=21
+DEBUG: gs_timeline len=10
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=16
+DEBUG: gs_timeline len=10
+DEBUG: gs_timeline len=10
+DEBUG: gs_timeline len=20
+DEBUG: gs_timeline len=20
+
+Summary for COL PP (5v4):
+Total Time: 4.08 hours (14671.0 seconds)
+Total xG: 18.456
+Total Attempts: 300
+Calculated xG/60: 4.529
+
+Per Game Details (PP Only):
+Game 2025020018 (5v4): 419.0s | xG: 0.529 | N: 10 | Rate:  4.545
+Game 2025020034 (5v4): 548.0s | xG: 1.034 | N: 17 | Rate:  6.793
+Game 2025020039 (4v5): 480.0s | xG: 0.448 | N:  1 | Rate:  3.362
+Game 2025020085 (5v4): 600.0s | xG: 0.792 | N: 11 | Rate:  4.749
+Game 2025020107 (4v5): 120.0s | xG: 0.017 | N:  1 | Rate:  0.510
+Game 2025020121 (5v4): 241.0s | xG: 1.236 | N: 18 | Rate: 18.460
+Game 2025020128 (4v5): 260.0s | xG: 0.041 | N:  2 | Rate:  0.569
+Game 2025020161 (5v4): 326.0s | xG: 0.566 | N: 11 | Rate:  6.245
+Game 2025020178 (4v5): 136.0s | xG: 0.042 | N:  2 | Rate:  1.106
+Game 2025020184 (4v5): 240.0s | xG: 0.194 | N:  3 | Rate:  2.909
+Game 2025020209 (5v4): 377.0s | xG: 1.437 | N: 15 | Rate: 13.723
+Game 2025020240 (4v5): 979.0s | xG: 0.057 | N:  2 | Rate:  0.208
+Game 2025020250 (4v5): 213.0s | xG: 0.048 | N:  1 | Rate:  0.809
+Game 2025020262 (5v4): 435.0s | xG: 0.977 | N: 15 | Rate:  8.087
+Game 2025020275 (5v4): 240.0s | xG: 0.250 | N: 13 | Rate:  3.746
+Game 2025020300 (5v4): 337.0s | xG: 0.389 | N:  9 | Rate:  4.154
+Game 2025020326 (5v4): 705.0s | xG: 0.833 | N: 17 | Rate:  4.255
+Game 2025020343 (4v5): 240.0s | xG: 0.122 | N:  4 | Rate:  1.837
+Game 2025020350 (4v5): 360.0s | xG: 0.000 | N:  0 | Rate:  0.000
+Game 2025020371 (5v4): 442.0s | xG: 1.414 | N: 22 | Rate: 11.519

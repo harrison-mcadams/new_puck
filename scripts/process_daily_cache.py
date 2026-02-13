@@ -181,9 +181,13 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                 if isinstance(grid_raw, dict):
                     grid_final = grid_raw.get('team')
                     grid_other = grid_raw.get('other')
+                    grid_xtg_team = grid_raw.get('xtG_team')
+                    grid_xtg_other = grid_raw.get('xtG_other')
                 else:
                     grid_final = grid_raw
                     grid_other = None
+                    grid_xtg_team = None
+                    grid_xtg_other = None
 
                 if grid_final is not None:
                     grid_final = np.nan_to_num(np.asarray(grid_final, dtype=np.float32), nan=0.0)
@@ -194,6 +198,15 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
                         # It is already Right-oriented (Defense) if df was oriented Team-Left.
                         grid_other_arr = np.nan_to_num(np.asarray(grid_other, dtype=np.float32), nan=0.0)
                         data_to_save[f"{prefix}_grid_other"] = grid_other_arr
+
+                # Save Mixed Effects Grids (xtG)
+                if grid_xtg_team is not None:
+                    arr = np.nan_to_num(np.asarray(grid_xtg_team, dtype=np.float32), nan=0.0)
+                    data_to_save[f"{prefix}_grid_xtg_team"] = arr
+                
+                if grid_xtg_other is not None:
+                    arr = np.nan_to_num(np.asarray(grid_xtg_other, dtype=np.float32), nan=0.0)
+                    data_to_save[f"{prefix}_grid_xtg_other"] = arr
                 
                 if stats:
                     data_to_save[f"{prefix}_stats"] = json.dumps(stats, cls=NumpyEncoder)

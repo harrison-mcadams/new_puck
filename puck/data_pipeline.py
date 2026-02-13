@@ -63,6 +63,22 @@ def preprocess_features(df_input: pd.DataFrame,
             print(*args)
 
     vprint(f"Preprocessing {len(df)} rows. Training={is_training}, Impute={apply_imputation}, Adjust={apply_arena_adjustments}")
+    
+    # Standardize Event Names to Lowercase immediately
+    if 'event' in df.columns:
+        df['event'] = df['event'].astype(str).str.lower()
+        
+        # Map to pipeline standard (handles spaces vs hyphens and 'shot' vs 'shot-on-goal')
+        # This ensures 'Shot' -> 'shot' -> 'shot-on-goal' (Saved)
+        evt_map = {
+            'shot': 'shot-on-goal',
+            'shots': 'shot-on-goal',
+            'missed shot': 'missed-shot',
+            'blocked shot': 'blocked-shot',
+            'goal': 'goal'
+        }
+        # Only map values present in the map, preserve others (like existing hyphenated ones)
+        df['event'] = df['event'].replace(evt_map)
 
     # 1. Blocked Shot Attribution
     # NOTE: The raw data for blocked shots attributes the event to the SHOOTER (Offense).

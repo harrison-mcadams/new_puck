@@ -820,6 +820,65 @@ def compute_relative_map(team_map, league_baseline_left, team_seconds, other_map
     return combined_rel_map, rel_off_pct, rel_def_pct, relative_off_per60, relative_def_per60
 
 
+
+
+def _predict_xtg(df: pd.DataFrame, behavior='load'):
+    """
+    Helper to predict Mixed Effects 'xtG' (Expected Team Goals) if needed.
+    Modifies df in-place.
+    """
+    try:
+        # Define path to ME model
+        # Assuming standard location from update_mixed_effects.py
+        # Use v2 model if available
+        me_model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'mixed_effects_v2.joblib')
+        
+        # Fallback to old name if v2 missing?
+        if not os.path.exists(me_model_path):
+             me_model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'mixed_effects', 'mixed_effects_model.joblib')
+
+        # Only run if model exists
+        if os.path.exists(me_model_path):
+            # Only predict if 'xtG' missing OR behavior is overwrite
+            # Note: We check columns/overwrite here.
+            needs_xtg = ('xtG' not in df.columns) or (behavior == 'overwrite')
+            
+            if needs_xtg:
+                import numpy as np
+                import joblib
+                # Ensure mixed_effects class is available
+                from . import mixed_effects
+                
+                # Load Model
+                me_model = joblib.load(me_model_path)
+                
+                if hasattr(me_model, 'predict_proba'):
+                    # Predict
+                    xtg_probs = me_model.predict_proba(df)[:, 1]
+                    
+                    # Assign
+                    df['xtG'] = xtg_probs
+                    
+                    # Cleanup/Masking
+                    valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+                    if 'event' in df.columns:
+                        mask_valid = df['event'].isin(valid_events)
+                        df['xtG'] = df['xtG'].fillna(0.0)
+                        df.loc[~mask_valid, 'xtG'] = 0.0
+                else:
+                    # print("Warning: Loaded Mixed Effects model object has no predict_proba method.")
+                    pass
+        
+    except Exception as e:
+        # print(f"Warning: Failed to predict xtG (Mixed Effects): {e}")
+        # Need np if referenced here
+        import numpy as np
+        if 'xtG' not in df.columns:
+            df['xtG'] = np.nan
+        pass
+
+
+
 def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True):
     if model_path is None:
         model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested.joblib')
@@ -900,6 +959,8 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
 
     need_predict = ('xgs' not in df.columns) or (df['xgs'].isna().all()) or (behavior == 'overwrite')
     if not need_predict:
+        # Before returning, try to predict xtG if needed
+        _predict_xtg(df, behavior)
         return df, None, None
 
     # get classifier (respect behavior, fallback to train on failure)
@@ -1170,6 +1231,10 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
     # The fillna(0.0) above handles NaN, but if prediction somehow ran on invalid rows earlier,
     # this overwrites them.
     df.loc[~mask_valid, 'xgs'] = 0.0
+
+    # Mixed Effects Integration (Helper)
+    _predict_xtg(df, behavior)
+
 
     return df, clf, (final_features, cat_levels)
 
@@ -2909,6 +2974,25 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 total_seconds=total_seconds
             )
             heatmaps['other'] = heat_other
+
+            # Compute 'xtG' heatmaps (Mixed Effects)
+            # Only if 'xtG' is present (it should be due to _predict_xgs)
+            if 'xtG' in df_adj_grid.columns:
+                 _, _, heat_xtg_team, _, _ = compute_xg_heatmap_from_df(
+                    df_adj_grid, grid_res=grid_res, sigma=sigma,
+                    selected_team=team_val, selected_role='team',
+                    total_seconds=total_seconds,
+                    amp_col='xtG'
+                )
+                 heatmaps['xtG_team'] = heat_xtg_team
+
+                 _, _, heat_xtg_other, _, _ = compute_xg_heatmap_from_df(
+                    df_adj_grid, grid_res=grid_res, sigma=sigma,
+                    selected_team=team_val, selected_role='other',
+                    total_seconds=total_seconds,
+                    amp_col='xtG'
+                )
+                 heatmaps['xtG_other'] = heat_xtg_other
             
         elif heatmap_mode == 'home_away':
             # Compute 'home' heatmap

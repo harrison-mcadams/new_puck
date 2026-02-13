@@ -1393,6 +1393,18 @@ def add_summary_text(ax, stats: dict, main_title: str, is_season_summary: bool, 
     
     # Plot Rows
     current_y = start_y
+    
+    # Add optional headers
+    left_header = stats.get('left_header')
+    right_header = stats.get('right_header')
+    
+    if left_header or right_header:
+        # Draw headers above the first row
+        # Just draw them and shift current_y
+        fig.text(cols_x[0], current_y, left_header or "", fontsize=9, fontweight='bold', ha=cols_align[0])
+        fig.text(cols_x[-1], current_y, right_header or "", fontsize=9, fontweight='bold', ha=cols_align[-1])
+        current_y -= gap * 0.8
+    
     font_size = 9
     font_weight = 'normal'
     

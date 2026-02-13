@@ -1,0 +1,20 @@
+Loading model from analysis\xgs\mixed_effects_v2.joblib...
+Model loaded successfully.
+Model Type: <class 'puck.mixed_effects.GameMixedEffectsXG'>
+Model Dir: ['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__setstate__', '__sizeof__', '__sklearn_clone__', '__sklearn_tags__', '__str__', '__subclasshook__', '__weakref__', '_doc_link_module', '_doc_link_template', '_doc_link_url_param_generator', '_get_class_level_metadata_request_values', '_get_doc_link', '_get_metadata_request', '_get_param_names', '_get_params_html', '_html_repr', '_map_state', '_prepare_features', '_repr_html_', '_repr_html_inner', '_repr_mimebundle_', '_validate_params', 'base_model_', 'base_model_path', 'component_model_type', 'def_models_', 'feature_set', 'final_feature_names_', 'fit', 'get_all_coefficients', 'get_metadata_routing', 'get_params', 'l2_reg', 'off_models_', 'ohe_transformer_', 'predict_proba', 'save_summary', 'score', 'set_params', 'set_score_request', 'tensor_transformer_', 'updater', 'use_tensor_splines']
+off_models_ keys: ['5v5', '5v4', '4v5']
+models_ keys: []
+Found 5v5 in off_models_
+Target Model Type: <class 'puck.mixed_effects.ComponentMixedEffectsModel'>
+Target Model Dir: ['__class__', '__delattr__', '__dict__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__lt__', '__module__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__setstate__', '__sizeof__', '__sklearn_clone__', '__sklearn_tags__', '__str__', '__subclasshook__', '__weakref__', '_doc_link_module', '_doc_link_template', '_doc_link_url_param_generator', '_get_class_level_metadata_request_values', '_get_doc_link', '_get_metadata_request', '_get_param_names', '_get_params_html', '_html_repr', '_repr_html_', '_repr_html_inner', '_repr_mimebundle_', '_validate_params', 'coef_', 'feature_names', 'fit', 'get_coefficients', 'get_metadata_routing', 'get_params', 'input_dim_', 'l2_reg', 'model_type', 'predict_margin', 'role_name', 'set_fit_request', 'set_params', 'team_idx_', 'teams_']
+Coef Shape: (32,)
+Coef Stats:
+  Min: -0.31745544580038465
+  Max: 0.14130209196163052
+  Mean: -0.0627113539986068
+  Std: 0.12169268236801688
+  1%: -0.30581922762892344
+  99%: 0.14051561501562512
+  Count |coef| > 3.0: 0
+
+Feature Analysis (1):

@@ -1,0 +1,20 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+DEBUG: LOADED PUCK.FIT_XGS modification check
+--- Verifying Alignment for Game 2025020121 ---
+Home: COL, Away: CAR
+
+Testing 5v4 (Home Advantage)...
+Global State: 5v4
+  Home (COL) Condition: 5v4
+  Away (CAR) Condition: 4v5
+  Valid Intervals: 2
+  Home (COL) Events: 2
+  Away (CAR) Events: 0
+  > Added 2 attempts to COL [5v4] bucket? Yes
+
+Final 5v4 Buckets:
+COL: 2
+CAR: 0
+
+SUCCESS: Home team correctly credited with 5v4 stats during 5v4 state.

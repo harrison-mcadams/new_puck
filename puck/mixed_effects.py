@@ -1,35 +1,32 @@
 """mixed_effects.py
 
-MIXED EFFECTS EXTENSION FOR NESTED XG MODEL
-===========================================
-This module implements a "Mixed Effects" or "Random Slopes" extension to the 
-Nested GLM xG Model.
+GAME-STATE AWARE MIXED EFFECTS MODEL (PARALLEL OFF/DEF)
+======================================================
+This module implements a mixed effects model that fits random slopes for BOTH
+Offense (Team) and Defense (Opponent) simultaneously ("in parallel").
 
-It treats the pre-trained Nested GLM as a "Fixed Effect" (Base Model) and learns
-group-specific adjustments (Random Effects) using a linear boosting approach 
-(XGBoost with booster='gblinear') on the residuals (via base_margin).
+It also handles Game State splitting (5v5, 5v4, 4v5) by training separate
+sub-models for each state.
 
 Architecture:
 -------------
-1. Base Model: NestedGLM (Logistic Regression with Tensor Splines)
-   - Provides P_base(Goal)
-   - We extract the raw log-odds (margin) from this model.
-
-2. Mixed Effects Model: XGBoost (gblinear)
-   - Learns coefficients beta_group for each group (e.g. team or player).
-   - Prediction = sigmoid( Base_Margin + X * beta_group )
+1. Base Model: NestedGLM (Fixed Effect) -> Provides P_base / Base Margin.
+2. Mixed Effect: XGBoost (gblinear)
+   - Goal: Fit `margin = base_margin + Off_Effect + Def_Effect`
+   - Off_Effect = Sum( Beta_Off_Team_i * Feature_j )
+   - Def_Effect = Sum( Beta_Def_Team_i * Feature_j )
    
-   - We train a separate small linear model for each group, OR one large model 
-     with interaction terms if memory permits. 
-     Given we want per-group random slopes for ALL features, training separate 
-     models (or using group-wise data splits) is effectively the same and parallelizable.
+   To solve this simultaneously, we construct a sparse matrix where for each row:
+   - The columns corresponding to Off_Team get the feature values.
+   - The columns corresponding to Def_Team get the feature values.
+   - All other columns are 0.
+   - We fit one linear model on this large sparse matrix.
 
 Usage:
 ------
-    mixed_model = MixedEffectsXG(base_model_path="...")
-    mixed_model.fit(df, group_col='team_id')
-    preds = mixed_model.predict_proba(df)
-
+    mixed = GameMixedEffectsXG(base_model_path="...")
+    mixed.fit(df)
+    mixed.predict_proba(df)
 """
 
 import numpy as np
@@ -38,240 +35,866 @@ import joblib
 import logging
 import xgboost as xgb
 from sklearn.base import BaseEstimator, ClassifierMixin
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
+from sklearn.preprocessing import OneHotEncoder
 from pathlib import Path
 import os
-import copy
+import scipy.sparse as sp
 
 # Configure Logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-from . import fit_nested_xgs
-from . import fit_xgboost_nested
 from . import features as feature_util
+from .spline_transformer import TensorSpline
 
-class MixedEffectsXG(BaseEstimator, ClassifierMixin):
+# MonkeyPatch/Alias for backward compatibility with old pickles
+class ParallelMixedEffectsModel:
+    def predict_margin(self, X: pd.DataFrame, off_team_col: str, def_team_col: str) -> np.ndarray:
+        """
+        Predict margin for legacy Parallel model (Off + Def in one vector).
+        Assumes coef_ structure: [Off_Team1 ... Off_TeamN, Def_Team1 ... Def_TeamN]
+        """
+        if not hasattr(self, 'coef_') or self.coef_ is None:
+             return np.zeros(len(X))
+             
+        n_samples = len(X)
+        # Use stored feature names
+        feats = getattr(self, 'feature_names', [])
+        if not feats:
+             return np.zeros(n_samples)
+             
+        n_feats = len(feats)
+        # Check explicit columns
+        missing = [f for f in feats if f not in X.columns]
+        if missing:
+             # This might happen if 'intercept' is missing or other columns
+             # But X should be prepared by GameMixedEffectsXG
+             logger.warning(f"Legacy Model missing features: {missing[:5]}...")
+             
+        X_feats = X[feats].fillna(0).values.astype(np.float32)
+        
+        # Teams
+        if not hasattr(self, 'team_idx_'):
+             return np.zeros(n_samples)
+             
+        team_map = self.team_idx_
+        n_teams = len(team_map)
+        
+        # We need to construct sparse matrix of shape (n_samples, 2 * n_teams * n_feats)
+        # But actually we can just compute Off and Def separately and sum them.
+        
+        # Offense Part (Cols 0 .. N_teams*N_feats)
+        off_indices = X[off_team_col].map(team_map)
+        
+        # Defense Part (Cols N_teams*N_feats .. End)
+        def_indices = X[def_team_col].map(team_map)
+        
+        valid_mask = (~off_indices.isna()) & (~def_indices.isna())
+        if not valid_mask.any():
+             return np.zeros(n_samples)
+
+        # We can do this efficiently by creating TWO sparse matrices (or one combined)
+        # Let's do one combined to match the coef_ vector directly
+        
+        valid_rows = np.where(valid_mask)[0]
+        off_idx_valid = off_indices.values[valid_rows].astype(int)
+        def_idx_valid = def_indices.values[valid_rows].astype(int)
+        X_valid = X_feats[valid_rows]
+        n_valid = len(valid_rows)
+        
+        # Indices Construction
+        row_indices = np.repeat(np.arange(n_valid), n_feats)
+        feat_offsets = np.arange(n_feats)
+        
+        # Offense Cols: (Team_Idx * N_Feats) + Feat_Idx
+        col_off = (off_idx_valid[:, None] * n_feats + feat_offsets).flatten()
+        
+        # Defense Cols: (Team_Idx * N_Feats) + Feat_Idx + (N_Teams * N_Feats)
+        offset_def_block = n_teams * n_feats
+        col_def = (def_idx_valid[:, None] * n_feats + feat_offsets).flatten() + offset_def_block
+        
+        # Combine
+        # We repeat X values twice (once for off, once for def)
+        data_rep = np.tile(X_valid.flatten(), 2) 
+        # Wait, X_valid.flatten() groups by row then feature.
+        # col_off corresponds to X_valid.flatten()
+        # col_def corresponds to X_valid.flatten()
+        # So we concatenate data, rows, cols
+        
+        data_all = np.concatenate([X_valid.flatten(), X_valid.flatten()])
+        rows_all = np.concatenate([row_indices, row_indices])
+        cols_all = np.concatenate([col_off, col_def])
+        
+        input_dim = getattr(self, 'input_dim_', 2 * n_teams * n_feats)
+        
+        X_sparse = sp.coo_matrix((data_all, (rows_all, cols_all)), 
+                                 shape=(n_valid, input_dim)).tocsr()
+                                 
+        adj = X_sparse.dot(self.coef_)
+        
+        result = np.zeros(n_samples)
+        result[valid_rows] = adj
+        return result
+
+
+
+class ComponentMixedEffectsModel(BaseEstimator):
+    """
+    Fits a mixed-effects model for a single component (e.g., Offense OR Defense).
+    This simplifies the problem by assuming the opposing side averages out 
+    to the league baseline.
+    """
+    def __init__(self, 
+                 feature_names: List[str],
+                 role_name: str = "Component", # "Offense" or "Defense"
+                 l2_reg: float = 1.0, # L2 regularization strength
+                 model_type: str = 'intercept' # 'intercept' or 'slopes'
+                 ):
+        self.feature_names = feature_names
+        self.role_name = role_name
+        self.l2_reg = l2_reg
+        self.model_type = model_type
+        
+        # State
+        self.coef_ = None # Store coefficients from Scipy solver
+        self.teams_ = None
+        self.team_idx_ = None # Map[team_name -> int]
+        self.input_dim_ = 0
+        
+    def fit(self, X: pd.DataFrame, y: pd.Series, base_margin: np.ndarray, 
+            team_col: str):
+        """
+        Fit the component mixed effects model.
+        
+        Args:
+            X: Feature dataframe
+            y: Target (0/1)
+            base_margin: Log-odds from base model
+            team_col: Column name to group by (e.g. 'off_team_name')
+        """
+        # 1. Identify all unique teams
+        teams = X[team_col].unique()
+        # Filter valid strings
+        teams = [t for t in teams if isinstance(t, str) and len(t) > 0]
+        teams.sort()
+        
+        self.teams_ = teams
+        self.team_idx_ = {t: i for i, t in enumerate(self.teams_)}
+        n_teams = len(self.teams_)
+        
+        # 2. Construct Design Matrix
+        if self.model_type == 'intercept':
+            # Random Intercepts: One parameter per team
+            # We ignore feature_names and just use team identity
+            self.input_dim_ = n_teams
+            n_feats = 1 # Virtual feature count for logic downstream
+            
+            logger.info(f"{self.role_name} Model (Intercepts): {len(X)} samples, {n_teams} teams.")
+            
+            # Map teams to indices
+            team_indices = X[team_col].map(self.team_idx_)
+            
+            # Filter invalid rows (just in case)
+            valid_mask = ~team_indices.isna()
+            if not valid_mask.all():
+                logger.warning(f"Dropping {np.sum(~valid_mask)} rows with missing team info.")
+                team_indices = team_indices[valid_mask]
+                y = y[valid_mask]
+                base_margin = base_margin[valid_mask]
+                
+            n_samples = len(team_indices)
+            team_indices = team_indices.values.astype(int)
+            
+            # Construct Sparse Matrix (N_samples x N_teams)
+            # Each row has exactly one 1.0 at col=team_index
+            row_indices = np.arange(n_samples)
+            col_indices = team_indices
+            data = np.ones(n_samples, dtype=np.float32)
+            
+            X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
+                                     shape=(n_samples, self.input_dim_)).tocsr()
+                                     
+        else:
+            # Random Slopes (Original Logic)
+            n_feats = len(self.feature_names)
+            
+            # Total Dimension: (N_Teams * N_Feats)
+            self.input_dim_ = n_teams * n_feats
+            
+            logger.info(f"{self.role_name} Model (Slopes): {len(X)} samples, {n_teams} teams, {n_feats} features.")
+            logger.info(f"Constructing sparse design matrix (Dim: {len(X)} x {self.input_dim_})...")
+            
+            # Extract features as numpy array
+            X_feats = X[self.feature_names].values.astype(np.float32)
+            n_samples = len(X)
+            
+            # Map teams to indices
+            team_indices = X[team_col].map(self.team_idx_)
+            
+            # Filter invalid rows (just in case)
+            valid_mask = ~team_indices.isna()
+            if not valid_mask.all():
+                logger.warning(f"Dropping {np.sum(~valid_mask)} rows with missing team info.")
+                X_feats = X_feats[valid_mask]
+                team_indices = team_indices[valid_mask]
+                y = y[valid_mask]
+                base_margin = base_margin[valid_mask]
+                n_samples = len(X_feats)
+                
+            team_indices = team_indices.values.astype(int)
+            
+            # Vectorized Construction
+            # Rows: repeat 0..N for each feature
+            row_indices = np.repeat(np.arange(n_samples), n_feats)
+            
+            # Cols: (Team_Index * N_Feats) + Feature_Index
+            feat_offsets = np.arange(n_feats)
+            # Broadcasting: (N_samples, 1) * N_feats + (N_feats,) -> (N_samples, N_feats) -> flatten
+            col_indices = (team_indices[:, None] * n_feats + feat_offsets).flatten()
+            
+            # Data: Flattened feature values
+            data = X_feats.flatten()
+            
+            X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
+                                     shape=(n_samples, self.input_dim_)).tocsr()
+        
+        # 3. Fit
+        y_float = y.astype(np.float64)
+        if hasattr(base_margin, 'values'):
+             base_margin = base_margin.values
+        base_margin = base_margin.reshape(-1).astype(np.float64)
+        
+        # Use custom logistic solver
+        from puck.logistic_solver import fit_logistic_offset
+        
+        logger.info(f"Solving {self.role_name} (L-BFGS-B)...")
+        self.coef_ = fit_logistic_offset(
+            X_sparse, y_float, base_margin, 
+            l2_reg=self.l2_reg, verbose=False
+        )
+        
+        logger.info(f"{self.role_name} Fit Complete.")
+        return self
+
+    def predict_margin(self, X: pd.DataFrame, team_col: str) -> np.ndarray:
+        """
+        Predict the margin adjustment for this component.
+        Returns: Adjustment vector (N_samples,)
+        """
+        if self.coef_ is None:
+            return np.zeros(len(X))
+            
+        n_samples = len(X)
+        
+        # Map indices
+        team_indices_raw = X[team_col].map(self.team_idx_)
+        valid_mask = ~team_indices_raw.isna()
+        
+        if not valid_mask.any():
+            return np.zeros(n_samples)
+            
+        valid_rows = np.where(valid_mask)[0]
+        team_idx_valid = team_indices_raw.values[valid_rows].astype(int)
+        n_valid = len(valid_rows)
+        
+        if self.model_type == 'intercept':
+             # Intercept Only: Direct lookup
+             # coef_ is shape (N_teams,)
+             adj = self.coef_[team_idx_valid]
+        else:
+            # Random Slopes
+            n_feats = len(self.feature_names)
+            X_feats = X[self.feature_names].values.astype(np.float32)
+            X_feats_valid = X_feats[valid_rows]
+            
+            # Construct Sparse
+            row_indices = np.repeat(np.arange(n_valid), n_feats)
+            feat_offsets = np.arange(n_feats)
+            col_indices = (team_idx_valid[:, None] * n_feats + feat_offsets).flatten()
+            data = X_feats_valid.flatten()
+            
+            X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
+                                     shape=(n_valid, self.input_dim_)).tocsr()
+                                     
+            # adjustment = X_sparse @ coef
+            adj = X_sparse.dot(self.coef_)
+        
+        # Result
+        result = np.zeros(n_samples)
+        result[valid_rows] = adj
+        
+        return result
+
+    def get_coefficients(self) -> pd.DataFrame:
+        if self.coef_ is None:
+            return pd.DataFrame()
+            
+        records = []
+        
+        if self.model_type == 'intercept':
+            for t_i, team in enumerate(self.teams_):
+                records.append({
+                    'team': team,
+                    'role': self.role_name,
+                    'feature': 'intercept',
+                    'coef': self.coef_[t_i]
+                })
+        else:
+            n_feats = len(self.feature_names)
+            for t_i, team in enumerate(self.teams_):
+                start = t_i * n_feats
+                w_team = self.coef_[start : start+n_feats]
+                
+                for f_i, feat in enumerate(self.feature_names):
+                    records.append({
+                        'team': team,
+                        'role': self.role_name,
+                        'feature': feat,
+                        'coef': w_team[f_i]
+                    })
+                
+        return pd.DataFrame(records)
+
+
+class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
     def __init__(self, 
                  base_model_path: str = None, 
                  base_model = None,
-                 group_col: str = 'team_name', 
-                 feature_set: List[str] = None,
-                 l1_reg: float = 0.0,
-                 l2_reg: float = 1.0,
-                 learning_rate: float = 0.1,  # Usually 1.0 for straight solving, but <1 for iterative
-                 n_estimators: int = 100):
+                 feature_set: Union[List[str], str] = None,
+                 use_tensor_splines: bool = False,
+                 updater: str = 'shotgun',
+                 component_model_type: str = 'intercept', # 'intercept' or 'slopes'
+                 l2_reg: float = 1.0 # Added l2_reg just in case
+                 ):
         
         self.base_model_path = base_model_path
-        self.group_col = group_col
-        self.feature_set = feature_set
-        self.l1_reg = l1_reg
+        self.base_model_ = base_model
+        # Resolve feature set string if provided
+        if isinstance(feature_set, str):
+            self.feature_set = feature_util.get_features(feature_set)
+        else:
+            self.feature_set = feature_set
+            
+        self.use_tensor_splines = use_tensor_splines
+        self.updater = updater 
+        self.component_model_type = component_model_type
         self.l2_reg = l2_reg
-        self.learning_rate = learning_rate
-        self.n_estimators = n_estimators
         
-        # State
-        self.base_model_ = base_model  # FIX: Store passed base_model directly
-        self.group_models_ = {} # Dict[group_key, XGBClassifier]
-        self.global_bias_ = 0.0 # Correction if base model is biased on current data
-        self.feature_names_ = None
+        self.tensor_transformer_ = None
+        self.ohe_transformer_ = None
+        self.final_feature_names_ = None
+        
+        # Sub-models per game state (Split Off/Def)
+        self.off_models_: Dict[str, ComponentMixedEffectsModel] = {}
+        self.def_models_: Dict[str, ComponentMixedEffectsModel] = {}
+        
+    def _map_state(self, row):
+        # We can just use the 'game_state' column directly if it's clean (5v5, 5v4, 4v5, 4v4, etc.)
+        # daily.py ensures '5v5', '5v4', '4v5' are primary.
+        return row['game_state']
 
+    def _prepare_features(self, df: pd.DataFrame, fit: bool = False) -> pd.DataFrame:
+        """
+        Transform raw dataframe into numeric feature matrix for mixed effects.
         
+        If component_model_type is 'intercept', we only really need metadata,
+        BUT we still might want features if we switch back.
+        
+        For simplicity, if intercept only, we can return dummy features or 
+        keep consistent tensor transformation but ignore it in ComponentModel.
+        
+        Decision: Keep _prepare_features mechanics intact so we can switch types easily.
+        """
+        # 1. Select relevant columns (plus potential OHE targets)
+        # We start with the configured feature set
+        if self.feature_set is None:
+            # Fallback to candidates if not set
+            candidates = [
+                'distance', 'angle_deg', 
+                'time_since_last_event', 'speed', 
+                'is_rebound', 'is_rush',
+                'shot_type', 'shooter_role', 'shoots_catches'
+            ]
+            self.feature_set = [c for c in candidates if c in df.columns]
+            
+        # Ensure we have a working list
+        features = list(self.feature_set)
+        
+        # 2. Tensor Splines
+        X_parts = []
+        
+        # Handle Spatial (Tensor or Raw)
+        spatial_cols = ['distance', 'angle_deg']
+        if self.use_tensor_splines and all(c in features for c in spatial_cols):
+            # Extract spatial cols for tensor
+            if fit:
+                if self.tensor_transformer_ is None:
+                    self.tensor_transformer_ = TensorSpline(n_knots=7, degree=3, include_bias=False)
+                self.tensor_transformer_.fit(df[spatial_cols])
+                
+            X_tensor = self.tensor_transformer_.transform(df[spatial_cols])
+            tensor_names = self.tensor_transformer_.get_feature_names_out(spatial_cols)
+            X_parts.append(pd.DataFrame(X_tensor, columns=tensor_names, index=df.index))
+            
+            # Remove raw spatial from list so we don't double count
+            features = [f for f in features if f not in spatial_cols]
+        
+        # 3. Categoricals / OHE
+        # Identify Categoricals
+        # If we are fitting, we detect them. If transforming, we use stored OHE.
+        if fit:
+            cat_cols = [c for c in features if df[c].dtype == 'object' or isinstance(df[c].dtype, pd.CategoricalDtype)]
+            if cat_cols:
+                self.ohe_transformer_ = OneHotEncoder(sparse_output=False, handle_unknown='ignore', dtype=np.float32)
+                self.ohe_transformer_.fit(df[cat_cols])
+        
+        # Apply OHE if it exists
+        if self.ohe_transformer_ is not None:
+            # We must have the cat columns available
+            # Get feature names from OHE
+            # Check if we have cat cols in current features list? 
+            # We rely on self.feature_set being consistent.
+            cat_cols = self.ohe_transformer_.feature_names_in_
+            
+            # Validate existence
+            valid_cat = [c for c in cat_cols if c in df.columns]
+            if len(valid_cat) == len(cat_cols):
+                X_cat = self.ohe_transformer_.transform(df[cat_cols])
+                cat_names = self.ohe_transformer_.get_feature_names_out(cat_cols)
+                X_parts.append(pd.DataFrame(X_cat, columns=cat_names, index=df.index))
+                
+                # Remove raw cats from features
+                features = [f for f in features if f not in cat_cols]
+            else:
+                logger.warning(f"Missing categorical columns for OHE: {set(cat_cols) - set(valid_cat)}")
+        
+        # 4. Remaining Numeric Features
+        if features:
+            # Fill NaNs with 0 for robustness
+            X_num = df[features].fillna(0)
+            
+            # Apply Scaling
+            if fit:
+                 from sklearn.preprocessing import StandardScaler
+                 self.scaler_ = StandardScaler()
+                 X_num_scaled = self.scaler_.fit_transform(X_num)
+                 # Keep as DataFrame
+                 X_num = pd.DataFrame(X_num_scaled, columns=features, index=df.index)
+            elif hasattr(self, 'scaler_') and self.scaler_ is not None:
+                 X_num_scaled = self.scaler_.transform(X_num)
+                 X_num = pd.DataFrame(X_num_scaled, columns=features, index=df.index)
+            
+            X_parts.append(X_num)
+            
+        # 5. Intercept
+        if 'intercept' not in df.columns:
+            # Create a series with index matching df
+            X_parts.append(pd.Series(1.0, index=df.index, name='intercept'))
+        else:
+            X_parts.append(df['intercept'])
+            
+        # Concatenate
+        X_final = pd.concat(X_parts, axis=1)
+        
+        if fit:
+            self.final_feature_names_ = X_final.columns.tolist()
+            logger.info(f"Feature Prep Complete. Input: {len(self.feature_set)} -> Output: {len(self.final_feature_names_)}")
+            
+        return X_final
+
     def fit(self, X: pd.DataFrame, y=None):
-        """
-        Fit the random slopes for each group found in X[group_col].
-        
-        Args:
-            X: DataFrame containing features + group_col.
-            y: Target variable (if None, looks for 'is_goal' or 'event' in X).
-        """
         df = X.copy()
         
-        # 1. Load Base Model (if not loaded)
+        # 1. Load Base Model
         if self.base_model_ is None:
             if self.base_model_path is None:
-                 # Default path search
-                 possible_paths = [
-                     Path("analysis/xgs/xg_model_nested_tensor.joblib"),
-                     Path("analysis/xgs/xg_model_nested_standard.joblib"),
-                     Path("analysis/xgs/xg_model_nested.joblib")
-                 ]
-                 for p in possible_paths:
-                     if p.exists():
-                         self.base_model_path = str(p)
-                         break
-                 if self.base_model_path is None:
-                     raise FileNotFoundError("Could not find a default base model. Please specify base_model_path.")
+                # Default path
+                p = Path("analysis/xgs/xg_model_nested_tensor.joblib")
+                if p.exists():
+                     self.base_model_path = str(p)
+                else:
+                    raise FileNotFoundError("Base model not found/specified.")
             
-            logger.info(f"Loading base model from {self.base_model_path}...")
+            logger.info(f"Loading Base Model: {self.base_model_path}")
             self.base_model_ = joblib.load(self.base_model_path)
             
-        # 2. Prepare Data & Targets
-        if y is None:
-            if 'is_goal' in df.columns:
-                y = df['is_goal']
-            elif 'event' in df.columns:
-                y = (df['event'] == 'goal').astype(int)
+        # 2. Predict Base Margins
+        logger.info("Predicting Base Margins...")
+        
+        # Ensure required columns for base model exist
+        required_cols = ['shoots_catches', 'shooter_role', 'is_rebound', 'is_rush']
+        for c in required_cols:
+            if c not in df.columns:
+                logger.warning(f"Column '{c}' missing for base model. Filling with default.")
+                if c == 'shoots_catches':
+                    df[c] = 'L' 
+                elif c == 'shooter_role':
+                    df[c] = 'Center' 
+                else:
+                    df[c] = 0
+
+        # 1.5 Ensure Off/Def Names
+        if 'off_team_name' not in df.columns:
+            if 'team_abbrev' in df.columns:
+                 df['off_team_name'] = df['team_abbrev']
+            elif 'team_id' in df.columns:
+                 df['off_team_name'] = df['team_id'].astype(str)
+                 
+        if 'def_team_name' not in df.columns:
+            if 'home_abb' in df.columns and 'away_abb' in df.columns:
+                off_vec = df['off_team_name'].astype(str)
+                home_vec = df['home_abb'].astype(str)
+                away_vec = df['away_abb'].astype(str)
+                is_home = (off_vec == home_vec)
+                df['def_team_name'] = np.where(is_home, away_vec, home_vec)
             else:
-                raise ValueError("No target provided and columns 'is_goal' or 'event' missing.")
-        
-        # 3. Get Base Margins (Log-Odds) form Base Model
-        #    Note: NestedGLM might not expose 'decision_function' directly for the *combined* probability,
-        #    so we might need to compute proba and convert to log-odds.
-        
-        logger.info("Computing base margins...")
+                df['def_team_name'] = 'Unknown'
+
         base_probs = self.base_model_.predict_proba(df)[:, 1]
         
-        # Clip to avoid inf in logit
-        epsilon = 1e-6
-        base_probs = np.clip(base_probs, epsilon, 1 - epsilon)
+        # DEBUG LOG in fit
+        logger.info(f"Base Model Stats (Fit): Mean={base_probs.mean():.4f}, Min={base_probs.min():.4f}, Max={base_probs.max():.4f}")
+        
+        eps = 1e-6
+        base_probs = np.clip(base_probs, eps, 1-eps)
         base_margins = np.log(base_probs / (1 - base_probs))
         
-        # 4. Identify Features for Random Slopes
-        #    Prioritize user-provided feature_set
-        if self.feature_set is not None:
-            self.feature_names_ = self.feature_set
-        elif self.feature_names_ is None:
-             if hasattr(self.base_model_, 'features'):
-                 self.feature_names_ = self.base_model_.features
-             else:
-                 # Fallback
-                 self.feature_names_ = feature_util.get_features('standard')
-                 
-        #    Filter to what's in DF
-        fit_feats = [f for f in self.feature_names_ if f in df.columns]
-        #    We primarily want random slopes for continuos variables like distance, angle.
-        #    Maybe exclude complex categorical OHEs to keep it lightweight? 
-        #    For now, use all numeric columns found in the list.
-        fit_feats = [f for f in fit_feats if pd.api.types.is_numeric_dtype(df[f])]
+        # 3. Prepare Features (Tensor + OHE + Numeric)
+        # This transforms the WHOLE dataframe.
+        # Note: We do this ONCE for the whole dataset to learn OHE/Knots.
+        # But we train per state.
         
-        # Save exact features used for later reference
-        self.feature_names_ = fit_feats
+        logger.info("Preparing Features (OHE + Splines)...")
+        # Ensure 'intercept' is present before calling _prepare if needed, 
+        # but _prepare handles it.
         
-        logger.info(f"Fitting Mixed Effects to {len(fit_feats)} features locally per {self.group_col}.")
-
+        X_transformed = self._prepare_features(df, fit=True)
+        # Add metadata cols back for splitting
+        X_transformed['game_state'] = df['game_state']
+        X_transformed['off_team_name'] = df['off_team_name']
+        X_transformed['def_team_name'] = df['def_team_name']
         
-        # 5. Fit Group Models
-        groups = df[self.group_col].unique()
-        logger.info(f"Found {len(groups)} groups.")
+        # 4. Train per Game State
+        states = df['game_state'].value_counts()
+        # Limit to core game states as requested
+        target_states = ['5v5', '5v4', '4v5']
+        valid_states = [s for s in target_states if s in states.index and states[s] > 100]
+        logger.info(f"Training models for states: {valid_states}")
         
-        for g in groups:
-            mask = (df[self.group_col] == g)
-            X_g = df.loc[mask, fit_feats]
-            y_g = y[mask]
-            margin_g = base_margins[mask]
-            
-            # DEBUG: Check residuals
-            prob_g = 1.0 / (1.0 + np.exp(-margin_g))
-            resid = y_g - prob_g
-            mean_resid = np.mean(resid)
-            if g in ['EDM', 'NYR', 'TOR']:
-                print(f"[MixedEffects DEBUG] Group {g}: n={len(X_g)}, Mean y={np.mean(y_g):.4f}, Mean Base Prob={np.mean(prob_g):.4f}, Mean Resid={mean_resid:.4f}")
-
-            
-            if len(X_g) < 10: 
-                # Too few samples to fit random slopes safely
+        for state in valid_states:
+            logger.info(f"--- Fitting State: {state} ---")
+            mask = X_transformed['game_state'] == state
+            X_sub = X_transformed[mask]
+            # Must handle empty mask
+            if len(X_sub) == 0:
                 continue
-                
-            # Train Linear Model on Residuals
-            # XGBoost with gblinear + base_margin
             
-            # Note: We want to learn deviations. 
-            # gblinear: prediction = base_margin + w*x + bias
-            # This is exactly what we want.
+            # Target
+            y_sub = y[mask] if y is not None else (df.loc[mask, 'event'] == 'goal').astype(int)
+            margin_sub = base_margins[mask]
             
-            clf = xgb.XGBClassifier(
-                booster='gblinear',
-                n_estimators=self.n_estimators,
-                learning_rate=self.learning_rate,
-                reg_alpha=self.l1_reg,
-                reg_lambda=self.l2_reg,
-                base_score=0.5, # Ignored when margin provided?
-                objective='binary:logistic',
-                n_jobs=1 
+            # A. Offense
+            logger.info(f"Fitting Offense ({state})...")
+            off_model = ComponentMixedEffectsModel(
+                feature_names=self.final_feature_names_,
+                role_name='Offense',
+                l2_reg=self.l2_reg,
+                model_type=self.component_model_type
             )
+            off_model.fit(X_sub, y_sub, margin_sub, team_col='off_team_name')
+            self.off_models_[state] = off_model
             
-            # XGBoost expects `base_margin` passed to fit? No, usually in DMatrix.
-            # Scikit-Learn wrapper doesn't standardly accept base_margin in fit().
-            # BUT, we can pass it as a kwarg if supported, or use the specialized set_info.
-            # Actually, in recent XGBoost sklearn API, `fit` accepts kwargs that go to DMatrix.
-            # Let's try passing `base_margin` to fit.
+            # B. Defense
+            logger.info(f"Fitting Defense ({state})...")
+            def_model = ComponentMixedEffectsModel(
+                feature_names=self.final_feature_names_,
+                role_name='Defense',
+                l2_reg=self.l2_reg,
+                model_type=self.component_model_type
+            )
+            def_model.fit(X_sub, y_sub, margin_sub, team_col='def_team_name')
+            self.def_models_[state] = def_model
             
-            try:
-                clf.fit(X_g, y_g, base_margin=margin_g)
-            except TypeError:
-                # Fallback if sklearn wrapper doesn't support it easily -> use core API?
-                # Or maybe it expects it in sample_weight? No.
-                # Let's try standard way.
-                # If this fails, we might need to use xgb.train directly.
-                logger.warning(f"Could not pass base_margin to XGBClassifier.fit for {g}. Falling back to default fit (incorrect for mixed effects).")
-                continue
-
-            self.group_models_[g] = clf
-            
-        logger.info(f"Fitted random slopes for {len(self.group_models_)} groups.")
         return self
 
     def predict_proba(self, X: pd.DataFrame):
-        """
-        Predict probability including random effects.
-        """
         df = X.copy()
         
-        # 1. Base Margins
+        # 1. Base
         base_probs = self.base_model_.predict_proba(df)[:, 1]
-        epsilon = 1e-6
-        base_probs = np.clip(base_probs, epsilon, 1 - epsilon)
+        
+        # DEBUG LOG
+        logger.info(f"Base Model Stats: Mean={base_probs.mean():.4f}, Min={base_probs.min():.4f}, Max={base_probs.max():.4f}")
+        
+        eps = 1e-6
+        base_probs = np.clip(base_probs, eps, 1-eps)
         base_margins = np.log(base_probs / (1 - base_probs))
         
         final_margins = base_margins.copy()
         
-        # 2. Add Random Effects
-        fit_feats = [f for f in self.feature_names_ if f in df.columns and pd.api.types.is_numeric_dtype(df[f])]
+        # 2. Add Adjustments per State
+        if 'intercept' not in df.columns:
+            df['intercept'] = 1.0
+            
+        # 1.5 Ensure Off/Def Names (Same as fit)
+        if 'off_team_name' not in df.columns:
+            if 'team_abbrev' in df.columns:
+                 df['off_team_name'] = df['team_abbrev']
+            elif 'team_id' in df.columns:
+                 df['off_team_name'] = df['team_id'].astype(str)
+                 
+        if 'def_team_name' not in df.columns:
+            if 'home_abb' in df.columns and 'away_abb' in df.columns:
+                off_vec = df['off_team_name'].astype(str)
+                home_vec = df['home_abb'].astype(str)
+                away_vec = df['away_abb'].astype(str)
+                is_home = (off_vec == home_vec)
+                df['def_team_name'] = np.where(is_home, away_vec, home_vec)
+            else:
+                df['def_team_name'] = 'Unknown'
+
+        # 3. Transform Features
+        X_transformed = self._prepare_features(df, fit=False)
+        X_transformed['game_state'] = df['game_state']
+        X_transformed['off_team_name'] = df['off_team_name']
+        X_transformed['def_team_name'] = df['def_team_name']
+
+        # Determine states from available models
+        # Support Both New (off/def_models_) and Legacy (models_)
         
-        # This loop is slow for many groups/rows. Vectorize if possible? 
-        # For now, iterate groups present in data.
-        present_groups = df[self.group_col].unique()
+        processed_states = set()
         
-        for g in present_groups:
-            if g in self.group_models_:
-                mask = (df[self.group_col] == g)
-                X_g = df.loc[mask, fit_feats]
+        off_models = getattr(self, 'off_models_', {}) or {}
+        def_models = getattr(self, 'def_models_', {}) or {}
+        
+        # New Style
+        new_states = set(list(off_models.keys()) + list(def_models.keys()))
+        for state in new_states:
+            mask = df['game_state'] == state
+            if not mask.any(): continue
+            processed_states.add(state)
+            
+            X_sub_trans = X_transformed[mask]
+            
+            # Off/Def cols
+            off_col = 'off_team_name'
+            def_col = 'def_team_name'
+            
+            # A. Offense
+            if state in off_models:
+                off_adj = off_models[state].predict_margin(X_sub_trans, team_col=off_col)
+                final_margins[mask] += off_adj
                 
-                # We need the MARGIN output from the booster, NOT probability
-                model = self.group_models_[g]
+            # B. Defense
+            if state in def_models:
+                def_adj = def_models[state].predict_margin(X_sub_trans, team_col=def_col)
+                final_margins[mask] += def_adj
+
+        # Legacy Support (if hasattr models_)
+        # Check if 'models_' exists in self (handle missing attribute)
+        legacy_models = getattr(self, 'models_', {}) or {}
+        
+        if legacy_models:
+            legacy_states = set(legacy_models.keys())
+            # Only process states NOT already processed by new style? 
+            # Or if new style is empty?
+            # Safe bet: if specific state wasn't in new, try legacy
+            
+            for state in legacy_states:
+                if state in processed_states: continue
                 
-                # predict(output_margin=True) returns (base_margin + w*x) if base_margin provided?
-                # If we don't provide base_margin to predict, it returns (bias + w*x).
-                # We want (bias + w*x) to ADD to our global base_margin.
+                mask = df['game_state'] == state
+                if not mask.any(): continue
                 
-                # Note: XGBoost sklearn wrapper `predict` doesn't strictly support output_margin without native DMatrix?
-                # Actually it does.
-                
-                # We pass base_margin=0 (or None) to get just the delta? 
-                # If we fitted with base_margin, the model learned w such that margin = base + w*x.
-                # We want to retrieve w*x.
-                
-                # If we call predict(X, output_margin=True), it usually assumes base_margin=0.5 (logit 0) unless specified?
-                # Let's just use the booster directly to be safe.
-                
-                booster = model.get_booster()
-                dmat = xgb.DMatrix(X_g)
-                # Ensure feature names match? XGBoost is index based unless feature names set.
-                # We are passing dataframe, so names should be preserved.
-                
-                delta_margin = booster.predict(dmat, output_margin=True)
-                
-                # The model output includes the base_score (0.5 -> 0.0 logit) by default usually.
-                # gblinear usually learns weights.
-                
-                final_margins[mask] += delta_margin
-                
+                model = legacy_models[state]
+                # Check if model has predict_margin (our alias class has it)
+                if hasattr(model, 'predict_margin'):
+                     X_sub_trans = X_transformed[mask]
+                     adj = model.predict_margin(X_sub_trans, off_team_col='off_team_name', def_team_col='def_team_name')
+                     final_margins[mask] += adj
+            
         # 3. Sigmoid
         final_probs = 1.0 / (1.0 + np.exp(-final_margins))
-        
         return np.column_stack((1 - final_probs, final_probs))
+        
+    def get_all_coefficients(self) -> pd.DataFrame:
+        """
+        Aggregate coefficients from all sub-models into a single DataFrame.
+        """
+        dfs = []
+        # Offense
+        for state, model in self.off_models_.items():
+            df_curr = model.get_coefficients()
+            if not df_curr.empty:
+                df_curr['game_state'] = state
+                dfs.append(df_curr)
+                
+        # Defense
+        for state, model in self.def_models_.items():
+            df_curr = model.get_coefficients()
+            if not df_curr.empty:
+                df_curr['game_state'] = state
+                dfs.append(df_curr)
+             
+        # Legacy
+        if hasattr(self, 'models_') and self.models_:
+             # If ParallelMixedEffectsModel has get_coefficients, verify it
+             pass
 
-    def predict(self, X):
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
+        if not dfs:
+            return pd.DataFrame()
+            
+        return pd.concat(dfs, ignore_index=True)
+    def save_summary(self, output_dir: str, teams_filter: List[str] = None):
+        """
+        Save model coefficients and generate summary plots.
+        """
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 1. Get Data
+        df_coefs = self.get_all_coefficients()
+        if df_coefs.empty:
+            logger.warning("No coefficients to save.")
+            return
+            
+        # 2. Save CSV
+        csv_path = output_dir / "mixed_effects_coefficients.csv"
+        df_coefs.to_csv(csv_path, index=False)
+        logger.info(f"Saved coefficients to {csv_path}")
+        
+        # 3. Generate Plots
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            
+            # Setup style
+            sns.set_theme(style="whitegrid")
+            
+            # A. League Wide Scatter (Offense vs Defense Intercepts)
+            # We want to compare Team Strength across states (e.g. 5v5)
+            # Filter to intercept
+            mask_intercept = df_coefs['feature'] == 'intercept'
+            
+            unique_states = df_coefs['game_state'].unique()
+            
+            for state in unique_states:
+                df_plot = df_coefs[mask_intercept & (df_coefs['game_state'] == state)]
+                if df_plot.empty:
+                    continue
+                    
+                # Pivot to get Offense and Defense on same row per team
+                # df columns: team, role, feature, coef, game_state
+                df_pivot = df_plot.pivot(index='team', columns='role', values='coef')
+                # Pivot columns will be 'Defense', 'Offense'
+                
+                if 'Offense' in df_pivot.columns and 'Defense' in df_pivot.columns:
+                    plt.figure(figsize=(10, 8))
+                    
+                    # Scatter
+                    sns.scatterplot(data=df_pivot, x='Offense', y='Defense')
+                    
+                    # Add team labels
+                    for team, row in df_pivot.iterrows():
+                        plt.text(row['Offense']+0.001, row['Defense']+0.001, team, fontsize=9)
+                        
+                    plt.title(f"Team Strength: {state} (Intercepts)\nPositive Offense = Good | Negative Defense = Good")
+                    plt.axhline(0, color='gray', linestyle='--')
+                    plt.axvline(0, color='gray', linestyle='--')
+                    
+                    # Invert Y axis? 
+                    # Negative Defense coef means "Lowers xG against" -> Good Defense.
+                    # So lower is better. Top left quadrant (High Off, Low Def) is best.
+                    plt.gca().invert_yaxis()
+                    plt.ylabel("Defensive Impact (Lower is Better)")
+                    plt.xlabel("Offensive Impact (Higher is Better)")
+                    
+                    plt.tight_layout()
+                    plt.savefig(output_dir / f"scatter_intercepts_{state}.png")
+                    plt.close()
+                    
+            # B. Top 10 Bars per State/Role
+            for state in unique_states:
+                for role in ['Offense', 'Defense']:
+                    df_sub = df_coefs[(df_coefs['game_state'] == state) & 
+                                      (df_coefs['role'] == role) & 
+                                      (mask_intercept)]
+                                      
+                    if df_sub.empty:
+                        continue
+                        
+                    # Sort
+                    # For Offense: Descending (High is good)
+                    # For Defense: Ascending (Low/Negative is good)
+                    ascending = True if role == 'Defense' else False
+                    df_sorted = df_sub.sort_values('coef', ascending=ascending).head(10)
+                    
+                    plt.figure(figsize=(10, 6))
+                    sns.barplot(data=df_sorted, x='coef', y='team', palette='viridis')
+                    plt.title(f"Top 10 {role} ({state})")
+                    plt.xlabel("Coefficient Impact")
+                    plt.tight_layout()
+                    plt.savefig(output_dir / f"top10_{role}_{state}.png")
+                    plt.close()
 
+            # C. Team Specific Plots
+            teams_dir = output_dir / "teams"
+            teams_dir.mkdir(exist_ok=True)
+            
+            unique_teams = df_coefs['team'].unique()
+            
+            if teams_filter:
+                # Normalize filter to match team names (usually abbrevs)
+                unique_teams = [t for t in unique_teams if t in teams_filter]
+                logger.info(f"Filtering to {len(unique_teams)} teams: {unique_teams}")
+            
+            # Plot only if we have reasonable number of teams or user request?
+            # User said "plots for individual teams". We'll generate for all.
+            
+            logger.info(f"Generating individual plots for {len(unique_teams)} teams...")
+            
+            for team in unique_teams:
+                # Filter to team
+                df_team = df_coefs[df_coefs['team'] == team]
+                
+                # We want to show coefficients for this team across states/features
+                # Maybe a FacetGrid or just a simple bar chart of intercepts?
+                # Let's show Intercepts across states first
+                
+                # 1. Intercepts (Overall Strength)
+                df_int = df_team[df_team['feature'] == 'intercept']
+                if not df_int.empty:
+                    plt.figure(figsize=(8, 5))
+                    sns.barplot(data=df_int, x='game_state', y='coef', hue='role')
+                    plt.title(f"{team} - Overall Adjustments (Intercepts)")
+                    plt.axhline(0, color='k', linewidth=0.5)
+                    plt.ylabel("Impact on Log-Odds")
+                    plt.tight_layout()
+                    plt.savefig(teams_dir / f"{team}_intercepts.png")
+                    plt.close()
+                    
+                # 2. Random Slopes (Continuous Features) - Optional/Advanced
+                # If we have interesting features like 'distance', 'speed'
+                # Let's verify if we have non-intercept features
+                non_int = df_team[df_team['feature'] != 'intercept']
+                if not non_int.empty:
+                    # Plot heatmap of coefficients? Or bar chart?
+                    # Facet by game_state
+                    g = sns.catplot(
+                        data=non_int, kind="bar",
+                        x="coef", y="feature", hue="role", col="game_state",
+                        col_wrap=2, height=4, aspect=1.5, sharex=False
+                    )
+                    g.fig.suptitle(f"{team} - Detailed Feature Adjustments", y=1.02)
+                    g.set_axis_labels("Coefficient", "Feature")
+                    plt.tight_layout()
+                    plt.savefig(teams_dir / f"{team}_details.png")
+                    plt.close()
+
+        except ImportError:
+            logger.warning("Could not import matplotlib/seaborn. Skipping plots.")
+        except Exception as e:
+            logger.error(f"Error generating plots: {e}")
+            import traceback
+            traceback.print_exc()

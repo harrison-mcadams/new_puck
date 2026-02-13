@@ -1,0 +1,6 @@
+Base AUC: 0.7771
+Mixed AUC: 0.7813
+Base LogLoss: 0.1735
+Mixed LogLoss: 0.1723
+Goals > 0.5: 9
+Goals > 0.8: 0
