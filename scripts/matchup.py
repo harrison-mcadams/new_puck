@@ -19,15 +19,23 @@ from puck.rink import draw_rink
 def load_assets(season="20252026"):
     base_dir = Path(f"analysis/mixed_effects_heatmaps_{season}")
     
-    # Load Models
-    models = {}
-    for state in ['5v5', '5v4', '4v5']:
-        model_path = base_dir / "models" / f"mixed_model_{state}.pkl"
-        if model_path.exists():
-            print(f"Loading model: {model_path}")
-            models[state] = joblib.load(model_path)
-        else:
-            print(f"Warning: Model not found {model_path}")
+    # Load Unified Mixed Effects Model
+    model = None
+    model_path = base_dir / "models" / "joint_mixed_effects.joblib"
+    # Actually, v2 model is saved at analysis/xgs/joint_mixed_effects.joblib
+    # Let's check both paths to be safe, but default to the known good one
+    global_model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
+    
+    if global_model_path.exists():
+        print(f"Loading global model: {global_model_path}")
+        model = joblib.load(global_model_path)
+    elif model_path.exists():
+        print(f"Loading local model: {model_path}")
+        model = joblib.load(model_path)
+    else:
+        print(f"Error: Unified model not found at {global_model_path} or {model_path}")
+        # Return empty dictionary dict so existing code doesn't crash completely during iteration if it has fallbacks
+        model = {}
             
     # Load Grids
     grid_path = base_dir / "team_grids.pkl"
@@ -55,7 +63,7 @@ def load_assets(season="20252026"):
     else:
         print("Warning: Events bank not found (run generate_mixed_heatmaps.py first). Using fallback random.")
             
-    return models, grids, stats_summary, events_bank
+    return model, grids, stats_summary, events_bank
 
 def get_matchup_density(home_grid_for, away_grid_ag, bins_x, bins_y):
     # Geometric mean of Home Offense and Away Defense
@@ -83,7 +91,7 @@ def get_matchup_density(home_grid_for, away_grid_ag, bins_x, bins_y):
         
     return matchup
 
-def precalculate_matchup_xg(events_bank, models, home_team, away_team):
+def precalculate_matchup_xg(events_bank, model, home_team, away_team):
     """
     Pre-calculate xG for ALL events in the bank for the specific matchup context.
     This avoids running model inference inside the simulation loop and ensures
@@ -95,9 +103,7 @@ def precalculate_matchup_xg(events_bank, models, home_team, away_team):
     events_bank['xg_home_context'] = 0.0
     events_bank['xg_away_context'] = 0.0
     
-    for state, model in models.items():
-        if model is None: continue
-        
+    for state in ['5v5', '5v4', '4v5']:
         mask = events_bank['game_state'] == state
         if not mask.any(): continue
         
@@ -106,18 +112,18 @@ def precalculate_matchup_xg(events_bank, models, home_team, away_team):
         
         # 1. Home Offense Context (Home Team vs Away Team)
         df_home = df_state.copy()
-        df_home['team_name'] = home_team
-        df_home['opp_team_name'] = away_team
+        df_home['off_team_name'] = home_team
+        df_home['def_team_name'] = away_team
         # Ensure dummy columns for GLM exist (fill 0 if missing in export, shouldn't happen with full export)
-        # Predict
+        # Predict uses global model now, handles states internally
         probs_home = model.predict_proba(df_home)[:, 1]
         events_bank.loc[mask, 'xg_home_context'] = probs_home
         
         # 2. Away Offense Context (Away Team vs Home Team)
         df_away = df_state.copy()
-        df_away['team_name'] = away_team
-        df_away['opp_team_name'] = home_team
-        # Predict
+        df_away['off_team_name'] = away_team
+        df_away['def_team_name'] = home_team
+        # Predict uses global model now, handles states internally
         probs_away = model.predict_proba(df_away)[:, 1]
         events_bank.loc[mask, 'xg_away_context'] = probs_away
         
@@ -191,8 +197,12 @@ def _generate_fallback_shots(n_shots, team, opp, state):
     
     return df
 
-def simulate_matchup(home, away, models, grids, stats, events_bank=None, n_sims=1000):
+def simulate_matchup(home, away, season, n_sims=1000):
     print(f"\n--- Simulating {home} vs {away} (Monte Carlo N={n_sims}) ---")
+    
+    # 1. Load Assets
+    print("Loading empirical data and models...")
+    model, grids, stats, events_bank = load_assets(season)
     
     # Grid Edges
     BIN_X = np.linspace(-100, 100, 201) 
@@ -240,7 +250,7 @@ def simulate_matchup(home, away, models, grids, stats, events_bank=None, n_sims=
     
     # --- PRE-CALCULATION ---
     if events_bank is not None:
-        events_bank = precalculate_matchup_xg(events_bank, models, home, away)
+        events_bank = precalculate_matchup_xg(events_bank, model, home, away)
     
     # --- SIMULATION LOOP ---
     
@@ -513,12 +523,7 @@ def main():
     parser.add_argument("away", help="Away Team Abbr (e.g. NJD)")
     args = parser.parse_args()
     
-    models, grids, stats, events_bank = load_assets()
-    if not models:
-        print("No models loaded. Run generate_mixed_heatmaps.py first.")
-        return
-        
-    simulate_matchup(args.home, args.away, models, grids, stats, events_bank)
+    simulate_matchup(args.home, args.away, season="20252026")
 
 if __name__ == "__main__":
     main()

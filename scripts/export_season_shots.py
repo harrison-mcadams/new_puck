@@ -79,7 +79,7 @@ def main():
     print(f"Shot attempts after preprocessing: {len(df)}")
 
     # 4. Load Models
-    mixed_model_path = "analysis/xgs/mixed_effects_v2.joblib"
+    mixed_model_path = "analysis/xgs/joint_mixed_effects.joblib"
     if not os.path.exists(mixed_model_path):
         print(f"Error: Mixed effects model not found at {mixed_model_path}")
         return

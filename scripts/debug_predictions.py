@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 def main():
     # Load Model
-    model_path = "analysis/xgs/mixed_effects_v2.joblib"
+    model_path = "analysis/xgs/joint_mixed_effects.joblib"
     if not os.path.exists(model_path):
         print(f"Model not found: {model_path}")
         return

@@ -138,222 +138,187 @@ class ParallelMixedEffectsModel:
         return result
 
 
-
 class ComponentMixedEffectsModel(BaseEstimator):
     """
-    Fits a mixed-effects model for a single component (e.g., Offense OR Defense).
-    This simplifies the problem by assuming the opposing side averages out 
-    to the league baseline.
+    Dummy class strictly for unpickling legacy models (e.g. from matchup.py).
+    Do not use for training new models. Use StateMixedEffectsModel.
+    """
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def predict_margin(self, X: pd.DataFrame, team_col: str) -> np.ndarray:
+        if not hasattr(self, 'coef_') or self.coef_ is None:
+             return np.zeros(len(X))
+             
+        # Extract features and multiply like legacy model did
+        n_samples = len(X)
+        team_indices_raw = X[team_col].map(getattr(self, 'team_idx_', {}))
+        valid_mask = ~team_indices_raw.isna()
+        
+        if not valid_mask.any(): return np.zeros(n_samples)
+        
+        valid_rows = np.where(valid_mask)[0]
+        team_idx_valid = team_indices_raw.values[valid_rows].astype(int)
+        
+        # Intercept Only for legacy Component intercepts
+        adj = self.coef_[team_idx_valid]
+        result = np.zeros(n_samples)
+        result[valid_rows] = adj
+        return result
+
+
+class StateMixedEffectsModel(BaseEstimator):
+    """
+    Fits a joint mixed-effects model for a single game state (e.g., 5v5).
+    Fits Random Intercepts for BOTH Offense and Defense simultaneously 
+    to properly apportion credit/blame from the base marginal residual.
     """
     def __init__(self, 
-                 feature_names: List[str],
-                 role_name: str = "Component", # "Offense" or "Defense"
-                 l2_reg: float = 1.0, # L2 regularization strength
-                 model_type: str = 'intercept' # 'intercept' or 'slopes'
-                 ):
-        self.feature_names = feature_names
-        self.role_name = role_name
+                 l2_reg: float = 1.0):
         self.l2_reg = l2_reg
-        self.model_type = model_type
-        
-        # State
-        self.coef_ = None # Store coefficients from Scipy solver
+        self.coef_ = None # Store coefficients from Scipy solver (size: 2 * N_teams)
         self.teams_ = None
         self.team_idx_ = None # Map[team_name -> int]
-        self.input_dim_ = 0
+        self.n_teams_ = 0
         
-    def fit(self, X: pd.DataFrame, y: pd.Series, base_margin: np.ndarray, 
-            team_col: str):
+    def fit(self, df: pd.DataFrame, y: pd.Series, base_margin: np.ndarray, 
+            off_col: str, def_col: str):
         """
-        Fit the component mixed effects model.
+        Fit the joint mixed effects model.
         
         Args:
-            X: Feature dataframe
+            df: Feature dataframe
             y: Target (0/1)
             base_margin: Log-odds from base model
-            team_col: Column name to group by (e.g. 'off_team_name')
+            off_col: Column name for shooting team
+            def_col: Column name for defending team
         """
-        # 1. Identify all unique teams
-        teams = X[team_col].unique()
+        # 1. Identify all unique teams across both columns to ensure alignment
+        off_teams = set(df[off_col].dropna().unique())
+        def_teams = set(df[def_col].dropna().unique())
+        all_teams = off_teams.union(def_teams)
+        
         # Filter valid strings
-        teams = [t for t in teams if isinstance(t, str) and len(t) > 0]
+        teams = [t for t in all_teams if isinstance(t, str) and len(t) > 0]
         teams.sort()
         
         self.teams_ = teams
         self.team_idx_ = {t: i for i, t in enumerate(self.teams_)}
-        n_teams = len(self.teams_)
+        self.n_teams_ = len(self.teams_)
         
-        # 2. Construct Design Matrix
-        if self.model_type == 'intercept':
-            # Random Intercepts: One parameter per team
-            # We ignore feature_names and just use team identity
-            self.input_dim_ = n_teams
-            n_feats = 1 # Virtual feature count for logic downstream
-            
-            logger.info(f"{self.role_name} Model (Intercepts): {len(X)} samples, {n_teams} teams.")
-            
-            # Map teams to indices
-            team_indices = X[team_col].map(self.team_idx_)
-            
-            # Filter invalid rows (just in case)
-            valid_mask = ~team_indices.isna()
-            if not valid_mask.all():
-                logger.warning(f"Dropping {np.sum(~valid_mask)} rows with missing team info.")
-                team_indices = team_indices[valid_mask]
-                y = y[valid_mask]
-                base_margin = base_margin[valid_mask]
-                
-            n_samples = len(team_indices)
-            team_indices = team_indices.values.astype(int)
-            
-            # Construct Sparse Matrix (N_samples x N_teams)
-            # Each row has exactly one 1.0 at col=team_index
-            row_indices = np.arange(n_samples)
-            col_indices = team_indices
-            data = np.ones(n_samples, dtype=np.float32)
-            
-            X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
-                                     shape=(n_samples, self.input_dim_)).tocsr()
-                                     
-        else:
-            # Random Slopes (Original Logic)
-            n_feats = len(self.feature_names)
-            
-            # Total Dimension: (N_Teams * N_Feats)
-            self.input_dim_ = n_teams * n_feats
-            
-            logger.info(f"{self.role_name} Model (Slopes): {len(X)} samples, {n_teams} teams, {n_feats} features.")
-            logger.info(f"Constructing sparse design matrix (Dim: {len(X)} x {self.input_dim_})...")
-            
-            # Extract features as numpy array
-            X_feats = X[self.feature_names].values.astype(np.float32)
-            n_samples = len(X)
-            
-            # Map teams to indices
-            team_indices = X[team_col].map(self.team_idx_)
-            
-            # Filter invalid rows (just in case)
-            valid_mask = ~team_indices.isna()
-            if not valid_mask.all():
-                logger.warning(f"Dropping {np.sum(~valid_mask)} rows with missing team info.")
-                X_feats = X_feats[valid_mask]
-                team_indices = team_indices[valid_mask]
-                y = y[valid_mask]
-                base_margin = base_margin[valid_mask]
-                n_samples = len(X_feats)
-                
-            team_indices = team_indices.values.astype(int)
-            
-            # Vectorized Construction
-            # Rows: repeat 0..N for each feature
-            row_indices = np.repeat(np.arange(n_samples), n_feats)
-            
-            # Cols: (Team_Index * N_Feats) + Feature_Index
-            feat_offsets = np.arange(n_feats)
-            # Broadcasting: (N_samples, 1) * N_feats + (N_feats,) -> (N_samples, N_feats) -> flatten
-            col_indices = (team_indices[:, None] * n_feats + feat_offsets).flatten()
-            
-            # Data: Flattened feature values
-            data = X_feats.flatten()
-            
-            X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
-                                     shape=(n_samples, self.input_dim_)).tocsr()
+        logger.info(f"State Model (Joint Intercepts): {len(df)} samples, {self.n_teams_} teams.")
         
-        # 3. Fit
+        # 2. Map teams to indices
+        off_indices = df[off_col].map(self.team_idx_)
+        def_indices = df[def_col].map(self.team_idx_)
+        
+        # Filter invalid rows where team is missing
+        valid_mask = (~off_indices.isna()) & (~def_indices.isna())
+        if not valid_mask.all():
+            logger.warning(f"Dropping {np.sum(~valid_mask)} rows with missing team info.")
+            off_indices = off_indices[valid_mask]
+            def_indices = def_indices[valid_mask]
+            y = y[valid_mask]
+            base_margin = base_margin[valid_mask]
+            
+        n_samples = len(valid_mask[valid_mask])
+        off_idx_vals = off_indices.values.astype(int)
+        def_idx_vals = def_indices.values.astype(int)
+        
+        # 3. Construct Unified Sparse Design Matrix
+        # Size: (N_samples, 2 * N_teams)
+        # Each row has exactly TWO 1.0s:
+        # Col A = off_team_idx (Offense Intercept)
+        # Col B = def_team_idx + n_teams (Defense Intercept)
+        
+        # Row indices (each row gets two entries)
+        row_indices = np.repeat(np.arange(n_samples), 2)
+        
+        # Column indices
+        # Interleave off and def indices
+        col_indices = np.empty(2 * n_samples, dtype=int)
+        col_indices[0::2] = off_idx_vals # Offense features (0 to N-1)
+        col_indices[1::2] = def_idx_vals + self.n_teams_ # Defense features (N to 2N-1)
+        
+        # Data values (all 1.0 for intercepts)
+        data = np.ones(2 * n_samples, dtype=np.float32)
+        
+        input_dim = 2 * self.n_teams_
+        X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
+                                 shape=(n_samples, input_dim)).tocsr()
+                                 
+        # 4. Fit using logistic solver
         y_float = y.astype(np.float64)
         if hasattr(base_margin, 'values'):
              base_margin = base_margin.values
         base_margin = base_margin.reshape(-1).astype(np.float64)
         
-        # Use custom logistic solver
         from puck.logistic_solver import fit_logistic_offset
         
-        logger.info(f"Solving {self.role_name} (L-BFGS-B)...")
+        logger.info(f"Solving Joint State Model (L-BFGS-B)...")
         self.coef_ = fit_logistic_offset(
             X_sparse, y_float, base_margin, 
             l2_reg=self.l2_reg, verbose=False
         )
         
-        logger.info(f"{self.role_name} Fit Complete.")
+        logger.info(f"Joint State Model Fit Complete.")
         return self
 
-    def predict_margin(self, X: pd.DataFrame, team_col: str) -> np.ndarray:
+    def predict_margin(self, df: pd.DataFrame, off_col: str, def_col: str) -> np.ndarray:
         """
-        Predict the margin adjustment for this component.
+        Predict the joint margin adjustment (Offense + Defense).
         Returns: Adjustment vector (N_samples,)
         """
         if self.coef_ is None:
-            return np.zeros(len(X))
+            return np.zeros(len(df))
             
-        n_samples = len(X)
+        n_samples = len(df)
         
         # Map indices
-        team_indices_raw = X[team_col].map(self.team_idx_)
-        valid_mask = ~team_indices_raw.isna()
+        off_idx_raw = df[off_col].map(self.team_idx_)
+        def_idx_raw = df[def_col].map(self.team_idx_)
         
-        if not valid_mask.any():
-            return np.zeros(n_samples)
-            
+        # If teams are unknown (e.g. out of sample), they get 0 adjustment
+        valid_mask = (~off_idx_raw.isna()) & (~def_idx_raw.isna())
         valid_rows = np.where(valid_mask)[0]
-        team_idx_valid = team_indices_raw.values[valid_rows].astype(int)
-        n_valid = len(valid_rows)
         
-        if self.model_type == 'intercept':
-             # Intercept Only: Direct lookup
-             # coef_ is shape (N_teams,)
-             adj = self.coef_[team_idx_valid]
-        else:
-            # Random Slopes
-            n_feats = len(self.feature_names)
-            X_feats = X[self.feature_names].values.astype(np.float32)
-            X_feats_valid = X_feats[valid_rows]
-            
-            # Construct Sparse
-            row_indices = np.repeat(np.arange(n_valid), n_feats)
-            feat_offsets = np.arange(n_feats)
-            col_indices = (team_idx_valid[:, None] * n_feats + feat_offsets).flatten()
-            data = X_feats_valid.flatten()
-            
-            X_sparse = sp.coo_matrix((data, (row_indices, col_indices)), 
-                                     shape=(n_valid, self.input_dim_)).tocsr()
-                                     
-            # adjustment = X_sparse @ coef
-            adj = X_sparse.dot(self.coef_)
+        off_vals = off_idx_raw.values[valid_rows].astype(int)
+        def_vals = def_idx_raw.values[valid_rows].astype(int)
         
-        # Result
+        # Look up coefficients directly
+        # coef_[0:N] are Offense, coef_[N:2N] are Defense
+        off_adj = self.coef_[off_vals]
+        def_adj = self.coef_[def_vals + self.n_teams_]
+        
         result = np.zeros(n_samples)
-        result[valid_rows] = adj
+        result[valid_rows] = off_adj + def_adj
         
         return result
 
     def get_coefficients(self) -> pd.DataFrame:
+        """
+        Extract the learned intercepts into a readable DataFrame.
+        """
         if self.coef_ is None:
             return pd.DataFrame()
             
         records = []
-        
-        if self.model_type == 'intercept':
-            for t_i, team in enumerate(self.teams_):
-                records.append({
-                    'team': team,
-                    'role': self.role_name,
-                    'feature': 'intercept',
-                    'coef': self.coef_[t_i]
-                })
-        else:
-            n_feats = len(self.feature_names)
-            for t_i, team in enumerate(self.teams_):
-                start = t_i * n_feats
-                w_team = self.coef_[start : start+n_feats]
-                
-                for f_i, feat in enumerate(self.feature_names):
-                    records.append({
-                        'team': team,
-                        'role': self.role_name,
-                        'feature': feat,
-                        'coef': w_team[f_i]
-                    })
-                
+        for t_i, team in enumerate(self.teams_):
+            # Offense Profile
+            records.append({
+                'team': team,
+                'role': 'Offense',
+                'feature': 'intercept',
+                'coef': self.coef_[t_i]
+            })
+            # Defense Profile
+            records.append({
+                'team': team,
+                'role': 'Defense',
+                'feature': 'intercept',
+                'coef': self.coef_[t_i + self.n_teams_]
+            })
+            
         return pd.DataFrame(records)
 
 
@@ -385,9 +350,8 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
         self.ohe_transformer_ = None
         self.final_feature_names_ = None
         
-        # Sub-models per game state (Split Off/Def)
-        self.off_models_: Dict[str, ComponentMixedEffectsModel] = {}
-        self.def_models_: Dict[str, ComponentMixedEffectsModel] = {}
+        # Sub-models per game state (Joint Off/Def)
+        self.state_models_: Dict[str, StateMixedEffectsModel] = {}
         
     def _map_state(self, row):
         # We can just use the 'game_state' column directly if it's clean (5v5, 5v4, 4v5, 4v4, etc.)
@@ -594,27 +558,13 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
             y_sub = y[mask] if y is not None else (df.loc[mask, 'event'] == 'goal').astype(int)
             margin_sub = base_margins[mask]
             
-            # A. Offense
-            logger.info(f"Fitting Offense ({state})...")
-            off_model = ComponentMixedEffectsModel(
-                feature_names=self.final_feature_names_,
-                role_name='Offense',
-                l2_reg=self.l2_reg,
-                model_type=self.component_model_type
+            # Joint Model
+            logger.info(f"Fitting Joint Offense/Defense ({state})...")
+            state_model = StateMixedEffectsModel(
+                l2_reg=self.l2_reg
             )
-            off_model.fit(X_sub, y_sub, margin_sub, team_col='off_team_name')
-            self.off_models_[state] = off_model
-            
-            # B. Defense
-            logger.info(f"Fitting Defense ({state})...")
-            def_model = ComponentMixedEffectsModel(
-                feature_names=self.final_feature_names_,
-                role_name='Defense',
-                l2_reg=self.l2_reg,
-                model_type=self.component_model_type
-            )
-            def_model.fit(X_sub, y_sub, margin_sub, team_col='def_team_name')
-            self.def_models_[state] = def_model
+            state_model.fit(X_sub, y_sub, margin_sub, off_col='off_team_name', def_col='def_team_name')
+            self.state_models_[state] = state_model
             
         return self
 
@@ -661,35 +611,29 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
         X_transformed['def_team_name'] = df['def_team_name']
 
         # Determine states from available models
-        # Support Both New (off/def_models_) and Legacy (models_)
+        # Support Both New (state_models_) and Legacy (models_)
         
         processed_states = set()
         
-        off_models = getattr(self, 'off_models_', {}) or {}
-        def_models = getattr(self, 'def_models_', {}) or {}
+        state_models = getattr(self, 'state_models_', {}) or {}
         
         # New Style
-        new_states = set(list(off_models.keys()) + list(def_models.keys()))
+        new_states = set(list(state_models.keys()))
         for state in new_states:
             mask = df['game_state'] == state
             if not mask.any(): continue
             processed_states.add(state)
             
-            X_sub_trans = X_transformed[mask]
+            df_sub = df[mask]
             
             # Off/Def cols
             off_col = 'off_team_name'
             def_col = 'def_team_name'
             
-            # A. Offense
-            if state in off_models:
-                off_adj = off_models[state].predict_margin(X_sub_trans, team_col=off_col)
-                final_margins[mask] += off_adj
-                
-            # B. Defense
-            if state in def_models:
-                def_adj = def_models[state].predict_margin(X_sub_trans, team_col=def_col)
-                final_margins[mask] += def_adj
+            # Joint Prediction
+            if state in state_models:
+                adj = state_models[state].predict_margin(X_transformed[mask], off_col=off_col, def_col=def_col)
+                final_margins[mask] += adj
 
         # Legacy Support (if hasattr models_)
         # Check if 'models_' exists in self (handle missing attribute)
@@ -723,15 +667,8 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
         Aggregate coefficients from all sub-models into a single DataFrame.
         """
         dfs = []
-        # Offense
-        for state, model in self.off_models_.items():
-            df_curr = model.get_coefficients()
-            if not df_curr.empty:
-                df_curr['game_state'] = state
-                dfs.append(df_curr)
-                
-        # Defense
-        for state, model in self.def_models_.items():
+        # Joint Models
+        for state, model in self.state_models_.items():
             df_curr = model.get_coefficients()
             if not df_curr.empty:
                 df_curr['game_state'] = state

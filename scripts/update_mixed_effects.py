@@ -142,7 +142,7 @@ def main():
             df['distance'] = df['distance'].fillna(0)
             
     # 2. Init Model
-    out_path = "analysis/xgs/mixed_effects_v2.joblib"
+    out_path = "analysis/xgs/joint_mixed_effects.joblib"
     
     if args.skip_training and os.path.exists(out_path):
         print(f"Skipping training, loading model from {out_path}...")

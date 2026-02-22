@@ -6,7 +6,7 @@ import sys
 import os
 
 def main():
-    model_path = Path("analysis/xgs/mixed_effects_v2.joblib")
+    model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
     if not model_path.exists():
         print(f"Model not found: {model_path}")
         return

@@ -8,7 +8,7 @@ from puck import mixed_effects
 from puck import mixed_effects_viz
 
 def main():
-    model_path = "analysis/xgs/mixed_effects_v2.joblib"
+    model_path = "analysis/xgs/joint_mixed_effects.joblib"
     if not os.path.exists(model_path):
         print(f"Model not found at {model_path}")
         return

@@ -831,7 +831,7 @@ def _predict_xtg(df: pd.DataFrame, behavior='load'):
         # Define path to ME model
         # Assuming standard location from update_mixed_effects.py
         # Use v2 model if available
-        me_model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'mixed_effects_v2.joblib')
+        me_model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'joint_mixed_effects.joblib')
         
         # Fallback to old name if v2 missing?
         if not os.path.exists(me_model_path):

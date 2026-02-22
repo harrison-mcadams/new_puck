@@ -7,7 +7,7 @@ import os
 
 def main():
     with open("coef_debug_safe.txt", "w") as f:
-        model_path = Path("analysis/xgs/mixed_effects_v2.joblib")
+        model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
         if not model_path.exists():
             f.write(f"Model not found: {model_path}\n")
             return

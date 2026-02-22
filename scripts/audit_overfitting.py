@@ -48,7 +48,7 @@ def main():
     # 4. Leakage Check?
     # Are there features that are uniquely identifying?
     # Let's load the model and check coefficients
-    model_path = Path("analysis/xgs/mixed_effects_v2.joblib")
+    model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
     if model_path.exists():
         print(f"\n--- Loading Model for Coefficient Inspection ---")
         try:

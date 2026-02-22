@@ -253,17 +253,14 @@ def main():
     output_states = ['5v5', '5v4', '4v5']
     grand_stats = {} # team -> state -> bucket
     
-    # Load Models Once
-    models = {}
-    for state in output_states:
-        # We only need to load models for 5v4 and 4v5 if they were trained.
-        # 5v5 will use a default xG or be skipped for prediction.
-        if state == '5v5': continue 
-        model_path = Path(f"analysis/mixed_effects_heatmaps_{season}/models/mixed_model_{state}.pkl")
-        if model_path.exists():
-            models[state] = joblib.load(model_path)
-        else:
-            print(f"Warning: No model found for {state} at {model_path}. xG predictions for this state will be 0.")
+    # Load Unified Mixed Effects Model Once
+    model = None
+    model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
+    if model_path.exists():
+        model = joblib.load(model_path)
+        print(f"Loaded unified mixed effects model from {model_path}")
+    else:
+        print(f"Warning: Unified model not found at {model_path}. Predict xG will use 0.0.")
 
     for state in output_states:
         print(f"\nProcessing State: {state} ...")
@@ -301,8 +298,8 @@ def main():
         df_state = df.loc[flat_indices].copy()
         print(f"  Selected {len(df_state)} events for {state}")
         
-        # 3. Predict xG (if not 5v5)
-        if state != '5v5' and state in models:
+        # 3. Predict xG (using Unified Model)
+        if model is not None:
              print(f"  Predicting xG for {state}...")
              # Need opp_team_name for Dual Model
              def get_opp_name(row):
@@ -310,17 +307,12 @@ def main():
                  return row['home_abb']
              df_state['opp_team_name'] = df_state.apply(get_opp_name, axis=1)
              
-             # FORCE Correct Game State for Model
-             # If data is mislabeled '5v5', model predicts low xG.
-             # We trust the Interval State.
-             if state == '5v4':
-                 # Home is 5v4 (Advantage). Away is 4v5 (Disadvantage).
-                 df_state['game_state'] = np.where(df_state['team_name'] == df_state['home_abb'], '5v4', '4v5')
-             elif state == '4v5':
-                 # Home is 4v5 (Disadvantage). Away is 5v4 (Advantage).
-                 df_state['game_state'] = np.where(df_state['team_name'] == df_state['home_abb'], '4v5', '5v4')
-                 
-             probs = models[state].predict_proba(df_state)[:, 1]
+             # Map off/def for StateMixedEffectsModel
+             df_pred = df_state.copy()
+             df_pred['off_team_name'] = df_pred['team_name']
+             df_pred['def_team_name'] = df_pred['opp_team_name']
+             
+             probs = model.predict_proba(df_pred)[:, 1]
              df_state['xgs'] = probs
         else:
              # For 5v5, we don't have a specific model trained in this loop.

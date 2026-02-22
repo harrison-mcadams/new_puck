@@ -91,7 +91,7 @@ def main():
         df['is_goal'] = df['event'].apply(lambda x: 1 if str(x).lower() == 'goal' else 0)
     
     # 3. Load Mixed Effects Model
-    model_path = "analysis/xgs/mixed_effects_v2.joblib"
+    model_path = "analysis/xgs/joint_mixed_effects.joblib"
     print(f"Loading Mixed Effects Model from {model_path}...")
     mixed = joblib.load(model_path)
     

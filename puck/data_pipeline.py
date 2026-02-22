@@ -316,8 +316,8 @@ def preprocess_features(df_input: pd.DataFrame,
     # B) Imputed Origins (for blocked shots)
     # Using raw 'x' would calculate metrics to the Block Location, causing leakage.
     
-    calc_x = df['x_adj'] if 'x_adj' in df.columns else df['x']
-    calc_y = df['y_adj'] if 'y_adj' in df.columns else df['y']
+    calc_x = pd.to_numeric(df['x_adj'] if 'x_adj' in df.columns else df['x'], errors='coerce')
+    calc_y = pd.to_numeric(df['y_adj'] if 'y_adj' in df.columns else df['y'], errors='coerce')
     
     # x_adj is Standardized to Right Attack (Net at 89)
     # y_adj is Standardized (-42.5 to 42.5)
