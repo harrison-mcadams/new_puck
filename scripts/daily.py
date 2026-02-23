@@ -296,6 +296,15 @@ def main():
             subprocess.run([sys.executable, league_script, '--season', season, 
                            '--condition', cond, '--vmax', str(vmax_c)], check=True)
 
+    # 5. Mixed Effects Summaries
+    print("\n[5/5] Generating Mixed Effects Summaries...")
+    plot_mixed_script = os.path.join(script_dir, 'plot_mixed_effects_summaries.py')
+    if os.path.exists(plot_mixed_script):
+        try:
+            subprocess.run([sys.executable, plot_mixed_script], check=True)
+        except Exception as e:
+            print(f"Warning: Failed to generate mixed effects summaries: {e}")
+
     print("\n--- Daily Update Complete ---")
 
 if __name__ == "__main__":

@@ -102,6 +102,7 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
     # We will add columns: 'xg_home_context', 'xg_away_context'
     events_bank['xg_home_context'] = 0.0
     events_bank['xg_away_context'] = 0.0
+    events_bank['xg_league_context'] = 0.0
     
     for state in ['5v5', '5v4', '4v5']:
         mask = events_bank['game_state'] == state
@@ -114,8 +115,6 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         df_home = df_state.copy()
         df_home['off_team_name'] = home_team
         df_home['def_team_name'] = away_team
-        # Ensure dummy columns for GLM exist (fill 0 if missing in export, shouldn't happen with full export)
-        # Predict uses global model now, handles states internally
         probs_home = model.predict_proba(df_home)[:, 1]
         events_bank.loc[mask, 'xg_home_context'] = probs_home
         
@@ -123,9 +122,15 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         df_away = df_state.copy()
         df_away['off_team_name'] = away_team
         df_away['def_team_name'] = home_team
-        # Predict uses global model now, handles states internally
         probs_away = model.predict_proba(df_away)[:, 1]
         events_bank.loc[mask, 'xg_away_context'] = probs_away
+        
+        # 3. League Context (Average vs Average)
+        df_league = df_state.copy()
+        df_league['off_team_name'] = 'Average'
+        df_league['def_team_name'] = 'Average'
+        probs_league = model.predict_proba(df_league)[:, 1]
+        events_bank.loc[mask, 'xg_league_context'] = probs_league
         
     print("Pre-calculation complete.")
     return events_bank
@@ -204,53 +209,175 @@ def simulate_matchup(home, away, season, n_sims=1000):
     print("Loading empirical data and models...")
     model, grids, stats, events_bank = load_assets(season)
     
+    # --- PRE-CALCULATION ---
+    if events_bank is not None:
+        events_bank = precalculate_matchup_xg(events_bank, model, home, away)
+    else:
+        print("ERROR: Events bank is required for density calculation now.")
+        return
+
     # Grid Edges
     BIN_X = np.linspace(-100, 100, 201) 
     BIN_Y = np.linspace(-42.5, 42.5, 86)
     
     # --- PREPARE RATES & DENSITIES (Once per matchup) ---
     
-    # 1. 5v5
     duration_5v5_min = 48.0
+    duration_pp_min = 6.0
     
     # Home 5v5 Rates
     h_cf60 = stats[home]['5v5']['attempts_for'] / (stats[home]['5v5']['seconds']/3600) if stats[home]['5v5']['seconds'] else 60.0
     a_ca60 = stats[away]['5v5']['attempts_against'] / (stats[away]['5v5']['seconds']/3600) if stats[away]['5v5']['seconds'] else 60.0
     rate_h_5v5 = np.sqrt(h_cf60 * a_ca60) * (duration_5v5_min/60)
     
-    # Flip Def Grid (Stored on Right) to match Off Grid (Stored on Left)
-    dens_h_5v5 = get_matchup_density(grids[home]['5v5']['grid_for'], np.fliplr(grids[away]['5v5']['grid_against']), BIN_X, BIN_Y)
-    
     # Away 5v5 Rates
     a_cf60 = stats[away]['5v5']['attempts_for'] / (stats[away]['5v5']['seconds']/3600) if stats[away]['5v5']['seconds'] else 60.0
     h_ca60 = stats[home]['5v5']['attempts_against'] / (stats[home]['5v5']['seconds']/3600) if stats[home]['5v5']['seconds'] else 60.0
     rate_a_5v5 = np.sqrt(a_cf60 * h_ca60) * (duration_5v5_min/60)
-    
-    dens_a_5v5 = get_matchup_density(grids[away]['5v5']['grid_for'], np.fliplr(grids[home]['5v5']['grid_against']), BIN_X, BIN_Y)
-    
-    # 2. Special Teams (Assume 6 mins PP each)
-    duration_pp_min = 6.0
     
     # Home PP
     h_pp_cf60 = stats[home]['5v4']['attempts_for'] / (stats[home]['5v4']['seconds']/3600) if stats[home]['5v4']['seconds'] else 60.0
     a_pk_ca60 = stats[away]['4v5']['attempts_against'] / (stats[away]['4v5']['seconds']/3600) if stats[away]['4v5']['seconds'] else 60.0
     rate_h_pp = np.sqrt(h_pp_cf60 * a_pk_ca60) * (duration_pp_min/60)
     
-    dens_h_pp = get_matchup_density(grids[home]['5v4']['grid_for'], np.fliplr(grids[away]['4v5']['grid_against']), BIN_X, BIN_Y)
-    
     # Away PP
     a_pp_cf60 = stats[away]['5v4']['attempts_for'] / (stats[away]['5v4']['seconds']/3600) if stats[away]['5v4']['seconds'] else 60.0
     h_pk_ca60 = stats[home]['4v5']['attempts_against'] / (stats[home]['4v5']['seconds']/3600) if stats[home]['4v5']['seconds'] else 60.0
     rate_a_pp = np.sqrt(a_pp_cf60 * h_pk_ca60) * (duration_pp_min/60)
     
-    dens_a_pp = get_matchup_density(grids[away]['5v4']['grid_for'], np.fliplr(grids[home]['4v5']['grid_against']), BIN_X, BIN_Y)
-    
     print(f"  {home} 5v5: {rate_h_5v5:.1f}, PP: {rate_h_pp:.1f}")
     print(f"  {away} 5v5: {rate_a_5v5:.1f}, PP: {rate_a_pp:.1f}")
     
-    # --- PRE-CALCULATION ---
-    if events_bank is not None:
-        events_bank = precalculate_matchup_xg(events_bank, model, home, away)
+    # Densities from Events Bank (5v5)
+    print("  Generating High-Fidelity Matchup Density (5v5)...")
+    mask_5v5 = events_bank['game_state'] == '5v5'
+    
+    # We want Home Density = Shots BY Home + Shots AGAINST Away
+    # We want Away Density = Shots BY Away + Shots AGAINST Home
+    
+    mask_h_for = (events_bank['team_name'] == home)
+    mask_a_ag = (events_bank['opp_team_name'] == away)
+    mask_home_density = mask_5v5 & (mask_h_for | mask_a_ag)
+    
+    mask_a_for = (events_bank['team_name'] == away)
+    mask_h_ag = (events_bank['opp_team_name'] == home)
+    mask_away_density = mask_5v5 & (mask_a_for | mask_h_ag)
+    
+    # 1. Total League Seconds (Scale to per 60)
+    # The events bank contains all shots. To scale to a "per pixel per 60 minutes" rate,
+    # we need the total 5v5 seconds played by all teams.
+    # We can get this from the stats summary.
+    total_league_seconds_5v5 = sum(t.get('5v5', {}).get('seconds', 0) for t in stats.values())
+    if total_league_seconds_5v5 <= 0:
+        print("ERROR: Could not calculate total league seconds for 5v5 from stats summary.")
+        return
+        
+    scale_factor_league = 3600.0 / total_league_seconds_5v5
+    
+    # We also need Team Seconds to scale the team-specific densities correctly
+    # Home Density uses events from Home games OR Away games.
+    # We should scale it by the combined 5v5 seconds of Home + Away (approx 2 team-games worth).
+    # But wait, Home Offense + Away Defense is 2 'team-seasons' worth of shots.
+    # So we want to divide by (Home Seconds + Away Seconds).
+    home_sec = stats[home]['5v5']['seconds'] if stats[home]['5v5']['seconds'] else 1.0
+    away_sec = stats[away]['5v5']['seconds'] if stats[away]['5v5']['seconds'] else 1.0
+    scale_factor_matchup = 3600.0 / (home_sec + away_sec)
+    
+    # Home Density
+    x_h = events_bank.loc[mask_home_density, 'x_adj'].values
+    y_h = events_bank.loc[mask_home_density, 'y_adj'].values
+    w_h_matchup = events_bank.loc[mask_home_density, 'xg_home_context'].values
+    H_home, _, _ = np.histogram2d(x_h, y_h, bins=[BIN_X, BIN_Y], weights=w_h_matchup)
+    dens_h_raw = H_home.T * scale_factor_matchup * 100.0 
+    
+    # Away Density
+    x_a = events_bank.loc[mask_away_density, 'x_adj'].values
+    y_a = events_bank.loc[mask_away_density, 'y_adj'].values
+    w_a_matchup = events_bank.loc[mask_away_density, 'xg_away_context'].values
+    H_away, _, _ = np.histogram2d(x_a, y_a, bins=[BIN_X, BIN_Y], weights=w_a_matchup)
+    dens_a_raw = H_away.T * scale_factor_matchup * 100.0
+    
+    # League Density (All 5v5 Shots)
+    x_l = events_bank.loc[mask_5v5, 'x_adj'].values
+    y_l = events_bank.loc[mask_5v5, 'y_adj'].values
+    w_l_base = events_bank.loc[mask_5v5, 'xg_league_context'].values
+    H_league, _, _ = np.histogram2d(x_l, y_l, bins=[BIN_X, BIN_Y], weights=w_l_base)
+    dens_l_raw = H_league.T * scale_factor_league * 100.0
+    
+    # Convert to Rate per 60 per pixel
+    # Then subtract the League Average Rate per pixel to get the Difference Map
+    dens_h_5v5 = dens_h_raw - dens_l_raw
+    dens_a_5v5 = dens_a_raw - dens_l_raw
+    
+    # --- Densities from Events Bank (PP) ---
+    print("  Generating High-Fidelity Matchup Density (PP)...")
+    
+    # League PP Time (5v4 represents all PP time because 1 team is always 5v4)
+    total_league_seconds_pp = sum(t.get('5v4', {}).get('seconds', 0) for t in stats.values())
+    if total_league_seconds_pp <= 0: total_league_seconds_pp = 1.0
+    scale_factor_league_pp = 3600.0 / total_league_seconds_pp
+    
+    # Team PP Time Setup
+    home_pp_sec = stats[home]['5v4']['seconds'] if stats[home]['5v4']['seconds'] else 1.0
+    away_pk_sec = stats[away]['4v5']['seconds'] if stats[away]['4v5']['seconds'] else 1.0
+    scale_factor_matchup_h_pp = 3600.0 / (home_pp_sec + away_pk_sec)
+    
+    away_pp_sec = stats[away]['5v4']['seconds'] if stats[away]['5v4']['seconds'] else 1.0
+    home_pk_sec = stats[home]['4v5']['seconds'] if stats[home]['4v5']['seconds'] else 1.0
+    scale_factor_matchup_a_pp = 3600.0 / (away_pp_sec + home_pk_sec)
+    
+    # Masks for Home PP Density (Home shooting on PP + Away defending on PK)
+    mask_home_pp_density = ((events_bank['team_name'] == home) & (events_bank['game_state'] == '5v4')) | \
+                           ((events_bank['opp_team_name'] == away) & (events_bank['game_state'] == '5v4'))
+                           
+    # Masks for Away PP Density (Away shooting on PP + Home defending on PK)
+    mask_away_pp_density = ((events_bank['team_name'] == away) & (events_bank['game_state'] == '5v4')) | \
+                           ((events_bank['opp_team_name'] == home) & (events_bank['game_state'] == '5v4'))
+                           
+    # Masks for League PP Density (Any team shooting on PP)
+    mask_league_pp_shots = (events_bank['game_state'] == '5v4')
+
+    # Calculate Home PP Density
+    x_h_pp = events_bank.loc[mask_home_pp_density, 'x_adj'].values
+    y_h_pp = events_bank.loc[mask_home_pp_density, 'y_adj'].values
+    w_h_pp = events_bank.loc[mask_home_pp_density, 'xg_home_context'].values
+    H_h_pp, _, _ = np.histogram2d(x_h_pp, y_h_pp, bins=[BIN_X, BIN_Y], weights=w_h_pp)
+    dens_h_pp_raw = H_h_pp.T * scale_factor_matchup_h_pp * 100.0
+    
+    # Calculate Away PP Density
+    x_a_pp = events_bank.loc[mask_away_pp_density, 'x_adj'].values
+    y_a_pp = events_bank.loc[mask_away_pp_density, 'y_adj'].values
+    w_a_pp = events_bank.loc[mask_away_pp_density, 'xg_away_context'].values
+    H_a_pp, _, _ = np.histogram2d(x_a_pp, y_a_pp, bins=[BIN_X, BIN_Y], weights=w_a_pp)
+    dens_a_pp_raw = H_a_pp.T * scale_factor_matchup_a_pp * 100.0
+    
+    # Calculate League Base PP Density
+    x_l_pp = events_bank.loc[mask_league_pp_shots, 'x_adj'].values
+    y_l_pp = events_bank.loc[mask_league_pp_shots, 'y_adj'].values
+    w_l_pp = events_bank.loc[mask_league_pp_shots, 'xg_league_context'].values
+    H_l_pp, _, _ = np.histogram2d(x_l_pp, y_l_pp, bins=[BIN_X, BIN_Y], weights=w_l_pp)
+    dens_l_pp_raw = H_l_pp.T * scale_factor_league_pp * 100.0
+    
+    dens_h_pp = dens_h_pp_raw - dens_l_pp_raw
+    dens_a_pp = dens_a_pp_raw - dens_l_pp_raw
+
+    # We no longer need the league dens passing into the plotter because the grids are already differences
+    league_dens_5v5 = None
+    
+    # Store density components for the dashboard
+    density_stats = {
+        'h_matchup_xg': w_h_matchup.sum(),
+        'a_matchup_xg': w_a_matchup.sum(),
+        'h_matchup_sec': home_sec + away_sec,
+        'a_matchup_sec': home_sec + away_sec,
+        'l_base_xg': w_l_base.sum(),
+        'l_base_sec': total_league_seconds_5v5,
+        
+        'h_pp_matchup_xg': w_h_pp.sum(),
+        'a_pp_matchup_xg': w_a_pp.sum(),
+        'h_pp_matchup_sec': home_pp_sec + away_pk_sec,
+        'a_pp_matchup_sec': away_pp_sec + home_pk_sec,
+    }
     
     # --- SIMULATION LOOP ---
     
@@ -272,64 +399,42 @@ def simulate_matchup(home, away, season, n_sims=1000):
         n_h_pp = poisson.rvs(rate_h_pp)
         n_a_pp = poisson.rvs(rate_a_pp)
         
-        # 2. Generate Shots & Predict
-        # Use Helper to handle empty batches gracefully
-        def sim_batch_precalc(n, team_is_home, state):
-            if n <= 0: return 0.0, 0, 0  # xg, sim_goals, actual_goals
-            
-            # Sample pre-calculated events
-            shots_df = sample_team_shots_precalc(events_bank, team_is_home, state, n)
-            
-            if shots_df is None or len(shots_df) == 0:
-                return 0.0, 0, 0
-            
-            # Count actual goals from sampled events (for debugging)
-            actual_goals = 0
-            if 'event' in shots_df.columns:
-                actual_goals = (shots_df['event'] == 'goal').sum()
-            
-            # Use Pre-Calculated xG
-            probs = shots_df['xgs'].values
-                
-            # Sim Outcome (Bernoulli on xG)
-            sim_goals = np.sum(np.random.rand(n) < probs)
-            xg_sum = np.sum(probs)
-            return xg_sum, sim_goals, actual_goals
-
-
-        xg_h_5, g_h_5, actual_h_5 = sim_batch_precalc(n_h_5v5, True, '5v5')
-        xg_a_5, g_a_5, actual_a_5 = sim_batch_precalc(n_a_5v5, False, '5v5')
+        # 2. Draw Probabilities from pre-calculated context
+        # Handle cases where n is 0 to avoid errors with np.random.choice on empty arrays
+        xg_h_5v5 = np.random.choice(events_bank.loc[mask_5v5, 'xg_home_context'].values, n_h_5v5, replace=True) if n_h_5v5 > 0 else np.array([])
+        xg_a_5v5 = np.random.choice(events_bank.loc[mask_5v5, 'xg_away_context'].values, n_a_5v5, replace=True) if n_a_5v5 > 0 else np.array([])
         
-        xg_h_p, g_h_p, actual_h_p = sim_batch_precalc(n_h_pp, True, '5v4')
-        xg_a_p, g_a_p, actual_a_p = sim_batch_precalc(n_a_pp, False, '4v5')  # Away PP = global state '4v5' (home shorthanded)
-
+        mask_5v4 = events_bank['game_state'] == '5v4'
+        xg_h_pp = np.random.choice(events_bank.loc[mask_5v4, 'xg_home_context'].values, n_h_pp, replace=True) if n_h_pp > 0 else np.array([])
         
-        # Aggregate
-        sim_results['h_goals'].append(g_h_5 + g_h_p)
-        sim_results['a_goals'].append(g_a_5 + g_a_p)
-        sim_results['h_xg'].append(xg_h_5 + xg_h_p)
-        sim_results['a_xg'].append(xg_a_5 + xg_a_p)
+        mask_4v5 = events_bank['game_state'] == '4v5'
+        xg_a_pp = np.random.choice(events_bank.loc[mask_4v5, 'xg_away_context'].values, n_a_pp, replace=True) if n_a_pp > 0 else np.array([])
         
-        # Track breakdown
+        # 3. Simulate Goals
+        h_5v5_goals = np.sum(np.random.rand(n_h_5v5) < xg_h_5v5)
+        a_5v5_goals = np.sum(np.random.rand(n_a_5v5) < xg_a_5v5)
+        h_pp_goals = np.sum(np.random.rand(n_h_pp) < xg_h_pp)
+        a_pp_goals = np.sum(np.random.rand(n_a_pp) < xg_a_pp)
+        
+        h_total = h_5v5_goals + h_pp_goals
+        a_total = a_5v5_goals + a_pp_goals
+        
+        sim_results['h_goals'].append(h_total)
+        sim_results['a_goals'].append(a_total)
+        sim_results['h_xg'].append(xg_h_5v5.sum() + xg_h_pp.sum())
+        sim_results['a_xg'].append(xg_a_5v5.sum() + xg_a_pp.sum())
+        
+        # For breakdown (optional)
         if 'h_xg_5v5' not in sim_results:
             sim_results['h_xg_5v5'] = []
-            sim_results['h_xg_pp'] = []
             sim_results['a_xg_5v5'] = []
+            sim_results['h_xg_pp'] = []
             sim_results['a_xg_pp'] = []
-            sim_results['h_actual_5v5'] = []  # Actual goals from sampled events
-            sim_results['a_actual_5v5'] = []
-            sim_results['h_actual_pp'] = []
-            sim_results['a_actual_pp'] = []
-        sim_results['h_xg_5v5'].append(xg_h_5)
-        sim_results['h_xg_pp'].append(xg_h_p)
-        sim_results['a_xg_5v5'].append(xg_a_5)
-        sim_results['a_xg_pp'].append(xg_a_p)
-        sim_results['h_actual_5v5'].append(actual_h_5)
-        sim_results['a_actual_5v5'].append(actual_a_5)
-        sim_results['h_actual_pp'].append(actual_h_p)
-        sim_results['a_actual_pp'].append(actual_a_p)
-
-
+        sim_results['h_xg_5v5'].append(xg_h_5v5.sum())
+        sim_results['a_xg_5v5'].append(xg_a_5v5.sum())
+        sim_results['h_xg_pp'].append(xg_h_pp.sum())
+        sim_results['a_xg_pp'].append(xg_a_pp.sum())
+        
     print(f"  Sim 100% Complete ({time.time()-start_time:.1f}s)")
     
     # --- ANALYSIS ---
@@ -344,43 +449,16 @@ def simulate_matchup(home, away, season, n_sims=1000):
     wins_h += ties * 0.5
     wins_a += ties * 0.5
     
-    print(f"\\n--- Final Results ({n_sims} Games) ---")
+    print(f"\n--- Final Results ({n_sims} Games) ---")
     print(f"Win Prob: {home} {100*wins_h/n_sims:.1f}% | {away} {100*wins_a/n_sims:.1f}%")
     print(f"Mean Score: {home} {np.mean(h_goals):.2f} - {away} {np.mean(a_goals):.2f}")
     print(f"Mean xG:    {home} {np.mean(sim_results['h_xg']):.2f} - {away} {np.mean(sim_results['a_xg']):.2f}")
     
     # Show breakdown
     if 'h_xg_5v5' in sim_results:
-        print(f"\\nxG Breakdown (Mean):")
+        print(f"\nxG Breakdown (Mean):")
         print(f"  {home}: 5v5={np.mean(sim_results['h_xg_5v5']):.2f}, PP={np.mean(sim_results['h_xg_pp']):.2f}")
         print(f"  {away}: 5v5={np.mean(sim_results['a_xg_5v5']):.2f}, PP={np.mean(sim_results['a_xg_pp']):.2f}")
-        
-        if 'h_actual_5v5' in sim_results:
-            print(f"\\n[DEBUG] Actual Goals from Sampled Events (Mean):")
-            print(f"  {home}: 5v5={np.mean(sim_results['h_actual_5v5']):.2f}, PP={np.mean(sim_results['h_actual_pp']):.2f}")
-            print(f"  {away}: 5v5={np.mean(sim_results['a_actual_5v5']):.2f}, PP={np.mean(sim_results['a_actual_pp']):.2f}")
-            print(f"  (These are goals that actually happened in the sampled historical events)")
-
-    # --- LEAGUE BASELINE ---
-    print("  Calculating League Baseline Density...")
-    l_grid_for = np.zeros_like(grids[home]['5v5']['grid_for'])
-    l_grid_ag = np.zeros_like(grids[home]['5v5']['grid_against'])
-    n_teams = 0
-    for t in grids:
-        if '5v5' in grids[t]:
-            l_grid_for += grids[t]['5v5']['grid_for']
-            l_grid_ag += grids[t]['5v5']['grid_against']
-            n_teams += 1
-    
-    if n_teams > 0:
-        l_grid_for /= n_teams
-        l_grid_ag /= n_teams
-        
-    # League Benchmarks (Flip defense just like matchups)
-    league_dens_5v5 = get_matchup_density(l_grid_for, np.fliplr(l_grid_ag), BIN_X, BIN_Y)
-    
-    # Avoid div by zero in relative calc
-    league_dens_5v5 = np.maximum(league_dens_5v5, 1e-6)
 
     # --- DASHBOARD PLOTTING ---
     out_dir = Path(f"analysis/matchups")
@@ -388,16 +466,18 @@ def simulate_matchup(home, away, season, n_sims=1000):
     
     plot_matchup_dashboard(
         home, away, 
-        sim_results, 
-        dens_h_5v5, dens_a_5v5, league_dens_5v5,
+        sim_results, density_stats,
+        dens_h_5v5, dens_a_5v5, dens_h_pp, dens_a_pp,
         out_dir / f"matchup_dashboard_{home}_{away}.png"
     )
 
-def plot_matchup_dashboard(home, away, results, dens_h, dens_a, league_dens, out_path):
+def plot_matchup_dashboard(home, away, results, density_stats, dens_h_5v5, dens_a_5v5, dens_h_pp, dens_a_pp, out_path):
     """Generate a single-page summary dashboard for the matchup (Relative to League)."""
     import matplotlib.gridspec as gridspec
     from scipy.ndimage import gaussian_filter
-    from puck.rink import draw_rink, RINK_LENGTH, RINK_WIDTH, rink_half_height_at_x
+    from puck.rink import draw_rink, rink_half_height_at_x
+    import matplotlib.ticker as ticker
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
     
     # Process Results
     h_goals = np.array(results['h_goals'])
@@ -416,98 +496,123 @@ def plot_matchup_dashboard(home, away, results, dens_h, dens_a, league_dens, out
     prob_h = (wins_h + ties * 0.5) / len(h_goals) * 100
     prob_a = (wins_a + ties * 0.5) / len(a_goals) * 100
     
-    # Setup Figure
-    fig = plt.figure(figsize=(16, 12))
-    gs = gridspec.GridSpec(3, 2, height_ratios=[0.15, 0.45, 0.4])
+    # Setup Figure (4 Rows now)
+    fig = plt.figure(figsize=(16, 17))
+    gs = gridspec.GridSpec(4, 2, height_ratios=[0.15, 0.3, 0.3, 0.25])
     fig.suptitle(f"Matchup Preview: {home} vs {away}", fontsize=24, fontweight='bold', y=0.98)
     
     # 1. SCORE HEADER (Top Row Spanning)
     ax_score = fig.add_subplot(gs[0, :])
     ax_score.axis('off')
     
-    score_text = (
-        f"Projected Score\\n"
-        f"{home} {mean_h:.1f} - {mean_a:.1f} {away}"
-    )
-    ax_score.text(0.5, 0.5, score_text, ha='center', va='center', fontsize=20, weight='bold')
+    # Calculate Dashboard Stats
+    h_sec = density_stats['h_matchup_sec']
+    a_sec = density_stats['a_matchup_sec']
+    h_xg_raw = density_stats['h_matchup_xg']
+    a_xg_raw = density_stats['a_matchup_xg']
     
-    ax_score.text(0.2, 0.5, f"{home} Win\\n{prob_h:.1f}%", ha='center', va='center', fontsize=16, color='blue')
-    ax_score.text(0.8, 0.5, f"{away} Win\\n{prob_a:.1f}%", ha='center', va='center', fontsize=16, color='orange')
+    h_comp_rate = (h_xg_raw / h_sec) * 3600 if h_sec > 0 else 0
+    a_comp_rate = (a_xg_raw / a_sec) * 3600 if a_sec > 0 else 0
     
-    # 2. RELATIVE HEATMAP (Merged Rink)
+    h_pp_sec = density_stats['h_pp_matchup_sec']
+    a_pp_sec = density_stats['a_pp_matchup_sec']
+    h_pp_xg_raw = density_stats['h_pp_matchup_xg']
+    a_pp_xg_raw = density_stats['a_pp_matchup_xg']
+    
+    h_pp_comp_rate = (h_pp_xg_raw / h_pp_sec) * 3600 if h_pp_sec > 0 else 0
+    a_pp_comp_rate = (a_pp_xg_raw / a_pp_sec) * 3600 if a_pp_sec > 0 else 0
+    
+    mean_h_xg = np.mean(h_xg)
+    mean_a_xg = np.mean(a_xg)
+    mean_h_5 = np.mean(results.get('h_xg_5v5', [0]))
+    mean_h_p = np.mean(results.get('h_xg_pp', [0]))
+    mean_a_5 = np.mean(results.get('a_xg_5v5', [0]))
+    mean_a_p = np.mean(results.get('a_xg_pp', [0]))
+    
+    spread = mean_a - mean_h
+    favorite = home if spread < 0 else away
+    spread_val = abs(spread)
+    
+    # CENTER: Score and Spread
+    ax_score.text(0.5, 0.7, f"Projected Score\n{home} {mean_h:.1f} - {mean_a:.1f} {away}", ha='center', va='center', fontsize=20, weight='bold')
+    ax_score.text(0.5, 0.3, f"Spread: {favorite} -{spread_val:.1f}   |   Total: {mean_h+mean_a:.1f}", ha='center', va='center', fontsize=14, color='darkred')
+    
+    # LEFT: Home Stats
+    ax_score.text(0.2, 0.8, f"{home} Win: {prob_h:.1f}%", ha='center', va='center', fontsize=16, color='blue', weight='bold')
+    ax_score.text(0.2, 0.5, f"Projected xG: {mean_h_xg:.2f}\n(5v5: {mean_h_5:.2f}  |  PP: {mean_h_p:.2f})", ha='center', va='center', fontsize=12)
+    ax_score.text(0.2, 0.2, f"Base Rates (xtG/60) -> 5v5: {h_comp_rate:.1f} | PP: {h_pp_comp_rate:.1f}", ha='center', va='center', fontsize=11, color='dimgray')
+    
+    # RIGHT: Away Stats
+    ax_score.text(0.8, 0.8, f"{away} Win: {prob_a:.1f}%", ha='center', va='center', fontsize=16, color='orange', weight='bold')
+    ax_score.text(0.8, 0.5, f"Projected xG: {mean_a_xg:.2f}\n(5v5: {mean_a_5:.2f}  |  PP: {mean_a_p:.2f})", ha='center', va='center', fontsize=12)
+    ax_score.text(0.8, 0.2, f"Base Rates (xtG/60) -> 5v5: {a_comp_rate:.1f} | PP: {a_pp_comp_rate:.1f}", ha='center', va='center', fontsize=11, color='dimgray')
+    
+    # --- HEATMAP HELPER ---
     extent = [-100, 100, -42.5, 42.5]
-    ax_rink = fig.add_subplot(gs[1, :]) # Span middle row
-    draw_rink(ax_rink, show_goals=True)
     
-    ax_rink.set_title(f"Matchup Density vs League Average\\n(Left: {home} Offense | Right: {away} Offense)", fontsize=14)
-    
-    # Compute Relative Density (Ratio). 1.0 = Average.
-    # Handle potential zeros in league_dens (already clamped to 1e-6 but good to be safe)
-    with np.errstate(divide='ignore', invalid='ignore'):
-        rel_h = dens_h / league_dens
-        rel_a = dens_a / league_dens
-    
-    # Flip Away to show on Right side (since it was calculated relative to Home Def on Left)
-    rel_a_flipped = np.fliplr(rel_a)
-    
-    # Create Masked Merged Grid
-    # Left Side: Home (Cols 0-90 approx, covering -100 to -10)
-    # Right Side: Away (Cols 110-200 approx, covering 10 to 100)
-    # Center (90-110): Masked
-    
-    # --- MASKS ---
-    rows, cols = rel_h.shape
-    xs = np.linspace(-100, 100, cols)
-    ys = np.linspace(-42.5, 42.5, rows)
-    X, Y = np.meshgrid(xs, ys)
-    
-    # 1. Rink Boundary Mask
-    # Check Y against rink half-height at each X
-    v_rink_half_height = np.vectorize(rink_half_height_at_x)
-    max_y = v_rink_half_height(X)
-    mask_rink = np.abs(Y) > max_y
-    
-    # 2. Neutral Zone Mask (|X| < 25)
-    mask_neutral = np.abs(X) < 25
-    
-    # Combine Masks
-    full_mask = mask_rink | mask_neutral
-    
-    # --- SMOOTHING ---
-    sigma = 1.5
-    smooth_h = gaussian_filter(rel_h, sigma=sigma)
-    smooth_a = gaussian_filter(rel_a_flipped, sigma=sigma)
-    
-    # --- MERGE ---
-    final_data = np.full_like(smooth_h, np.nan)
-    
-    # Left Half
-    final_data[:, :100] = smooth_h[:, :100]
-    # Right Half
-    final_data[:, 100:] = smooth_a[:, 100:]
-    
-    # Apply Mask
-    final_masked = np.ma.masked_where(full_mask, final_data)
-    
-    # Plot using Diverging Colormap (Blue < 1.0 < Red)
-    # vmin=0.0 means 0 density (Cold). 1.0 is White. 2.5 is 2.5x Average (Hot).
-    im = ax_rink.imshow(final_masked, extent=extent, origin='lower', cmap='coolwarm', vmin=0.0, vmax=2.5, zorder=1)
-    
-    cbar = plt.colorbar(im, ax=ax_rink, fraction=0.02, pad=0.04)
-    cbar.set_label("Relative Density (1.0 = League Avg)", fontsize=10)
-    
-    # Annotations
-    ax_rink.text(-60, 0, f"{home}\\nOffense", ha='center', va='center', fontsize=20, alpha=0.3, fontweight='bold', color='blue')
-    ax_rink.text(60, 0, f"{away}\\nOffense", ha='center', va='center', fontsize=20, alpha=0.3, fontweight='bold', color='orange')
+    def render_heatmap_row(ax, h_grid, a_grid, title, vmax=0.02):
+        draw_rink(ax, show_goals=True)
+        ax.set_title(title, fontsize=14)
+        
+        sigma = 6.0
+        smooth_h = gaussian_filter(np.fliplr(h_grid), sigma=sigma)
+        smooth_a = gaussian_filter(a_grid, sigma=sigma)
+        
+        rows, cols = smooth_h.shape
+        xs = np.linspace(-100, 100, cols)
+        ys = np.linspace(-42.5, 42.5, rows)
+        X, Y = np.meshgrid(xs, ys)
+        
+        v_rink_half_height = np.vectorize(rink_half_height_at_x)
+        max_y = v_rink_half_height(X)
+        mask_rink = np.abs(Y) > max_y
+        mask_neutral = np.abs(X) < 25
+        full_mask = mask_rink | mask_neutral
+        
+        final_data = np.full_like(smooth_h, np.nan)
+        final_data[:, :100] = smooth_h[:, :100]
+        final_data[:, 100:] = smooth_a[:, 100:]
+        
+        final_masked = np.ma.masked_where(full_mask, final_data)
+        
+        im = ax.imshow(final_masked, extent=extent, origin='lower', cmap='coolwarm', vmin=-vmax, vmax=vmax, zorder=1)
+        
+        ax.set_facecolor('white')
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="2%", pad=0.05)
+        
+        cbar = fig.colorbar(im, cax=cax)
+        tick_vals = [-vmax, -vmax/2, 0, vmax/2, vmax]
+        cbar.locator = ticker.FixedLocator(tick_vals)
+        cbar.update_ticks()
+        cbar.set_label("Excess xG/60 (per 100 sq ft)", rotation=270, labelpad=15)
+        
+        ax.axis('off')
+        ax.set_frame_on(False)
+        
+        ax.text(-60, 0, f"{home}\nOffense", ha='center', va='center', fontsize=20, alpha=0.3, fontweight='bold', color='blue')
+        ax.text(60, 0, f"{away}\nOffense", ha='center', va='center', fontsize=20, alpha=0.3, fontweight='bold', color='orange')
 
-    # 3. SCORE DISTRIBUTION (Bottom Row Spanning)
-    ax_dist = fig.add_subplot(gs[2, :])
+    # 2. RELATIVE HEATMAP (5v5)
+    ax_rink_5v5 = fig.add_subplot(gs[1, :])
+    render_heatmap_row(ax_rink_5v5, dens_h_5v5, dens_a_5v5, "5v5 Matchup Density vs League Average\n(Left: Home Expected Goals | Right: Away Expected Goals)", vmax=0.02)
+    
+    # 3. RELATIVE HEATMAP (PP)
+    ax_rink_pp = fig.add_subplot(gs[2, :])
+    # The user typically expects the Power Play maps to pop more heavily. 0.05 or 0.08 is a standard PP vmax. 
+    # Let's keep it to 0.04 to give it some room since PP densities are much higher than 5v5 densities per 60.
+    render_heatmap_row(ax_rink_pp, dens_h_pp, dens_a_pp, "Power Play Matchup Density vs League Average\n(Left: Home Offense | Right: Away Offense)", vmax=0.04)
+    
+    fig.patch.set_facecolor('white')
+    
+    # 4. SCORE DISTRIBUTION
+    ax_dist = fig.add_subplot(gs[3, :])
     
     bins = np.linspace(0, max(h_xg.max(), a_xg.max()) + 1, 50)
-    ax_dist.hist(h_xg, bins=bins, alpha=0.6, label=f"{home} xG", color='blue', density=True)
-    ax_dist.hist(a_xg, bins=bins, alpha=0.6, label=f"{away} xG", color='orange', density=True)
+    ax_dist.hist(h_xg, bins=bins, alpha=0.6, label=f"{home} Total xG", color='blue', density=True)
+    ax_dist.hist(a_xg, bins=bins, alpha=0.6, label=f"{away} Total xG", color='orange', density=True)
     
-    ax_dist.set_title(f"Simulated xG Distribution", fontsize=14)
+    ax_dist.set_title(f"Simulated Matches xG Distribution", fontsize=14)
     ax_dist.legend()
     ax_dist.grid(True, alpha=0.3)
     
