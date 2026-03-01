@@ -188,6 +188,13 @@ def run_analysis():
         print(f"Warning: Failed to load league baseline (maybe run league stats first?): {e}")
         league_map = None
         league_map_right = None
+        
+    try:
+        league_map_xtg = np.load(os.path.join(baseline_path, f'{season}_league_baseline_xtg.npy')) / 3600.0
+        league_map_xtg_right = np.load(os.path.join(baseline_path, f'{season}_league_baseline_xtg_right.npy')) / 3600.0
+    except Exception as e:
+        league_map_xtg = None
+        league_map_xtg_right = None
 
     # 4. Processing Loop (Chunks)
     chunk_size = config.BATCH_SIZE
@@ -222,7 +229,7 @@ def run_analysis():
     # 1. Initialize Aggregation Containers
     # storage for accumulated grids and stats blocks
     # keys: pid (int)
-    global_agg = {pid: {'grid_team': None, 'grid_other': None, 'stats': []} for pid in pids_to_process}
+    global_agg = {pid: {'grid_team': None, 'grid_other': None, 'grid_xtg_team': None, 'grid_xtg_other': None, 'stats': []} for pid in pids_to_process}
     pids_set = set(pids_to_process)
 
     print(f"Starting Single-Pass Data Loading for {len(pids_to_process)} players...")
@@ -283,6 +290,20 @@ def run_analysis():
                         if entry['grid_other'] is None: entry['grid_other'] = g
                         else: entry['grid_other'] += g
                         
+                    # handle team xtG
+                    k_tm_xtg = f"p_{pid}_grid_xtg_team"
+                    if k_tm_xtg in data:
+                        g = data[k_tm_xtg].astype(np.float32)
+                        if entry['grid_xtg_team'] is None: entry['grid_xtg_team'] = g
+                        else: entry['grid_xtg_team'] += g
+                        
+                    # handle other xtG
+                    k_ot_xtg = f"p_{pid}_grid_xtg_other"
+                    if k_ot_xtg in data:
+                        g = data[k_ot_xtg].astype(np.float32)
+                        if entry['grid_xtg_other'] is None: entry['grid_xtg_other'] = g
+                        else: entry['grid_xtg_other'] += g
+                        
                     # Stats
                     k_st = f"p_{pid}_stats"
                     if k_st in data:
@@ -306,7 +327,7 @@ def run_analysis():
         
         # Sum Stats
         total_stats = {}
-        keys_to_sum = ['team_xgs', 'other_xgs', 'team_goals', 'other_goals', 'team_attempts', 'other_attempts', 'team_seconds']
+        keys_to_sum = ['team_xgs', 'other_xgs', 'team_xtgs', 'other_xtgs', 'team_goals', 'other_goals', 'team_attempts', 'other_attempts', 'team_seconds']
         for s in data['stats']:
             for k in keys_to_sum:
                 total_stats[k] = total_stats.get(k, 0.0) + s.get(k, 0.0)
@@ -317,8 +338,12 @@ def run_analysis():
             
         xg_for = total_stats.get('team_xgs', 0.0)
         xg_ag = total_stats.get('other_xgs', 0.0)
+        xg_for_xtg = total_stats.get('team_xtgs', 0.0)
+        xg_ag_xtg = total_stats.get('other_xtgs', 0.0)
         xg_for_60 = (xg_for / seconds) * 3600
         xg_ag_60 = (xg_ag / seconds) * 3600
+        xg_for_60_xtg = (xg_for_xtg / seconds) * 3600
+        xg_ag_60_xtg = (xg_ag_xtg / seconds) * 3600
         
         # Determine Team (Mode of team_id in stats)
         # Use pid_tid_map built earlier
@@ -340,6 +365,8 @@ def run_analysis():
             'games_played': len(data['stats']), # Added for filtering
             'xg_for_60': xg_for_60,
             'xg_ag_60': xg_ag_60,
+            'xg_for_60_xtg': xg_for_60_xtg,
+            'xg_ag_60_xtg': xg_ag_60_xtg,
             'stats': total_stats,
             'seconds': seconds
         })
@@ -363,9 +390,11 @@ def run_analysis():
     df_sum['off_pctile'] = df_sum['xg_for_60'].rank(pct=True) * 100
     # Defense: Lower xG against is better. So invert rank.
     df_sum['def_pctile'] = df_sum['xg_ag_60'].rank(ascending=False, pct=True) * 100
+    df_sum['off_pctile_xtg'] = df_sum['xg_for_60_xtg'].rank(pct=True) * 100
+    df_sum['def_pctile_xtg'] = df_sum['xg_ag_60_xtg'].rank(ascending=False, pct=True) * 100
     
     # Map back to dict for generic lookup
-    pct_map = df_sum.set_index('player_id')[['off_pctile', 'def_pctile']].to_dict('index')
+    pct_map = df_sum.set_index('player_id')[['off_pctile', 'def_pctile', 'off_pctile_xtg', 'def_pctile_xtg']].to_dict('index')
 
     # SAVE SUMMARY (New Feature for Verification)
     summary_out_path = os.path.join(out_dir_base, season, 'player_summary_5v5.json')
@@ -383,6 +412,8 @@ def run_analysis():
             if pid in pct_map:
                 item['off_pctile'] = pct_map[pid]['off_pctile']
                 item['def_pctile'] = pct_map[pid]['def_pctile']
+                item['off_pctile_xtg'] = pct_map[pid]['off_pctile_xtg']
+                item['def_pctile_xtg'] = pct_map[pid]['def_pctile_xtg']
                 # Add player name/team for easier debug
                 item['player_name'] = pid_name_map.get(pid, f"P{pid}")
                 
@@ -426,14 +457,14 @@ def run_analysis():
         stats_row = row.to_dict() # xg_for_60, etc
         
         # 4. Percentiles
-        pcts = pct_map.get(pid, {'off_pctile': 0, 'def_pctile': 0})
+        pcts = pct_map.get(pid, {'off_pctile': 0, 'def_pctile': 0, 'off_pctile_xtg': 0, 'def_pctile_xtg':0})
         
         # 5. Name
         pname = pid_name_map.get(pid, f"Player {pid}")
         
         tasks.append((
             pid, pname, p_df, agg_entry, stats_row, pcts, 
-            league_map, league_map_right, t_map, out_dir_base, season, 
+            league_map, league_map_right, league_map_xtg, league_map_xtg_right, t_map, out_dir_base, season, 
             global_vmax, scan_limit
         ))
         
@@ -476,7 +507,7 @@ def run_analysis():
 
 # Helper for Parallel
 def process_single_player_plot(pid, pname, p_df, agg_entry, stats_row, pcts, 
-                               league_map, league_map_right, t_map, out_dir_base, season, 
+                               league_map, league_map_right, league_map_xtg, league_map_xtg_right, t_map, out_dir_base, season, 
                                global_vmax, scan_limit):
     try:
         # Determine Team (Logic copied from main)
@@ -604,6 +635,53 @@ def process_single_player_plot(pid, pname, p_df, agg_entry, stats_row, pcts,
                 
                 fig.savefig(rel_path, dpi=120, bbox_inches='tight')
                 plt.close(fig)
+                
+                # MIXED EFFECTS MAP
+                team_map_xtg = agg_entry['grid_xtg_team']
+                other_map_xtg = agg_entry['grid_xtg_other']
+                rel_path_xtg = os.path.join(out_dir_team, f"{pid}_relative_mixed.png")
+                
+                if team_map_xtg is not None and league_map_xtg is not None:
+                    combined_rel_xtg, rel_off_pct_xtg, rel_def_pct_xtg, _, _ = compute_relative_map(
+                        team_map_xtg, league_map_xtg, seconds, other_map_xtg, seconds, 
+                        league_baseline_right=league_map_xtg_right
+                    )
+                    
+                    # Ensure txt_props_xtg has the correct xtg numbers
+                    txt_props_xtg = txt_props.copy()
+                    txt_props_xtg['home_xg'] = total_stats.get('team_xtgs', 0)
+                    txt_props_xtg['away_xg'] = total_stats.get('other_xtgs', 0)
+                    txt_props_xtg['team_xg_per60'] = stats_row['xg_for_60_xtg']
+                    txt_props_xtg['other_xg_per60'] = stats_row['xg_ag_60_xtg']
+                    txt_props_xtg['rel_off_pct'] = rel_off_pct_xtg
+                    txt_props_xtg['rel_def_pct'] = rel_def_pct_xtg
+                    txt_props_xtg['off_percentile'] = pcts['off_pctile_xtg']
+                    txt_props_xtg['def_percentile'] = pcts['def_pctile_xtg']
+                    
+                    fig_xtg, ax_xtg = plt.subplots(figsize=(10, 6))
+                    im_xtg = plot_relative_map(
+                        ax=ax_xtg,
+                        rel_grid=combined_rel_xtg,
+                        title=f"{pname} Mixed Effects",
+                        stats=txt_props_xtg,
+                        team_name=p_team,
+                        full_team_name=pname,
+                        cond=display_cond,
+                        mask_neutral_zone=True,
+                        vmax=global_vmax
+                    )
+                    fig_xtg.patch.set_facecolor('white')
+                    ax_xtg.set_facecolor('white')
+                    divider_xtg = make_axes_locatable(ax_xtg)
+                    cax_xtg = divider_xtg.append_axes("right", size="3%", pad=0.05)
+                    cbar_xtg = fig_xtg.colorbar(im_xtg, cax=cax_xtg)
+                    cbar_xtg.locator = ticker.FixedLocator([-0.02, -0.01, 0, 0.01, 0.02])
+                    cbar_xtg.update_ticks()
+                    cbar_xtg.set_label('Excess xG/60 (per 100 sq ft)', rotation=270, labelpad=15)
+                    ax_xtg.axis('off')
+                    ax_xtg.set_frame_on(False)
+                    fig_xtg.savefig(rel_path_xtg, dpi=120, bbox_inches='tight')
+                    plt.close(fig_xtg)
                 
         # Raw Plot
         p_out_path = os.path.join(out_dir_team, f"{pid}_map.png")

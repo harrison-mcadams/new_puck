@@ -70,7 +70,10 @@ def fit_logistic_offset(X, y, base_margin, l2_reg=1.0, verbose=False):
         l2_reg: L2 regularization strength
         
     Returns:
-        coef: Learned coefficients (n_features,)
+        Tuple of (coef, converged, final_loss):
+            coef: Learned coefficients (n_features,)
+            converged: bool — whether the optimizer reported success
+            final_loss: float — final objective value
     """
     n_features = X.shape[1]
     w_init = np.zeros(n_features)
@@ -91,4 +94,4 @@ def fit_logistic_offset(X, y, base_margin, l2_reg=1.0, verbose=False):
     if not res.success:
         logger.warning(f"Optimizer did not converge: {res.message}")
         
-    return res.x
+    return res.x, bool(res.success), float(res.fun)

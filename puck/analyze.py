@@ -2762,6 +2762,23 @@ def xgs_map(season: Optional[str] = '20252026', *,
     except Exception:
         team_xgs = other_xgs = 0.0
 
+    # Compute xtG totals
+    team_xtgs = 0.0
+    other_xtgs = 0.0
+    try:
+        if 'xtG' in df_with_xgs.columns:
+            xtgs_series = pd.to_numeric(df_with_xgs.get('xtG', pd.Series([], dtype=float)), errors='coerce').fillna(0.0)
+            xtgs_series = xtgs_series.where(is_attempt_for_xg, 0.0)
+
+            if team_val is not None:
+                team_xtgs = xtgs_series[mask].sum()
+                other_xtgs = xtgs_series[~mask].sum()
+            else:
+                team_xtgs = xtgs_series.sum()
+                other_xtgs = 0.0
+    except Exception:
+        team_xtgs = other_xtgs = 0.0
+
     # Compute goals totals from df_filtered (sum of 'goal' events per group)
     team_goals = 0
     other_goals = 0
@@ -2875,6 +2892,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
     summary_stats = {
         'team_xgs': team_xgs,
         'other_xgs': other_xgs,
+        'team_xtgs': team_xtgs,
+        'other_xtgs': other_xtgs,
         'team_goals': team_goals,
         'other_goals': other_goals,
         'team_attempts': team_attempts,

@@ -280,12 +280,15 @@ def run_league_analysis():
                 for tid, s in pr['team_stats'].items():
                     if tid not in team_stats:
                         team_stats[tid] = {'team_xgs': 0.0, 'other_xgs': 0.0,
+                                           'team_xtgs': 0.0, 'other_xtgs': 0.0,
                                            'team_seconds': 0.0, 'team_goals': 0,
                                            'other_goals': 0, 'team_attempts': 0,
                                            'other_attempts': 0, 'n_games': 0}
                     ts = team_stats[tid]
                     ts['team_xgs'] += s.get('team_xgs', 0.0)
                     ts['other_xgs'] += s.get('other_xgs', 0.0)
+                    ts['team_xtgs'] += s.get('team_xtgs', 0.0)
+                    ts['other_xtgs'] += s.get('other_xtgs', 0.0)
                     ts['team_seconds'] += s.get('team_seconds', 0.0)
                     ts['team_goals'] += s.get('team_goals', 0)
                     ts['other_goals'] += s.get('other_goals', 0)
@@ -356,12 +359,15 @@ def run_league_analysis():
                                     
                                 if tid not in team_stats:
                                     team_stats[tid] = {'team_xgs': 0.0, 'other_xgs': 0.0, 
+                                                       'team_xtgs': 0.0, 'other_xtgs': 0.0,
                                                        'team_seconds': 0.0, 'team_goals': 0, 
                                                        'other_goals': 0, 'team_attempts': 0, 
                                                        'other_attempts': 0, 'n_games': 0}
                                 ts = team_stats[tid]
                                 ts['team_xgs'] += s.get('team_xgs', 0.0)
                                 ts['other_xgs'] += s.get('other_xgs', 0.0)
+                                ts['team_xtgs'] += s.get('team_xtgs', 0.0)
+                                ts['other_xtgs'] += s.get('other_xtgs', 0.0)
                                 ts['team_seconds'] += s.get('team_seconds', 0.0)
                                 ts['team_goals'] += s.get('team_goals', 0)
                                 ts['other_goals'] += s.get('other_goals', 0)
@@ -533,23 +539,35 @@ def run_league_analysis():
         # Prepare lists for percentile calculation
         all_xgf60 = []
         all_xga60 = []
+        all_xtgf60 = []
+        all_xtga60 = []
         
         # Calculate rates first
         for tid, s in team_stats.items():
             if s['team_seconds'] > 0:
                 s['team_xg_per60'] = (s['team_xgs'] / s['team_seconds']) * 3600
                 s['other_xg_per60'] = (s['other_xgs'] / s['team_seconds']) * 3600
+                s['team_xtg_per60'] = (s.get('team_xtgs', 0.0) / s['team_seconds']) * 3600
+                s['other_xtg_per60'] = (s.get('other_xtgs', 0.0) / s['team_seconds']) * 3600
                 all_xgf60.append(s['team_xg_per60'])
                 all_xga60.append(s['other_xg_per60'])
+                all_xtgf60.append(s['team_xtg_per60'])
+                all_xtga60.append(s['other_xtg_per60'])
             else:
                 s['team_xg_per60'] = 0.0
                 s['other_xg_per60'] = 0.0
+                s['team_xtg_per60'] = 0.0
+                s['other_xtg_per60'] = 0.0
                 
         all_xgf60 = np.array(all_xgf60)
         all_xga60 = np.array(all_xga60)
+        all_xtgf60 = np.array(all_xtgf60)
+        all_xtga60 = np.array(all_xtga60)
         
         league_xgf60_mean = np.mean(all_xgf60) if len(all_xgf60) > 0 else 1.0
         league_xga60_mean = np.mean(all_xga60) if len(all_xga60) > 0 else 1.0
+        league_xtgf60_mean = np.mean(all_xtgf60) if len(all_xtgf60) > 0 else 1.0
+        league_xtga60_mean = np.mean(all_xtga60) if len(all_xtga60) > 0 else 1.0
         
         summary_list = []
         
@@ -586,11 +604,15 @@ def run_league_analysis():
             
             # Percentiles (Stats)
             off_pct = percentileofscore(all_xgf60, s['team_xg_per60'])
-            def_pct = 100 - percentileofscore(all_xga60, s['other_xg_per60']) # Lower GA is better (higher percentile rank usually means "better")
+            def_pct = 100 - percentileofscore(all_xga60, s['other_xg_per60']) # Lower GA is better
+            off_pct_xtg = percentileofscore(all_xtgf60, s['team_xtg_per60'])
+            def_pct_xtg = 100 - percentileofscore(all_xtga60, s['other_xtg_per60'])
             
             # Relative Pct Change
             rel_off_pct = 100 * (s['team_xg_per60'] - league_xgf60_mean) / league_xgf60_mean if league_xgf60_mean > 0 else 0
             rel_def_pct = 100 * (s['other_xg_per60'] - league_xga60_mean) / league_xga60_mean if league_xga60_mean > 0 else 0
+            rel_off_pct_xtg = 100 * (s['team_xtg_per60'] - league_xtgf60_mean) / league_xtgf60_mean if league_xtgf60_mean > 0 else 0
+            rel_def_pct_xtg = 100 * (s['other_xtg_per60'] - league_xtga60_mean) / league_xtga60_mean if league_xtga60_mean > 0 else 0
             
             # Shot shares
             tot_att = s['team_attempts'] + s['other_attempts']
@@ -602,8 +624,11 @@ def run_league_analysis():
             s['def_percentile'] = def_pct
             s['rel_off_pct'] = rel_off_pct
             s['rel_def_pct'] = rel_def_pct
+            s['off_percentile_xtg'] = off_pct_xtg
+            s['def_percentile_xtg'] = def_pct_xtg
+            s['rel_off_pct_xtg'] = rel_off_pct_xtg
+            s['rel_def_pct_xtg'] = rel_def_pct_xtg
             s['home_shot_pct'] = t_att_pct
-            s['away_shot_pct'] = o_att_pct
             s['away_shot_pct'] = o_att_pct
             s['team_name'] = tname
             
@@ -621,10 +646,15 @@ def run_league_analysis():
                 'team': tname,
                 'team_xg_per60': s['team_xg_per60'],
                 'other_xg_per60': s['other_xg_per60'],
+                'team_xtg_per60': s['team_xtg_per60'],
+                'other_xtg_per60': s['other_xtg_per60'],
                 'gf_pct': 100 * s['team_goals'] / (s['team_goals'] + s['other_goals']) if (s['team_goals'] + s['other_goals']) > 0 else 0,
                 'xgf_pct': 100 * s['team_xgs'] / (s['team_xgs'] + s['other_xgs']) if (s['team_xgs'] + s['other_xgs']) > 0 else 0,
+                'xtgf_pct': 100 * s.get('team_xtgs', 0.0) / (s.get('team_xtgs', 0.0) + s.get('other_xtgs', 0.0)) if (s.get('team_xtgs', 0.0) + s.get('other_xtgs', 0.0)) > 0 else 0,
                 'team_xgs': s.get('team_xgs', 0.0),
                 'other_xgs': s.get('other_xgs', 0.0),
+                'team_xtgs': s.get('team_xtgs', 0.0),
+                'other_xtgs': s.get('other_xtgs', 0.0),
                 'team_goals': s.get('team_goals', 0),
                 'other_goals': s.get('other_goals', 0),
                 'team_seconds': s.get('team_seconds', 0.0)
@@ -742,12 +772,25 @@ def run_league_analysis():
                     
                     fig_xtg, ax_xtg = plt.subplots(figsize=(10, 6))
                     
+                    s_xtg = s.copy()
+                    s_xtg['team_xgs'] = s.get('team_xtgs', 0.0)
+                    s_xtg['other_xgs'] = s.get('other_xtgs', 0.0)
+                    s_xtg['team_xg_per60'] = s.get('team_xtg_per60', 0.0)
+                    s_xtg['other_xg_per60'] = s.get('other_xtg_per60', 0.0)
+                    s_xtg['off_percentile'] = s.get('off_percentile_xtg', 0.0)
+                    s_xtg['def_percentile'] = s.get('def_percentile_xtg', 0.0)
+                    s_xtg['rel_off_pct'] = s.get('rel_off_pct_xtg', 0.0)
+                    s_xtg['rel_def_pct'] = s.get('rel_def_pct_xtg', 0.0)
+                    s_xtg['home_xg'] = s.get('team_xtgs', 0.0)
+                    s_xtg['away_xg'] = s.get('other_xtgs', 0.0)
+                    s_xtg['have_xg'] = True
+                    
                     # Use same plot_relative_map
                     im = plot_relative_map(
                         ax=ax_xtg,
                         rel_grid=rel_grid_xtg,
                         title=f"{tname} Relative Mixed Effects xG",
-                        stats=s, # Using Base stats for now
+                        stats=s_xtg, # Using Mixed Effects stats
                         team_name=tname,
                         full_team_name=tname,
                         cond=f"{cond}",

@@ -10,7 +10,9 @@ from typing import List, Dict
 COORDINATES = ['distance', 'angle_deg']
 
 # Game situation
-# Game situation
+# Note: game_state is listed here as a feature for base xG models. The
+# mixed-effects model uses game_state as a *splitting variable* and handles
+# it separately — it does not draw from these feature sets.
 SITUATION = ['game_state', 'score_diff', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s']
 SHOT_TYPE = ['shot_type']
 HANDEDNESS = ['shoots_catches']

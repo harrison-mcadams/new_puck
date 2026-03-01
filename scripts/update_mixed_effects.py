@@ -197,7 +197,7 @@ def main():
         try:
              # Ensure df has necessary cols (pipeline should have handled it)
              # df should be same as training data
-             probs = mixed.predict_proba(df)
+             probs = mixed.predict_proba(df)[:, 1]
              df['xg_mixed'] = probs
         except Exception as e:
              print(f"Warning: Could not generate predictions for stats: {e}")
