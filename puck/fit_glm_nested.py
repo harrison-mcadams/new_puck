@@ -124,13 +124,17 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         # 2. Numeric Features
         num_features = [f for f in features if f not in cat_features]
         
+        # Binary features should NOT get spline treatment — just impute + scale
+        binary_feature_names = ['is_home', 'is_rush', 'is_rebound']
+        binary_cols = [f for f in binary_feature_names if f in num_features]
+        
         transformers = []
         
         if self.use_splines:
             # Spline Tensor Product Logic
             # Treat ('distance', 'angle_deg') as a unit for TensorSpline
             spatial_cols = [f for f in ['distance', 'angle_deg'] if f in num_features]
-            other_num_cols = [f for f in num_features if f not in spatial_cols]
+            other_num_cols = [f for f in num_features if f not in spatial_cols and f not in binary_cols]
             
             # Tensor Spline for Spatial
             if len(spatial_cols) == 2:
@@ -144,14 +148,22 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
                 # If we don't have both, just treat them as generic numeric
                 other_num_cols.extend(spatial_cols)
             
-            # Independent Splines for others
+            # Independent Splines for continuous numeric features
             if other_num_cols:
                 other_pipe = Pipeline([
                     ('imputer', SimpleImputer(strategy='median')),
-                    ('spline', SplineTransformer(n_knots=5, degree=3, include_bias=False)), # fewer knots for non-spatial?
+                    ('spline', SplineTransformer(n_knots=5, degree=3, include_bias=False)),
                     ('scaler', StandardScaler())
                 ])
                 transformers.append(('other_num', other_pipe, other_num_cols))
+            
+            # Simple passthrough for binary features (no spline expansion)
+            if binary_cols:
+                binary_pipe = Pipeline([
+                    ('imputer', SimpleImputer(strategy='constant', fill_value=0)),
+                    ('scaler', StandardScaler())
+                ])
+                transformers.append(('binary', binary_pipe, binary_cols))
                 
         else:
             # Polynomial Logic (Global curve)

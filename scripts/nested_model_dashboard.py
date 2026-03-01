@@ -90,16 +90,17 @@ def compute_spatial_grid(pipeline, feature_names):
         grid_df = pd.DataFrame(grid_rows)
         
         # Transform
-        # tensor_transformer is a Pipeline([imputer, tensor, scaler]) of just the spatial cols
-        # It expects a DF with 'distance', 'angle_deg' if that's what it was fitted on.
-        # Check fitted cols
-        # input columns for spatial_tensor were defined in fit_glm_nested as spatial_cols
-        
-        # We can just call transform
         X_trans = tensor_transformer.transform(grid_df)
         
         # Calculate Scores
         scores = X_trans @ spatial_coefs
+        
+        # Clamp extreme scores.  The tensor product of scaled spline
+        # bases can blow up at (distance, angle) combos that don't exist
+        # in training data (e.g. very close to the net at 0° or 360°).
+        # Use the P1/P99 range to cap outliers.
+        p1, p99 = np.percentile(scores, [1, 99])
+        scores = np.clip(scores, p1, p99)
         
         # Reshape to 2D list [row][col] -> [y][x]
         # Our loop was y outer, x inner
@@ -278,6 +279,19 @@ def extract_pipeline_params(pipeline, features):
              
              transformers['cat'] = feats_data
              
+        elif name == 'binary':
+             # Binary features: Pipeline([imputer, scaler]) — one coef per feature
+             scaler = trans.named_steps['scaler']
+             feats_data = {}
+             for i, col in enumerate(cols):
+                 feats_data[col] = {
+                     'type': 'binary',
+                     'coef': block_coefs[i],
+                     'scaler_mean': float(scaler.mean_[i]),
+                     'scaler_scale': float(scaler.scale_[i])
+                 }
+             transformers['binary'] = feats_data
+
         elif name == 'num_poly':
              # Poly fallback
              # ... simplified ...
@@ -357,6 +371,7 @@ def main():
             'shoots_catches': 'L',
             'is_rush': 0,
             'is_rebound': 0,
+            'is_home': 1,
             'rebound_angle_change': 0,
             'rebound_time_diff': 0,
             'last_event_type': 'faceoff' 
@@ -368,6 +383,7 @@ def main():
             'shot_type': ['wrist', 'slap', 'snap', 'backhand', 'tip-in', 'deflected', 'wrap-around', 'Marginalized'],
             'shoots_catches': ['L', 'R', 'Marginalized'],
             'is_rush': ['0', '1', 'Marginalized'],
+            'is_home': ['0', '1', 'Marginalized'],
             'is_rebound': ['0', '1', 'Marginalized'],
             'last_event_type': sorted(list(priors.get('last_event_type', {}).keys())) + ['Marginalized']
         },
@@ -519,11 +535,10 @@ def main():
     function transform_numeric_feature(val, config) {{
         if (config.type === 'spline') {{
             let basis = bspline_basis(val, config.knots, config.degree);
-            // Reverting to Drop First based on Visual Continuity.
-            // Even though script suggested Drop Last, the visual result was discontinous.
-            // Let's ensure we match the scaler length by dropping from start.
+            // sklearn's include_bias=False drops the LAST basis function,
+            // so we keep the first n elements.
             if (basis.length > config.scaler_mean.length) {{
-                 basis = basis.slice(basis.length - config.scaler_mean.length);
+                 basis = basis.slice(0, config.scaler_mean.length);
             }}
             
             // Scale
@@ -583,6 +598,14 @@ def main():
                 let val = String(features_dict[feat_name]);
                 let w = config.weights[val];
                 if (w !== undefined) score += w;
+            }}
+        }}
+        
+        // 5. Binary features (simple scaled linear)
+        if (trans.binary) {{
+            for (const [feat_name, config] of Object.entries(trans.binary)) {{
+                let val = parseFloat(features_dict[feat_name]) || 0;
+                score += ((val - config.scaler_mean) / config.scaler_scale) * config.coef;
             }}
         }}
         
@@ -702,7 +725,7 @@ def main():
         
         // Group parameters
         const groups = {{
-            'Context': ['game_state', 'score_diff', 'period_number'],
+            'Context': ['game_state', 'score_diff', 'period_number', 'is_home'],
             'Shooter': ['shooter_role', 'shoots_catches', 'shot_type'],
             'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event']
         }};

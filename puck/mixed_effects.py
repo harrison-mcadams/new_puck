@@ -315,6 +315,13 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
 
         # Derive off/def team names (unified logic)
         df = _derive_off_def_names(df)
+        
+        # Ensure is_home is present for base model
+        if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+            df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
+        elif 'is_home' not in df.columns:
+            logger.warning("'is_home' cannot be derived. Filling with 0.")
+            df['is_home'] = 0
 
         base_probs = self.base_model_.predict_proba(df)[:, 1]
         
@@ -380,6 +387,13 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
         
         # Derive off/def team names (unified logic)
         df = _derive_off_def_names(df)
+        
+        # Ensure is_home is present for base model
+        if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+            df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
+        elif 'is_home' not in df.columns:
+            logger.warning("'is_home' cannot be derived. Filling with 0.")
+            df['is_home'] = 0
 
         # 2. Add Adjustments per State
         state_models = getattr(self, 'state_models_', {}) or {}

@@ -29,6 +29,8 @@ WHY DO THIS?
 
 """
 
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -336,6 +338,13 @@ class NestedXGClassifier(BaseEstimator, ClassifierMixin):
              
         df = X.copy()
         
+        # Ensure is_home is present
+        if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+            df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
+        elif 'is_home' not in df.columns:
+            logger.warning("'is_home' cannot be derived. Filling with 0.")
+            df['is_home'] = 0
+            
         # 0. Feature Alignment
         # If input is raw, encode it. 
         cat_cols = getattr(self, 'categorical_cols', [])
@@ -586,6 +595,13 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     # We will fill NaN with 'Unknown'.
     df['shot_type'] = df['shot_type'].fillna('Unknown')
     
+    # Ensure is_home is present
+    if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+        df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
+    elif 'is_home' not in df.columns:
+        logger.warning("'is_home' cannot be derived. Filling with 0.")
+        df['is_home'] = 0
+
     # EXCLUDE NON-REGULAR SEASON (02)
     if 'game_id' in df.columns:
         df['game_id_str'] = df['game_id'].astype(str)

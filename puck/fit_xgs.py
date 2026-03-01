@@ -140,8 +140,15 @@ class SingleXGClassifier:
             # If event is encoded? 'clean_df_for_model' doesn't usually encode event unless requested.
             pass
             
+        # Ensure is_home is present
+        if 'is_home' not in X.columns and 'team_id' in X.columns and 'home_id' in X.columns:
+            X['is_home'] = (X['team_id'].astype(str) == X['home_id'].astype(str)).astype(int)
+        elif 'is_home' not in X.columns:
+            X['is_home'] = 0
+
         # Extract features for RF
         # Ensure columns exist
+        missing = [f for f in self.features if f not in X.columns]
         if missing:
              # Try to generate missing encoded columns if raw columns exist
              for m in missing:
@@ -488,7 +495,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
         
         # Update Cache
         _CLF_MEM_CACHE[cache_key] = (clf, final_features, categorical_levels_map, meta)
-        return clf, final_features, categorical_levels_map, meta
+        return clf, final_features, categorical_levels_map
 
     # else: train
     # resolve features
@@ -546,7 +553,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
 
     # Update Cache
     _CLF_MEM_CACHE[cache_key] = (clf, final_features, categorical_levels_map, meta)
-    return clf, final_features, categorical_levels_map, meta
+    return clf, final_features, categorical_levels_map
 
 # --- end of module-level caching helpers ---
 
@@ -624,6 +631,13 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
             # print(f"clean_df_for_model: Filtering {len(df) - mask_regular.sum()} events from non-regular season games.")
             df = df[mask_regular].copy()
         df.drop(columns=['game_id_str'], inplace=True)
+
+    # Ensure is_home is present
+    if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+        df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
+    elif 'is_home' not in df.columns:
+        print("Warning: 'is_home' cannot be derived. Filling with 0.")
+        df['is_home'] = 0
 
     # define is_goal as a boolean: True when event equals 'goal'
     df['is_goal'] = df['event'].eq('goal')
@@ -946,6 +960,8 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
         Ignored if model_configs is provided.
     - model_configs: Dict {model_name: ModelConfig} mapping for feature info per model.
     """
+    import os
+    import math
     import matplotlib.pyplot as plt
     try:
         from .rink import draw_rink, rink_half_height_at_x, rink_bounds, rink_goal_xs
@@ -1127,6 +1143,7 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
                 'game_state': [gs] * n_pts,
                 'is_net_empty': [int(nne)] * n_pts,
                 'shot_type': [st] * n_pts,
+                'is_home': [1] * n_pts,
                 # Add commonly used extra features just in case
                 'dist_center': np.hypot(xs, ys)
             })
@@ -1539,44 +1556,14 @@ if __name__ == '__main__':
     if NestedXGClassifier:
         print(f"\n--- Training 'Nested xG' ---")
         # Nested Model needs special data preparation: it requires 'event' column for training
-        # and encoded shot_type/game_state.
-        # We can use the SAME preparation as 'With Shot Type' but ensure 'event' is included in cols.
-        
-        nested_features_req = ['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type', 'event']
-        
-        # We use the 'With Shot Type' categorical map to ensure encoding consistency (for shared features like shot_type)
-        # But wait, fit_nested_xgs does its OWN internal encoding via LabelEncoder in preprocess_features usually.
-        # However, our NestedXGClassifier expects standard DF input.
-        # Actually, looking at NestedXGClassifier implementation, it expects 'shot_type_encoded' and 'game_state_encoded'.
-        # We need to manually prep these columns if we are passing a "cleaned" DF from here.
-        
-        # Strategy:
-        # 1. Take raw `train_df`.
-        # 2. Add 'shot_type_encoded' and 'game_state_encoded' matching `fit_nested_xgs.preprocess_features` style?
-        #    OR: Just rely on clean_df_for_model's output which produces `{col}_code`.
-        #    The NestedXGClassifier config (in fit_nested_xgs.py) expects `shot_type_encoded` and `game_state_encoded`.
-        #    `clean_df_for_model` produces `shot_type_code` and `game_state_code`.
-        #    Mis-match!
-        #
-        #    FIX: We will monkey-patch or adjust the NestedXGClassifier configs instance or pass data with renamed columns.
-        
-        # Let's map our `clean_df_for_model` outputs to what Nested expects.
-        # clean_df_for_model(features=['shot_type', 'game_state']) -> `shot_type_code`, `game_state_code`.
+        # and raw categoricals (as object) to perform its own pd.get_dummies inside fit().
         
         nested_conf_dummy = ModelConfig(
             name='Nested Prep',
-            features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'shot_type']
+            features=['distance', 'angle_deg', 'game_state', 'is_net_empty', 'is_home', 'shot_type']
         )
         
-        # We need to Ensure 'Unknown' is in the levels map so we can identify its code.
-        # But 'clean_df_for_model' determines levels from data.
-        # If 'Unknown' is not in data (as we saw, unblocked data has no unknowns),
-        # we might have a problem if we just rely on unblocked data for mapping?
-        # A: clean_df_for_model processes the passed DF. `train_df` contains blocked shots which DO have missing shot_type.
-        # So 'Unknown' (or filled value) WILL be in the data.
-        
-        # 1. Fill NaNs in shot_type with 'Unknown' explicitly before cleaning, 
-        #    so we know what string to look for in the map.
+        # 1. Fill NaNs in shot_type with 'Unknown' explicitly so we know what string to look for.
         train_df_n = train_df.copy()
         test_df_n = test_df.copy()
         
@@ -1584,57 +1571,29 @@ if __name__ == '__main__':
         train_df_n['shot_type'] = train_df_n['shot_type'].fillna(unknown_label)
         test_df_n['shot_type'] = test_df_n['shot_type'].fillna(unknown_label)
         
-        # 2. Add 'event' back after cleaning? No, clean_df filters events.
-        # cleaning usually filters for ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot']
-        # which is what we want.
-        
-        # Codes are generated here.
-        train_df_nested, feats_n, map_n = clean_df_for_model(train_df_n, nested_conf_dummy.features)
-        
-        # Identify the integer code for 'Unknown'
-        shot_type_cols = [c for c in map_n.keys() if 'shot_type' in c] # usually just 'shot_type'
-        unknown_code = -1
-        if 'shot_type' in map_n:
-             levels = map_n['shot_type'] # list of strings
-             if unknown_label in levels:
-                 unknown_code = levels.index(unknown_label)
-             else:
-                 print(f"Warning: '{unknown_label}' not found in shot_type levels: {levels}")
-                 # Maybe it got mapped to __other__? 
-                 # If OneHotEncode used fixed_mappings, it might be different, but here we generated them.
-        
-        print(f"  Nested xG: Identified 'Unknown' shot_type code = {unknown_code}")
+        # We need to filter out empty net and extreme events just like clean_df_for_model does.
+        train_df_n, _, _ = clean_df_for_model(train_df_n, nested_conf_dummy.features, encode_method='none')
+        test_df_n, _, _ = clean_df_for_model(test_df_n, nested_conf_dummy.features, encode_method='none')
 
-        # Clean Test using same map
-        test_df_nested, _, _ = clean_df_for_model(test_df_n, nested_conf_dummy.features, fixed_categorical_levels=map_n)
+        # Add 'event' column back (aligned via index) since clean_df_for_model usually filters it.
+        # But wait, clean_df_for_model actually filters rows (like empty net), so we pull 'event'
+        # from the ORIGINAL subset matching the final index.
+        train_df_n['event'] = train_df.loc[train_df_n.index, 'event']
+        test_df_n['event'] = test_df.loc[test_df_n.index, 'event']
         
-        # Rename columns to match NestedXGClassifier defaults
-        rename_map = {
-            'shot_type_code': 'shot_type_encoded',
-            'game_state_code': 'game_state_encoded'
-        }
-        train_df_nested = train_df_nested.rename(columns=rename_map)
-        test_df_nested = test_df_nested.rename(columns=rename_map)
-        
-        # Add 'event' column back (aligned via index)
-        # Note: clean_df_for_model operates on a copy and might drop rows (if NaNs in features).
-        # We ensured NaNs filled for shot_type.
-        train_df_nested['event'] = train_df_n.loc[train_df_nested.index, 'event']
-        test_df_nested['event'] = test_df_n.loc[test_df_nested.index, 'event']
-        
+        print(f"  Nested xG: Identified 'Unknown' shot_type implicitly as '{unknown_label}'.")
+
         # Instantiate & Fit
-        # Pass unknown_shot_type_val for marginalization
-        clf_nested = NestedXGClassifier(n_estimators=500, random_state=42, unknown_shot_type_val=unknown_code)
+        clf_nested = NestedXGClassifier(features=nested_conf_dummy.features, n_estimators=500, random_state=42, unknown_shot_type_val=unknown_label)
         
         print("  Fitting Nested xG (Block->Accuracy->Finish)...")
-        clf_nested.fit(train_df_nested) 
+        clf_nested.fit(train_df_n) 
         models['Nested xG'] = clf_nested
         
         # Evaluate
         print("  Evaluating Nested xG...")
-        y_prob_nested = clf_nested.predict_proba(test_df_nested)[:, 1]
-        y_test_nested = test_df_nested['is_goal'].values
-        
+        y_prob_nested = clf_nested.predict_proba(test_df_n)[:, 1]
+        y_test_nested = test_df_n['is_goal'].values        
         auc_n = roc_auc_score(y_test_nested, y_prob_nested)
         ll_n = log_loss(y_test_nested, y_prob_nested)
         

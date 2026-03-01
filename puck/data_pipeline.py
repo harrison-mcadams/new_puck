@@ -80,6 +80,12 @@ def preprocess_features(df_input: pd.DataFrame,
         # Only map values present in the map, preserve others (like existing hyphenated ones)
         df['event'] = df['event'].replace(evt_map)
 
+    # Derive is_home early so all downstream tasks have it
+    if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+        tid_str = df['team_id'].fillna(-1).astype(str).str.split('.').str[0]
+        hid_str = df['home_id'].fillna(-2).astype(str).str.split('.').str[0]
+        df['is_home'] = (tid_str == hid_str).astype(int)
+
     # 1. Blocked Shot Attribution
     # NOTE: The raw data for blocked shots attributes the event to the SHOOTER (Offense).
     # Previous versions of this pipeline attempted to swap this, assuming it was attributed to the blocker.
