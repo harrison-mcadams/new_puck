@@ -1,3 +1,30 @@
+"""nested_model_dashboard.py
+
+Generates an interactive HTML dashboard for the NestedGLM tensor-product xG model.
+
+KNOWN PITFALLS (these have caused bugs before — read before modifying):
+
+1. BINARY FEATURES: If a new binary (0/1) feature is added to the model
+   (e.g. is_home, is_rush, is_rebound), it MUST be routed through the
+   'binary' transformer group in fit_glm_nested._build_pipeline — NOT
+   through SplineTransformer. A binary feature expanded into 7 spline
+   basis functions shifts ALL subsequent coefficient indices and breaks
+   the dashboard's spatial heatmaps.
+
+2. SPATIAL GRID EXTRAPOLATION: The rink grid evaluates the tensor spline
+   at (distance, angle) combos far outside the training data range (e.g.
+   behind center ice). The tensor product of B-spline bases can produce
+   extreme values (100+) at these points. compute_spatial_grid() must
+   clamp scores to a reasonable range (currently P1/P99).
+
+3. JS SPLINE BASIS TRIMMING: sklearn's SplineTransformer(include_bias=False)
+   drops the LAST basis function. The JS bspline_basis() produces all N+1
+   functions. When trimming to match, we must keep the FIRST n elements:
+       basis.slice(0, n)     # CORRECT — matches sklearn
+       basis.slice(n_extra)  # WRONG — phase-shifts all evaluations
+   Getting this wrong causes every spline feature to be evaluated with
+   misaligned coefficients, producing wildly incorrect predictions.
+"""
 
 import sys
 import os
@@ -95,10 +122,12 @@ def compute_spatial_grid(pipeline, feature_names):
         # Calculate Scores
         scores = X_trans @ spatial_coefs
         
-        # Clamp extreme scores.  The tensor product of scaled spline
-        # bases can blow up at (distance, angle) combos that don't exist
-        # in training data (e.g. very close to the net at 0° or 360°).
-        # Use the P1/P99 range to cap outliers.
+        # PITFALL #2: Spatial grid extrapolation blow-up.
+        # The full rink grid includes (distance, angle) pairs that never
+        # appear in training data (e.g. 90ft away at 0° angle).  The
+        # tensor product of B-spline bases can produce extreme scores
+        # (100+) at these points, saturating the heatmap.  Clamp to
+        # P1/P99 to suppress outliers while preserving the valid range.
         p1, p99 = np.percentile(scores, [1, 99])
         scores = np.clip(scores, p1, p99)
         
@@ -535,8 +564,10 @@ def main():
     function transform_numeric_feature(val, config) {{
         if (config.type === 'spline') {{
             let basis = bspline_basis(val, config.knots, config.degree);
-            // sklearn's include_bias=False drops the LAST basis function,
-            // so we keep the first n elements.
+            // PITFALL #3: sklearn's include_bias=False drops the LAST
+            // basis function.  We MUST slice from the front (keep first n).
+            // Using basis.slice(basis.length - n) drops the FIRST and
+            // phase-shifts every coefficient, causing wildly wrong scores.
             if (basis.length > config.scaler_mean.length) {{
                  basis = basis.slice(0, config.scaler_mean.length);
             }}

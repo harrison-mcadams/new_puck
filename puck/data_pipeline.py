@@ -19,7 +19,8 @@ def preprocess_features(df_input: pd.DataFrame,
                         apply_dithering: bool = False,
                         apply_filtering: bool = False,
                         apply_bio_enrichment: bool = True,
-                        impute_alpha: float = 0.0) -> pd.DataFrame:
+                        impute_alpha: float = 0.0,
+                        exclude_blocked: bool = False) -> pd.DataFrame:
     """
     Apply standard preprocessing steps to the dataframe:
     # 1. Blocked Shot Attribution
@@ -79,6 +80,12 @@ def preprocess_features(df_input: pd.DataFrame,
         }
         # Only map values present in the map, preserve others (like existing hyphenated ones)
         df['event'] = df['event'].replace(evt_map)
+        
+    if exclude_blocked and 'event' in df.columns:
+        n_blocked = (df['event'] == 'blocked-shot').sum()
+        if n_blocked > 0:
+            vprint(f"  Filtering out {n_blocked} blocked shots per exclude_blocked config...")
+            df = df[df['event'] != 'blocked-shot'].copy()
 
     # Derive is_home early so all downstream tasks have it
     if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
