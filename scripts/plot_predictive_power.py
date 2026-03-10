@@ -6,11 +6,13 @@ import argparse
 
 MODELS = [
     ('Goals', 'Actual Goals', 'black', 'o', '-'),
-    ('xG',    'Standard xG',  'blue',  's', '-'),
-    ('Local_xG', 'Local Standard xG', 'deepskyblue', 'v', '--'),
-    ('xtG',   'Mixed Effects xtG', 'green', '^', '-'),
-    ('Local_xtG', 'Local Mixed Effects xtG', 'limegreen', 'p', '--'),
-    ('MP',    'MoneyPuck xG', 'purple', 'D', '--'),
+    ('xG',    'Nested xG',  'blue',  's', '-'),
+    ('NN_xG', 'Standard xG', 'darkorange', 'X', '-'),
+    ('Local_xG', 'Local Nested xG', 'cyan', 'v', ':'),
+    ('Local_NN_xG', 'Local Standard xG', 'gold', 'x', ':'),
+    ('xtG',   'Mixed Effects xtG', 'darkgreen', '^', '-'),
+    ('Local_xtG', 'Local Mixed Effects xtG', 'limegreen', 'p', ':'),
+    ('MP',    'MoneyPuck xG', 'purple', 'D', '-'),
 ]
 
 def _plot_metric(df, metric, ylabel, title, higher_better, out_path):
@@ -36,7 +38,8 @@ def _plot_metric(df, metric, ylabel, title, higher_better, out_path):
         ax.set_title(f'{title} (Lower is Better)')
     else:
         ax.set_title(f'{title} (Higher is Better)')
-        ax.axhline(50, color='gray', linestyle=':', alpha=0.5, label='Coin Flip (50%)')
+        if metric == 'Acc':
+            ax.axhline(50, color='gray', linestyle=':', alpha=0.5, label='Coin Flip (50%)')
     
     ax.set_xlabel('Number of Games in Training Sample (N)')
     ax.set_ylabel(ylabel)
@@ -64,18 +67,29 @@ def generate_plots(input_path: Path, out_dir: Path):
                  out_dir / f'{input_path.stem}_brier.png')
 
     # Accuracy (convert to percentage)
+    accuracy_df = df.copy()
     for key, *_ in MODELS:
         col = f'{key}_Acc'
-        if col in df.columns:
-            df[col] = df[col] * 100
+        if col in accuracy_df.columns:
+            accuracy_df[col] = accuracy_df[col] * 100
         for suffix in ['_lo', '_hi']:
             sc = f'{col}{suffix}'
-            if sc in df.columns:
-                df[sc] = df[sc] * 100
+            if sc in accuracy_df.columns:
+                accuracy_df[sc] = accuracy_df[sc] * 100
 
-    _plot_metric(df, 'Acc', 'Prediction Accuracy (%)',
+    _plot_metric(accuracy_df, 'Acc', 'Prediction Accuracy (%)',
                  f'Predictive Power vs Sample Size ({input_path.stem}): Accuracy', True,
                  out_dir / f'{input_path.stem}_accuracy.png')
+
+    # Spearman EOS
+    _plot_metric(df, 'Spearman_EOS', 'Spearman Correlation Coefficient',
+                 f'Rank Correlation (EOS) vs Sample Size ({input_path.stem})', True,
+                 out_dir / f'{input_path.stem}_spearman_eos.png')
+
+    # Spearman ROS
+    _plot_metric(df, 'Spearman_ROS', 'Spearman Correlation Coefficient',
+                 f'Rank Correlation (ROS) vs Sample Size ({input_path.stem})', True,
+                 out_dir / f'{input_path.stem}_spearman_ros.png')
 
     print(f"Successfully saved evaluation plots to {out_dir}")
 

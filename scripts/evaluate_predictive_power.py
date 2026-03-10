@@ -24,7 +24,9 @@ from puck import analyze
 from puck import mixed_effects
 from puck import nhl_api
 from puck import fit_glm_nested
+from puck import fit_glm
 from puck import features as feature_util
+from puck import moneypuck
 from scripts import plot_predictive_power
 
 import logging
@@ -206,6 +208,9 @@ def extract_rates(train_df, state_mask=None):
             'gf60': 0.0, 'ga60': 0.0,
             'xgf60': 0.0, 'xga60': 0.0,
             'mp_xgf60': 0.0, 'mp_xga60': 0.0,
+            'local_xgf_per_game': 0.0, 'local_xga_per_game': 0.0,
+            'local_nn_xgf_per_game': 0.0, 'local_nn_xga_per_game': 0.0,
+            'nn_xgf_per_game': 0.0, 'nn_xga_per_game': 0.0,
             'games': 0
         }
     
@@ -235,13 +240,9 @@ def extract_rates(train_df, state_mask=None):
             xgf, xga = 0, 0
             
         # MoneyPuck xG
-        if 'mp_xG' in df.columns:
-            mp_xgf = df[((df['home_abb'] == t) & (df['team_id'] == df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] == df['away_id']))]['mp_xG'].sum()
-            mp_xga = df[((df['home_abb'] == t) & (df['team_id'] != df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] != df['away_id']))]['mp_xG'].sum()
-        elif 'xG' in df.columns:
-            # Maybe the column name was capitalized differently
-            mp_xgf = df[((df['home_abb'] == t) & (df['team_id'] == df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] == df['away_id']))]['xG'].sum()
-            mp_xga = df[((df['home_abb'] == t) & (df['team_id'] != df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] != df['away_id']))]['xG'].sum()
+        if 'mp_xGoal' in df.columns:
+            mp_xgf = df[((df['home_abb'] == t) & (df['team_id'] == df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] == df['away_id']))]['mp_xGoal'].sum()
+            mp_xga = df[((df['home_abb'] == t) & (df['team_id'] != df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] != df['away_id']))]['mp_xGoal'].sum()
         else:
             mp_xgf, mp_xga = 0, 0
             
@@ -252,12 +253,30 @@ def extract_rates(train_df, state_mask=None):
         else:
             local_xgf, local_xga = 0, 0
             
+        # Global Standard xG
+        if 'nn_xgs' in df.columns:
+            nn_xgf = df[((df['home_abb'] == t) & (df['team_id'] == df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] == df['away_id']))]['nn_xgs'].sum()
+            nn_xga = df[((df['home_abb'] == t) & (df['team_id'] != df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] != df['away_id']))]['nn_xgs'].sum()
+        else:
+            nn_xgf, nn_xga = 0, 0
+            
+        # Local Non-Nested xG
+        if 'local_nn_xgs' in df.columns:
+            local_nn_xgf = df[((df['home_abb'] == t) & (df['team_id'] == df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] == df['away_id']))]['local_nn_xgs'].sum()
+            local_nn_xga = df[((df['home_abb'] == t) & (df['team_id'] != df['home_id'])) | ((df['away_abb'] == t) & (df['team_id'] != df['away_id']))]['local_nn_xgs'].sum()
+        else:
+            local_nn_xgf, local_nn_xga = 0, 0
+            
         rates[t]['gf_per_game'] = gf / team_games
         rates[t]['ga_per_game'] = ga / team_games
         rates[t]['xgf_per_game'] = xgf / team_games
         rates[t]['xga_per_game'] = xga / team_games
         rates[t]['local_xgf_per_game'] = local_xgf / team_games
         rates[t]['local_xga_per_game'] = local_xga / team_games
+        rates[t]['local_nn_xgf_per_game'] = local_nn_xgf / team_games
+        rates[t]['local_nn_xga_per_game'] = local_nn_xga / team_games
+        rates[t]['nn_xgf_per_game'] = nn_xgf / team_games
+        rates[t]['nn_xga_per_game'] = nn_xga / team_games
         rates[t]['mp_xgf_per_game'] = mp_xgf / team_games
         rates[t]['mp_xga_per_game'] = mp_xga / team_games
         rates[t]['games'] = team_games
@@ -323,7 +342,7 @@ def extract_rates_per60(train_df):
             mask = _team_shot_mask(state_df, team, role)
             goals = int((state_df[mask]['event'].str.lower() == 'goal').sum())
             xg    = float(state_df[mask]['xgs'].sum()) if 'xgs' in state_df.columns else 0.0
-            mp_xg = float(state_df[mask]['mp_xG'].sum()) if 'mp_xG' in state_df.columns else 0.0
+            mp_xg = float(state_df[mask]['mp_xGoal'].sum()) if 'mp_xGoal' in state_df.columns else 0.0
             return goals, xg, mp_xg
         
         # --- 5v5 ---
@@ -332,6 +351,9 @@ def extract_rates_per60(train_df):
         
         local_xgf_5v5 = float(df_5v5[_team_shot_mask(df_5v5, t, 'for')]['local_xgs'].sum()) if 'local_xgs' in df_5v5.columns else 0.0
         local_xga_5v5 = float(df_5v5[_team_shot_mask(df_5v5, t, 'against')]['local_xgs'].sum()) if 'local_xgs' in df_5v5.columns else 0.0
+        
+        local_nn_xgf_5v5 = float(df_5v5[_team_shot_mask(df_5v5, t, 'for')]['local_nn_xgs'].sum()) if 'local_nn_xgs' in df_5v5.columns else 0.0
+        local_nn_xga_5v5 = float(df_5v5[_team_shot_mask(df_5v5, t, 'against')]['local_nn_xgs'].sum()) if 'local_nn_xgs' in df_5v5.columns else 0.0
         
         # Per-60 = (total / (team_games * avg_state_minutes / 60))
         hours_5v5 = team_games * AVG_5V5_TIME_SEC / 3600
@@ -356,6 +378,7 @@ def extract_rates_per60(train_df):
         gf_pp = int((df_pp[mask_pp_for]['event'].str.lower() == 'goal').sum())
         xgf_pp = float(df_pp[mask_pp_for]['xgs'].sum()) if 'xgs' in df_pp.columns else 0.0
         local_xgf_pp = float(df_pp[mask_pp_for]['local_xgs'].sum()) if 'local_xgs' in df_pp.columns else 0.0
+        local_nn_xgf_pp = float(df_pp[mask_pp_for]['local_nn_xgs'].sum()) if 'local_nn_xgs' in df_pp.columns else 0.0
         
         hours_pp = team_games * AVG_PP_TIME_SEC / 3600
         
@@ -369,6 +392,7 @@ def extract_rates_per60(train_df):
         ga_pk = int((df_pp[mask_pk_ag]['event'].str.lower() == 'goal').sum())
         xga_pk = float(df_pp[mask_pk_ag]['xgs'].sum()) if 'xgs' in df_pp.columns else 0.0
         local_xga_pk = float(df_pp[mask_pk_ag]['local_xgs'].sum()) if 'local_xgs' in df_pp.columns else 0.0
+        local_nn_xga_pk = float(df_pp[mask_pk_ag]['local_nn_xgs'].sum()) if 'local_nn_xgs' in df_pp.columns else 0.0
         
         hours_pk = team_games * AVG_PK_TIME_SEC / 3600
         
@@ -380,16 +404,20 @@ def extract_rates_per60(train_df):
                 'xga60': xga_5v5 / hours_5v5 if hours_5v5 > 0 else 0.0,
                 'local_xgf60': local_xgf_5v5 / hours_5v5 if hours_5v5 > 0 else 0.0,
                 'local_xga60': local_xga_5v5 / hours_5v5 if hours_5v5 > 0 else 0.0,
+                'local_nn_xgf60': local_nn_xgf_5v5 / hours_5v5 if hours_5v5 > 0 else 0.0,
+                'local_nn_xga60': local_nn_xga_5v5 / hours_5v5 if hours_5v5 > 0 else 0.0,
             },
             'pp': {
                 'gf60':  gf_pp  / hours_pp if hours_pp > 0 else 0.0,
                 'xgf60': xgf_pp / hours_pp if hours_pp > 0 else 0.0,
                 'local_xgf60': local_xgf_pp / hours_pp if hours_pp > 0 else 0.0,
+                'local_nn_xgf60': local_nn_xgf_pp / hours_pp if hours_pp > 0 else 0.0,
             },
             'pk': {
                 'ga60':  ga_pk  / hours_pk if hours_pk > 0 else 0.0,
                 'xga60': xga_pk / hours_pk if hours_pk > 0 else 0.0,
                 'local_xga60': local_xga_pk / hours_pk if hours_pk > 0 else 0.0,
+                'local_nn_xga60': local_nn_xga_pk / hours_pk if hours_pk > 0 else 0.0,
             },
             'games': team_games
         }
@@ -407,7 +435,7 @@ def _league_avg_per60(rates_per60, key_path):
     return np.mean(vals) if vals else 1.0
 
 
-def predict_matchup_per60(home, away, rates60, xtg_rates, league60):
+def predict_matchup_per60(home, away, rates60, xtg_rates, league60, rates=None):
     """
     Predict expected goals for home and away using game-state-aware per-60 rates.
     
@@ -440,6 +468,8 @@ def predict_matchup_per60(home, away, rates60, xtg_rates, league60):
     a_5v5_xg = safe_div(a['5v5']['xgf60'] * h['5v5']['xga60'], league60['5v5_xg'], league60['5v5_xg']) * (AVG_5V5_TIME_SEC / 3600)
     h_5v5_lxg = safe_div(h['5v5']['local_xgf60'] * a['5v5']['local_xga60'], league60['5v5_lxg'], league60['5v5_lxg']) * (AVG_5V5_TIME_SEC / 3600) if 'local_xgf60' in h['5v5'] else h_5v5_xg
     a_5v5_lxg = safe_div(a['5v5']['local_xgf60'] * h['5v5']['local_xga60'], league60['5v5_lxg'], league60['5v5_lxg']) * (AVG_5V5_TIME_SEC / 3600) if 'local_xgf60' in a['5v5'] else a_5v5_xg
+    h_5v5_nnxg = safe_div(h['5v5']['local_nn_xgf60'] * a['5v5']['local_nn_xga60'], league60['5v5_nnlxg'], league60['5v5_nnlxg']) * (AVG_5V5_TIME_SEC / 3600) if 'local_nn_xgf60' in h['5v5'] else h_5v5_xg
+    a_5v5_nnxg = safe_div(a['5v5']['local_nn_xgf60'] * h['5v5']['local_nn_xga60'], league60['5v5_nnlxg'], league60['5v5_nnlxg']) * (AVG_5V5_TIME_SEC / 3600) if 'local_nn_xgf60' in a['5v5'] else a_5v5_xg
     
     # --- PP/PK ---
     # Home PP (home offense on PP vs away defense on PK)
@@ -449,6 +479,8 @@ def predict_matchup_per60(home, away, rates60, xtg_rates, league60):
     a_pk_xg = safe_div(a['pp']['xgf60'] * h['pk']['xga60'], league60['pp_xg'], league60['pp_xg']) * (AVG_PP_TIME_SEC / 3600)
     h_pp_lxg = safe_div(h['pp']['local_xgf60'] * a['pk']['local_xga60'], league60['pp_lxg'], league60['pp_lxg']) * (AVG_PP_TIME_SEC / 3600) if 'local_xgf60' in h['pp'] else h_pp_xg
     a_pk_lxg = safe_div(a['pp']['local_xgf60'] * h['pk']['local_xga60'], league60['pp_lxg'], league60['pp_lxg']) * (AVG_PP_TIME_SEC / 3600) if 'local_xgf60' in a['pp'] else a_pk_xg
+    h_pp_nnxg = safe_div(h['pp']['local_nn_xgf60'] * a['pk']['local_nn_xga60'], league60['pp_nnlxg'], league60['pp_nnlxg']) * (AVG_PP_TIME_SEC / 3600) if 'local_nn_xgf60' in h['pp'] else h_pp_xg
+    a_pk_nnxg = safe_div(a['pp']['local_nn_xgf60'] * h['pk']['local_nn_xga60'], league60['pp_nnlxg'], league60['pp_nnlxg']) * (AVG_PP_TIME_SEC / 3600) if 'local_nn_xgf60' in a['pp'] else a_pk_xg
     
     # Totals
     h_g_exp  = h_5v5_g  + h_pp_g
@@ -457,8 +489,15 @@ def predict_matchup_per60(home, away, rates60, xtg_rates, league60):
     a_xg_exp = a_5v5_xg + a_pk_xg
     h_lxg_exp = h_5v5_lxg + h_pp_lxg
     a_lxg_exp = a_5v5_lxg + a_pk_lxg
+    h_nnxg_exp = h_5v5_nnxg + h_pp_nnxg
+    a_nnxg_exp = a_5v5_nnxg + a_pk_nnxg
     
     # xtG (uses the same per-game approach as before — already game-state aware internally)
+    lg_xtg = league60.get('xtgf_per_game', 3.0)
+    if home in xtg_rates and away in xtg_rates:
+        h_xtg_exp = safe_div(xtg_rates[home]['xtgf_per_game'] * xtg_rates[away]['xtga_per_game'], lg_xtg, lg_xtg)
+        a_xtg_exp = safe_div(xtg_rates[away]['xtgf_per_game'] * xtg_rates[home]['xtga_per_game'], lg_xtg, lg_xtg)
+    # Mixed Effects
     lg_xtg = league60.get('xtgf_per_game', 3.0)
     if home in xtg_rates and away in xtg_rates:
         h_xtg_exp = safe_div(xtg_rates[home]['xtgf_per_game'] * xtg_rates[away]['xtga_per_game'], lg_xtg, lg_xtg)
@@ -467,7 +506,21 @@ def predict_matchup_per60(home, away, rates60, xtg_rates, league60):
         h_xtg_exp = lg_xtg
         a_xtg_exp = lg_xtg
     
-    # MP xG — not available per-60 in this path, just pass 0
+    # MP xG / NN xG Fallback to totals logic using rates if provided
+    lg_mp = league60.get('mp_xgf_per_game', 3.0)
+    lg_nn = league60.get('nn_xgf_per_game', 3.0)
+    
+    if rates and home in rates and away in rates:
+        # Predict MP
+        h_mp_exp = safe_div(rates[home]['mp_xgf_per_game'] * rates[away]['mp_xga_per_game'], lg_mp, lg_mp)
+        a_mp_exp = safe_div(rates[away]['mp_xgf_per_game'] * rates[home]['mp_xga_per_game'], lg_mp, lg_mp)
+        
+        # Predict Standard NN xG
+        h_nn_exp = safe_div(rates[home]['nn_xgf_per_game'] * rates[away]['nn_xga_per_game'], lg_nn, lg_nn)
+        a_nn_exp = safe_div(rates[away]['nn_xgf_per_game'] * rates[home]['nn_xga_per_game'], lg_nn, lg_nn)
+    else:
+        h_mp_exp = a_mp_exp = lg_mp
+        h_nn_exp = a_nn_exp = lg_nn
     
     # Local xtG
     lg_lxtg = league60.get('local_xtgf_per_game', 3.0)
@@ -482,8 +535,10 @@ def predict_matchup_per60(home, away, rates60, xtg_rates, league60):
         'goals': (h_g_exp, a_g_exp),
         'xg': (h_xg_exp, a_xg_exp),
         'xtg': (h_xtg_exp, a_xtg_exp),
-        'mp_xg': (0.0, 0.0),  # not computed in per-60 variant
+        'mp_xg': (h_mp_exp, a_mp_exp),
+        'nn_xg': (h_nn_exp, a_nn_exp),
         'local_xg': (h_lxg_exp, a_lxg_exp),
+        'local_nn_xg': (h_nnxg_exp, a_nnxg_exp),
         'local_xtg': (h_lxtg_exp, a_lxtg_exp),
     }
 
@@ -553,6 +608,16 @@ def train_local_models(train_df):
     
     local_xg_clf.fit(train_df)
     train_df['local_xgs'] = local_xg_clf.predict_proba(train_df)[:, 1]
+    
+    # 1b. Train Non-Nested GLM
+    logger.info("Training Local Non-Nested Model...")
+    local_nn_clf = fit_glm.NonNestedGLM(
+        features=feature_list,
+        use_splines=True,
+        enable_marginalization=True
+    )
+    local_nn_clf.fit(train_df[train_df['event'] != 'blocked-shot'])
+    train_df['local_nn_xgs'] = local_nn_clf.predict_proba(train_df)[:, 1]
     
     # 2. Train Local Mixed Effects
     logger.info("Training Local Mixed Effects Model (based on Local Nested)...")
@@ -643,6 +708,22 @@ def predict_matchup(home, away, rates, xtg_rates, league_avgs):
     else:
         h_lxg_exp = league_avgs.get('local_xgf_per_game', 3.0)
         a_lxg_exp = league_avgs.get('local_xgf_per_game', 3.0)
+
+    # 5.5 Local Non-Nested xG
+    if home in rates and away in rates:
+        h_nnxg_exp = safe_div(rates[home]['local_nn_xgf_per_game'] * rates[away]['local_nn_xga_per_game'], league_avgs['local_nn_xgf_per_game'], league_avgs['local_nn_xgf_per_game'])
+        a_nnxg_exp = safe_div(rates[away]['local_nn_xgf_per_game'] * rates[home]['local_nn_xga_per_game'], league_avgs['local_nn_xgf_per_game'], league_avgs['local_nn_xgf_per_game'])
+    else:
+        h_nnxg_exp = league_avgs.get('local_nn_xgf_per_game', 3.0)
+        a_nnxg_exp = league_avgs.get('local_nn_xgf_per_game', 3.0)
+        
+    # 5.75 Global Standard xG
+    if home in rates and away in rates:
+        h_nn_exp = safe_div(rates[home]['nn_xgf_per_game'] * rates[away]['nn_xga_per_game'], league_avgs.get('nn_xgf_per_game', 3.0), league_avgs.get('nn_xgf_per_game', 3.0))
+        a_nn_exp = safe_div(rates[away]['nn_xgf_per_game'] * rates[home]['nn_xga_per_game'], league_avgs.get('nn_xgf_per_game', 3.0), league_avgs.get('nn_xgf_per_game', 3.0))
+    else:
+        h_nn_exp = league_avgs.get('nn_xgf_per_game', 3.0)
+        a_nn_exp = league_avgs.get('nn_xgf_per_game', 3.0)
         
     # 6. Local xtG
     if home in xtg_rates and away in xtg_rates and 'local_xtgf_per_game' in xtg_rates[home]:
@@ -658,6 +739,8 @@ def predict_matchup(home, away, rates, xtg_rates, league_avgs):
         'xtg': (h_xtg_exp, a_xtg_exp),
         'mp_xg': (h_mp_exp, a_mp_exp),
         'local_xg': (h_lxg_exp, a_lxg_exp),
+        'local_nn_xg': (h_nnxg_exp, a_nnxg_exp),
+        'nn_xg': (h_nn_exp, a_nn_exp),
         'local_xtg': (h_lxtg_exp, a_lxtg_exp)
     }
 
@@ -778,6 +861,23 @@ def main():
         # Ensure standard xG is present
         df, _, _ = analyze._predict_xgs(df)
         
+        # Add Global Standard xG
+        try:
+            import joblib
+            import os
+            nn_path = os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor.joblib')
+            if os.path.exists(nn_path):
+                nn_clf = joblib.load(nn_path)
+                mask_valid = df['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
+                df['nn_xgs'] = 0.0
+                if mask_valid.sum() > 0:
+                    df.loc[mask_valid, 'nn_xgs'] = nn_clf.predict_proba(df[mask_valid])[:, 1]
+        except Exception as e:
+            logger.warning(f"Failed to calculate global standard xG: {e}")
+        
+        # Enrich with MoneyPuck Data
+        df = moneypuck.enrich_with_moneypuck(df)
+        
         # Filter state if needed
         if args.state != 'all':
             df = df[df['game_state'] == args.state].copy()
@@ -821,30 +921,36 @@ def main():
                 else:
                     xtg_rates[t] = local_xtg_rates[t]
             
-            rates60, rates = None, None
+            rates = extract_rates(train_df)
+            rates60 = None
             if args.per60:
                 rates60 = extract_rates_per60(train_df)
-                teams_w_data = [t for t in rates60.keys() if rates60[t]['games'] > 0]
+                teams_w_data = [t for t in rates60.keys() if rates60[t].get('games', 0) > 0]
                 if not teams_w_data: continue
                 league_avgs = {
                     '5v5_g':  _league_avg_per60(rates60, ('5v5', 'gf60')),
                     '5v5_xg': _league_avg_per60(rates60, ('5v5', 'xgf60')),
                     '5v5_lxg': _league_avg_per60(rates60, ('5v5', 'local_xgf60')),
+                    '5v5_nnlxg': _league_avg_per60(rates60, ('5v5', 'local_nn_xgf60')),
                     'pp_g':   _league_avg_per60(rates60, ('pp', 'gf60')),
                     'pp_xg':  _league_avg_per60(rates60, ('pp', 'xgf60')),
                     'pp_lxg': _league_avg_per60(rates60, ('pp', 'local_xgf60')),
+                    'pp_nnlxg': _league_avg_per60(rates60, ('pp', 'local_nn_xgf60')),
+                    'mp_xgf_per_game': np.mean([rates[t]['mp_xgf_per_game'] for t in teams_w_data if t in rates]),
+                    'nn_xgf_per_game': np.mean([rates[t]['nn_xgf_per_game'] for t in teams_w_data if t in rates]),
                     'xtgf_per_game': np.mean([xtg_rates[t]['xtgf_per_game'] for t in teams_w_data if t in xtg_rates]),
                     'local_xtgf_per_game': np.mean([local_xtg_rates[t]['local_xtgf_per_game'] for t in teams_w_data if t in local_xtg_rates])
                 }
             else:
-                rates = extract_rates(train_df)
-                teams_w_data = [t for t in rates.keys() if rates[t]['games'] > 0]
+                teams_w_data = [t for t in rates.keys() if float(rates[t]['games']) > 0]
                 if not teams_w_data: continue
                 league_avgs = {
                     'gf_per_game': np.mean([rates[t]['gf_per_game'] for t in teams_w_data]),
                     'xgf_per_game': np.mean([rates[t]['xgf_per_game'] for t in teams_w_data]),
                     'mp_xgf_per_game': np.mean([rates[t]['mp_xgf_per_game'] for t in teams_w_data]),
+                    'nn_xgf_per_game': np.mean([rates[t]['nn_xgf_per_game'] for t in teams_w_data]),
                     'local_xgf_per_game': np.mean([rates[t]['local_xgf_per_game'] for t in teams_w_data]),
+                    'local_nn_xgf_per_game': np.mean([rates[t]['local_nn_xgf_per_game'] for t in teams_w_data]),
                     'xtgf_per_game': np.mean([xtg_rates[t]['xtgf_per_game'] for t in teams_w_data if t in xtg_rates]),
                     'local_xtgf_per_game': np.mean([local_xtg_rates[t]['local_xtgf_per_game'] for t in teams_w_data if t in local_xtg_rates])
                 }
@@ -857,8 +963,10 @@ def main():
             p_xg_home = []
             p_xtg_home = []
             p_lxg_home = []
-            p_lxtg_home = []
-            p_mp_home = []
+            p_lxtg_home   = []
+            p_nnx_home    = []
+            p_nn_home     = []
+            p_mp_home     = []
             
             for _, row in test_sched.iterrows():
                 h = row['home_team']
@@ -869,7 +977,7 @@ def main():
                 y_actual_home.append(actual_points)
                 
                 if args.per60:
-                    exps = predict_matchup_per60(h, a, rates60, xtg_rates, league_avgs)
+                    exps = predict_matchup_per60(h, a, rates60, xtg_rates, league_avgs, rates=rates)
                 else:
                     exps = predict_matchup(h, a, rates, xtg_rates, league_avgs)
                 
@@ -893,10 +1001,19 @@ def main():
                 hw_lxt, aw_lxt, tie_lxt = calculate_win_prob(exps['local_xtg'][0], exps['local_xtg'][1])
                 p_lxtg_home.append(hw_lxt + tie_lxt * 0.5)
                 
+                # Predict Local Non-Nested xG Base
+                hw_nnx, aw_nnx, tie_nnx = calculate_win_prob(exps['local_nn_xg'][0], exps['local_nn_xg'][1])
+                p_nnx_home.append(hw_nnx + tie_nnx * 0.5)
+                
                 # Predict MP xG Base
                 if 'mp_xg' in exps:
                     hw_mp, aw_mp, tie_mp = calculate_win_prob(exps['mp_xg'][0], exps['mp_xg'][1])
                     p_mp_home.append(hw_mp + tie_mp * 0.5)
+                    
+                # Predict Global Standard xG
+                if 'nn_xg' in exps:
+                    hw_nn, aw_nn, tie_nn = calculate_win_prob(exps['nn_xg'][0], exps['nn_xg'][1])
+                    p_nn_home.append(hw_nn + tie_nn * 0.5)
                 
             # Convert to arrays
             y_act = np.array(y_actual_home)
@@ -905,6 +1022,8 @@ def main():
             p_xt  = np.array(p_xtg_home)
             p_lx  = np.array(p_lxg_home)
             p_lxt = np.array(p_lxtg_home)
+            p_nnx = np.array(p_nnx_home)
+            p_nn  = np.array(p_nn_home)
             p_mp  = np.array(p_mp_home) if p_mp_home else np.zeros_like(y_act)
             
             n_boot = args.n_boot
@@ -916,6 +1035,8 @@ def main():
                 bt_mean, bt_lo, bt_hi = bootstrap_metric(y_act, p_xt, _brier, n_boot)
                 blx_mean, blx_lo, blx_hi = bootstrap_metric(y_act, p_lx, _brier, n_boot)
                 blt_mean, blt_lo, blt_hi = bootstrap_metric(y_act, p_lxt, _brier, n_boot)
+                bnnx_mean, bnnx_lo, bnnx_hi = bootstrap_metric(y_act, p_nnx, _brier, n_boot)
+                bnn_mean, bnn_lo, bnn_hi = bootstrap_metric(y_act, p_nn, _brier, n_boot)
                 bm_mean, bm_lo, bm_hi = bootstrap_metric(y_act, p_mp, _brier, n_boot) if p_mp_home else (0,0,0)
                 
                 # Bootstrap Accuracy
@@ -924,6 +1045,8 @@ def main():
                 at_mean, at_lo, at_hi = bootstrap_metric(y_act, p_xt, _accuracy, n_boot)
                 alx_mean, alx_lo, alx_hi = bootstrap_metric(y_act, p_lx, _accuracy, n_boot)
                 alt_mean, alt_lo, alt_hi = bootstrap_metric(y_act, p_lxt, _accuracy, n_boot)
+                annx_mean, annx_lo, annx_hi = bootstrap_metric(y_act, p_nnx, _accuracy, n_boot)
+                ann_mean, ann_lo, ann_hi = bootstrap_metric(y_act, p_nn, _accuracy, n_boot)
                 am_mean, am_lo, am_hi = bootstrap_metric(y_act, p_mp, _accuracy, n_boot) if p_mp_home else (0,0,0)
             else:
                 # Fallback to point estimates (too few games for bootstrap)
@@ -932,12 +1055,16 @@ def main():
                 bt_mean = _brier(y_act, p_xt); bt_lo = bt_hi = bt_mean
                 blx_mean = _brier(y_act, p_lx); blx_lo = blx_hi = blx_mean
                 blt_mean = _brier(y_act, p_lxt); blt_lo = blt_hi = blt_mean
+                bnnx_mean = _brier(y_act, p_nnx); bnnx_lo = bnnx_hi = bnnx_mean
+                bnn_mean = _brier(y_act, p_nn); bnn_lo = bnn_hi = bnn_mean
                 bm_mean = _brier(y_act, p_mp) if p_mp_home else 0.0; bm_lo = bm_hi = bm_mean
                 ag_mean = _accuracy(y_act, p_g);  ag_lo = ag_hi = ag_mean
                 ax_mean = _accuracy(y_act, p_x);  ax_lo = ax_hi = ax_mean
                 at_mean = _accuracy(y_act, p_xt); at_lo = at_hi = at_mean
                 alx_mean = _accuracy(y_act, p_lx); alx_lo = alx_hi = alx_mean
                 alt_mean = _accuracy(y_act, p_lxt); alt_lo = alt_hi = alt_mean
+                annx_mean = _accuracy(y_act, p_nnx); annx_lo = annx_hi = annx_mean
+                ann_mean = _accuracy(y_act, p_nn); ann_lo = ann_hi = ann_mean
                 am_mean = _accuracy(y_act, p_mp) if p_mp_home else 0.0; am_lo = am_hi = am_mean
             
             
@@ -951,14 +1078,16 @@ def main():
             # Calculate Model Net Strengths
             model_ranks = {}
             for metric, extract_fn in [
-                ('Goals', lambda t: rates[t]['gf_per_game'] - rates[t]['ga_per_game'] if not args.per60 else rates60[t]['5v5']['gf60'] - rates60[t]['5v5']['ga60'] + rates60[t]['pp']['gf60'] - rates60[t]['pk']['ga60']),
-                ('xG', lambda t: rates[t]['xgf_per_game'] - rates[t]['xga_per_game'] if not args.per60 else rates60[t]['5v5']['xgf60'] - rates60[t]['5v5']['xga60'] + rates60[t]['pp']['xgf60'] - rates60[t]['pk']['xga60']),
-                ('Local_xG', lambda t: rates[t]['local_xgf_per_game'] - rates[t]['local_xga_per_game'] if not args.per60 else rates60[t]['5v5']['local_xgf60'] - rates60[t]['5v5']['local_xga60'] + rates60[t]['pp']['local_xgf60'] - rates60[t]['pk']['local_xga60']),
-                ('xtG', lambda t: xtg_rates[t]['xtgf_per_game'] - xtg_rates[t]['xtga_per_game']),
-                ('Local_xtG', lambda t: xtg_rates[t]['local_xtgf_per_game'] - xtg_rates[t]['local_xtga_per_game']),
-                ('MP_xG', lambda t: rates[t]['mp_xgf_per_game'] - rates[t]['mp_xga_per_game'] if not args.per60 else 0)
+                ('Goals', lambda t: (rates[t]['gf_per_game'] - rates[t]['ga_per_game']) if (not args.per60 and rates is not None and t in rates) else (rates60[t]['5v5']['gf60'] - rates60[t]['5v5']['ga60'] + rates60[t]['pp']['gf60'] - rates60[t]['pk']['ga60']) if (args.per60 and rates60 is not None and t in rates60) else 0),
+                ('xG', lambda t: (rates[t]['xgf_per_game'] - rates[t]['xga_per_game']) if (not args.per60 and rates is not None and t in rates) else (rates60[t]['5v5']['xgf60'] - rates60[t]['5v5']['xga60'] + rates60[t]['pp']['xgf60'] - rates60[t]['pk']['ga60']) if (args.per60 and rates60 is not None and t in rates60) else 0),
+                ('Local_xG', lambda t: (rates[t]['local_xgf_per_game'] - rates[t]['local_xga_per_game']) if (not args.per60 and rates is not None and t in rates) else (rates60[t]['5v5']['local_xgf60'] - rates60[t]['5v5']['local_xga60'] + rates60[t]['pp']['local_xgf60'] - rates60[t]['pk']['local_xga60']) if (args.per60 and rates60 is not None and t in rates60) else 0),
+                ('Local_NN_xG', lambda t: (rates[t]['local_nn_xgf_per_game'] - rates[t]['local_nn_xga_per_game']) if (not args.per60 and rates is not None and t in rates) else (rates60[t]['5v5']['local_nn_xgf60'] - rates60[t]['5v5']['local_nn_xga60'] + rates60[t]['pp']['local_nn_xgf60'] - rates60[t]['pk']['local_nn_xgf60']) if (args.per60 and rates60 is not None and t in rates60) else 0),
+                ('NN_xG', lambda t: (rates[t]['nn_xgf_per_game'] - rates[t]['nn_xga_per_game']) if (rates is not None and t in rates) else 0),
+                ('xtG', lambda t: (xtg_rates[t]['xtgf_per_game'] - xtg_rates[t]['xtga_per_game']) if (xtg_rates is not None and t in xtg_rates) else 0),
+                ('Local_xtG', lambda t: (xtg_rates[t]['local_xtgf_per_game'] - xtg_rates[t]['local_xtga_per_game']) if (xtg_rates is not None and t in xtg_rates) else 0),
+                ('MP', lambda t: (rates[t]['mp_xgf_per_game'] - rates[t]['mp_xga_per_game']) if (rates is not None and t in rates) else 0)
             ]:
-                if metric == 'MP_xG' and args.per60: continue
+                if metric == 'MP' and args.per60: continue
                 metric_vals = {}
                 for t in teams_w_data:
                     try:
@@ -1015,12 +1144,16 @@ def main():
                 'Goals_Brier': bg_mean, 'Goals_Brier_lo': bg_lo, 'Goals_Brier_hi': bg_hi,
                 'xG_Brier': bx_mean,    'xG_Brier_lo': bx_lo,    'xG_Brier_hi': bx_hi,
                 'Local_xG_Brier': blx_mean, 'Local_xG_Brier_lo': blx_lo, 'Local_xG_Brier_hi': blx_hi,
+                'NN_xG_Brier': bnn_mean, 'NN_xG_Brier_lo': bnn_lo, 'NN_xG_Brier_hi': bnn_hi,
+                'Local_NN_xG_Brier': bnnx_mean, 'Local_NN_xG_Brier_lo': bnnx_lo, 'Local_NN_xG_Brier_hi': bnnx_hi,
                 'xtG_Brier': bt_mean,   'xtG_Brier_lo': bt_lo,   'xtG_Brier_hi': bt_hi,
                 'Local_xtG_Brier': blt_mean, 'Local_xtG_Brier_lo': blt_lo, 'Local_xtG_Brier_hi': blt_hi,
                 'MP_Brier': bm_mean,    'MP_Brier_lo': bm_lo,    'MP_Brier_hi': bm_hi,
                 'Goals_Acc': ag_mean,   'Goals_Acc_lo': ag_lo,    'Goals_Acc_hi': ag_hi,
                 'xG_Acc': ax_mean,      'xG_Acc_lo': ax_lo,      'xG_Acc_hi': ax_hi,
                 'Local_xG_Acc': alx_mean,   'Local_xG_Acc_lo': alx_lo,    'Local_xG_Acc_hi': alx_hi,
+                'NN_xG_Acc': ann_mean, 'NN_xG_Acc_lo': ann_lo, 'NN_xG_Acc_hi': ann_hi,
+                'Local_NN_xG_Acc': annx_mean,   'Local_NN_xG_Acc_lo': annx_lo,    'Local_NN_xG_Acc_hi': annx_hi,
                 'xtG_Acc': at_mean,     'xtG_Acc_lo': at_lo,     'xtG_Acc_hi': at_hi,
                 'Local_xtG_Acc': alt_mean,  'Local_xtG_Acc_lo': alt_lo,   'Local_xtG_Acc_hi': alt_hi,
                 'MP_Acc': am_mean,      'MP_Acc_lo': am_lo,      'MP_Acc_hi': am_hi,
@@ -1029,7 +1162,7 @@ def main():
             res.update(spearman_ros)
             results_list.append(res)
             logger.info(f"Results for N={n}: \n Brier [Goals: {bg_mean:.4f}±{bg_hi-bg_lo:.4f}, xG: {bx_mean:.4f}±{bx_hi-bx_lo:.4f}, "
-                        f"LxG: {blx_mean:.4f}±{blx_hi-blx_lo:.4f}, xtG: {bt_mean:.4f}±{bt_hi-bt_lo:.4f}, "
+                        f"LxG: {blx_mean:.4f}±{blx_hi-blx_lo:.4f}, LNNxG: {bnnx_mean:.4f}±{bnnx_hi-bnnx_lo:.4f}, xtG: {bt_mean:.4f}±{bt_hi-bt_lo:.4f}, "
                         f"LxtG: {blt_mean:.4f}±{blt_hi-blt_lo:.4f}, MP: {bm_mean:.4f}±{bm_hi-bm_lo:.4f}]")
             
         df_res = pd.DataFrame(results_list)
@@ -1045,58 +1178,56 @@ def main():
         
         # Generate per-season Spearman Plots
         sns.set_theme(style="whitegrid")
-        palette = sns.color_palette("husl", 6)
-        metrics_to_plot = ['Goals', 'xG', 'Local_xG', 'xtG', 'Local_xtG', 'MP_xG']
         
         # Plot Spearman EOS
         fig, ax = plt.subplots(figsize=(10, 6))
-        for idx, metric in enumerate(metrics_to_plot):
-            col = f'{metric}_Spearman_EOS'
-            lo_col = f'{metric}_Spearman_EOS_lo'
-            hi_col = f'{metric}_Spearman_EOS_hi'
-            label = metric.replace('_', ' ')
+        for key, label, color, marker, ls in plot_predictive_power.MODELS:
+            col = f'{key}_Spearman_EOS'
+            lo_col = f'{col}_lo'
+            hi_col = f'{col}_hi'
             
             if col in df_res.columns and not df_res[col].isna().all():
-                color = palette[idx]
-                sns.lineplot(data=df_res, x='N', y=col, marker='o', label=label, ax=ax, color=color)
+                ax.plot(df_res['N'].to_numpy(), df_res[col].to_numpy(), marker=marker, label=label,
+                        color=color, linewidth=2, linestyle=ls)
                 
                 # Add confidence interval shading if available
                 if lo_col in df_res.columns and hi_col in df_res.columns:
-                    ax.fill_between(df_res['N'], df_res[lo_col].astype(float), df_res[hi_col].astype(float), color=color, alpha=0.2)
+                    ax.fill_between(df_res['N'].to_numpy(), df_res[lo_col].to_numpy().astype(float), df_res[hi_col].to_numpy().astype(float), color=color, alpha=0.12)
         
         ax.set_title(f'Rank correlation with End-of-Season Standings ({season})')
         ax.set_xlabel('Number of Training Games (N)')
         ax.set_ylabel('Spearman Correlation Coefficient')
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(alpha=0.2, linestyle='--')
         plt.tight_layout()
         plot_eos_path = Path(f"analysis/evaluation/spearman_correlation_eos_{season}_{suffix}.png")
-        plt.savefig(plot_eos_path)
+        plt.savefig(plot_eos_path, dpi=300)
         plt.close(fig)
         logger.info(f"Saved EOS Spearman plot to {plot_eos_path}")
         
         # Plot Spearman ROS
         fig, ax = plt.subplots(figsize=(10, 6))
-        for idx, metric in enumerate(metrics_to_plot):
-            col = f'{metric}_Spearman_ROS'
-            lo_col = f'{metric}_Spearman_ROS_lo'
-            hi_col = f'{metric}_Spearman_ROS_hi'
-            label = metric.replace('_', ' ')
+        for key, label, color, marker, ls in plot_predictive_power.MODELS:
+            col = f'{key}_Spearman_ROS'
+            lo_col = f'{col}_lo'
+            hi_col = f'{col}_hi'
             
             if col in df_res.columns and not df_res[col].isna().all():
-                color = palette[idx]
-                sns.lineplot(data=df_res, x='N', y=col, marker='o', label=label, ax=ax, color=color)
+                ax.plot(df_res['N'].to_numpy(), df_res[col].to_numpy(), marker=marker, label=label,
+                        color=color, linewidth=2, linestyle=ls)
                 
                 # Add confidence interval shading if available
                 if lo_col in df_res.columns and hi_col in df_res.columns:
-                    ax.fill_between(df_res['N'], df_res[lo_col].astype(float), df_res[hi_col].astype(float), color=color, alpha=0.2)
+                    ax.fill_between(df_res['N'].to_numpy(), df_res[lo_col].to_numpy().astype(float), df_res[hi_col].to_numpy().astype(float), color=color, alpha=0.12)
         
         ax.set_title(f'Rank correlation with Rest-of-Season Standings ({season})')
         ax.set_xlabel('Number of Training Games (N)')
         ax.set_ylabel('Spearman Correlation Coefficient')
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        ax.grid(alpha=0.2, linestyle='--')
         plt.tight_layout()
         plot_ros_path = Path(f"analysis/evaluation/spearman_correlation_ros_{season}_{suffix}.png")
-        plt.savefig(plot_ros_path)
+        plt.savefig(plot_ros_path, dpi=300)
         plt.close(fig)
         logger.info(f"Saved ROS Spearman plot to {plot_ros_path}")
 
@@ -1129,54 +1260,54 @@ def main():
     
     # Generate Aggregate Spearman plots
     sns.set_theme(style="whitegrid")
-    metrics_to_plot = ['Goals', 'xG', 'Local_xG', 'xtG', 'Local_xtG', 'MP_xG']
-    palette = sns.color_palette("husl", 6)
     
     # Aggregate EOS Plot
     fig, ax = plt.subplots(figsize=(10, 6))
-    for idx, metric in enumerate(metrics_to_plot):
-        col = f'{metric}_Spearman_EOS'
-        lo_col = f'{metric}_Spearman_EOS_lo'
-        hi_col = f'{metric}_Spearman_EOS_hi'
-        label = metric.replace('_', ' ')
+    for key, label, color, marker, ls in plot_predictive_power.MODELS:
+        col = f'{key}_Spearman_EOS'
+        lo_col = f'{key}_Spearman_EOS_lo'
+        hi_col = f'{key}_Spearman_EOS_hi'
         
         if col in df_agg.columns and not df_agg[col].isna().all():
-            color = palette[idx]
-            sns.lineplot(data=df_agg, x='N', y=col, marker='o', label=label, ax=ax, color=color)
+            ax.plot(df_agg['N'].to_numpy(), df_agg[col].to_numpy(), marker=marker, label=label,
+                    color=color, linewidth=2, linestyle=ls)
+            
             if lo_col in df_agg.columns and hi_col in df_agg.columns:
-                ax.fill_between(df_agg['N'], df_agg[lo_col].astype(float), df_agg[hi_col].astype(float), color=color, alpha=0.2)
+                ax.fill_between(df_agg['N'].to_numpy(), df_agg[lo_col].to_numpy().astype(float), df_agg[hi_col].to_numpy().astype(float), color=color, alpha=0.12)
                 
     ax.set_title(f'Rank Correlation with End-of-Season Standings (Aggregated)')
     ax.set_xlabel('Number of Training Games (N)')
     ax.set_ylabel('Spearman Correlation Coefficient')
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.grid(alpha=0.2, linestyle='--')
     plt.tight_layout()
     plot_agg_eos_path = Path(f"analysis/evaluation/spearman_correlation_eos_aggregate_{suffix}.png")
-    plt.savefig(plot_agg_eos_path)
+    plt.savefig(plot_agg_eos_path, dpi=300)
     plt.close(fig)
     logger.info(f"Saved Aggregate EOS Spearman plot to {plot_agg_eos_path}")
 
     # Aggregate ROS Plot
     fig, ax = plt.subplots(figsize=(10, 6))
-    for idx, metric in enumerate(metrics_to_plot):
-        col = f'{metric}_Spearman_ROS'
-        lo_col = f'{metric}_Spearman_ROS_lo'
-        hi_col = f'{metric}_Spearman_ROS_hi'
-        label = metric.replace('_', ' ')
+    for key, label, color, marker, ls in plot_predictive_power.MODELS:
+        col = f'{key}_Spearman_ROS'
+        lo_col = f'{key}_Spearman_ROS_lo'
+        hi_col = f'{key}_Spearman_ROS_hi'
         
         if col in df_agg.columns and not df_agg[col].isna().all():
-            color = palette[idx]
-            sns.lineplot(data=df_agg, x='N', y=col, marker='o', label=label, ax=ax, color=color)
+            ax.plot(df_agg['N'].to_numpy(), df_agg[col].to_numpy(), marker=marker, label=label,
+                    color=color, linewidth=2, linestyle=ls)
+            
             if lo_col in df_agg.columns and hi_col in df_agg.columns:
-                ax.fill_between(df_agg['N'], df_agg[lo_col].astype(float), df_agg[hi_col].astype(float), color=color, alpha=0.2)
+                ax.fill_between(df_agg['N'].to_numpy(), df_agg[lo_col].to_numpy().astype(float), df_agg[hi_col].to_numpy().astype(float), color=color, alpha=0.12)
                 
     ax.set_title(f'Rank Correlation with Rest-of-Season Standings (Aggregated)')
     ax.set_xlabel('Number of Training Games (N)')
     ax.set_ylabel('Spearman Correlation Coefficient')
-    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    ax.grid(alpha=0.2, linestyle='--')
     plt.tight_layout()
     plot_agg_ros_path = Path(f"analysis/evaluation/spearman_correlation_ros_aggregate_{suffix}.png")
-    plt.savefig(plot_agg_ros_path)
+    plt.savefig(plot_agg_ros_path, dpi=300)
     plt.close(fig)
     logger.info(f"Saved Aggregate ROS Spearman plot to {plot_agg_ros_path}")
 
