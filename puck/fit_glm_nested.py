@@ -9,7 +9,14 @@ from sklearn.preprocessing import StandardScaler, PolynomialFeatures, OneHotEnco
 from sklearn.linear_model import LogisticRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss
+from sklearn.calibration import calibration_curve
+import joblib
+import json
+import time
 import logging
+from pathlib import Path
 
 from . import features as feature_util
 from . import config as puck_config
@@ -19,6 +26,11 @@ logger = logging.getLogger(__name__)
 VOCAB_SHOT_TYPE = ['wrist', 'slap', 'snap', 'backhand', 'tip-in', 'wrap-around', 'deflected']
 
 from .spline_transformer import TensorSpline
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 
 class NestedGLM(BaseEstimator, ClassifierMixin):
@@ -107,6 +119,128 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
             
         logger.info("NestedGLM Fit Complete.")
         return self
+
+    @classmethod
+    def train(cls, df_raw: pd.DataFrame, save_path: str = None, verbose: bool = True):
+        """
+        High-level training routine for NestedGLM.
+        1. Preprocess (including imputation)
+        2. Split
+        3. Fit
+        4. Evaluate & Diagnostics
+        5. Save
+        """
+        from . import data_pipeline, moneypuck, model_summary
+        
+        def vprint(*args):
+            if verbose: print(*args)
+
+        vprint("--- Training Nested GLM (Nested Poly/Tensor) Model ---")
+        
+        # 1. Preprocess
+        vprint("Applying Preprocessing Pipeline (including imputation)...")
+        df = data_pipeline.preprocess_features(
+            df_raw, 
+            is_training=True, 
+            verbose=verbose, 
+            apply_arena_adjustments=True,
+            apply_imputation=True,
+            apply_dithering=True,
+            apply_filtering=True,
+            impute_alpha=0.2
+        )
+
+        # 2. Split
+        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+
+        # 3. Initialize & Fit
+        feature_list = feature_util.get_features('all_inclusive')
+        clf = cls(
+            features=feature_list,
+            use_splines=True,
+            enable_marginalization=True
+        )
+
+        vprint(f"Training Nested Model on {len(df_train)} rows with {len(feature_list)} features...")
+        start_t = time.time()
+        clf.fit(df_train)
+        vprint(f"Training took {time.time() - start_t:.1f}s.")
+
+        # 4. Evaluate
+        vprint("\n--- Evaluation (Test Set) ---")
+        y_test_goal = (df_test['event'] == 'goal').astype(int)
+        probs = clf.predict_proba(df_test)[:, 1]
+        
+        auc = roc_auc_score(y_test_goal, probs)
+        ll = log_loss(y_test_goal, probs)
+        vprint(f"Overall xG AUC: {auc:.4f}, LogLoss: {ll:.4f}")
+
+        # 5. Save Model & Metadata
+        if save_path is None:
+            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_nested_tensor.joblib')
+        
+        vprint(f"Saving model to {save_path}...")
+        save_dir = Path(save_path).parent
+        save_dir.mkdir(parents=True, exist_ok=True)
+        joblib.dump(clf, save_path)
+        
+        meta = {
+            'final_features': clf.features,
+            'categorical_levels_map': {}, 
+            'feature_set_name': 'nested_glm_tensor',
+            'model_type': 'nested_tensor',
+            'raw_features': clf.features
+        }
+        with open(save_path + '.meta.json', 'w') as f:
+            json.dump(meta, f)
+
+        # 6. Diagnostics & Summary
+        out_dir = Path(puck_config.ANALYSIS_DIR) / 'nested_xgs'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Layer Diagnostics plots
+        if plt:
+            fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+            
+            # Block
+            df_test_loc = df_test.copy()
+            df_test_loc['is_blocked'] = (df_test_loc['event'] == 'blocked-shot').astype(int)
+            p_block = clf.predict_proba_layer(df_test_loc, 'block')
+            prob_true, prob_pred = calibration_curve(df_test_loc['is_blocked'], p_block, n_bins=10, strategy='uniform')
+            axes[0].plot(prob_pred, prob_true, marker='o', label="Block Layer")
+            axes[0].plot([0, 1], [0, 1], '--', color='gray', alpha=0.5)
+            axes[0].set_title("Block Layer")
+            
+            # Accuracy (Unblocked)
+            mask_unblocked = df_test_loc['is_blocked'] == 0
+            if mask_unblocked.any():
+                df_acc = df_test_loc[mask_unblocked]
+                a_targets = df_acc['event'].isin(['shot-on-goal', 'goal']).astype(int)
+                p_acc = clf.predict_proba_layer(df_acc, 'accuracy')
+                prob_true, prob_pred = calibration_curve(a_targets, p_acc, n_bins=10, strategy='uniform')
+                axes[1].plot(prob_pred, prob_true, marker='o', label="Accuracy Layer")
+                axes[1].plot([0, 1], [0, 1], '--', color='gray', alpha=0.5)
+                axes[1].set_title("Accuracy Layer")
+                
+            # Finish (On Net)
+            mask_on_net = (df_test_loc['is_blocked'] == 0) & (df_test_loc['event'].isin(['shot-on-goal', 'goal']))
+            if mask_on_net.any():
+                df_fin = df_test_loc[mask_on_net]
+                f_targets = (df_fin['event'] == 'goal').astype(int)
+                p_fin = clf.predict_proba_layer(df_fin, 'finish')
+                prob_true, prob_pred = calibration_curve(f_targets, p_fin, n_bins=10, strategy='uniform')
+                axes[2].plot(prob_pred, prob_true, marker='o', label="Finish Layer")
+                axes[2].plot([0, 1], [0, 1], '--', color='gray', alpha=0.5)
+                axes[2].set_title("Finish Layer")
+                
+            plt.savefig(out_dir / 'glm_calibration.png')
+            plt.close()
+
+        # Model Summary
+        vprint("Generating model summary...")
+        model_summary.generate_model_summary(model_path=save_path, test_df=df_test, output_dir=str(out_dir), verbose=verbose)
+
+        return clf
 
     def _build_pipeline(self, features=None):
         """Builds a standardized Sklearn pipeline for a single layer."""
@@ -266,4 +400,13 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         p_finish = self.model_finish.predict_proba(df[self.features])[:, 1]
         
         return p_unblocked * p_on_net * p_finish
+
+def train_nested_glm(df_raw, **kwargs):
+    """Functional wrapper for NestedGLM.train"""
+    return NestedGLM.train(df_raw, **kwargs)
+
+def fit_nested_glm(X, y=None, **kwargs):
+    """Functional wrapper for NestedGLM.fit"""
+    model = NestedGLM(**kwargs)
+    return model.fit(X, y)
 

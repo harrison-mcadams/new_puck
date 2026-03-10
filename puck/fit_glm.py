@@ -8,16 +8,30 @@ from sklearn.preprocessing import StandardScaler, PolynomialFeatures, OneHotEnco
 from sklearn.linear_model import LogisticRegression
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss
+from sklearn.calibration import calibration_curve
+import joblib
+import json
+import time
 import logging
+from pathlib import Path
 
 from . import features as feature_util
 from . import config as puck_config
+# These are imported inside methods to avoid circular dependencies if any
+# from . import data_pipeline, moneypuck, model_summary
 
 logger = logging.getLogger(__name__)
 
 VOCAB_SHOT_TYPE = ['wrist', 'slap', 'snap', 'backhand', 'tip-in', 'wrap-around', 'deflected']
 
 from .spline_transformer import TensorSpline
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 
 class NonNestedGLM(BaseEstimator, ClassifierMixin):
@@ -83,6 +97,102 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
             
         logger.info("NonNestedGLM Fit Complete.")
         return self
+
+    @classmethod
+    def train(cls, df_raw: pd.DataFrame, save_path: str = None, verbose: bool = True):
+        """
+        High-level training routine.
+        1. Preprocess
+        2. Split
+        3. Fit
+        4. Evaluate
+        5. Save
+        """
+        from . import data_pipeline, moneypuck, model_summary
+        
+        def vprint(*args):
+            if verbose: print(*args)
+
+        vprint("--- Training Non-Nested GLM (Poly/Tensor) Model ---")
+        
+        # 1. Preprocess
+        vprint("Applying Preprocessing Pipeline (excluding blocked shots)...")
+        df = data_pipeline.preprocess_features(
+            df_raw, 
+            is_training=True, 
+            verbose=verbose, 
+            apply_arena_adjustments=True,
+            apply_imputation=False,
+            apply_dithering=True,
+            apply_filtering=True,
+            exclude_blocked=True
+        )
+
+        # 2. Split
+        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+
+        # 3. Initialize & Fit
+        feature_list = feature_util.get_features('all_inclusive')
+        clf = cls(
+            features=feature_list,
+            use_splines=True,
+            enable_marginalization=True
+        )
+
+        vprint(f"Training on {len(df_train)} rows with {len(feature_list)} features...")
+        start_t = time.time()
+        clf.fit(df_train)
+        vprint(f"Training took {time.time() - start_t:.1f}s.")
+
+        # 4. Evaluate
+        vprint("\n--- Evaluation (Test Set) ---")
+        y_test_goal = (df_test['event'] == 'goal').astype(int)
+        probs = clf.predict_proba(df_test)[:, 1]
+        
+        auc = roc_auc_score(y_test_goal, probs)
+        ll = log_loss(y_test_goal, probs)
+        vprint(f"AUC: {auc:.4f}, LogLoss: {ll:.4f}")
+
+        # 5. Save Model & Metadata
+        if save_path is None:
+            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_non_nested_tensor.joblib')
+        
+        vprint(f"Saving model to {save_path}...")
+        save_dir = Path(save_path).parent
+        save_dir.mkdir(parents=True, exist_ok=True)
+        joblib.dump(clf, save_path)
+        
+        meta = {
+            'final_features': clf.features,
+            'categorical_levels_map': {}, 
+            'feature_set_name': 'non_nested_glm_tensor',
+            'model_type': 'non_nested_tensor',
+            'raw_features': clf.features
+        }
+        with open(save_path + '.meta.json', 'w') as f:
+            json.dump(meta, f)
+
+        # 6. Diagnostics & Summary
+        out_dir = Path(puck_config.ANALYSIS_DIR) / 'non_nested_xgs'
+        out_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Calibration Plot
+        if plt:
+            fig, ax = plt.subplots(figsize=(6, 5))
+            prob_true, prob_pred = calibration_curve(y_test_goal, probs, n_bins=10, strategy='uniform')
+            ax.plot(prob_pred, prob_true, marker='o', label="Non-Nested Model")
+            ax.plot([0, 1], [0, 1], '--', color='gray', alpha=0.5)
+            ax.set_title("Non-Nested GLM Calibration")
+            ax.legend()
+            ax.grid(True, alpha=0.3)
+            plt.savefig(out_dir / 'glm_calibration.png')
+            plt.close()
+
+        # Model Summary
+        vprint("Generating model summary...")
+        model_summary.generate_model_summary(model_path=save_path, test_df=df_test, output_dir=str(out_dir), verbose=verbose)
+
+        return clf
 
     def _build_pipeline(self, features=None):
         """Builds a standardized Sklearn pipeline."""
@@ -194,3 +304,12 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
             p_final[mask_nan] = accumulated_prob
             
         return np.column_stack((1 - p_final, p_final))
+
+def train_glm(df_raw, **kwargs):
+    """Functional wrapper for NonNestedGLM.train"""
+    return NonNestedGLM.train(df_raw, **kwargs)
+
+def fit_glm(X, y=None, **kwargs):
+    """Functional wrapper for NonNestedGLM.fit"""
+    model = NonNestedGLM(**kwargs)
+    return model.fit(X, y)
