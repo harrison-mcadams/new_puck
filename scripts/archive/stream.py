@@ -46,8 +46,10 @@ STREAMED_HEADERS = [
 
 def get_headers_for_url(url):
     """Selects the best headers based on the URL domain."""
-    if "embedsports" in url or "poocloud" in url or "xyz" in url:
+    if any(domain in url for domain in ["embedsports", "poocloud", "xyz"]):
         return DEFAULT_HEADERS
+    elif any(domain in url for domain in ["streamed.pk", "strmd.top"]):
+        return STREAMED_HEADERS
     else:
         # Default to the mobile headers as they are generally more permissive
         return DEFAULT_HEADERS
