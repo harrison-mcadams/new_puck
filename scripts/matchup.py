@@ -128,12 +128,8 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         df_away['off_team_name'] = away_team
         df_away['def_team_name'] = home_team
         df_away['is_home'] = 0.0
-        if state == '5v4':
-            df_away['relative_game_state'] = '4v5'
-        elif state == '4v5':
-            df_away['relative_game_state'] = '5v4'
-        else:
-            df_away['relative_game_state'] = state
+        df_away['relative_game_state'] = state
+        
         num_cols = df_away.select_dtypes(include=['int64', 'int32']).columns
         if len(num_cols) > 0: df_away[num_cols] = df_away[num_cols].astype('float64')
         probs_away = model.predict_proba(df_away)[:, 1]

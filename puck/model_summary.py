@@ -93,7 +93,7 @@ def generate_model_summary(model_path: str = None,
             vprint(f"  Running {script_name}...")
             try:
                 result = subprocess.run(
-                    [sys.executable, str(script_path)],
+                    [sys.executable, str(script_path), model_path],
                     capture_output=True, text=True, timeout=300
                 )
                 if result.returncode == 0:
@@ -136,7 +136,7 @@ def generate_model_summary(model_path: str = None,
     if calibration_script.exists():
         try:
             result = subprocess.run(
-                [sys.executable, str(calibration_script)],
+                [sys.executable, str(calibration_script), '--model', model_path],
                 capture_output=True, text=True, timeout=300
             )
             with open(calibration_output, 'w') as f:
