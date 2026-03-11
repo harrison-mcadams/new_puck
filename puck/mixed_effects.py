@@ -197,10 +197,15 @@ class StateMixedEffectsModel(BaseEstimator):
         n = self.n_teams_
         off_mean = self.coef_[:n].mean()
         def_mean = self.coef_[n:].mean()
-        self.calibration_offset_ = 0.0  # base model handles calibration
+        
+        # Capture the global calibration error for this state.
+        # Since logit = base + off + def, the global shift is off_mean + def_mean.
+        self.calibration_offset_ = off_mean + def_mean
+        
+        # Center the team coefficients so they represent relative deviations
         self.coef_[:n] -= off_mean
         self.coef_[n:] -= def_mean
-        logger.info(f"Post-centering: removed off_mean={off_mean:.4f}, def_mean={def_mean:.4f}")
+        logger.info(f"Post-centering: off_mean={off_mean:.4f}, def_mean={def_mean:.4f}, offset={self.calibration_offset_:.4f}")
         
         # 6. Sanity checks
         max_abs = np.max(np.abs(self.coef_))
@@ -350,22 +355,23 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
         # Convert to Series for index-safe subsetting later
         base_margins = pd.Series(base_margins, index=df.index)
         
-        # 3. Train per Game State
-        states = df['game_state'].value_counts()
+        # 3. Train per Game State (Use relative_game_state to distinguish PP from PK)
+        state_col = 'relative_game_state' if 'relative_game_state' in df.columns else 'game_state'
+        states = df[state_col].value_counts()
         target_states = ['5v5', '5v4', '4v5']
         valid_states = [s for s in target_states if s in states.index and states[s] > 100]
-        logger.info(f"Training models for states: {valid_states}")
+        logger.info(f"Training models for states: {valid_states} using column: {state_col}")
         
         # Warn about unmodeled states
-        unmodeled = set(df['game_state'].unique()) - set(valid_states)
+        unmodeled = set(df[state_col].unique()) - set(valid_states)
         if unmodeled:
-            n_unmodeled = int(df['game_state'].isin(unmodeled).sum())
+            n_unmodeled = int(df[state_col].isin(unmodeled).sum())
             logger.warning(f"Game states {unmodeled} have no mixed-effects model. "
                            f"{n_unmodeled} shots will use base xG only.")
         
         for state in valid_states:
             logger.info(f"--- Fitting State: {state} ---")
-            mask = df['game_state'] == state
+            mask = df[state_col] == state
             df_sub = df[mask]
             if len(df_sub) == 0:
                 continue
@@ -412,9 +418,10 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
 
         # 2. Add Adjustments per State
         state_models = getattr(self, 'state_models_', {}) or {}
+        state_col = 'relative_game_state' if 'relative_game_state' in df.columns else 'game_state'
         
         for state, model in state_models.items():
-            mask = df['game_state'] == state
+            mask = df[state_col] == state
             if not mask.any():
                 continue
             

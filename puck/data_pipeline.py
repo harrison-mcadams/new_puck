@@ -112,22 +112,11 @@ def preprocess_features(df_input: pd.DataFrame,
             home_count = parts[0]
             away_count = parts[1]
             
-            # If is_home == 1, Offense=Home, Defense=Away
-            # If is_home == 0, Offense=Away, Defense=Home
-            is_home_mask = (df['is_home'] == 1)
-            
-            offense = np.where(is_home_mask, home_count, away_count)
-            defense = np.where(is_home_mask, away_count, home_count)
-            
-            # Recombine
-            df['relative_game_state'] = pd.Series(offense).astype(str) + 'v' + pd.Series(defense).astype(str)
-            # Handle edge cases where game_state was missing/NaN originally
-            mask_missing = df['game_state'].isna() | (df['game_state'] == 'nan')
-            df.loc[mask_missing, 'relative_game_state'] = 'Unknown'
-            
-            vprint("  Created 'relative_game_state' (Offense v Defense) from absolute 'game_state'.")
+            # Input game_state is already relative/advantage-aware (e.g., '5v4' = Power Play)
+            df['relative_game_state'] = df['game_state'].astype(str)
+            vprint("  Using raw 'game_state' as 'relative_game_state' (Advantage-Aware Data).")
         else:
-            df['relative_game_state'] = df['game_state']
+            df['relative_game_state'] = df['game_state'].astype(str)
             vprint("  Warning: game_state could not be parsed securely. Used fallback.")
     elif 'game_state' in df.columns:
         df['relative_game_state'] = df['game_state']

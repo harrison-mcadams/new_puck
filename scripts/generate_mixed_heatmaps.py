@@ -252,114 +252,70 @@ def main():
         if res:
             clean_intervals_map[res[0]] = res[1]
 
-    # --- MAIN STATE LOOP ---
-    
-    output_states = ['5v5', '5v4', '4v5']
-    grand_stats = {} # team -> state -> bucket
-    
+    # --- PREDICT xG GLOBALLY ---
     # Load Unified Mixed Effects Model Once
     model = None
     model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
+    
+    # We need off_team_name and def_team_name globally for output as well
+    def get_opp_name(row):
+        if row['team_name'] == row['home_abb']: return row['away_abb']
+        return row['home_abb']
+    
+    df['opp_team_name'] = df.apply(get_opp_name, axis=1)
+    
     if model_path.exists():
         model = joblib.load(model_path)
         print(f"Loaded unified mixed effects model from {model_path}")
+        print("  Predicting xG for entire dataset...")
+        
+        df_pred = df.copy()
+        df_pred['off_team_name'] = df_pred['team_name']
+        df_pred['def_team_name'] = df_pred['opp_team_name']
+        
+        num_cols = df_pred.select_dtypes(include=['int64', 'int32']).columns
+        if len(num_cols) > 0: df_pred[num_cols] = df_pred[num_cols].astype('float64')
+        
+        probs = model.predict_proba(df_pred)[:, 1]
+        df['xgs'] = probs
     else:
         print(f"Warning: Unified model not found at {model_path}. Predict xG will use 0.0.")
+        df['xgs'] = 0.0
+        
+    all_goals = df[df['event'] == 'goal']
+
+    # --- MAIN STATE LOOP ---
+    output_states = ['5v5', '5v4', '4v5']
+    grand_stats = {} # team -> state -> bucket
 
     for state in output_states:
         print(f"\nProcessing State: {state} ...")
         
-        # 2. Select Events by CLEAN TIME (Strictly Trust Shift Chart)
-        print(f"  Selecting Valid Events for {state}...")
-        
-        # Optimization: Just return indices
-        def get_valid_indices(gid):
-            if gid not in clean_intervals_map: return []
-            info = clean_intervals_map[gid].get(state)
-            if not info or not info['intervals']: return []
-            
-            g_df = df[df['game_id'] == gid]
-            intervals = info['intervals']
-            
-            t_vals = g_df['total_seconds'].values
-            
-            # Check against intervals
-            mask = np.zeros(len(g_df), dtype=bool)
-            for s, e in intervals:
-                 mask |= ((t_vals >= s) & (t_vals < e))
-                 
-            mask &= (g_df['is_net_empty'] == 0).values
-            
-            # REMOVED: Consensus Filtering (is_valid ratio check)
-            # We assume Shift Chart is Ground Truth.
-            # Systematic mislabeling (5v5 events in 5v4 time) requires this.
-            
-            return g_df.index[mask].tolist()
-
-        indices_chunks = Parallel(n_jobs=-1, verbose=1)(delayed(get_valid_indices)(gid) for gid in all_game_ids)
-        flat_indices = [i for chunk in indices_chunks for i in chunk]
-        
-        df_state = df.loc[flat_indices].copy()
-        print(f"  Selected {len(df_state)} events for {state}")
-        
-        # 3. Predict xG (using Unified Model)
-        if model is not None:
-             print(f"  Predicting xG for {state}...")
-             # Need opp_team_name for Dual Model
-             def get_opp_name(row):
-                 if row['team_name'] == row['home_abb']: return row['away_abb']
-                 return row['home_abb']
-             df_state['opp_team_name'] = df_state.apply(get_opp_name, axis=1)
-             
-             # Map off/def for StateMixedEffectsModel
-             df_pred = df_state.copy()
-             df_pred['off_team_name'] = df_pred['team_name']
-             df_pred['def_team_name'] = df_pred['opp_team_name']
-             
-             num_cols = df_pred.select_dtypes(include=['int64', 'int32']).columns
-             if len(num_cols) > 0: df_pred[num_cols] = df_pred[num_cols].astype('float64')
-             
-             probs = model.predict_proba(df_pred)[:, 1]
-             df_state['xgs'] = probs
-        else:
-             # For 5v5, we don't have a specific model trained in this loop.
-             # If we wanted 5v5 xG, we'd need to train/load a 5v5 model here.
-             # For now, setting to 0.0 for states without a model.
-             df_state['xgs'] = 0.0 
-
-        # 5. Process Games (Aggregation)
-        game_ids_with_events = df_state['game_id'].unique()
-        
-        # We also need to process games that have NO events but HAVE time (valid empty intervals).
-        # So we should iterate ALL clean_intervals_map keys that have duration > 0 for this state.
-        
-        relevant_gids = set(game_ids_with_events)
+        # 1. Determine Relevant Games
+        relevant_gids = set()
         for gid, info in clean_intervals_map.items():
-            if info.get(state, {}).get('seconds', 0) > 0:
-                relevant_gids.add(gid)
+            if state == '5v5':
+                if info.get('5v5', {}).get('seconds', 0) > 0: relevant_gids.add(gid)
+            else:
+                if info.get('5v4', {}).get('seconds', 0) > 0 or info.get('4v5', {}).get('seconds', 0) > 0:
+                    relevant_gids.add(gid)
         
         print(f"  Aggregating stats for {len(relevant_gids)} games...")
 
         def process_game(gid):
              try:
-                # Events for this game in this state
-                g_ev = df_state[df_state['game_id'] == gid]
+                g_df = df[df['game_id'] == gid]
+                if g_df.empty: return None
                 
-                # Metadata
-                # We need home/away teams.
-                if g_ev.empty:
-                     # Access main df global?
-                     # Safer: extract metadata from map if possible, or fetch from df.
-                     # We can fetch 1 row from df (which is indexed/fast)
-                     row = df[df['game_id'] == gid].iloc[0]
-                     home_team = row['home_abb']
-                     away_team = row['away_abb']
-                else:
-                     home_team = g_ev['home_abb'].iloc[0]
-                     away_team = g_ev['away_abb'].iloc[0]
-                     
-                seconds = clean_intervals_map[gid][state]['seconds']
+                home_team = g_df['home_abb'].iloc[0]
+                away_team = g_df['away_abb'].iloc[0]
+                home_id = g_df['home_id'].iloc[0]
+                away_id = g_df['away_id'].iloc[0]
                 
+                info = clean_intervals_map.get(gid, {})
+                t_vals = g_df['total_seconds'].values
+                is_not_empty = (g_df['is_net_empty'] == 0).values
+
                 res = {
                     'game_id': gid,
                     'home_team': home_team,
@@ -367,67 +323,60 @@ def main():
                     'home_stats': None,
                     'away_stats': None
                 }
-
-                for role, team, opp in [('home', home_team, away_team), ('away', away_team, home_team)]:
-                    if g_ev.empty:
-                        events = pd.DataFrame()
-                        opp_events = pd.DataFrame()
-                    else:
-                        events = g_ev[g_ev['team_name'] == team]
-                        opp_events = g_ev[g_ev['team_name'] == opp]
+                
+                for role, team, opp, t_id, o_id in [('home', home_team, away_team, home_id, away_id), 
+                                                    ('away', away_team, home_team, away_id, home_id)]:
+                    
+                    if state == '5v5':
+                        sec_state = '5v5'
+                        opt_states = ['5v5']
+                        def_states = ['5v5']
+                    elif state == '5v4':
+                        sec_state = '5v4' if role == 'home' else '4v5'
+                        opt_states = ['5v4', '5v3', '5v6', '6v4', '6v5']
+                        def_states = ['4v5', '3v5', '4v6', '4v3', '3v4']
+                    elif state == '4v5':
+                        sec_state = '4v5' if role == 'home' else '5v4'
+                        opt_states = ['4v5', '3v5', '4v6', '4v3', '3v4']
+                        def_states = ['5v4', '5v3', '5v6', '6v4', '6v5']
+                    
+                    seconds = info.get(sec_state, {}).get('seconds', 0.0)
+                    if seconds == 0: continue
+                    
+                    # Instead of trusting interval boundaries for exactly matching PP events (which leads to dropping valid events near boundaries),
+                    # We simply select events labeled as PP or PK in the raw datastream!
+                    # "events" are those taken by `team` using the opt_states.
+                    # "opp_events" are those taken by `opp` using the def_states.
+                    
+                    valid_events = g_df[is_not_empty]
+                    
+                    events = valid_events[(valid_events['team_id'] == t_id) & (valid_events['game_state'].isin(opt_states))]
+                    opp_events = valid_events[(valid_events['team_id'] == o_id) & (valid_events['game_state'].isin(def_states))]
+                    
+                    # Goals (no net empty restriction necessary usually, but already applied in valid_events implicitly if we want non-emptynet goals.
+                    # PBP is reliable for goals.)
+                    team_goals = events[events['event'] == 'goal']
+                    opp_goals = opp_events[opp_events['event'] == 'goal']
                     
                     stats = {
                         'seconds': seconds,
                         'xg_for': events['xgs'].sum() if not events.empty else 0.0,
                         'xg_against': opp_events['xgs'].sum() if not opp_events.empty else 0.0,
-                        # FIX: Count goals using RAW event labels, not interval-filtered df
-                        # This ensures goals labeled 5v4/5v3/5v6 are counted even if they
-                        # fall slightly outside the Shift Chart interval boundaries.
-                        'goals_for': 0,  # Will be computed below
-                        'goals_against': 0,  # Will be computed below
+                        'goals_for': len(team_goals),
+                        'goals_against': len(opp_goals),
                         'attempts_for': len(events),
                         'attempts_against': len(opp_events),
                         'grid_for': np.zeros((85, 200)),
                         'grid_against': np.zeros((85, 200))
                     }
                     
-                    # Count goals from RAW df (not interval-filtered df_state)
-                    # For 5v4 state: count goals labeled 5v4, 5v3, 5v6 (all PP variants)
-                    # For 4v5 state: count goals labeled 4v5, 3v5, 4v6 (all PK variants)
-                    g_raw = df[(df['game_id'] == gid) & (df['event'] == 'goal')]
-                    
-                    # Get team_id for this team
-                    if not g_raw.empty:
-                        team_id_lookup = df[(df['game_id'] == gid)].iloc[0]
-                        if team == team_id_lookup['home_abb']:
-                            team_id = team_id_lookup['home_id']
-                        else:
-                            team_id = team_id_lookup['away_id']
-                        
-                        if state == '5v4':
-                            pp_states = ['5v4', '5v3', '5v6', '6v4', '6v5']  # Home PP variants
-                            team_goals = g_raw[(g_raw['team_id'] == team_id) & (g_raw['game_state'].isin(pp_states))]
-                            opp_goals = g_raw[(g_raw['team_id'] != team_id) & (g_raw['team_id'].isin([team_id_lookup['home_id'], team_id_lookup['away_id']])) & (g_raw['game_state'].isin(pp_states))]
-                        elif state == '4v5':
-                            pk_states = ['4v5', '3v5', '4v6', '4v3', '3v4']  # Home PK variants  
-                            team_goals = g_raw[(g_raw['team_id'] == team_id) & (g_raw['game_state'].isin(pk_states))]
-                            opp_goals = g_raw[(g_raw['team_id'] != team_id) & (g_raw['team_id'].isin([team_id_lookup['home_id'], team_id_lookup['away_id']])) & (g_raw['game_state'].isin(pk_states))]
-                        else:  # 5v5
-                            team_goals = g_raw[(g_raw['team_id'] == team_id) & (g_raw['game_state'] == '5v5')]
-                            opp_goals = g_raw[(g_raw['team_id'] != team_id) & (g_raw['team_id'].isin([team_id_lookup['home_id'], team_id_lookup['away_id']])) & (g_raw['game_state'] == '5v5')]
-                        
-                        stats['goals_for'] = len(team_goals)
-                        stats['goals_against'] = len(opp_goals)
-                    
                     if not events.empty:
-                        # x starts on right (0..100) -> map to left (-100..0)
                         x_for = -events['x_adj'].abs()
                         y_for = -events['y_adj']
                         H, _, _ = np.histogram2d(y_for, x_for, bins=[BIN_Y, BIN_X], weights=events['xgs'])
                         stats['grid_for'] += H
                         
                     if not opp_events.empty:
-                        # x starts on right (0..100) -> stays right (0..100)
                         x_ag = opp_events['x_adj'].abs()
                         y_ag = opp_events['y_adj']
                         H, _, _ = np.histogram2d(y_ag, x_ag, bins=[BIN_Y, BIN_X], weights=opp_events['xgs'])
@@ -455,18 +404,12 @@ def main():
             a_stats = res['away_stats']
             
             # Determine Target Condition for Home/Away based on Global State
-            home_cond = None
-            away_cond = None
-            
-            if state == '5v5':
-                home_cond = '5v5'
-                away_cond = '5v5'
-            elif state == '5v4':
-                home_cond = '5v4' # Home has 5 = Advantage
-                away_cond = '4v5' # Away has 4 = Disadvantage
-            elif state == '4v5':
-                home_cond = '4v5' # Home has 4 = Disadvantage
-                away_cond = '5v4' # Away has 5 = Advantage
+            # Since the global state loop ('5v5', '5v4', '4v5') dictates what is being evaluated:
+            # - When state is '5v4', we evaluate the Power Play for BOTH teams.
+            # - When state is '4v5', we evaluate the Penalty Kill for BOTH teams.
+            # Thus, the target bucket for BOTH teams is simply the global evaluate state!
+            home_cond = state
+            away_cond = state
                 
             # Init Team Buckets if needed
             for t in [home_team, away_team]:
@@ -478,7 +421,7 @@ def main():
                     }
             
             # Accumulate Home
-            if home_cond:
+            if home_cond and h_stats:
                 ts = grand_stats[home_team][home_cond]
                 s = h_stats
                 ts['seconds'] += s['seconds']
@@ -493,7 +436,7 @@ def main():
                 ts['games'].add(gid)
                 
             # Accumulate Away
-            if away_cond:
+            if away_cond and a_stats:
                 ts = grand_stats[away_team][away_cond]
                 s = a_stats
                 ts['seconds'] += s['seconds']
@@ -733,11 +676,6 @@ def main():
 
     # 6. Export Events Bank (for Matchup Simulation)
     print("  Exporting Events Bank (Pickle)...")
-    
-    # Ensure opp_team_name exists in global df
-    if 'opp_team_name' not in df.columns:
-        df['opp_team_name'] = np.where(df['team_name'] == df['home_abb'], df['away_abb'], df['home_abb'])
-        
     # Columns for context sampling & Simulation
     # START with Basic Metadata
     bank_cols = [
