@@ -54,7 +54,7 @@ def get_headers_for_url(url):
         # Default to the mobile headers as they are generally more permissive
         return DEFAULT_HEADERS
 
-def play_stream(stream_url, quality="720p,best", referer=None):
+def play_stream(stream_url, quality="720p,best", referer=None, user_agent=None, origin=None):
     """
     Constructs and runs the optimized streamlink command.
     """
@@ -77,19 +77,28 @@ def play_stream(stream_url, quality="720p,best", referer=None):
     ]
 
     # 3. Add Headers
-    headers = get_headers_for_url(stream_url)
+    headers_list = get_headers_for_url(stream_url)
     
-    # Override referer if provided
-    if referer:
-        # Remove existing referer/origin if they exist in the default list
-        headers = [h for h in headers if not h.startswith("Referer=") and not h.startswith("Origin=")]
-        headers.append(f"Referer={referer}")
-        # Strip trailing slash for Origin
-        origin = referer.rstrip("/")
-        headers.append(f"Origin={origin}")
+    # Convert list to dict for easier override
+    headers_dict = {}
+    for h in headers_list:
+        if "=" in h:
+            k, v = h.split("=", 1)
+            headers_dict[k] = v
 
-    for header in headers:
-        cmd.extend(["--http-header", header])
+    # Manual overrides
+    if referer:
+        headers_dict["Referer"] = referer
+        if not origin:
+            # Auto-set origin from referer if not specified
+            headers_dict["Origin"] = referer.rstrip("/")
+    if user_agent:
+        headers_dict["User-Agent"] = user_agent
+    if origin:
+        headers_dict["Origin"] = origin
+
+    for k, v in headers_dict.items():
+        cmd.extend(["--http-header", f"{k}={v}"])
 
     # 4. Environment Variables
     env = os.environ.copy()
@@ -97,10 +106,10 @@ def play_stream(stream_url, quality="720p,best", referer=None):
 
     print(f"\n📺 Starting Stream on Display :0")
     print(f"🔗 URL: {stream_url}")
-    if referer:
-        print(f"🛡️ Referer: {referer}")
+    print(f"📡 Headers summary:")
+    for k, v in headers_dict.items():
+        print(f"   🔹 {k}: {v[:60]}{'...' if len(v) > 60 else ''}")
     print(f"🚀 Optimization: Pi 4 Mode (v4l2m2m_copy, {quality} pref)")
-    print(f"📡 Headers: Using {'Custom/Override' if referer else ('EmbedSports/Mobile' if headers == DEFAULT_HEADERS else 'Standard')}")
     print("-" * 60)
     
     try:
@@ -117,16 +126,18 @@ if __name__ == "__main__":
     parser.add_argument("url", nargs="?", help="The .m3u8 stream URL")
     parser.add_argument("--team", help="Team name to search for (Not yet implemented)")
     parser.add_argument("--quality", default="720p,best", help="Stream quality (default: 720p,best). Use 'best' for 1080p.")
-    parser.add_argument("--referer", help="Custom Referer header (e.g. 'https://site.com/')")
+    parser.add_argument("--referer", help="Custom Referer header")
+    parser.add_argument("--user-agent", help="Custom User-Agent header")
+    parser.add_argument("--origin", help="Custom Origin header")
     
     args = parser.parse_args()
 
     if args.url:
-        play_stream(args.url, quality=args.quality, referer=args.referer)
+        play_stream(args.url, quality=args.quality, referer=args.referer, user_agent=args.user_agent, origin=args.origin)
     elif args.team:
         print(f"🔍 Auto-discovery for '{args.team}' is not yet implemented (Anti-bot protection).")
         print("   Please extract the .m3u8 link manually from the browser DevTools (Network tab).")
     else:
         # Fallback to the known good test stream if nothing provided
         print("⚠️ No URL provided. Playing default test stream (Guadalajara).")
-        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8", quality=args.quality, referer=args.referer)
+        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8", quality=args.quality, referer=args.referer, user_agent=args.user_agent, origin=args.origin)
