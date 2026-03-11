@@ -199,7 +199,7 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
         features = features or self.features
         
         # 1. Categorical Features
-        cat_features = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state']
+        cat_features = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state', 'relative_game_state']
         cat_features = [f for f in cat_features if f in features]
         
         cat_trans = Pipeline([

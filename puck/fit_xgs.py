@@ -1149,22 +1149,18 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
             })
             
             # Also populate encoded columns if the model requires them
-            # (Check model_feats for _code columns)
-            for f in model_feats:
+            clf_features = getattr(clf, 'features', model_feats)
+            for f in clf_features:
                 if f not in df_grid.columns and f.endswith('_code'):
                     base = f[:-5]
                     if base in df_grid.columns:
-                        # Vectorized map/apply
-                        # Since base is constant for the whole grid chunk (except maybe if we varied it?), 
-                        # actually here game_state/shot_type are CONSTANT for the chunk.
-                        # So we can just calc code once.
                         val = df_grid[base].iloc[0]
                         code = category_value_to_code(f, val)
                         df_grid[f] = code
             
             # Ensure all needed columns exist (fill NaN/0 for others)
             # This is important for some models that look for diverse columns
-            for f in model_feats:
+            for f in clf_features:
                 if f not in df_grid.columns:
                     df_grid[f] = 0
 
@@ -1175,7 +1171,7 @@ def debug_model(clf_or_models, feature_cols=None, goal_side: str = 'left',
             except Exception as e:
                 # Fallback to array construction if DF failed (unlikely for our classifiers)
                 # print(f"DF predict failed, trying array: {e}")
-                Xgrid = df_grid[model_feats].values
+                Xgrid = df_grid[clf_features].values
                 try:
                     probs = clf.predict_proba(Xgrid)[:, 1]
                 except Exception as e2:

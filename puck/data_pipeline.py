@@ -98,6 +98,40 @@ def preprocess_features(df_input: pd.DataFrame,
     # Previous versions of this pipeline attempted to swap this, assuming it was attributed to the blocker.
     # Verification (Jan 2025) confirmed that 'team_id' correctly points to the shooting team.
     # Therefore, no manual attribution swap is required here.
+    
+    # 1.5 Parse Relative Game State
+    # 'game_state' is absolutely defined as {Home}v{Away}
+    # We want 'relative_game_state' as {Offense}v{Defense}
+    if 'game_state' in df.columns and 'is_home' in df.columns:
+        # Avoid warnings on strings vs floats
+        gs_str = df['game_state'].astype(str)
+        # Handle 'v' split (e.g. '5v4' -> 5, 4)
+        parts = gs_str.str.split('v', expand=True)
+        # Protect against malformed strings not having two parts
+        if parts.shape[1] == 2:
+            home_count = parts[0]
+            away_count = parts[1]
+            
+            # If is_home == 1, Offense=Home, Defense=Away
+            # If is_home == 0, Offense=Away, Defense=Home
+            is_home_mask = (df['is_home'] == 1)
+            
+            offense = np.where(is_home_mask, home_count, away_count)
+            defense = np.where(is_home_mask, away_count, home_count)
+            
+            # Recombine
+            df['relative_game_state'] = pd.Series(offense).astype(str) + 'v' + pd.Series(defense).astype(str)
+            # Handle edge cases where game_state was missing/NaN originally
+            mask_missing = df['game_state'].isna() | (df['game_state'] == 'nan')
+            df.loc[mask_missing, 'relative_game_state'] = 'Unknown'
+            
+            vprint("  Created 'relative_game_state' (Offense v Defense) from absolute 'game_state'.")
+        else:
+            df['relative_game_state'] = df['game_state']
+            vprint("  Warning: game_state could not be parsed securely. Used fallback.")
+    elif 'game_state' in df.columns:
+        df['relative_game_state'] = df['game_state']
+        vprint("  Warning: is_home missing. Could not build relative_game_state.")
 
 
     # 2. Standardize Orientation (Attack Right)
@@ -504,7 +538,7 @@ def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
     # 1. Categoricals
     # Use lists from features.py where available, plus common metadata
     categorical_cols = features.SHOT_TYPE + features.HANDEDNESS + features.PLAYER_ROLE + \
-                       ['last_event_type', 'game_state', 'period_time_type', 'home_team_defending_side', 
+                       ['last_event_type', 'game_state', 'relative_game_state', 'period_time_type', 'home_team_defending_side', 
                         'player_name', 'team_abbrev', 'home_abb', 'away_abb']
                         
     for col in categorical_cols:

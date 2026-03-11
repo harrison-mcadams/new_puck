@@ -56,12 +56,16 @@ def main():
             return
         df = pd.concat([pd.read_csv(f) for f in files])
     
-    # Preprocess
-    df = fit_nested_xgs.preprocess_features(df)
-    
-
-    # Enrich (Handedness etc)
-    df = fit_xgs.enrich_data_with_bios(df)
+    # Preprocess using centralized pipeline
+    from puck import data_pipeline
+    df = data_pipeline.preprocess_features(
+        df,
+        is_training=False,
+        apply_imputation=True,
+        apply_arena_adjustments=True,
+        apply_bio_enrichment=True,
+        apply_filtering=True
+    )
     
     # Enrich Team Name
     def get_team_name(row):
@@ -311,6 +315,9 @@ def main():
              df_pred = df_state.copy()
              df_pred['off_team_name'] = df_pred['team_name']
              df_pred['def_team_name'] = df_pred['opp_team_name']
+             
+             num_cols = df_pred.select_dtypes(include=['int64', 'int32']).columns
+             if len(num_cols) > 0: df_pred[num_cols] = df_pred[num_cols].astype('float64')
              
              probs = model.predict_proba(df_pred)[:, 1]
              df_state['xgs'] = probs

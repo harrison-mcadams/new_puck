@@ -115,6 +115,11 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         df_home = df_state.copy()
         df_home['off_team_name'] = home_team
         df_home['def_team_name'] = away_team
+        df_home['is_home'] = 1.0
+        df_home['relative_game_state'] = state
+        # Force all numerics to float64 to avoid imputer type errors
+        num_cols = df_home.select_dtypes(include=['int64', 'int32']).columns
+        if len(num_cols) > 0: df_home[num_cols] = df_home[num_cols].astype('float64')
         probs_home = model.predict_proba(df_home)[:, 1]
         events_bank.loc[mask, 'xg_home_context'] = probs_home
         
@@ -122,6 +127,15 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         df_away = df_state.copy()
         df_away['off_team_name'] = away_team
         df_away['def_team_name'] = home_team
+        df_away['is_home'] = 0.0
+        if state == '5v4':
+            df_away['relative_game_state'] = '4v5'
+        elif state == '4v5':
+            df_away['relative_game_state'] = '5v4'
+        else:
+            df_away['relative_game_state'] = state
+        num_cols = df_away.select_dtypes(include=['int64', 'int32']).columns
+        if len(num_cols) > 0: df_away[num_cols] = df_away[num_cols].astype('float64')
         probs_away = model.predict_proba(df_away)[:, 1]
         events_bank.loc[mask, 'xg_away_context'] = probs_away
         
@@ -129,6 +143,17 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         df_league = df_state.copy()
         df_league['off_team_name'] = 'Average'
         df_league['def_team_name'] = 'Average'
+        df_league['is_home'] = 0.5 # Neutral site or average home/away
+        
+        # For League Context, use the relative_game_state already computed by data_pipeline
+        # This correctly maps the state from the shooting team's perspective
+        if 'relative_game_state' in df_state.columns:
+            df_league['relative_game_state'] = df_state['relative_game_state'].values
+        else:
+            df_league['relative_game_state'] = state
+            
+        num_cols = df_league.select_dtypes(include=['int64', 'int32']).columns
+        if len(num_cols) > 0: df_league[num_cols] = df_league[num_cols].astype('float64')
         probs_league = model.predict_proba(df_league)[:, 1]
         events_bank.loc[mask, 'xg_league_context'] = probs_league
         
@@ -379,6 +404,26 @@ def simulate_matchup(home, away, season, n_sims=1000):
         'a_pp_matchup_sec': away_pp_sec + home_pk_sec,
     }
     
+    # --- SIMULATION ARRAYS PRE-EXTRACTION ---
+    # Restrict shot sampling only to relevant events (Team A For + Team B Against)
+    # This also massively speeds up the simulation loop by avoiding .loc inside
+    
+    def get_safe_mask(mask, fallback_mask):
+        return mask if mask.sum() > 0 else fallback_mask
+        
+    mask_h_5v5_sample = get_safe_mask(mask_home_density, mask_5v5)
+    mask_a_5v5_sample = get_safe_mask(mask_away_density, mask_5v5)
+    
+    # Notice mask_5v4 is used as fallback for both home PP and away PP (since away PP is also 5v4)
+    mask_5v4 = events_bank['game_state'] == '5v4'
+    mask_h_pp_sample = get_safe_mask(mask_home_pp_density, mask_5v4)
+    mask_a_pp_sample = get_safe_mask(mask_away_pp_density, mask_5v4)
+    
+    pool_h_5v5 = events_bank.loc[mask_h_5v5_sample, 'xg_home_context'].values
+    pool_a_5v5 = events_bank.loc[mask_a_5v5_sample, 'xg_away_context'].values
+    pool_h_pp = events_bank.loc[mask_h_pp_sample, 'xg_home_context'].values
+    pool_a_pp = events_bank.loc[mask_a_pp_sample, 'xg_away_context'].values
+    
     # --- SIMULATION LOOP ---
     
     sim_results = {
@@ -399,16 +444,11 @@ def simulate_matchup(home, away, season, n_sims=1000):
         n_h_pp = poisson.rvs(rate_h_pp)
         n_a_pp = poisson.rvs(rate_a_pp)
         
-        # 2. Draw Probabilities from pre-calculated context
-        # Handle cases where n is 0 to avoid errors with np.random.choice on empty arrays
-        xg_h_5v5 = np.random.choice(events_bank.loc[mask_5v5, 'xg_home_context'].values, n_h_5v5, replace=True) if n_h_5v5 > 0 else np.array([])
-        xg_a_5v5 = np.random.choice(events_bank.loc[mask_5v5, 'xg_away_context'].values, n_a_5v5, replace=True) if n_a_5v5 > 0 else np.array([])
-        
-        mask_5v4 = events_bank['game_state'] == '5v4'
-        xg_h_pp = np.random.choice(events_bank.loc[mask_5v4, 'xg_home_context'].values, n_h_pp, replace=True) if n_h_pp > 0 else np.array([])
-        
-        mask_4v5 = events_bank['game_state'] == '4v5'
-        xg_a_pp = np.random.choice(events_bank.loc[mask_4v5, 'xg_away_context'].values, n_a_pp, replace=True) if n_a_pp > 0 else np.array([])
+        # 2. Draw Probabilities from restricted matchup context pools
+        xg_h_5v5 = np.random.choice(pool_h_5v5, n_h_5v5, replace=True) if n_h_5v5 > 0 else np.array([])
+        xg_a_5v5 = np.random.choice(pool_a_5v5, n_a_5v5, replace=True) if n_a_5v5 > 0 else np.array([])
+        xg_h_pp = np.random.choice(pool_h_pp, n_h_pp, replace=True) if n_h_pp > 0 else np.array([])
+        xg_a_pp = np.random.choice(pool_a_pp, n_a_pp, replace=True) if n_a_pp > 0 else np.array([])
         
         # 3. Simulate Goals
         h_5v5_goals = np.sum(np.random.rand(n_h_5v5) < xg_h_5v5)

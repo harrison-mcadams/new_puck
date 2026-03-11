@@ -188,7 +188,21 @@ class StateMixedEffectsModel(BaseEstimator):
         if not self.converged_:
             logger.warning("Optimizer did NOT converge. Coefficients may be unreliable.")
         
-        # 5. Sanity checks
+        # 5. Post-fit centering
+        # The solver absorbs global calibration error into EVERY team coefficient.
+        # Since each shot gets off_adj + def_adj, any non-zero group mean is
+        # applied TWICE.  We center each group to zero so the mixed effects
+        # represent purely relative team deviations.  The base model already
+        # provides the overall calibration level.
+        n = self.n_teams_
+        off_mean = self.coef_[:n].mean()
+        def_mean = self.coef_[n:].mean()
+        self.calibration_offset_ = 0.0  # base model handles calibration
+        self.coef_[:n] -= off_mean
+        self.coef_[n:] -= def_mean
+        logger.info(f"Post-centering: removed off_mean={off_mean:.4f}, def_mean={def_mean:.4f}")
+        
+        # 6. Sanity checks
         max_abs = np.max(np.abs(self.coef_))
         mean_abs = np.mean(np.abs(self.coef_))
         logger.info(f"Joint State Model Fit Complete. "
@@ -218,20 +232,21 @@ class StateMixedEffectsModel(BaseEstimator):
         off_idx_raw = df[off_col].map(self.team_idx_)
         def_idx_raw = df[def_col].map(self.team_idx_)
         
-        off_adj = np.zeros(n_samples)
-        def_adj = np.zeros(n_samples)
+        # Start with calibration offset (applied once, not doubled)
+        cal_offset = getattr(self, 'calibration_offset_', 0.0)
+        adj = np.full(n_samples, cal_offset)
         
         off_valid = ~off_idx_raw.isna()
         if off_valid.any():
             off_vals = off_idx_raw.values[off_valid].astype(int)
-            off_adj[off_valid] = self.coef_[off_vals]
+            adj[off_valid] += self.coef_[off_vals]
             
         def_valid = ~def_idx_raw.isna()
         if def_valid.any():
             def_vals = def_idx_raw.values[def_valid].astype(int)
-            def_adj[def_valid] = self.coef_[def_vals + self.n_teams_]
+            adj[def_valid] += self.coef_[def_vals + self.n_teams_]
             
-        return off_adj + def_adj
+        return adj
 
     def get_coefficients(self) -> pd.DataFrame:
         """
