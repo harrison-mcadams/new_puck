@@ -54,7 +54,7 @@ def get_headers_for_url(url):
         # Default to the mobile headers as they are generally more permissive
         return DEFAULT_HEADERS
 
-def play_stream(stream_url, quality="720p,best"):
+def play_stream(stream_url, quality="720p,best", referer=None):
     """
     Constructs and runs the optimized streamlink command.
     """
@@ -64,39 +64,43 @@ def play_stream(stream_url, quality="720p,best"):
          return
     
     # 2. Build Command
-    # PLAYER_ARGS:
-    # --profile=fast: Disables high-quality scalers (spline36) which are too heavy for Pi
-    # --vo=gpu: Uses the GPU for video output
-    # --hwdec=v4l2m2m_copy: The most stable hardware decoding path for Pi 4
-    # --framedrop=vo: Drops video frames instead of freezing
-    # --ao=alsa --audio-device=...: Use explicit HDMI device from `mpv --audio-device=help`
-    # --x11-bypass-compositor=yes: Vital for smooth 60fps on Pi OS Desktop
     PLAYER_ARGS_CLEAN = r"--fs --profile=fast --vo=gpu --hwdec=v4l2m2m_copy --framedrop=vo --ao=alsa --audio-device=alsa/hdmi:CARD=vc4hdmi0,DEV=0 --x11-bypass-compositor=yes"
     
     cmd = [
         "streamlink",
         f"hls://{stream_url}" if "hls://" not in stream_url else stream_url,
         quality,
-        "--hls-live-edge", "5",         # Buffer stability: stay 5 segments behind live
-        "--ringbuffer-size", "32M",     # Network buffer: 32MB to handle Wi-Fi dips
+        "--hls-live-edge", "5",
+        "--ringbuffer-size", "32M",
         "--player", "mpv",
         "--player-args", PLAYER_ARGS_CLEAN
     ]
 
     # 3. Add Headers
     headers = get_headers_for_url(stream_url)
+    
+    # Override referer if provided
+    if referer:
+        # Remove existing referer/origin if they exist in the default list
+        headers = [h for h in headers if not h.startswith("Referer=") and not h.startswith("Origin=")]
+        headers.append(f"Referer={referer}")
+        # Strip trailing slash for Origin
+        origin = referer.rstrip("/")
+        headers.append(f"Origin={origin}")
+
     for header in headers:
         cmd.extend(["--http-header", header])
 
     # 4. Environment Variables
-    # Force display to HDMI port (:0) so it launches ON the TV, even if run from SSH.
     env = os.environ.copy()
     env["DISPLAY"] = ":0"
 
     print(f"\n📺 Starting Stream on Display :0")
     print(f"🔗 URL: {stream_url}")
+    if referer:
+        print(f"🛡️ Referer: {referer}")
     print(f"🚀 Optimization: Pi 4 Mode (v4l2m2m_copy, {quality} pref)")
-    print(f"📡 Headers: Using {'EmbedSports/Mobile' if headers == DEFAULT_HEADERS else 'Standard'}")
+    print(f"📡 Headers: Using {'Custom/Override' if referer else ('EmbedSports/Mobile' if headers == DEFAULT_HEADERS else 'Standard')}")
     print("-" * 60)
     
     try:
@@ -113,15 +117,16 @@ if __name__ == "__main__":
     parser.add_argument("url", nargs="?", help="The .m3u8 stream URL")
     parser.add_argument("--team", help="Team name to search for (Not yet implemented)")
     parser.add_argument("--quality", default="720p,best", help="Stream quality (default: 720p,best). Use 'best' for 1080p.")
+    parser.add_argument("--referer", help="Custom Referer header (e.g. 'https://site.com/')")
     
     args = parser.parse_args()
 
     if args.url:
-        play_stream(args.url, quality=args.quality)
+        play_stream(args.url, quality=args.quality, referer=args.referer)
     elif args.team:
         print(f"🔍 Auto-discovery for '{args.team}' is not yet implemented (Anti-bot protection).")
         print("   Please extract the .m3u8 link manually from the browser DevTools (Network tab).")
     else:
         # Fallback to the known good test stream if nothing provided
         print("⚠️ No URL provided. Playing default test stream (Guadalajara).")
-        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8", quality=args.quality)
+        play_stream("https://gg.poocloud.in/cdr_guadalajara/index.m3u8", quality=args.quality, referer=args.referer)
