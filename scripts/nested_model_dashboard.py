@@ -360,7 +360,7 @@ def main():
     print("Extracting model parameters...")
     
     all_features = model.features
-    cat_features_list = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state']
+    cat_features_list = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state', 'relative_game_state']
     
     actual_cats = [f for f in cat_features_list if f in all_features]
     actual_nums = [f for f in all_features if f not in actual_cats]
@@ -403,7 +403,8 @@ def main():
             'is_home': 1,
             'rebound_angle_change': 0,
             'rebound_time_diff': 0,
-            'last_event_type': 'faceoff' 
+            'last_event_type': 'faceoff',
+            'relative_game_state': '5v5' 
         },
         'options': {
             'shooter_role': ['F', 'D', 'Marginalized'],
@@ -414,7 +415,8 @@ def main():
             'is_rush': ['0', '1', 'Marginalized'],
             'is_home': ['0', '1', 'Marginalized'],
             'is_rebound': ['0', '1', 'Marginalized'],
-            'last_event_type': sorted(list(priors.get('last_event_type', {}).keys())) + ['Marginalized']
+            'last_event_type': sorted(list(priors.get('last_event_type', {}).keys())) + ['Marginalized'],
+            'relative_game_state': ['5v5', '5v4', '4v5', '5v3', '3v5', '4v4', '3v3', '6v5', '5v6', '6v6', 'Marginalized']
         },
         'use_splines': getattr(model, 'use_splines', False)
     }
@@ -756,7 +758,7 @@ def main():
         
         // Group parameters
         const groups = {{
-            'Context': ['game_state', 'score_diff', 'period_number', 'is_home'],
+            'Context': ['game_state', 'relative_game_state', 'score_diff', 'period_number', 'is_home'],
             'Shooter': ['shooter_role', 'shoots_catches', 'shot_type'],
             'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event']
         }};
