@@ -261,13 +261,11 @@ class TeamAbilitySummarizer:
             
             team_games = train_df[(train_df['home_abb'] == t) | (train_df['away_abb'] == t)]['game_id'].nunique()
             
-            if self.metric_type == 'gd':
-                abilities[t] = (f_val - a_val) / team_games if team_games > 0 else 0
-            elif self.metric_type == 'gf_pct':
-                abilities[t] = f_val / (f_val + a_val) if (f_val + a_val) > 0 else 0.5
-            elif self.metric_type == 'rank':
-                # Rank by absolute difference (as requested for the specific case)
-                abilities[t] = (f_val - a_val)
+            # Always return both For and Against rates
+            abilities[t] = {
+                'for': f_val / team_games if team_games > 0 else 0,
+                'ag': a_val / team_games if team_games > 0 else 0
+            }
                 
         return abilities
 
@@ -288,7 +286,6 @@ class TeamAbilitySummarizer:
         logger.info("Summarizing ability via extrapolated per60...")
         
         # League-average time-on-ice per game (seconds)
-        # Robust averages used in the project
         AVG_TIME = {
             '5v5': 48.0 * 60,
             '5v4': 6.0 * 60,
@@ -305,7 +302,7 @@ class TeamAbilitySummarizer:
             team_games = train_df[(train_df['home_abb'] == t) | (train_df['away_abb'] == t)]['game_id'].nunique()
             if team_games == 0: continue
             
-            total_exp_g = 0.0
+            total_f, total_a = 0.0, 0.0
             for state in ['5v5', '5v4', '4v5']:
                 # Filter events for this team in this state
                 # If team is home, state 5v4 is PP. If team is away, state 4v5 is PP.
@@ -347,10 +344,14 @@ class TeamAbilitySummarizer:
                 # If they already play 48 mins of 5v5, then (f_val / n_games) is correct.
                 # If they play more or less, we'd need shift data.
                 # For this implementation, I'll use the per-game total as the base.
-                total_exp_g += (f_val - a_val) / team_games
+                total_f += f_val
+                total_a += a_val
             
-            abilities[t] = total_exp_g
-            
+            abilities[t] = {
+                'for': total_f / team_games if team_games > 0 else 0,
+                'ag': total_a / team_games if team_games > 0 else 0
+            }
+                
         return abilities
 
 # --- Matchup Engines ---
@@ -361,18 +362,23 @@ class MatchupEngine:
 
 class PoissonMatchupEngine(MatchupEngine):
     """Robust Poisson-based prediction."""
+    def __init__(self, logic_type='multiplicative'):
+        self.logic_type = logic_type
+
     def predict_winner_prob(self, home_team, away_team, team_abilities, league_avg, outcome_type='final'):
-        h_ability = team_abilities.get(home_team, 0.0)
-        a_ability = team_abilities.get(away_team, 0.0)
+        h_stats = team_abilities.get(home_team, {'for': league_avg, 'ag': league_avg})
+        a_stats = team_abilities.get(away_team, {'for': league_avg, 'ag': league_avg})
         
-        # h_exp = league_avg + (h_ability - a_ability) / 2
-        # a_exp = league_avg + (a_ability - h_ability) / 2
-        
-        # More realistic scaling based on standard project logic:
-        # Expected goals = league_avg * (off_mult / def_mult) ... 
-        # But if ability is GD/G, then:
-        h_exp = league_avg + (h_ability - a_ability) / 2
-        a_exp = league_avg + (a_ability - h_ability) / 2
+        if self.logic_type == 'multiplicative':
+            # Multiplicative logic: (Home_For * Away_Against) / League_Avg
+            h_exp = (h_stats['for'] * a_stats['ag']) / league_avg if league_avg > 0 else 0.0
+            a_exp = (a_stats['for'] * h_stats['ag']) / league_avg if league_avg > 0 else 0.0
+        else:
+            # Additive logic: League_Avg + (Home_GD - Away_GD) / 2
+            h_gd = h_stats['for'] - h_stats['ag']
+            a_gd = a_stats['for'] - a_stats['ag']
+            h_exp = league_avg + (h_gd - a_gd) / 2
+            a_exp = league_avg + (a_gd - h_gd) / 2
         
         h_exp = max(0.1, h_exp)
         a_exp = max(0.1, a_exp)
@@ -400,6 +406,9 @@ class PoissonMatchupEngine(MatchupEngine):
 
 class SimulationMatchupEngine(MatchupEngine):
     """Advanced simulation using matchup.py logic."""
+    def __init__(self, logic_type='multiplicative'):
+        self.logic_type = logic_type
+
     def predict_winner_prob(self, home_team, away_team, team_abilities, league_avg, outcome_type='final'):
         # Integration with scripts/matchup.py
         try:
@@ -408,22 +417,30 @@ class SimulationMatchupEngine(MatchupEngine):
             # For this overhaul, we'll provide a hook.
             # Simulation is complex, for now we fallback to Poisson if not fully implemented
             # or provide a simplified version.
-            return PoissonMatchupEngine().predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
+            return PoissonMatchupEngine(logic_type=self.logic_type).predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
         except ImportError:
-            return PoissonMatchupEngine().predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
+            return PoissonMatchupEngine(logic_type=self.logic_type).predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
 
 # --- Orchestration ---
 
 class PredictiveEvaluator:
-    def __init__(self, model_name, metric_type, filter_type, matchup_type, outcome_type='final', n_boot=1000):
+    def __init__(self, model_name, metric_type, filter_type, matchup_type='poisson', outcome_type='final', n_boot=1000, matchup_logic='multiplicative'):
         self.model_registry = ModelRegistry()
         self.summarizer = TeamAbilitySummarizer(metric_type, filter_type)
-        self.matchup_engine = PoissonMatchupEngine() if matchup_type == 'poisson' else SimulationMatchupEngine()
+        
         self.model_name = model_name
-        self.outcome_type = outcome_type
-        self.n_boot = n_boot
         self.metric_type = metric_type
         self.filter_type = filter_type
+        self.matchup_type = matchup_type
+        self.outcome_type = outcome_type
+        self.n_boot = n_boot
+        self.matchup_logic = matchup_logic
+
+        # Engine Selection
+        if matchup_type == 'poisson':
+            self.matchup_engine = PoissonMatchupEngine(logic_type=matchup_logic)
+        else:
+            self.matchup_engine = SimulationMatchupEngine(logic_type=matchup_logic)
 
     def run_evaluation(self, season, train_split=0.7):
         df = DataUtils.load_season_data(season)
@@ -437,6 +454,7 @@ class PredictiveEvaluator:
             train_df = df.copy()
             test_df = pd.DataFrame()
             test_sched = pd.DataFrame()
+            train_gid_cutoff = 99999999
         else:
             train_gid_cutoff = sched_df.iloc[n_train]['game_id']
             train_df = df[df['game_id'] < train_gid_cutoff].copy()
@@ -457,7 +475,15 @@ class PredictiveEvaluator:
             logger.warning("No test games found. Skipping evaluation.")
             return None
         
-        league_avg_exp = 3.0 # Fallback
+        # Calculate empirical league average per game for this slice
+        n_games_train = sched_df[sched_df['game_id'] < (train_gid_cutoff if n_train < total_games else 99999999)]['game_id'].nunique()
+        if n_games_train > 0:
+            # We want goals per team-game
+            league_avg_exp = df[df['game_id'].isin(train_df['game_id'])]['event'].str.count('goal').sum() / (2 * n_games_train)
+        else:
+            league_avg_exp = 3.0
+            
+        logger.info(f"Empirical League Average: {league_avg_exp:.3f} goals per team-game")
         
         results = []
         for _, row in test_sched.iterrows():
@@ -515,8 +541,19 @@ class PredictiveEvaluator:
 
     def _output_rankings(self, season, abilities):
         logger.info(f"--- Team Rankings for {season} ({self.model_name}, {self.filter_type}) ---")
-        ranks = pd.Series(abilities).sort_values(ascending=False).rank(ascending=False, method='min')
-        df_ranks = pd.DataFrame({'Ability': abilities, 'Rank': ranks}).sort_values('Rank')
+        
+        # Collapse dual rates to the requested metric for ranking
+        metric_vals = {}
+        for t, rates in abilities.items():
+            if self.metric_type == 'gd':
+                metric_vals[t] = rates['for'] - rates['ag']
+            elif self.metric_type == 'gf_pct':
+                metric_vals[t] = rates['for'] / (rates['for'] + rates['ag']) if (rates['for'] + rates['ag']) > 0 else 0.5
+            else:
+                metric_vals[t] = rates['for'] - rates['ag']
+                
+        ranks = pd.Series(metric_vals).sort_values(ascending=False).rank(ascending=False, method='min')
+        df_ranks = pd.DataFrame({'Metric': metric_vals, 'Rank': ranks}).sort_values('Rank')
         print(df_ranks)
         out_path = Path(f"analysis/evaluation/rankings_{season}_{self.model_name}_{self.filter_type}.csv")
         out_path.parent.mkdir(parents=True, exist_ok=True)
@@ -664,6 +701,7 @@ def main():
     parser.add_argument('--metric', type=str, default='gd', help='gd, gf_pct, rank')
     parser.add_argument('--filter', type=str, default='all', help='Comma-separated: all, 5v5, 5v5_close, extrapolated_per60')
     parser.add_argument('--matchup', type=str, default='poisson', help='poisson, simulation')
+    parser.add_argument('--matchup-logic', type=str, default='multiplicative', choices=['multiplicative', 'additive'])
     parser.add_argument('--outcome', type=str, default='final', help='final, regulation')
     parser.add_argument('--train-split', type=float, default=0.7)
     parser.add_argument('--n-boot', type=int, default=100) # Lower default for sweeps
@@ -685,7 +723,7 @@ def main():
         for f in filters:
             m, f = m.strip(), f.strip()
             logger.info(f"==== Starting Sweep: Model={m}, Filter={f} ====")
-            evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot)
+            evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot, args.matchup_logic)
             
             sweep_results = []
             for season in seasons:
