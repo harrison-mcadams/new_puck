@@ -18,14 +18,14 @@ from puck import analyze
 
 
 class NumpyEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super(NumpyEncoder, self).default(obj)
+    def default(self, o):
+        if isinstance(o, np.integer):
+            return int(o)
+        if isinstance(o, np.floating):
+            return float(o)
+        if isinstance(o, np.ndarray):
+            return o.tolist()
+        return super(NumpyEncoder, self).default(o)
 
 def ensure_dirs(season):
     base = config.get_cache_dir(season)
@@ -36,7 +36,7 @@ def ensure_dirs(season):
 def get_game_partials_path(partials_dir, game_id, condition_name):
     return os.path.join(partials_dir, f"{game_id}_{condition_name}.npz")
 
-def process_game(game_id, df_game, season, condition, partials_dir, condition_name, force=False):
+def process_game(game_id, df_game, season, condition, partials_dir, condition_name, force=False, teams_only=False, players_only=False):
     """
     Process a single game:
     1. Calculate Team Stats & Maps (Home/Away).
@@ -44,7 +44,6 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
     3. Save to .npz.
     """
     try:
-
         out_path = get_game_partials_path(partials_dir, game_id, condition_name)
         if not force and os.path.exists(out_path):
             return True
@@ -238,26 +237,28 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
             return result
 
         # 1. Teams
-        run_analysis({}, home_id, f"team_{home_id}", intervals_home, val_cond_home)
-        run_analysis({}, away_id, f"team_{away_id}", intervals_away, val_cond_away)
+        if not players_only:
+            run_analysis({}, home_id, f"team_{home_id}", intervals_home, val_cond_home)
+            run_analysis({}, away_id, f"team_{away_id}", intervals_away, val_cond_away)
         
         # 2. Players
-        # Assign players to Home/Away interval sets based on their Team ID
-        pids = set(df_shifts['player_id'].unique())
-        for pid in pids:
-             # Find team
-             try:
-                 p_team_rows = df_shifts.loc[df_shifts['player_id'] == pid, 'team_id']
-                 if p_team_rows.empty: continue
-                 p_tid = p_team_rows.iloc[0]
-                 
-                 # Compare Int to Int
-                 if int(p_tid) == int(home_id):
-                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_home, val_cond_home)
-                 elif int(p_tid) == int(away_id):
-                     run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_away, val_cond_away)
-             except Exception:
-                 continue
+        if not teams_only:
+            # Assign players to Home/Away interval sets based on their Team ID
+            pids = set(df_shifts['player_id'].unique())
+            for pid in pids:
+                 # Find team
+                 try:
+                     p_team_rows = df_shifts.loc[df_shifts['player_id'] == pid, 'team_id']
+                     if p_team_rows.empty: continue
+                     p_tid = p_team_rows.iloc[0]
+                     
+                     # Compare Int to Int
+                     if int(p_tid) == int(home_id):
+                         run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_home, val_cond_home)
+                     elif int(p_tid) == int(away_id):
+                         run_analysis({'player_id': pid}, pid, f"p_{pid}", intervals_away, val_cond_away)
+                 except Exception:
+                     continue
              
         # Save
         np.savez_compressed(out_path, processed=True, **data_to_save)
@@ -278,6 +279,8 @@ def main():
     parser.add_argument('--condition', type=str, default='5v5') # 5v5, 5v4, 4v5
     parser.add_argument('--force', action='store_true')
     parser.add_argument('--turbo', action='store_true', help='Enable parallel processing')
+    parser.add_argument('--teams-only', action='store_true', help='Only process team intermediates')
+    parser.add_argument('--players-only', action='store_true', help='Only process player intermediates')
     args = parser.parse_args()
     
     season = args.season
@@ -351,7 +354,7 @@ def main():
              # Slice here (cheap view usually)
              df_game = df_data[df_data['game_id'] == gid]
              if not df_game.empty:
-                 tasks.append((gid, df_game, season, condition, partials_dir, cond_name, args.force))
+                 tasks.append((gid, df_game, season, condition, partials_dir, cond_name, args.force, args.teams_only, args.players_only))
         
         # Execute
         results = Parallel(n_jobs=-1, verbose=5)(
@@ -369,7 +372,8 @@ def main():
             df_game = df_data[df_data['game_id'] == gid]
             if df_game.empty: continue
             
-            success = process_game(gid, df_game, season, condition, partials_dir, cond_name, force=args.force)
+            success = process_game(gid, df_game, season, condition, partials_dir, cond_name, 
+                                  force=args.force, teams_only=args.teams_only, players_only=args.players_only)
             
             if success:
                 count += 1

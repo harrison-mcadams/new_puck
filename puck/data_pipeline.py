@@ -112,9 +112,16 @@ def preprocess_features(df_input: pd.DataFrame,
             home_count = parts[0]
             away_count = parts[1]
             
-            # Input game_state is already relative/advantage-aware (e.g., '5v4' = Power Play)
-            df['relative_game_state'] = df['game_state'].astype(str)
-            vprint("  Using raw 'game_state' as 'relative_game_state' (Advantage-Aware Data).")
+            # Input game_state is absolutely defined as {Home}v{Away}
+            # We want 'relative_game_state' as {Offense}v{Defense}
+            is_home_bool = (df['is_home'].astype(int) == 1)
+            
+            df['relative_game_state'] = np.where(
+                is_home_bool,
+                df['game_state'].astype(str),
+                away_count + 'v' + home_count
+            )
+            vprint("  Parsed 'relative_game_state' using Shooter Perspective.")
         else:
             df['relative_game_state'] = df['game_state'].astype(str)
             vprint("  Warning: game_state could not be parsed securely. Used fallback.")

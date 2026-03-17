@@ -34,6 +34,8 @@ def main():
     parser.add_argument('--skip-fetch', action='store_true', help='Skip data fetching (use existing CSV)')
     parser.add_argument('--only-5v5', action='store_true', help='Only process 5v5 data')
     parser.add_argument('--turbo', action='store_true', help='Enable parallel processing for intervals and analysis')
+    parser.add_argument('--teams-only', action='store_true', help='Only process team intermediates and plots')
+    parser.add_argument('--players-only', action='store_true', help='Only process player intermediates and plots')
     args = parser.parse_args()
     
     season = args.season
@@ -198,6 +200,10 @@ def main():
                 cmd.append('--force')
             if args.turbo:
                 cmd.append('--turbo') # Pass it down
+            if args.teams_only:
+                cmd.append('--teams-only')
+            if args.players_only:
+                cmd.append('--players-only')
             
             subprocess.run(cmd, check=True)
         except Exception as e:
@@ -240,11 +246,13 @@ def main():
     
     # Scan Players 5v5
     # Note: run_player_analysis currently defaults to 5v5.
-    cmd_p_scan = [sys.executable, player_script, '--season', season, '--scan-limit']
-    if args.turbo:
-        cmd_p_scan.append('--turbo')
-    out_p = run_cmd_capture(cmd_p_scan)
-    max_p = parse_max(out_p)
+    max_p = 0.0
+    if not args.teams_only:
+        cmd_p_scan = [sys.executable, player_script, '--season', season, '--scan-limit']
+        if args.turbo:
+            cmd_p_scan.append('--turbo')
+        out_p = run_cmd_capture(cmd_p_scan)
+        max_p = parse_max(out_p)
     print(f"   Player 5v5 Max: {max_p}")
     
     # Determine Independent Max Limits
@@ -269,14 +277,16 @@ def main():
     print(f"   Player 5v5 VMAX: {vmax_p} (Raw: {max_p})")
     
     # Plot League 5v5
-    subprocess.run([sys.executable, league_script, '--season', season, 
-                    '--condition', '5v5', '--vmax', str(vmax_l)], check=True)
+    if not args.players_only:
+        subprocess.run([sys.executable, league_script, '--season', season, 
+                        '--condition', '5v5', '--vmax', str(vmax_l)], check=True)
                     
     # Plot Players 5v5
-    cmd_p_plot = [sys.executable, player_script, '--season', season, '--vmax', str(vmax_p)]
-    if args.turbo:
-        cmd_p_plot.append('--turbo')
-    subprocess.run(cmd_p_plot, check=True)
+    if not args.teams_only:
+        cmd_p_plot = [sys.executable, player_script, '--season', season, '--vmax', str(vmax_p)]
+        if args.turbo:
+            cmd_p_plot.append('--turbo')
+        subprocess.run(cmd_p_plot, check=True)
 
     # Process Other Conditions (League Only)
     if not args.only_5v5:
@@ -293,8 +303,9 @@ def main():
             print(f"   {cond} VMAX: {vmax_c} (Raw: {raw_max_c})")
             
             # Plot
-            subprocess.run([sys.executable, league_script, '--season', season, 
-                           '--condition', cond, '--vmax', str(vmax_c)], check=True)
+            if not args.players_only:
+                subprocess.run([sys.executable, league_script, '--season', season, 
+                               '--condition', cond, '--vmax', str(vmax_c)], check=True)
 
     # 5. Mixed Effects Summaries
     print("\n[5/5] Generating Mixed Effects Summaries...")
