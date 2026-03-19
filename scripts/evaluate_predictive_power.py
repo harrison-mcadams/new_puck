@@ -26,6 +26,12 @@ Example Calls:
 3) Compare all filter conditions for a specific model in aggregate:
    python scripts/evaluate_predictive_power.py --seasons aggregate \
      --model nested_xg --filter all,5v5,5v5_close,extrapolated_per60 --n-boot 1000
+
+4) Predict rest of season 20232024 cumulative stats using 5v5 training (70% split):
+   python scripts/evaluate_predictive_power.py --predict-season --seasons 20232024 --filter 5v5 --train-split 0.7
+
+5) Predict end of season totals, comparing 5v5 ability vs all-situations cumulative stats:
+   python scripts/evaluate_predictive_power.py --predict-season --prediction-mode end_of_season --filter 5v5 --cumulative-filter all --seasons 20222023,20232024
 """
 
 import sys
@@ -174,6 +180,7 @@ class ModelRegistry:
         
         paths = {
             'nested_xg': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor.joblib'),
+            'nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
             'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor.joblib')
         }
         
@@ -421,6 +428,77 @@ class SimulationMatchupEngine(MatchupEngine):
         except ImportError:
             return PoissonMatchupEngine(logic_type=self.logic_type).predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
 
+class SeasonSimulator:
+    """Monte Carlo simulator for season cumulative statistics."""
+    def __init__(self, matchup_engine):
+        self.matchup_engine = matchup_engine
+
+    def simulate_remaining_season(self, test_sched, team_abilities, league_avg, n_sims=1000, outcome_type='final'):
+        teams = set(test_sched['home_team']).union(set(test_sched['away_team']))
+        
+        sim_wins = {t: np.zeros(n_sims) for t in teams}
+        sim_gd = {t: np.zeros(n_sims) for t in teams}
+        sim_xg_f = {t: 0.0 for t in teams}
+        sim_xg_a = {t: 0.0 for t in teams}
+        
+        game_expectations = []
+        for _, row in test_sched.iterrows():
+            h, a = row['home_team'], row['away_team']
+            h_stats = team_abilities.get(h, {'for': league_avg, 'ag': league_avg})
+            a_stats = team_abilities.get(a, {'for': league_avg, 'ag': league_avg})
+            
+            if self.matchup_engine.logic_type == 'multiplicative':
+                h_exp = (h_stats['for'] * a_stats['ag']) / league_avg if league_avg > 0 else 0.0
+                a_exp = (a_stats['for'] * h_stats['ag']) / league_avg if league_avg > 0 else 0.0
+            else:
+                h_gd_val = h_stats['for'] - h_stats['ag']
+                a_gd_val = a_stats['for'] - a_stats['ag']
+                h_exp = league_avg + (h_gd_val - a_gd_val) / 2
+                a_exp = league_avg + (a_gd_val - h_gd_val) / 2
+            
+            h_exp = max(0.1, h_exp)
+            a_exp = max(0.1, a_exp)
+            game_expectations.append((h, a, h_exp, a_exp))
+            
+            # Aggregate xG
+            sim_xg_f[h] += h_exp
+            sim_xg_a[h] += a_exp
+            sim_xg_f[a] += a_exp
+            sim_xg_a[a] += h_exp
+
+        for i in range(n_sims):
+            for h, a, h_exp, a_exp in game_expectations:
+                h_goals = np.random.poisson(h_exp)
+                a_goals = np.random.poisson(a_exp)
+                
+                if h_goals > a_goals:
+                    sim_wins[h][i] += 1
+                elif a_goals > h_goals:
+                    sim_wins[a][i] += 1
+                else:
+                    if outcome_type == 'final':
+                        if np.random.rand() > 0.5: sim_wins[h][i] += 1
+                        else: sim_wins[a][i] += 1
+                    else:
+                        sim_wins[h][i] += 0.5
+                        sim_wins[a][i] += 0.5
+                
+                sim_gd[h][i] += (h_goals - a_goals)
+                sim_gd[a][i] += (a_goals - h_goals)
+        
+        results = {}
+        for t in teams:
+            results[t] = {
+                'pred_wins_mean': np.mean(sim_wins[t]),
+                'pred_wins_std': np.std(sim_wins[t]),
+                'pred_wins_ci': (np.percentile(sim_wins[t], 2.5), np.percentile(sim_wins[t], 97.5)),
+                'pred_gd_mean': np.mean(sim_gd[t]),
+                'pred_gd_std': np.std(sim_gd[t]),
+                'pred_gd_ci': (np.percentile(sim_gd[t], 2.5), np.percentile(sim_gd[t], 97.5)),
+                'pred_xg_diff': sim_xg_f[t] - sim_xg_a[t]
+            }
+        return results
+
 # --- Orchestration ---
 
 class PredictiveEvaluator:
@@ -538,6 +616,331 @@ class PredictiveEvaluator:
             'Brier': b_mean, 'Brier_lo': b_lo, 'Brier_hi': b_hi, 'Brier_dist': b_dist,
             'Accuracy': a_mean, 'Accuracy_lo': a_lo, 'Accuracy_hi': a_hi, 'Accuracy_dist': a_dist
         }
+    def run_season_prediction(self, season, train_split=0.7, n_sims=1000, cumulative_filter=None, prediction_mode='rest_of_season', split_method='chronological', split_reps=1):
+        """Predicts season-level cumulative statistics with bootstrapping support."""
+        df = DataUtils.load_season_data(season)
+        sched_df = DataUtils.process_schedule(df)
+        total_games = len(sched_df)
+        n_train = int(total_games * train_split)
+        
+        if n_train >= total_games:
+            logger.warning("Train split >= 1.0, cannot predict future games.")
+            return None
+            
+        teams = pd.concat([sched_df['home_team'], sched_df['away_team']]).unique()
+        target_filter = cumulative_filter if cumulative_filter else self.filter_type
+        actual_summarizer = TeamAbilitySummarizer(metric_type='gd', filter_type=target_filter)
+        
+        is_local = 'local' in self.model_name
+        pure_model_name = self.model_name.replace('local_', '')
+        
+        # Pre-calculate xG for ALL events once if model is not 'actual'
+        df_filtered = actual_summarizer._apply_filter(df).copy()
+        if pure_model_name != 'actual':
+            model = self.model_registry.get_model(pure_model_name, df_filtered, is_local=is_local)
+            if model is not None and not isinstance(model, str):
+                mask = df_filtered['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
+                df_filtered['eval_xg'] = 0.0
+                if mask.any():
+                    df_filtered.loc[mask, 'eval_xg'] = model.predict_proba(df_filtered[mask])[:, 1]
+            else:
+                df_filtered['eval_xg'] = (df_filtered['event'].str.lower() == 'goal').astype(float)
+        else:
+            df_filtered['eval_xg'] = (df_filtered['event'].str.lower() == 'goal').astype(float)
+        
+        # Pre-calculate game-team aggregates for speed
+        # We need For/Against xG and Wins per game
+        game_metrics = []
+        for gid, group in df_filtered.groupby('game_id'):
+            h, a = group['home_abb'].iloc[0], group['away_abb'].iloc[0]
+            # All situations or filtered situations?
+            # actual_summarizer already filtered df_filtered.
+            
+            # xG For / Against
+            h_xg_f = group[group['team_id'] == group['home_id']]['eval_xg'].sum()
+            a_xg_f = group[group['team_id'] == group['away_id']]['eval_xg'].sum()
+            
+            # Goals for Wins (from sched_df which has final outcomes)
+            match = sched_df[sched_df['game_id'] == gid].iloc[0]
+            h_win = 1 if match['home_goals_final'] > match['away_goals_final'] else 0
+            a_win = 1 if match['away_goals_final'] > match['home_goals_final'] else 0
+            
+            # Goals For (empirical)
+            h_gf = (group[(group['team_id'] == group['home_id']) & (group['event'].str.lower() == 'goal')]).shape[0]
+            a_gf = (group[(group['team_id'] == group['away_id']) & (group['event'].str.lower() == 'goal')]).shape[0]
+            
+            game_metrics.append({
+                'game_id': gid,
+                'team': h,
+                'opp': a,
+                'xg_f': float(h_xg_f),
+                'xg_a': float(a_xg_f),
+                'gf': float(h_gf),
+                'ga': float(a_gf),
+                'win': h_win
+            })
+            game_metrics.append({
+                'game_id': gid,
+                'team': a,
+                'opp': h,
+                'xg_f': float(a_xg_f),
+                'xg_a': float(h_xg_f),
+                'gf': float(a_gf),
+                'ga': float(h_gf),
+                'win': a_win
+            })
+            
+        gm_df = pd.DataFrame(game_metrics)
+        all_gids = sched_df['game_id'].values
+        
+        rep_results = []
+        
+        for rep in range(split_reps):
+            if split_method == 'random':
+                train_gids = np.random.choice(list(all_gids), n_train, replace=False)
+                test_gids = np.array([g for g in all_gids if g not in train_gids])
+            else:
+                train_gids = all_gids[:n_train]
+                test_gids = all_gids[n_train:]
+            
+            train_gm = gm_df[gm_df['game_id'].isin(train_gids)]
+            test_gm = gm_df[gm_df['game_id'].isin(test_gids)]
+            
+            rep_stats = []
+            for t in teams:
+                t_tr = train_gm[train_gm['team'] == t]
+                t_te = test_gm[test_gm['team'] == t]
+                
+                n_tr = len(t_tr)
+                n_te = len(t_te)
+                
+                tr_xg_f = t_tr['xg_f'].sum()
+                tr_xg_a = t_tr['xg_a'].sum()
+                tr_gf = t_tr['gf'].sum()
+                tr_ga = t_tr['ga'].sum()
+                tr_wins = t_tr['win'].sum()
+                
+                te_xg_f = t_te['xg_f'].sum()
+                te_xg_a = t_te['xg_a'].sum()
+                te_gf = t_te['gf'].sum()
+                te_ga = t_te['ga'].sum()
+                te_wins = t_te['win'].sum()
+                
+                # Predictor (from train)
+                predictor_xg_pg = (tr_xg_f - tr_xg_a) / n_tr if n_tr > 0 else 0.0
+                predictor_gd_pg = (tr_gf - tr_ga) / n_tr if n_tr > 0 else 0.0
+                
+                # Outcome (from test)
+                outcome_gd_pg = (te_gf - te_ga) / n_te if n_te > 0 else 0.0
+                outcome_wins_pg = te_wins / n_te if n_te > 0 else 0.0
+                
+                rep_stats.append({
+                    'Team': t,
+                    'train_xg_diff_pg': predictor_xg_pg,
+                    'train_gd_pg': predictor_gd_pg,
+                    'test_gd_pg': outcome_gd_pg,
+                    'test_wins_pg': outcome_wins_pg,
+                    'test_gd': te_gf - te_ga,
+                    'test_wins': te_wins,
+                    'test_xg_diff': te_xg_f - te_xg_a,
+                    'train_gd': tr_gf - tr_ga,
+                    'train_xg_diff': tr_xg_f - tr_xg_a,
+                    'train_wins': tr_wins,
+                    'test_games': n_te,
+                    'train_games': n_tr
+                })
+            
+            rep_df = pd.DataFrame(rep_stats)
+            
+            # Calculate R2 for this rep
+            # Use appropriate predictor column
+            p_col = 'train_xg_diff_pg' if 'xg' in self.model_name.lower() else 'train_gd_pg'
+            
+            if len(rep_df) > 1:
+                slope, intercept, r_value, p_value, std_err = stats.linregress(rep_df[p_col], rep_df['test_gd_pg'])
+                r2 = r_value**2
+            else:
+                r2 = 0.0
+                
+            rep_results.append({
+                'rep': rep,
+                'r2': r2,
+                'stats': rep_df
+            })
+            
+            if split_method == 'chronological': break # One rep is enough
+            
+        # Aggregate bootstrapping results
+        final_r2s = [float(r['r2']) for r in rep_results if isinstance(r, dict) and 'r2' in r]
+        mean_r2 = float(np.mean(final_r2s)) if final_r2s else 0.0
+        logger.info(f"Bootstrapping complete ({len(final_r2s)} reps). Mean R²: {mean_r2:.4f}")
+        
+        # USE THE FIRST REPETITION'S STATS FOR PLOTTING (to maintain realistic scatter)
+        # But attach the mean results as attributes
+        first_stats = rep_results[0]['stats']
+        plotting_df = first_stats.copy() if hasattr(first_stats, 'copy') else pd.DataFrame(first_stats)
+        
+        # Re-add metadata
+        plotting_df['Season'] = season
+        plotting_df['Model'] = self.model_name
+        plotting_df['Filter'] = self.filter_type
+        plotting_df['CumFilter'] = target_filter
+        plotting_df['PredictionMode'] = prediction_mode
+        plotting_df['SplitMethod'] = split_method
+        plotting_df['MeanR2'] = mean_r2
+        
+        # Store individual R2s for downstream plotting (important for aggregation)
+        plotting_df.attrs['r2_dist'] = final_r2s
+        
+        # Rename for common plotting logic
+        rename_dict = {
+            'test_gd': 'act_gd',
+            'test_wins': 'act_wins',
+            'test_xg_diff': 'act_xg_diff'
+        }
+        plotting_df = plotting_df.rename(columns=rename_dict)
+        
+        for col in ['pred_wins_mean', 'pred_wins_std', 'pred_gd_mean', 'pred_gd_std', 'pred_xg_diff']:
+            plotting_df[col] = 0.0
+            
+    def run_hockey_graphs_stability(self, seasons, intervals=[10, 20, 30, 40, 50, 60, 70], reps=1000, per_season=False):
+        """
+        Replicates Hockey-Graphs methodology:
+        - Select sample size X.
+        - Bootstrap 1000 times:
+            - Split each team-season into X games (A) and rest (B).
+            - Pool all team-seasons across all seasons.
+            - Calculate correlation between Metric A and Goals B.
+        - Aggregate using Fisher-Z transformation.
+        """
+        logger.info(f"Starting Hockey-Graphs Stability Study across {len(seasons)} seasons...")
+        
+        # 1. Load and pre-process all seasons
+        all_season_gms = {}
+        for season in seasons:
+            df = DataUtils.load_season_data(season)
+            sched_df = DataUtils.process_schedule(df)
+            
+            is_local = 'local' in self.model_name
+            pure_model_name = self.model_name.replace('local_', '')
+            
+            # Pre-calculate xG for ALL events once using global model
+            df_filtered = self.summarizer._apply_filter(df).copy()
+            if pure_model_name != 'actual':
+                model = self.model_registry.get_model(pure_model_name, df_filtered, is_local=is_local)
+                if model is not None and not isinstance(model, str):
+                    mask = df_filtered['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
+                    df_filtered['eval_xg'] = 0.0
+                    if mask.any():
+                        df_filtered.loc[mask, 'eval_xg'] = model.predict_proba(df_filtered[mask])[:, 1]
+                else:
+                    df_filtered['eval_xg'] = (df_filtered['event'].str.lower() == 'goal').astype(float)
+            else:
+                df_filtered['eval_xg'] = (df_filtered['event'].str.lower() == 'goal').astype(float)
+            
+            # Aggregate to game-team metrics
+            game_metrics = []
+            for gid, group in df_filtered.groupby('game_id'):
+                if group.empty: continue
+                h = group['home_abb'].iloc[0]
+                a = group['away_abb'].iloc[0]
+                h_id = group['home_id'].iloc[0]
+                a_id = group['away_id'].iloc[0]
+                
+                # Attribute xG and Goals to for/against per team
+                mask_h = group['team_id'] == h_id
+                mask_a = group['team_id'] == a_id
+                mask_goal = group['event'].str.lower() == 'goal'
+                
+                h_xg_f = group[mask_h]['eval_xg'].sum()
+                a_xg_f = group[mask_a]['eval_xg'].sum()
+                h_gf = group[mask_h & mask_goal].shape[0]
+                a_gf = group[mask_a & mask_goal].shape[0]
+                
+                game_metrics.append({'game_id': gid, 'team': h, 'xg_f': float(h_xg_f), 'xg_a': float(a_xg_f), 'gf': float(h_gf), 'ga': float(a_gf)})
+                game_metrics.append({'game_id': gid, 'team': a, 'xg_f': float(a_xg_f), 'xg_a': float(h_xg_f), 'gf': float(a_gf), 'ga': float(h_gf)})
+            
+            gm_df = pd.DataFrame(game_metrics)
+            
+            # Map data to teams for fast lookup using NumPy arrays
+            team_data = {}
+            for team, group in gm_df.groupby('team'):
+                team_data[team] = {
+                    'xg_f': group['xg_f'].values,
+                    'xg_a': group['xg_a'].values,
+                    'gf': group['gf'].values,
+                    'ga': group['ga'].values,
+                    'count': len(group)
+                }
+            all_season_gms[season] = {'team_data': team_data}
+
+        # Sampling Loop
+        def fisher_z_mean(rs):
+            if not rs: return 0.0
+            rs_arr = np.clip(rs, -0.999, 0.999)
+            mean_z = np.mean(np.arctanh(rs_arr))
+            return np.tanh(mean_z)
+
+        final_results = []
+        
+        # If per_season=True, we calculate for each season individually AND the aggregate pooled result.
+        target_groups = [[s] for s in all_season_gms.keys()]
+        if per_season:
+            target_groups.append(list(all_season_gms.keys()))
+        elif not per_season:
+            target_groups = [list(all_season_gms.keys())]
+        
+        for group_seasons in target_groups:
+            group_label = group_seasons[0] if len(group_seasons) == 1 else "Aggregate"
+            logger.info(f"Running stability study for: {group_label}")
+            
+            for X in intervals:
+                logger.info(f"Processing interval: {X} games...")
+                xg_rs, goal_rs = [], []
+                
+                for r in range(reps):
+                    pooled_data = [] # (tr_xg_pct, tr_gf_pct, te_gf_pct)
+                    
+                    for season in group_seasons:
+                        curr_team_data = all_season_gms[season]['team_data']
+                        for team, stats_dict in curr_team_data.items():
+                            n_total = stats_dict['count']
+                            if n_total < X + 5: continue
+                            
+                            idx_all = np.random.permutation(n_total)
+                            idx_a, idx_b = idx_all[:X], idx_all[X:]
+                            
+                            # Group A (Predictor)
+                            tr_xgf, tr_xga = stats_dict['xg_f'][idx_a].sum(), stats_dict['xg_a'][idx_a].sum()
+                            tr_gf, tr_ga = stats_dict['gf'][idx_a].sum(), stats_dict['ga'][idx_a].sum()
+                            tr_xg_pct = tr_xgf / (tr_xgf + tr_xga) if (tr_xgf + tr_xga) > 0 else 0.5
+                            tr_gf_pct = tr_gf / (tr_gf + tr_ga) if (tr_gf + tr_ga) > 0 else 0.5
+                            
+                            # Group B (Outcome)
+                            te_gf_val, te_ga_val = stats_dict['gf'][idx_b].sum(), stats_dict['ga'][idx_b].sum()
+                            te_gf_pct = te_gf_val / (te_gf_val + te_ga_val) if (te_gf_val + te_ga_val) > 0 else 0.5
+                            
+                            pooled_data.append((tr_xg_pct, tr_gf_pct, te_gf_pct))
+                    
+                    if not pooled_data: continue
+                    arr = np.array(pooled_data)
+                    r_xg = np.corrcoef(arr[:, 0], arr[:, 2])[0, 1] if arr.shape[0] > 1 else np.nan
+                    r_goal = np.corrcoef(arr[:, 1], arr[:, 2])[0, 1] if arr.shape[0] > 1 else np.nan
+                    
+                    if not np.isnan(r_xg): xg_rs.append(r_xg)
+                    if not np.isnan(r_goal): goal_rs.append(r_goal)
+
+                f_r_xg = fisher_z_mean(xg_rs)
+                f_r_goal = fisher_z_mean(goal_rs)
+                final_results.append({
+                    'Season': group_label,
+                    'Sample_Size': X,
+                    'xG_r': f_r_xg, 'xG_r2': f_r_xg**2,
+                    'Goals_r': f_r_goal, 'Goals_r2': f_r_goal**2
+                })
+            
+        return pd.DataFrame(final_results)
+
 
     def _output_rankings(self, season, abilities):
         logger.info(f"--- Team Rankings for {season} ({self.model_name}, {self.filter_type}) ---")
@@ -694,6 +1097,115 @@ def generate_combined_only_plot(all_results):
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved combined-only plot to {out_path}")
 
+def generate_season_prediction_plots(results_df):
+    if results_df.empty: return
+    
+    model_name = results_df['Model'].iloc[0]
+    split_method = results_df['SplitMethod'].iloc[0] if 'SplitMethod' in results_df.columns else 'chronological'
+    
+    # Use xG Diff per game as predictor if it's an xG model, otherwise Goal Diff per game
+    predictor_col = 'train_xg_diff_pg' if 'xg' in model_name.lower() else 'train_gd_pg'
+    predictor_label = 'Training xG Diff/G' if 'xg' in model_name.lower() else 'Training Goal Diff/G'
+    
+    # If we have a distribution of R2 values, add a 4th plot
+    r2_dist = results_df.attrs.get('r2_dist', [])
+    n_plots = 4 if r2_dist and len(r2_dist) > 1 else 3
+    
+    fig, axes = plt.subplots(1, n_plots, figsize=(5 * n_plots, 6))
+    
+    metrics = [
+        ('act_wins', 'Actual Wins'),
+        ('act_gd', 'Actual Goal Differential'),
+        ('act_xg_diff', 'Actual xG Differential')
+    ]
+    
+    for i, (act_col, label) in enumerate(metrics):
+        ax = axes[i]
+        x = results_df[predictor_col]
+        y = results_df[act_col]
+        
+        # Scatter
+        ax.scatter(x, y, alpha=0.6, edgecolors='w', s=100)
+        
+        # Regression Line
+        slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
+        line_x = np.linspace(x.min(), x.max(), 100)
+        line_y = slope * line_x + intercept
+        ax.plot(line_x, line_y, color='red', alpha=0.5, label=f'R²={r_value**2:.3f}')
+        
+        ax.set_title(f'{label} vs {predictor_label}')
+        ax.set_xlabel(predictor_label)
+        ax.set_ylabel(label)
+        ax.legend()
+        ax.grid(alpha=0.3)
+
+    if n_plots == 4:
+        ax = axes[3]
+        sns.histplot(r2_dist, kde=True, ax=ax, color='green', alpha=0.4)
+        mean_r2 = np.mean(r2_dist)
+        ax.axvline(mean_r2, color='red', linestyle='--', label=f'Mean R²={mean_r2:.3f}')
+        title_prefix = "Aggregate " if results_df['Season'].nunique() > 1 else ""
+        ax.set_title(f'{title_prefix}Predictive Power Stability (R² Distribution)')
+        ax.set_xlabel('R² value')
+        ax.set_ylabel('Frequency')
+        ax.legend()
+        ax.grid(alpha=0.3)
+
+    plt.tight_layout()
+    model_str = results_df['Model'].iloc[0]
+    filter_str = results_df['Filter'].iloc[0]
+    split_str = "random" if split_method == "random" else "chron"
+    out_path = Path(f"analysis/evaluation/season_prediction_{model_str}_{filter_str}_{split_str}.png")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=300)
+    logger.info(f"Saved season prediction plot to {out_path}")
+
+def generate_hockey_graphs_plots(hg_df, model_name, filter_type):
+    plt.figure(figsize=(12, 7))
+    
+    unique_seasons = sorted([s for s in hg_df['Season'].unique() if s != "Aggregate"])
+    num_seasons = len(unique_seasons)
+    
+    if num_seasons > 1:
+        # Heat gradient: Cooler (Blue) for older -> Warmer (Red) for newer
+        # RdYlBu_r provides a nice transition from Blue to Yellow to Red
+        colors = plt.get_cmap('RdYlBu_r')(np.linspace(0.1, 0.9, num_seasons))
+        palette = {s: c for s, c in zip(unique_seasons, colors)}
+        
+        # Add Aggregate if present in data
+        if "Aggregate" in hg_df['Season'].unique():
+            palette["Aggregate"] = "black"
+            
+        sns.lineplot(data=hg_df, x='Sample_Size', y='xG_r2', hue='Season', palette=palette, marker='o', alpha=0.8, linewidth=2.5)
+        
+        # If Aggregate exists, draw it prominently over others
+        if "Aggregate" in hg_df['Season'].unique():
+            agg_data = hg_df[hg_df['Season'] == "Aggregate"]
+            label = f"{num_seasons}-Season Aggregate" if num_seasons > 0 else "Aggregate"
+            plt.plot(agg_data['Sample_Size'], agg_data['xG_r2'], color='black', marker='D', linewidth=5, label=label, zorder=20)
+            
+        plt.title(f'Seasonal Stability Variance: xG% vs Future GF% ({filter_type})', fontsize=16, fontweight='bold')
+        plt.ylabel('R² (Predictive Power)', fontsize=12)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title="Season (Old -> New)")
+    else:
+        # Simplified aggregate plot
+        plt.plot(hg_df['Sample_Size'], hg_df['xG_r2'], marker='o', label=f'xG% vs Future GF% ({model_name})', color='#1f77b4', linewidth=3)
+        plt.plot(hg_df['Sample_Size'], hg_df['Goals_r2'], marker='s', label='Actual GF% vs Future GF%', color='#d62728', linewidth=3, linestyle='--')
+        plt.title(f'Net Metric Reliability Curves: xG% vs GF% ({filter_type})', fontsize=14)
+        plt.ylabel('R² with Remaining Games (Future GF%)', fontsize=12)
+        plt.legend()
+    
+    plt.xlabel('Number of Games in Sample (Group A)', fontsize=12)
+    plt.grid(alpha=0.3, linestyle=':')
+    plt.tight_layout()
+    
+    is_per_season = num_seasons > 1
+    suffix = "_seasonal" if is_per_season else ""
+    out_path = Path(f"analysis/evaluation/hockey_graphs_stability_{model_name}_{filter_type}{suffix}.png")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=300)
+    logger.info(f"Saved Hockey-Graphs plot to {out_path}")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seasons', type=str, default='20232024', help="Comma-separated seasons")
@@ -705,6 +1217,17 @@ def main():
     parser.add_argument('--outcome', type=str, default='final', help='final, regulation')
     parser.add_argument('--train-split', type=float, default=0.7)
     parser.add_argument('--n-boot', type=int, default=100) # Lower default for sweeps
+    
+    # Season Level Prediction Options
+    parser.add_argument('--predict-season', action='store_true', help='If set, performs season-level cumulative statistics prediction')
+    parser.add_argument('--cumulative-filter', type=str, default=None, help='Filter for cumulative statistics (wins/gd/xg). Defaults to same as --filter')
+    parser.add_argument('--prediction-mode', type=str, default='rest_of_season', choices=['rest_of_season', 'end_of_season'], help='Predict rest of season or full season')
+    parser.add_argument('--split-method', type=str, default='chronological', choices=['chronological', 'random'], help='Method for splitting season into train/test')
+    parser.add_argument('--split-reps', type=int, default=1, help='Number of random splits if split-method is random')
+    # Hockey Graphs Study
+    parser.add_argument('--hockey-graphs', action='store_true', help='Replicate Hockey-Graphs stability intervals analysis')
+    parser.add_argument('--per-season', action='store_true', help='If set with --hockey-graphs, calculates stability per season')
+    
     args = parser.parse_args()
 
     models = args.model.split(',')
@@ -725,15 +1248,54 @@ def main():
             logger.info(f"==== Starting Sweep: Model={m}, Filter={f} ====")
             evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot, args.matchup_logic)
             
+            if args.hockey_graphs:
+                hg_df = evaluator.run_hockey_graphs_stability(seasons, reps=args.split_reps, per_season=args.per_season)
+                out_path = Path(f"analysis/evaluation/hockey_graphs_stability_{m}_{f}.csv")
+                hg_df.to_csv(out_path, index=False)
+                generate_hockey_graphs_plots(hg_df, m, f)
+                print(f"\n--- Hockey-Graphs Stability Study ({m}, {f}) ---")
+                print(hg_df)
+                continue
+
             sweep_results = []
+            season_preds = []
             for season in seasons:
-                res = evaluator.run_evaluation(season, args.train_split)
-                if res:
-                    sweep_results.append(res)
-                    all_results.append(res)
+                if args.predict_season:
+                    res = evaluator.run_season_prediction(
+                        season, args.train_split, args.n_sims, 
+                        args.cumulative_filter, args.prediction_mode,
+                        split_method=args.split_method, split_reps=args.split_reps
+                    )
+                    if res is not None:
+                        season_preds.append(res)
+                else:
+                    res = evaluator.run_evaluation(season, args.train_split)
+                    if res:
+                        sweep_results.append(res)
+                        all_results.append(res)
             
-            # Calculate Combined Metric if multiple seasons
-            if len(sweep_results) > 1:
+            if args.predict_season and season_preds:
+                all_season_df = pd.concat(season_preds, ignore_index=True)
+                
+                # Accumulate the R2 distributions from all seasons
+                aggregate_r2_dist = []
+                for res in season_preds:
+                    if 'r2_dist' in res.attrs:
+                        aggregate_r2_dist.extend(res.attrs['r2_dist'])
+                
+                if aggregate_r2_dist:
+                    all_season_df.attrs['r2_dist'] = aggregate_r2_dist
+                
+                generate_season_prediction_plots(all_season_df)
+                
+                out_path = Path(f"analysis/evaluation/season_prediction_{m}_{f}.csv")
+                all_season_df.to_csv(out_path, index=False)
+                print(f"\n--- Season Prediction Summary ({m}, {f}) ---")
+                print(all_season_df.drop(columns=['pred_wins_ci', 'pred_gd_ci'], errors='ignore').head())
+                logger.info(f"Season prediction results saved to {out_path}")
+
+            # Calculate Combined Metric if multiple seasons and NOT predict_season
+            if not args.predict_season and len(sweep_results) > 1:
                 total_games = sum(r['Test_Games'] for r in sweep_results)
                 if total_games > 0:
                     # Calculate aggregate distribution by concatenating raw results

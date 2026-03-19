@@ -12,6 +12,7 @@ from sklearn.utils.validation import check_is_fitted
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss
 from sklearn.calibration import calibration_curve
+from typing import List, Dict, Any, Optional, Union
 import joblib
 import json
 import time
@@ -121,7 +122,7 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         return self
 
     @classmethod
-    def train(cls, df_raw: pd.DataFrame, save_path: str = None, verbose: bool = True):
+    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True):
         """
         High-level training routine for NestedGLM.
         1. Preprocess (including imputation)
@@ -195,8 +196,11 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
             json.dump(meta, f)
 
         # 6. Diagnostics & Summary
-        out_dir = Path(puck_config.ANALYSIS_DIR) / 'nested_xgs'
-        out_dir.mkdir(parents=True, exist_ok=True)
+        if out_dir is None:
+            diag_dir = Path(puck_config.ANALYSIS_DIR) / 'nested_xgs'
+        else:
+            diag_dir = Path(out_dir)
+        diag_dir.mkdir(parents=True, exist_ok=True)
         
         # Layer Diagnostics plots
         if plt:
@@ -233,12 +237,12 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
                 axes[2].plot([0, 1], [0, 1], '--', color='gray', alpha=0.5)
                 axes[2].set_title("Finish Layer")
                 
-            plt.savefig(out_dir / 'glm_calibration.png')
+            plt.savefig(diag_dir / 'glm_calibration.png')
             plt.close()
 
         # Model Summary
         vprint("Generating model summary...")
-        model_summary.generate_model_summary(model_path=save_path, test_df=df_test, output_dir=str(out_dir), verbose=verbose)
+        model_summary.generate_model_summary(model_path=save_path, test_df=df_test, output_dir=str(diag_dir), verbose=verbose)
 
         return clf
 
