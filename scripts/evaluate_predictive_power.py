@@ -179,9 +179,10 @@ class ModelRegistry:
             return 'actual'
         
         paths = {
-            'nested_xg': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor.joblib'),
+            'nested_xg': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
             'nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
-            'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor.joblib')
+            'non_nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
+            'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib')
         }
         
         path = paths.get(model_name)
@@ -1206,6 +1207,53 @@ def generate_hockey_graphs_plots(hg_df, model_name, filter_type):
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved Hockey-Graphs plot to {out_path}")
 
+def generate_hockey_graphs_comparison_plot(hg_dfs, filter_type):
+    """
+    Plots multiple model stability curves on the same chart for comparison.
+    hg_dfs: Dictionary of {model_name: hg_df}
+    """
+    plt.figure(figsize=(12, 7))
+    
+    # Standard colors for comparison
+    colors = {
+        'nested_xg_20202021': '#1f77b4',     # Blue
+        'non_nested_xg_20202021': '#2ca02c', # Green
+        'actual': '#d62728',                # Red
+        'nested_xg': '#aec7e8',             # Light Blue
+        'non_nested_xg': '#98df8a'          # Light Green
+    }
+    
+    for i, (model_name, hg_df) in enumerate(hg_dfs.items()):
+        # Focus on Aggregate if multiple seasons, otherwise use the only one
+        if "Aggregate" in hg_df['Season'].unique():
+            data = hg_df[hg_df['Season'] == "Aggregate"]
+        else:
+            data = hg_df
+            
+        color = colors.get(model_name, plt.get_cmap('tab10')(i))
+        label = f"xG% vs Future GF% ({model_name})" if model_name != 'actual' else "Actual GF% vs Future GF%"
+        marker = 'o' if model_name != 'actual' else 's'
+        ls = '-' if model_name != 'actual' else '--'
+        lw = 3
+        
+        plt.plot(data['Sample_Size'], data['xG_r2'], marker=marker, label=label, color=color, linewidth=lw, linestyle=ls)
+        
+        # If it's the first model (or specified), also plot the Goals baseline once
+        # But wait, if model_name is 'actual', its xG_r2 IS the goals_r2 of the other models.
+        # So we just plot xG_r2 for everyone.
+        
+    plt.title(f'Comparative Metric Reliability: Modern Era ({filter_type})', fontsize=16, fontweight='bold')
+    plt.ylabel('R² (Predictive Power)', fontsize=12)
+    plt.xlabel('Number of Games in Sample (Group A)', fontsize=12)
+    plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+    plt.grid(alpha=0.3, linestyle=':')
+    plt.tight_layout()
+    
+    out_path = Path(f"analysis/evaluation/hockey_graphs_stability_comparison_{filter_type}.png")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.savefig(out_path, dpi=300)
+    logger.info(f"Saved Hockey-Graphs comparison plot to {out_path}")
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--seasons', type=str, default='20232024', help="Comma-separated seasons")
@@ -1242,6 +1290,8 @@ def main():
     
     all_results = []
     
+    hockey_graphs_results = {}
+    
     for m in models:
         for f in filters:
             m, f = m.strip(), f.strip()
@@ -1253,6 +1303,10 @@ def main():
                 out_path = Path(f"analysis/evaluation/hockey_graphs_stability_{m}_{f}.csv")
                 hg_df.to_csv(out_path, index=False)
                 generate_hockey_graphs_plots(hg_df, m, f)
+                
+                # Collect for comparison
+                hockey_graphs_results[m] = hg_df
+                
                 print(f"\n--- Hockey-Graphs Stability Study ({m}, {f}) ---")
                 print(hg_df)
                 continue
@@ -1311,6 +1365,11 @@ def main():
                         'Test_Games': total_games
                     }
                     all_results.append(combined)
+    
+    # If we have multiple Hockey-Graphs results, generate comparison plot
+    if args.hockey_graphs and len(hockey_graphs_results) > 1:
+        # Assuming for now they all use the same filter (first one)
+        generate_hockey_graphs_comparison_plot(hockey_graphs_results, filters[0])
     
     if all_results:
         df_summary = pd.DataFrame(all_results)
