@@ -5,13 +5,15 @@ Flexible and modular structure for assessing xG models and team performance metr
 
 Available Options:
 -----------------
---model:  nested_xg, non_nested_xg, mixed_effects, actual, moneypuck.
+--model:  nested_xg, non_nested_xg, mixed_effects_nested, mixed_effects_non_nested, 
+           actual, moneypuck.
           Prefix with 'local_' to train on the specific season's training split 
           (e.g., local_nested_xg).
 --filter: all (default), 5v5, 5v5_close (score diff <= 1), extrapolated_per60.
 --metric: gd (Goal Difference, default), gf_pct (Goals For %), rank (Team Rankings).
 --seasons: Comma-separated list (e.g., 20222023,20232024) or 'aggregate' to 
-           auto-discover all seasons and calculate weighted combined results.
+           auto-discover all seasons and calculate weighted combined results. 
+           Can also specify '20202021+' to auto-include all modern era seasons.
 
 Example Calls:
 --------------
@@ -32,6 +34,17 @@ Example Calls:
 
 5) Predict end of season totals, comparing 5v5 ability vs all-situations cumulative stats:
    python scripts/evaluate_predictive_power.py --predict-season --prediction-mode end_of_season --filter 5v5 --cumulative-filter all --seasons 20222023,20232024
+
+6) Large-scale stability study for all modern era models:
+   python scripts/evaluate_predictive_power.py --reps 500 --per-season --hockey-graphs \
+     --filter all --seasons 20202021+ --model nested_xg,non_nested_xg,mixed_effects_nested,actual
+
+7) Compare Nested vs Non-Nested mixed effects performance:
+   python scripts/evaluate_predictive_power.py --seasons aggregate \
+     --model mixed_effects_nested,mixed_effects_non_nested --filter all
+
+8) Full Modern Era Stability Sweep with Mixed Effects models:
+   python scripts/evaluate_predictive_power.py --seasons 20202021+ --model nested,non_nested,mixed_effects_nested,mixed_effects_non_nested,actual --filter all --hockey-graphs --reps 1000
 """
 
 import sys
@@ -156,14 +169,20 @@ class ModelRegistry:
         if cache_key in self._cache:
             return self._cache[cache_key]
 
-        if model_name == 'mixed_effects' and not is_local:
-            # "Global" mixed effects uses the global nested GLM as a fixed-effect base
+        if model_name.startswith('mixed_effects') and not is_local:
+            # "Global" mixed effects uses a global GLM as a fixed-effect base
             # but MUST fit team-specific intercepts on the current train_df.
             if train_df is None:
                 logger.warning("train_df is None, cannot fit mixed effects intercepts.")
                 return None
-            logger.info("Fitting mixed effects intercepts for current season...")
-            base = self._load_global_model('nested_xg')
+            
+            # Determine base type
+            base_type = 'non_nested_xg' if 'non_nested' in model_name else 'nested_xg'
+            logger.info(f"Fitting mixed effects intercepts using {base_type} base...")
+            
+            base = self._load_global_model(base_type)
+            if base is None:
+                return None
             model = mixed_effects.GameMixedEffectsXG(base_model=base)
             model.fit(train_df)
         elif is_local:
@@ -180,8 +199,10 @@ class ModelRegistry:
         
         paths = {
             'nested_xg': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
+            'nested': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
             'nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
             'non_nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
+            'non_nested': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
             'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib')
         }
         
@@ -205,9 +226,10 @@ class ModelRegistry:
         elif model_name == 'non_nested_xg':
             model = fit_glm.NonNestedGLM(features=feature_list, use_splines=True, enable_marginalization=True)
             model.fit(train_df[train_df['event'] != 'blocked-shot'])
-        elif model_name == 'mixed_effects':
-            # Train base nested then mixed
-            base = self._train_local_model('nested_xg', train_df)
+        elif model_name.startswith('mixed_effects'):
+            # Train base then mixed
+            base_type = 'non_nested_xg' if 'non_nested' in model_name else 'nested_xg'
+            base = self._train_local_model(base_type, train_df)
             model = mixed_effects.GameMixedEffectsXG(base_model=base, use_tensor_splines=True)
             model.fit(train_df)
         else:
@@ -240,7 +262,7 @@ class TeamAbilitySummarizer:
             model = model_registry.get_model(pure_model_name, train_df, is_local=is_local)
             if model:
                 df = df.copy()
-                if pure_model_name == 'mixed_effects':
+                if pure_model_name.startswith('mixed_effects'):
                     df['eval_xg'] = model.predict_proba(df)[:, 1]
                 else:
                     mask = df['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
@@ -804,7 +826,7 @@ class PredictiveEvaluator:
         for col in ['pred_wins_mean', 'pred_wins_std', 'pred_gd_mean', 'pred_gd_std', 'pred_xg_diff']:
             plotting_df[col] = 0.0
             
-    def run_hockey_graphs_stability(self, seasons, intervals=[10, 20, 30, 40, 50, 60, 70], reps=1000, per_season=False):
+    def run_hockey_graphs_stability(self, seasons, intervals=[10, 20, 30, 40, 50, 60, 70], reps=1000, per_season=False, hg_metric='pct'):
         """
         Replicates Hockey-Graphs methodology:
         - Select sample size X.
@@ -871,9 +893,26 @@ class PredictiveEvaluator:
                     'xg_a': group['xg_a'].values,
                     'gf': group['gf'].values,
                     'ga': group['ga'].values,
+                    'game_ids': group['game_id'].values,
                     'count': len(group)
                 }
-            all_season_gms[season] = {'team_data': team_data}
+            
+            # Extract list of games with participant teams for this season
+            season_games = []
+            for gid, group in sched_df.iterrows():
+                season_games.append({
+                    'game_id': group['game_id'],
+                    'home_team': group['home_team'],
+                    'away_team': group['away_team'],
+                    'home_goals_final': group['home_goals_final'],
+                    'away_goals_final': group['away_goals_final'],
+                    'actual': 1.0 if group['home_goals_final'] > group['away_goals_final'] else 0.0 if group['home_goals_final'] < group['away_goals_final'] else 0.5
+                })
+            
+            all_season_gms[season] = {
+                'team_data': team_data,
+                'games': season_games
+            }
 
         # Sampling Loop
         def fisher_z_mean(rs):
@@ -898,10 +937,17 @@ class PredictiveEvaluator:
             for X in intervals:
                 logger.info(f"Processing interval: {X} games...")
                 xg_rs, goal_rs = [], []
+                brier_scores, accuracies = [], []
                 
                 for r in range(reps):
                     pooled_data = [] # (tr_xg_pct, tr_gf_pct, te_gf_pct)
+                    rep_team_abilities = {}
+                    rep_team_train_gids = {}
                     
+                    total_tr_goals = 0
+                    total_tr_games = 0
+                    
+                    # 1. First pass: Calculate abilities for all teams in this rep
                     for season in group_seasons:
                         curr_team_data = all_season_gms[season]['team_data']
                         for team, stats_dict in curr_team_data.items():
@@ -911,19 +957,76 @@ class PredictiveEvaluator:
                             idx_all = np.random.permutation(n_total)
                             idx_a, idx_b = idx_all[:X], idx_all[X:]
                             
+                            # Track training game IDs for predictive filtering
+                            rep_team_train_gids[team] = set(stats_dict['game_ids'][idx_a])
+                            
                             # Group A (Predictor)
                             tr_xgf, tr_xga = stats_dict['xg_f'][idx_a].sum(), stats_dict['xg_a'][idx_a].sum()
                             tr_gf, tr_ga = stats_dict['gf'][idx_a].sum(), stats_dict['ga'][idx_a].sum()
-                            tr_xg_pct = tr_xgf / (tr_xgf + tr_xga) if (tr_xgf + tr_xga) > 0 else 0.5
-                            tr_gf_pct = tr_gf / (tr_gf + tr_ga) if (tr_gf + tr_ga) > 0 else 0.5
+                            
+                            # For mixed effects, we should ideally adjust base xG to match Group A goals
+                            # to see if that adjustment carries over to Group B.
+                            if 'mixed_effects' in self.model_name:
+                                # Simple ratio-based adjustment (team-specific intercept proxy)
+                                adj_f = tr_gf / tr_xgf if tr_xgf > 0 else 1.0
+                                adj_a = tr_ga / tr_xga if tr_xga > 0 else 1.0
+                                # Clip adjustments to avoid extreme outliers in small samples
+                                adj_f = np.clip(adj_f, 0.5, 2.0)
+                                adj_a = np.clip(adj_a, 0.5, 2.0)
+                                tr_xgf *= adj_f
+                                tr_xga *= adj_a
+
+                            if hg_metric == 'pct':
+                                tr_xg_val = tr_xgf / (tr_xgf + tr_xga) if (tr_xgf + tr_xga) > 0 else 0.5
+                                tr_gf_val_a = tr_gf / (tr_gf + tr_ga) if (tr_gf + tr_ga) > 0 else 0.5
+                                # Store ability for predictive scoring
+                                rep_team_abilities[team] = {'for': tr_xg_val, 'ag': 1.0 - tr_xg_val}
+                            else: # diff
+                                tr_xg_val = (tr_xgf - tr_xga) / X
+                                tr_gf_val_a = (tr_gf - tr_ga) / X
+                                # Store ability for predictive scoring
+                                rep_team_abilities[team] = {'for': 0.5 + tr_xg_val/2, 'ag': 0.5 - tr_xg_val/2}
                             
                             # Group B (Outcome)
+                            n_rest = int(n_total) - int(X)
                             te_gf_val, te_ga_val = stats_dict['gf'][idx_b].sum(), stats_dict['ga'][idx_b].sum()
-                            te_gf_pct = te_gf_val / (te_gf_val + te_ga_val) if (te_gf_val + te_ga_val) > 0 else 0.5
                             
-                            pooled_data.append((tr_xg_pct, tr_gf_pct, te_gf_pct))
+                            if hg_metric == 'pct':
+                                te_gf_val_b = te_gf_val / (te_gf_val + te_ga_val) if (te_gf_val + te_ga_val) > 0 else 0.5
+                            else: # diff
+                                te_gf_val_b = (te_gf_val - te_ga_val) / n_rest
+                            
+                            pooled_data.append((tr_xg_val, tr_gf_val_a, te_gf_val_b))
+                            total_tr_goals += tr_gf
+                            total_tr_games += X
                     
                     if not pooled_data: continue
+                    
+                    rep_league_avg = (total_tr_goals / (2 * total_tr_games)) if total_tr_games > 0 else 3.0
+                    
+                    # 2. Second pass: Predictive power on games not used for training
+                    rep_preds = []
+                    for season in group_seasons:
+                        season_games = all_season_gms[season]['games']
+                        for game in season_games:
+                            h, a = game['home_team'], game['away_team']
+                            
+                            # Only predict if both teams have abilities calculated (and not used THIS game in training)
+                            if h in rep_team_abilities and a in rep_team_abilities:
+                                if game['game_id'] not in rep_team_train_gids.get(h, set()) and \
+                                   game['game_id'] not in rep_team_train_gids.get(a, set()):
+                                    p_hw = self.matchup_engine.predict_winner_prob(
+                                        h, a, rep_team_abilities, rep_league_avg, self.outcome_type
+                                    )
+                                    rep_preds.append({'p': p_hw, 'y': game['actual']})
+                    
+                    if rep_preds:
+                        pred_df = pd.DataFrame(rep_preds)
+                        brier = self._brier_fn(pred_df['y'].values, pred_df['p'].values)
+                        acc = self._acc_fn(pred_df['y'].values, pred_df['p'].values)
+                        brier_scores.append(brier)
+                        accuracies.append(acc)
+
                     arr = np.array(pooled_data)
                     r_xg = np.corrcoef(arr[:, 0], arr[:, 2])[0, 1] if arr.shape[0] > 1 else np.nan
                     r_goal = np.corrcoef(arr[:, 1], arr[:, 2])[0, 1] if arr.shape[0] > 1 else np.nan
@@ -937,7 +1040,9 @@ class PredictiveEvaluator:
                     'Season': group_label,
                     'Sample_Size': X,
                     'xG_r': f_r_xg, 'xG_r2': f_r_xg**2,
-                    'Goals_r': f_r_goal, 'Goals_r2': f_r_goal**2
+                    'Goals_r': f_r_goal, 'Goals_r2': f_r_goal**2,
+                    'Brier': np.mean(brier_scores) if brier_scores else np.nan,
+                    'Accuracy': np.mean(accuracies) if accuracies else np.nan
                 })
             
         return pd.DataFrame(final_results)
@@ -985,11 +1090,14 @@ def _get_config_palette(configurations):
     palette = {}
     # Modern, professional base colors
     base_colors = {
-        'nested_xg': '#1f77b4',      # Blue
-        'non_nested_xg': '#ff7f0e', # Orange
-        'mixed_effects': '#2ca02c', # Green
-        'actual': '#d62728',        # Red
-        'moneypuck': '#9467bd'      # Purple
+        'mixed_effects_nested': '#1f77b4',     # Blue
+        'nested_xg': '#aec7e8',                # Light Blue
+        'nested': '#aec7e8',                   # Light Blue
+        'mixed_effects_non_nested': '#2ca02c', # Green
+        'non_nested_xg': '#98df8a',            # Light Green
+        'non_nested': '#98df8a',               # Light Green
+        'actual': '#d62728',                   # Black
+        'moneypuck': '#9467bd'                 # Purple
     }
     
     for config in configurations:
@@ -1009,7 +1117,7 @@ def _get_config_palette(configurations):
             palette[config] = base_hex
     return palette
 
-def generate_aggregate_plots(all_results):
+def generate_aggregate_plots(all_results, filter_str='all'):
     if not all_results: return
     df = pd.DataFrame(all_results)
     
@@ -1019,14 +1127,27 @@ def generate_aggregate_plots(all_results):
 
     df_seasonal['Configuration'] = df_seasonal.apply(lambda row: f"{row['Model']} ({row['Filter']})", axis=1)
     
-    palette = _get_config_palette(df_seasonal['Configuration'].unique())
+    # Explicit ordering for x-axis
+    def get_order_key(config):
+        model = config.split(' (')[0]
+        order = {
+            'mixed_effects_nested': 0,
+            'nested_xg': 1, 'nested': 1,
+            'mixed_effects_non_nested': 2,
+            'non_nested_xg': 3, 'non_nested': 3,
+            'actual': 4
+        }
+        return order.get(model, 10)
+    
+    order_configs = sorted(df_seasonal['Configuration'].unique(), key=get_order_key)
+    palette = _get_config_palette(order_configs)
 
     plt.figure(figsize=(14, 10))
     
     # Brier Chart
     plt.subplot(2, 1, 1)
     # Boxplot shows spread across seasons
-    sns.boxplot(data=df_seasonal, x='Configuration', y='Brier', palette=palette, hue='Configuration', legend=False)
+    sns.boxplot(data=df_seasonal, x='Configuration', y='Brier', palette=palette, hue='Configuration', order=order_configs, legend=False)
     # Overlay individual season points
     sns.stripplot(data=df_seasonal, x='Configuration', y='Brier', color='black', alpha=0.3, jitter=True)
     plt.title('Brier Score Distribution Across Seasons (Lower is Better)')
@@ -1035,7 +1156,7 @@ def generate_aggregate_plots(all_results):
     
     # Accuracy Chart
     plt.subplot(2, 1, 2)
-    sns.boxplot(data=df_seasonal, x='Configuration', y='Accuracy', palette=palette, hue='Configuration', legend=False)
+    sns.boxplot(data=df_seasonal, x='Configuration', y='Accuracy', palette=palette, hue='Configuration', order=order_configs, legend=False)
     sns.stripplot(data=df_seasonal, x='Configuration', y='Accuracy', color='black', alpha=0.3, jitter=True)
     plt.axhline(0.5, color='red', linestyle='--', alpha=0.5, label='Chance')
     plt.title('Accuracy Distribution Across Seasons (Higher is Better)')
@@ -1043,12 +1164,12 @@ def generate_aggregate_plots(all_results):
     plt.xticks(rotation=45)
     
     plt.tight_layout()
-    out_path = Path("analysis/evaluation/predictive_power_comparison_summary.png")
+    out_path = Path(f"analysis/evaluation/predictive_power_comparison_summary_{filter_str}.png")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved comparison plot to {out_path}")
 
-def generate_combined_only_plot(all_results):
+def generate_combined_only_plot(all_results, filter_str='all'):
     if not all_results: return
     df = pd.DataFrame(all_results)
     df_comb = df[df['Season'] == 'Combined'].copy()
@@ -1073,28 +1194,41 @@ def generate_combined_only_plot(all_results):
     df_brier = pd.DataFrame(brier_rows)
     df_acc = pd.DataFrame(acc_rows)
     
-    palette = _get_config_palette(df_comb['Configuration'].unique())
+    # Explicit ordering
+    def get_order_key(config):
+        model = config.split(' (')[0]
+        order = {
+            'mixed_effects_nested': 0,
+            'nested_xg': 1, 'nested': 1,
+            'mixed_effects_non_nested': 2,
+            'non_nested_xg': 3, 'non_nested': 3,
+            'actual': 4
+        }
+        return order.get(model, 10)
+    
+    order_configs = sorted(df_comb['Configuration'].unique(), key=get_order_key)
+    palette = _get_config_palette(order_configs)
 
     plt.figure(figsize=(12, 10))
     
     # Brier
     plt.subplot(2, 1, 1)
     # Boxplot of bootstrap distribution
-    sns.boxplot(data=df_brier, x='Configuration', y='Brier', palette=palette, hue='Configuration', legend=False)
+    sns.boxplot(data=df_brier, x='Configuration', y='Brier', palette=palette, hue='Configuration', order=order_configs, legend=False)
     plt.title('Grand Aggregate Brier Score (Bootstrap Distribution)')
     plt.xticks(rotation=45)
     plt.grid(axis='y', alpha=0.3)
     
     # Accuracy
     plt.subplot(2, 1, 2)
-    sns.boxplot(data=df_acc, x='Configuration', y='Accuracy', palette=palette, hue='Configuration', legend=False)
+    sns.boxplot(data=df_acc, x='Configuration', y='Accuracy', palette=palette, hue='Configuration', order=order_configs, legend=False)
     plt.axhline(0.5, color='red', linestyle='--', alpha=0.5, label='Chance')
     plt.title('Grand Aggregate Accuracy (Bootstrap Distribution)')
     plt.xticks(rotation=45)
     plt.grid(axis='y', alpha=0.3)
     
     plt.tight_layout()
-    out_path = Path("analysis/evaluation/predictive_power_combined_only.png")
+    out_path = Path(f"analysis/evaluation/predictive_power_combined_only_{filter_str}.png")
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved combined-only plot to {out_path}")
 
@@ -1161,8 +1295,12 @@ def generate_season_prediction_plots(results_df):
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved season prediction plot to {out_path}")
 
-def generate_hockey_graphs_plots(hg_df, model_name, filter_type):
+def generate_hockey_graphs_plots(hg_df, model_name, filter_type, metric='pct'):
     plt.figure(figsize=(12, 7))
+    
+    label_suffix = "Difference/G" if metric == 'diff' else "%"
+    pred_label = f"xG {label_suffix}" if model_name != 'actual' else f"Actual Goal {label_suffix}"
+    outcome_label = f"Future Goal {label_suffix}"
     
     unique_seasons = sorted([s for s in hg_df['Season'].unique() if s != "Aggregate"])
     num_seasons = len(unique_seasons)
@@ -1185,15 +1323,15 @@ def generate_hockey_graphs_plots(hg_df, model_name, filter_type):
             label = f"{num_seasons}-Season Aggregate" if num_seasons > 0 else "Aggregate"
             plt.plot(agg_data['Sample_Size'], agg_data['xG_r2'], color='black', marker='D', linewidth=5, label=label, zorder=20)
             
-        plt.title(f'Seasonal Stability Variance: xG% vs Future GF% ({filter_type})', fontsize=16, fontweight='bold')
+        plt.title(f'Seasonal Stability Variance: {pred_label} vs {outcome_label} ({filter_type})', fontsize=16, fontweight='bold')
         plt.ylabel('R² (Predictive Power)', fontsize=12)
         plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left', title="Season (Old -> New)")
     else:
         # Simplified aggregate plot
-        plt.plot(hg_df['Sample_Size'], hg_df['xG_r2'], marker='o', label=f'xG% vs Future GF% ({model_name})', color='#1f77b4', linewidth=3)
-        plt.plot(hg_df['Sample_Size'], hg_df['Goals_r2'], marker='s', label='Actual GF% vs Future GF%', color='#d62728', linewidth=3, linestyle='--')
-        plt.title(f'Net Metric Reliability Curves: xG% vs GF% ({filter_type})', fontsize=14)
-        plt.ylabel('R² with Remaining Games (Future GF%)', fontsize=12)
+        plt.plot(hg_df['Sample_Size'], hg_df['xG_r2'], marker='o', label=f'{pred_label} vs {outcome_label} ({model_name})', color='#1f77b4', linewidth=3)
+        plt.plot(hg_df['Sample_Size'], hg_df['Goals_r2'], marker='s', label=f'Actual Goal {label_suffix} vs {outcome_label}', color='#d62728', linewidth=3, linestyle='--')
+        plt.title(f'Net Metric Reliability Curves: {pred_label} vs {outcome_label} ({filter_type})', fontsize=14)
+        plt.ylabel(f'R² with Remaining Games ({outcome_label})', fontsize=12)
         plt.legend()
     
     plt.xlabel('Number of Games in Sample (Group A)', fontsize=12)
@@ -1207,20 +1345,60 @@ def generate_hockey_graphs_plots(hg_df, model_name, filter_type):
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved Hockey-Graphs plot to {out_path}")
 
-def generate_hockey_graphs_comparison_plot(hg_dfs, filter_type):
+    # Generate additional predictive plots if Accuracy/Brier are present
+    if 'Accuracy' in hg_df.columns and 'Brier' in hg_df.columns:
+        # 1. Accuracy Curve
+        plt.figure(figsize=(10, 6))
+        sns.lineplot(data=hg_df, x='Sample_Size', y='Accuracy', hue='Season', marker='o', linewidth=2.5)
+        if "Aggregate" in hg_df['Season'].unique():
+            agg_data = hg_df[hg_df['Season'] == "Aggregate"]
+            plt.plot(agg_data['Sample_Size'], agg_data['Accuracy'], color='black', marker='D', linewidth=4, label='Aggregate')
+        plt.title(f'Predictive Accuracy vs Sample Size ({model_name}, {filter_type})', fontsize=14, fontweight='bold')
+        plt.ylabel('Accuracy (%)', fontsize=12)
+        plt.xlabel('Number of Training Games (N)', fontsize=12)
+        plt.grid(alpha=0.3)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        acc_path = Path(f"analysis/evaluation/hockey_graphs_accuracy_{model_name}_{filter_type}.png")
+        plt.savefig(acc_path, dpi=300)
+        plt.close()
+
+        # 2. Brier Score Curve
+        plt.figure(figsize=(10, 6))
+        sns.lineplot(data=hg_df, x='Sample_Size', y='Brier', hue='Season', marker='o', linewidth=2.5)
+        if "Aggregate" in hg_df['Season'].unique():
+            agg_data = hg_df[hg_df['Season'] == "Aggregate"]
+            plt.plot(agg_data['Sample_Size'], agg_data['Brier'], color='black', marker='D', linewidth=4, label='Aggregate')
+        plt.title(f'Brier Score vs Sample Size ({model_name}, {filter_type})', fontsize=14, fontweight='bold')
+        plt.ylabel('Brier Score (Lower is Better)', fontsize=12)
+        plt.xlabel('Number of Training Games (N)', fontsize=12)
+        plt.grid(alpha=0.3)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.tight_layout()
+        brier_path = Path(f"analysis/evaluation/hockey_graphs_brier_{model_name}_{filter_type}.png")
+        plt.savefig(brier_path, dpi=300)
+        plt.close()
+
+def generate_hockey_graphs_comparison_plot(hg_dfs, filter_type, metric='pct'):
     """
     Plots multiple model stability curves on the same chart for comparison.
     hg_dfs: Dictionary of {model_name: hg_df}
     """
     plt.figure(figsize=(12, 7))
     
+    label_suffix = "Diff/G" if metric == 'diff' else "%"
+    outcome_label = f"Future Goal {label_suffix}"
+    
     # Standard colors for comparison
     colors = {
-        'nested_xg_20202021': '#1f77b4',     # Blue
-        'non_nested_xg_20202021': '#2ca02c', # Green
-        'actual': '#d62728',                # Red
-        'nested_xg': '#aec7e8',             # Light Blue
-        'non_nested_xg': '#98df8a'          # Light Green
+        'mixed_effects_nested': '#1f77b4',     # Blue
+        'nested_xg': '#aec7e8',                # Light Blue
+        'nested': '#aec7e8',                   # Light Blue
+        'mixed_effects_non_nested': '#2ca02c', # Green
+        'non_nested_xg': '#98df8a',            # Light Green
+        'non_nested': '#98df8a',               # Light Green
+        'actual': '#d62728',                   # Red
+        'moneypuck': '#9467bd'                 # Purple
     }
     
     for i, (model_name, hg_df) in enumerate(hg_dfs.items()):
@@ -1231,7 +1409,7 @@ def generate_hockey_graphs_comparison_plot(hg_dfs, filter_type):
             data = hg_df
             
         color = colors.get(model_name, plt.get_cmap('tab10')(i))
-        label = f"xG% vs Future GF% ({model_name})" if model_name != 'actual' else "Actual GF% vs Future GF%"
+        label = f"xG {label_suffix} vs {outcome_label} ({model_name})" if model_name != 'actual' else f"Actual Goal {label_suffix} vs {outcome_label}"
         marker = 'o' if model_name != 'actual' else 's'
         ls = '-' if model_name != 'actual' else '--'
         lw = 3
@@ -1249,10 +1427,41 @@ def generate_hockey_graphs_comparison_plot(hg_dfs, filter_type):
     plt.grid(alpha=0.3, linestyle=':')
     plt.tight_layout()
     
-    out_path = Path(f"analysis/evaluation/hockey_graphs_stability_comparison_{filter_type}.png")
+    model_count = len(hg_dfs)
+    out_path = Path(f"analysis/evaluation/hockey_graphs_stability_comparison_{metric}_{filter_type}_{model_count}_models.png")
     out_path.parent.mkdir(parents=True, exist_ok=True)
     plt.savefig(out_path, dpi=300)
     logger.info(f"Saved Hockey-Graphs comparison plot to {out_path}")
+
+    # Predictive Comparison Plots
+    if all('Accuracy' in df.columns for df in hg_dfs.values()):
+        plt.figure(figsize=(12, 7))
+        for i, (m_name, df) in enumerate(hg_dfs.items()):
+            data = df[df['Season'] == "Aggregate"] if "Aggregate" in df['Season'].unique() else df
+            color = colors.get(m_name, plt.get_cmap('tab10')(i))
+            plt.plot(data['Sample_Size'], data['Accuracy'], marker='o', label=m_name, color=color, linewidth=3)
+        plt.title(f'Comparative Prediction Accuracy: Modern Era ({filter_type})', fontsize=16, fontweight='bold')
+        plt.ylabel('Accuracy (%)', fontsize=12)
+        plt.xlabel('Number of Training Games (N)', fontsize=12)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(Path(f"analysis/evaluation/hockey_graphs_comparison_accuracy_{filter_type}.png"), dpi=300)
+        plt.close()
+
+        plt.figure(figsize=(12, 7))
+        for i, (m_name, df) in enumerate(hg_dfs.items()):
+            data = df[df['Season'] == "Aggregate"] if "Aggregate" in df['Season'].unique() else df
+            color = colors.get(m_name, plt.get_cmap('tab10')(i))
+            plt.plot(data['Sample_Size'], data['Brier'], marker='o', label=m_name, color=color, linewidth=3)
+        plt.title(f'Comparative Brier Score: Modern Era ({filter_type})', fontsize=16, fontweight='bold')
+        plt.ylabel('Brier Score (Lower is Better)', fontsize=12)
+        plt.xlabel('Number of Training Games (N)', fontsize=12)
+        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        plt.grid(alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(Path(f"analysis/evaluation/hockey_graphs_comparison_brier_{filter_type}.png"), dpi=300)
+        plt.close()
 
 def main():
     parser = argparse.ArgumentParser()
@@ -1272,8 +1481,10 @@ def main():
     parser.add_argument('--prediction-mode', type=str, default='rest_of_season', choices=['rest_of_season', 'end_of_season'], help='Predict rest of season or full season')
     parser.add_argument('--split-method', type=str, default='chronological', choices=['chronological', 'random'], help='Method for splitting season into train/test')
     parser.add_argument('--split-reps', type=int, default=1, help='Number of random splits if split-method is random')
+    parser.add_argument('--reps', type=int, default=500, help='Number of bootstrap iterations for Hockey-Graphs study')
     # Hockey Graphs Study
     parser.add_argument('--hockey-graphs', action='store_true', help='Replicate Hockey-Graphs stability intervals analysis')
+    parser.add_argument('--hg-metric', type=str, default='pct', choices=['pct', 'diff'], help='Metric for Hockey-Graphs study: pct (ratio) or diff (per-game difference)')
     parser.add_argument('--per-season', action='store_true', help='If set with --hockey-graphs, calculates stability per season')
     
     args = parser.parse_args()
@@ -1282,9 +1493,13 @@ def main():
     filters = args.filter.split(',')
     
     raw_seasons = args.seasons.split(',')
-    if 'aggregate' in [s.lower() for s in raw_seasons]:
+    if args.seasons == 'aggregate':
         seasons = DataUtils.get_available_seasons()
         logger.info(f"Aggregating across discovered seasons: {seasons}")
+    elif args.seasons == '20202021+':
+        all_seasons = DataUtils.get_available_seasons()
+        seasons = [s for s in all_seasons if int(s) >= 20202021]
+        logger.info(f"Aggregating across Modern Era (20202021+): {seasons}")
     else:
         seasons = raw_seasons
     
@@ -1299,10 +1514,10 @@ def main():
             evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot, args.matchup_logic)
             
             if args.hockey_graphs:
-                hg_df = evaluator.run_hockey_graphs_stability(seasons, reps=args.split_reps, per_season=args.per_season)
-                out_path = Path(f"analysis/evaluation/hockey_graphs_stability_{m}_{f}.csv")
+                hg_df = evaluator.run_hockey_graphs_stability(seasons, reps=args.reps, per_season=args.per_season, hg_metric=args.hg_metric)
+                out_path = Path(f"analysis/evaluation/hockey_graphs_stability_{args.hg_metric}_{m}_{f}.csv")
                 hg_df.to_csv(out_path, index=False)
-                generate_hockey_graphs_plots(hg_df, m, f)
+                generate_hockey_graphs_plots(hg_df, m, f, metric=args.hg_metric)
                 
                 # Collect for comparison
                 hockey_graphs_results[m] = hg_df
@@ -1369,14 +1584,18 @@ def main():
     # If we have multiple Hockey-Graphs results, generate comparison plot
     if args.hockey_graphs and len(hockey_graphs_results) > 1:
         # Assuming for now they all use the same filter (first one)
-        generate_hockey_graphs_comparison_plot(hockey_graphs_results, filters[0])
+        generate_hockey_graphs_comparison_plot(hockey_graphs_results, filters[0], metric=args.hg_metric)
     
     if all_results:
         df_summary = pd.DataFrame(all_results)
-        generate_aggregate_plots(all_results)
-        generate_combined_only_plot(all_results)
         
-        out_csv = Path("analysis/evaluation/predictive_power_comparison_suite.csv")
+        # Use first filter for filename if multiple filters were run (rarely happens in this script's flow)
+        filter_str = filters[0] if filters else 'all'
+        
+        generate_aggregate_plots(all_results, filter_str=filter_str)
+        generate_combined_only_plot(all_results, filter_str=filter_str)
+        
+        out_csv = Path(f"analysis/evaluation/predictive_power_comparison_suite_{filter_str}.csv")
         df_summary.to_csv(out_csv, index=False)
         
         print("\n--- AGGREGATE SUMMARY ---")

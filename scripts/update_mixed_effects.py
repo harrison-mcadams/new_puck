@@ -24,10 +24,12 @@ def main():
     parser = argparse.ArgumentParser(description="Train Mixed Effects Model")
     parser.add_argument("--teams", type=str, help="Comma-separated list of teams to generate plots for (e.g. PHI,PIT)", default=None)
     parser.add_argument("--skip-training", action="store_true", help="Skip training and just regenerate plots if model exists")
+    parser.add_argument("--model-type", type=str, choices=["nested", "non-nested"], default="nested", help="Underlying model type (nested or non-nested)")
     args = parser.parse_args()
 
     season = "20252026"
-    print(f"--- Training Mixed Effects v2 for {season} ---")
+    model_type = args.model_type
+    print(f"--- Training Mixed Effects v2 ({model_type}) for {season} ---")
     
     # 1. Load Data
     data_path = "data/20252026.csv"
@@ -142,17 +144,31 @@ def main():
             df['distance'] = df['distance'].fillna(0)
             
     # 2. Init Model
-    out_path = "analysis/xgs/joint_mixed_effects.joblib"
+    out_path = f"analysis/xgs/joint_mixed_effects_{model_type}.joblib"
     
     if args.skip_training and os.path.exists(out_path):
         print(f"Skipping training, loading model from {out_path}...")
         mixed = joblib.load(out_path)
     else:
-        print("Initializing Mixed Effects Model...")
-        # We use the Nested Tensor/GLM model as base
+        print(f"Initializing Mixed Effects Model ({model_type})...")
+        # Base model selection based on model_type (using 20202021+ variants per request)
+        if model_type == "nested":
+            base_path = "analysis/xgs/xg_model_nested_tensor_20202021.joblib"
+        else:
+            base_path = "analysis/xgs/xg_model_non_nested_tensor_20202021.joblib"
+            
+        if not os.path.exists(base_path):
+             logger.warning(f"Target base model {base_path} not found. Falling back to default.")
+             if model_type == "nested":
+                 base_path = "analysis/xgs/xg_model_nested_tensor.joblib"
+             else:
+                 base_path = "analysis/xgs/xg_model_non_nested_tensor.joblib"
+
+        print(f"Using base model: {base_path}")
+        
         # Enable Tensor Splines for the random effects too
         mixed = mixed_effects.GameMixedEffectsXG(
-            base_model_path="analysis/xgs/xg_model_nested_tensor.joblib",
+            base_model_path=base_path,
             feature_set=[], # No features needed for random intercepts
             use_tensor_splines=False, # Disable expensive tensor splines
             component_model_type='intercept', # Learn only team intercepts
@@ -171,7 +187,7 @@ def main():
     
     # 5. Diagnostics & Saving
     print("\n--- Saving Summary & Generating Plots ---")
-    summary_dir = "analysis/xgs/mixed_effects"
+    summary_dir = f"analysis/xgs/mixed_effects/{model_type}"
     
     # Parse teams filter
     teams_filter = None
@@ -206,7 +222,8 @@ def main():
     try:
         from puck import mixed_effects_viz
         # Pass teams_filter (list or None) AND df (for stats)
-        mixed_effects_viz.generate_spatial_grids(mixed, output_dir="analysis/xgs/mixed_effects/viz", teams=teams_filter, df=df)
+        viz_dir = f"analysis/xgs/mixed_effects/{model_type}/viz"
+        mixed_effects_viz.generate_spatial_grids(mixed, output_dir=viz_dir, teams=teams_filter, df=df)
     except Exception as e:
         print(f"Failed to generate enhanced viz: {e}")
         import traceback
