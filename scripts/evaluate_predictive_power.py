@@ -86,16 +86,17 @@ logger = logging.getLogger(__name__)
 
 class DataUtils:
     @staticmethod
-    def load_season_data(season):
+    def load_season_data(season, apply_arena_adjustments=True):
         """Load and preprocess season data."""
-        logger.info(f"Loading data for {season}...")
+        logger.info(f"Loading data for {season} (Arena Adj: {apply_arena_adjustments})...")
         csv_path = analyze.locate_season_csv(season)
         df = pd.read_csv(csv_path)
         
         # Pre-process for models
         df = data_pipeline.preprocess_features(
             df, is_training=False, apply_imputation=True, 
-            apply_arena_adjustments=True, apply_bio_enrichment=True, apply_filtering=True
+            apply_arena_adjustments=apply_arena_adjustments, 
+            apply_bio_enrichment=True, apply_filtering=True
         )
         return df
 
@@ -542,7 +543,9 @@ class SeasonSimulator:
 # --- Orchestration ---
 
 class PredictiveEvaluator:
-    def __init__(self, model_name, metric_type, filter_type, matchup_type='poisson', outcome_type='final', n_boot=100, matchup_logic='multiplicative', n_jobs=1):
+    def __init__(self, model_name, metric_type, filter_type, matchup_type='poisson', 
+                 outcome_type='final', n_boot=100, matchup_logic='multiplicative', 
+                 n_jobs=1, apply_arena_adjustments=True):
         self.model_registry = ModelRegistry()
         self.summarizer = TeamAbilitySummarizer(metric_type, filter_type)
         
@@ -554,6 +557,7 @@ class PredictiveEvaluator:
         self.n_boot = n_boot
         self.matchup_logic = matchup_logic
         self.n_jobs = n_jobs
+        self.apply_arena_adjustments = apply_arena_adjustments
 
         # Engine Selection
         if matchup_type == 'poisson':
@@ -562,7 +566,7 @@ class PredictiveEvaluator:
             self.matchup_engine = SimulationMatchupEngine(logic_type=matchup_logic)
 
     def run_evaluation(self, season, train_split=0.7, split_method='random', n_reps=1):
-        df = DataUtils.load_season_data(season)
+        df = DataUtils.load_season_data(season, apply_arena_adjustments=self.apply_arena_adjustments)
         sched_df = DataUtils.process_schedule(df)
         all_gids = np.array(sched_df['game_id'].values, dtype=int)
         total_games = len(sched_df)
@@ -1552,6 +1556,7 @@ def main():
     parser.add_argument('--hockey-graphs', action='store_true', help='Replicate Hockey-Graphs stability intervals analysis')
     parser.add_argument('--hg-metric', type=str, default='pct', choices=['pct', 'diff'], help='Metric for Hockey-Graphs study: pct (ratio) or diff (per-game difference)')
     parser.add_argument('--per-season', action='store_true', help='If set with --hockey-graphs, calculates stability per season')
+    parser.add_argument('--no-arena-adj', action='store_true', help='Disable per-arena location bias adjustments')
     
     args = parser.parse_args()
 
@@ -1578,7 +1583,11 @@ def main():
             m, f = m.strip(), f.strip()
             logger.info(f"==== Starting Sweep: Model={m}, Filter={f} ====")
             n_jobs = args.n_jobs if args.parallel else 1
-            evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot, args.matchup_logic, n_jobs=n_jobs)
+            evaluator = PredictiveEvaluator(
+                m, args.metric, f, args.matchup, args.outcome, args.n_boot, 
+                args.matchup_logic, n_jobs=n_jobs, 
+                apply_arena_adjustments=not args.no_arena_adj
+            )
             
             if args.hockey_graphs:
                 hg_df = evaluator.run_hockey_graphs_stability(seasons, reps=args.reps, per_season=args.per_season, hg_metric=args.hg_metric)
@@ -1660,6 +1669,8 @@ def main():
         
         # Use first filter for filename if multiple filters were run (rarely happens in this script's flow)
         filter_str = filters[0] if filters else 'all'
+        if args.no_arena_adj:
+            filter_str += "_no_arena_adj"
         
         generate_aggregate_plots(all_results, filter_str=filter_str)
         generate_combined_only_plot(all_results, filter_str=filter_str)
