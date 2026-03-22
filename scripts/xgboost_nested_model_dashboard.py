@@ -106,14 +106,13 @@ def main():
             'finish': extract_booster_data(model.model_finish, model.features)
         },
         'calibrators': {
-            'block': extract_logistic_params(model.calibrator_block),
             'goal': extract_isotonic_params(model.calibrator_goal)
         },
         'defaults': {
             'distance': 25.0, 'angle_deg': 0.0, 'game_state': '5v5', 'relative_game_state': '5v5',
             'shot_type': 'wrist', 'shooter_role': 'F', 'shoots_catches': 'L',
             'is_rush': 0, 'is_rebound': 0, 'is_home': 1, 'score_diff': 0,
-            'period_number': 2, 'speed_from_last_event': 0.0, 'last_event_type': 'faceoff'
+            'period_number': 2, 'speed_from_last_event': 0.0, 'last_event_type': 'giveaway'
         },
         'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
         'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_nested.CATEGORICAL_VOCABS.items()}
@@ -261,12 +260,7 @@ def main():
 
     function getLayerProb(layerName, features) {
         const margin = evaluateForest(layerName, features);
-        let prob = sigmoid(margin);
-        if (layerName === 'block' && MODEL.calibrators.block) {
-            const cal = MODEL.calibrators.block;
-            prob = sigmoid(cal.coef * prob + cal.intercept);
-        }
-        return prob;
+        return sigmoid(margin);
     }
 
     function predictScenario(inputs) {

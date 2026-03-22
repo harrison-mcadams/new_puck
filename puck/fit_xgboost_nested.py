@@ -131,7 +131,6 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         # Calibrators
         self.calibrator_goal = None
-        self.calibrator_block = None
         
         # Consistent Dtypes for Inference
         self.feature_dtypes = {}
@@ -307,8 +306,6 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
         p_blocked = self.model_block.predict_proba(df[feat_block])[:, 1]
-        if self.calibrator_block:
-            p_blocked = self.calibrator_block.predict_proba(p_blocked.reshape(-1, 1))[:, 1]
         
         p_unblocked = 1.0 - p_blocked
         
@@ -328,10 +325,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = self._prepare_inference_df(X)
         if layer == 'block':
             feat_block = [f for f in self.features if f != 'shot_type']
-            p = self.model_block.predict_proba(df[feat_block])[:, 1]
-            if self.calibrator_block:
-                p = self.calibrator_block.predict_proba(p.reshape(-1, 1))[:, 1]
-            return p
+            return self.model_block.predict_proba(df[feat_block])[:, 1]
         elif layer == 'accuracy':
             return self._predict_marginalized(self.model_acc, df, self.features)
         elif layer == 'finish':
@@ -462,15 +456,6 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _fit_calibrators(self, df_calib_raw: pd.DataFrame):
         df_c = self._prepare_inference_df(df_calib_raw)
-        
-        # 1. Block Calibrator
-        feat_block = [f for f in self.features if f != 'shot_type']
-        p_block_raw = self.model_block.predict_proba(df_c[feat_block])[:, 1]
-        y_block = (df_c['event'] == 'blocked-shot').astype(int)
-        
-        if len(y_block.unique()) > 1:
-            self.calibrator_block = LogisticRegression(C=1.0)
-            self.calibrator_block.fit(p_block_raw.reshape(-1, 1), y_block)
         
         # 2. Goal Calibrator
         p_goal_est = self.predict_proba(df_c)[:, 1]
