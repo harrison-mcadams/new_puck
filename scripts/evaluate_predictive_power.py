@@ -220,7 +220,9 @@ class ModelRegistry:
             'nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
             'non_nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
             'non_nested': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
-            'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib')
+            'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
+            'xgboost_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_nested_20202021.joblib'),
+            'xgboost_non_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_20202021.joblib')
         }
         
         path = paths.get(model_name)
@@ -671,7 +673,7 @@ class PredictiveEvaluator:
         if self.metric_type == 'rank':
             self._output_rankings(season, abilities)
 
-        return {
+        eval_summary = {
             'Season': season,
             'Model': self.model_name,
             'Filter': self.filter_type,
@@ -680,6 +682,38 @@ class PredictiveEvaluator:
             'Test_Games': len(combined_raw),
             'Raw_Results': combined_raw
         }
+        
+        # Baked-in Dashboard Generation
+        pure_model_name = self.model_name.replace('local_', '')
+        if pure_model_name != 'actual':
+            self._trigger_dashboard_generation(pure_model_name)
+
+        return eval_summary
+
+    def _trigger_dashboard_generation(self, model_name):
+        """Automatically calls the appropriate dashboard script."""
+        import subprocess
+        
+        # Map model name to dashboard script
+        dashboard_map = {
+            'nested_xg': ('scripts/nested_model_dashboard.py', 'analysis/xgs/xg_model_nested_tensor_20202021.joblib'),
+            'nested': ('scripts/nested_model_dashboard.py', 'analysis/xgs/xg_model_nested_tensor_20202021.joblib'),
+            'non_nested_xg': ('scripts/non_nested_model_dashboard.py', 'analysis/xgs/xg_model_non_nested_tensor_20202021.joblib'),
+            'non_nested': ('scripts/non_nested_model_dashboard.py', 'analysis/xgs/xg_model_non_nested_tensor_20202021.joblib'),
+            'xgboost_nested': ('scripts/xgboost_nested_model_dashboard.py', 'analysis/xgs/xg_model_xgboost_nested_20202021.joblib'),
+            'xgboost_non_nested': ('scripts/xgboost_non_nested_model_dashboard.py', 'analysis/xgs/xg_model_xgboost_non_nested_20202021.joblib')
+        }
+        
+        if model_name in dashboard_map:
+            script, model_path = dashboard_map[model_name]
+            if os.path.exists(model_path):
+                logger.info(f"Triggering dashboard update for {model_name}...")
+                try:
+                    subprocess.run([sys.executable, script, model_path], check=False, capture_output=True)
+                except Exception as e:
+                    logger.warning(f"Failed to generate dashboard for {model_name}: {e}")
+            else:
+                logger.warning(f"Could not find model at {model_path} for dashboard generation.")
 
     def calculate_metrics(self, res_df, n_boot=None):
         """Calculates Brier and Accuracy with bootstrapping."""

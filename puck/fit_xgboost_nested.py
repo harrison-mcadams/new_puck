@@ -6,25 +6,38 @@ This module implements the "Layered" or "Nested" xG model using XGBoost.
 It leverages XGBoost's native capabilities for:
 1.  Handling Missing Data (NaN): No distinct "Unknown" category needed.
 2.  Categorical Support: Native 'enable_categorical=True' ensures optimal splits.
+
+Parity: Mirrors NestedGLM structure for consistent training and evaluation.
 """
 
 import numpy as np
 import pandas as pd
 import joblib
 import logging
+import json
+import time
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Tuple
+from pathlib import Path
 
 import xgboost as xgb
 from xgboost import XGBClassifier
 
 from sklearn.base import BaseEstimator, ClassifierMixin
+from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.isotonic import IsotonicRegression
-from sklearn.metrics import log_loss, roc_auc_score
+from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss
+from sklearn.calibration import calibration_curve
 
 from . import features as feature_util
+from . import config as puck_config
+
+try:
+    import matplotlib.pyplot as plt
+except ImportError:
+    plt = None
 
 # --- STANDARD VOCABULARIES ---
 VOCAB_GAME_STATE = [
@@ -43,15 +56,14 @@ CATEGORICAL_VOCABS = {
     'shooter_role': VOCAB_SHOOTER_ROLE,
     'shoots_catches': VOCAB_SHOOTS_CATCHES,
     'game_state': VOCAB_GAME_STATE,
+    'relative_game_state': VOCAB_GAME_STATE,
+    'last_event_type': [
+        'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty'
+    ]
 }
 
 # --- LOGGING SETUP ---
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%H:%M:%S'
-)
-logger = logging.getLogger("XGBNestedxG")
+logger = logging.getLogger(__name__)
 
 @dataclass
 class LayerConfig:
@@ -63,60 +75,24 @@ class LayerConfig:
     max_depth: int = 6
     learning_rate: float = 0.1
 
-def preprocess_data(df: pd.DataFrame, features: Optional[List[str]] = None) -> pd.DataFrame:
-    """Clean and prepare data for the XGBoost Nested Model."""
-    df = df.copy()
-    
-    # Fast metadata wipe for categoricals to avoid code mismatches
-    # We MUST reset the index and clear any existing category mapping
-    df = df.reset_index(drop=True)
-    for col in (df.columns):
-        if hasattr(df[col], 'cat'):
-            df[col] = df[col].astype(object)
-    
-    # Create Targets if event exists
-    if 'event' in df.columns:
-        # Standard filtering (optional but good for training)
-        valid_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
-        df = df[df['event'].isin(valid_events)].copy()
-        
-        # Filter out Empty Net shots
-        if 'is_net_empty' in df.columns:
-            df = df[df['is_net_empty'] == 0].copy()
-
-        # Filter out Shootout/Penalty Shot states (1v0, 0v1)
-        if 'game_state' in df.columns:
-            df = df[~df['game_state'].isin(['1v0', '0v1'])].copy()
-            
-        df['is_blocked'] = (df['event'] == 'blocked-shot').astype(int)
-        df['is_on_net'] = df['event'].isin(['shot-on-goal', 'goal']).astype(int)
-        df['is_goal_layer'] = (df['event'] == 'goal').astype(int)
-    
-    # Standardize Categoricals using fixed VOCABs
-    if 'game_state' in df.columns:
-        df['game_state'] = pd.Categorical(df['game_state'], categories=VOCAB_GAME_STATE)
-    
-    if 'shot_type' in df.columns:
-        df['shot_type'] = df['shot_type'].fillna('Unknown')
-        df['shot_type'] = pd.Categorical(df['shot_type'], categories=VOCAB_SHOT_TYPE)
-
-    for col in (df.columns):
-        if col not in ['game_state', 'shot_type']:
-            if pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]):
-                df[col] = df[col].astype('category')
-            elif features and col in features:
-                try:
-                    df[col] = df[col].astype(float)
-                except (TypeError, ValueError):
-                    pass
-            
-    # Final clean up: explicitly cast to RangeIndex and ensure no weird index metadata
-    df.index = pd.RangeIndex(len(df))
-    return df
-
 class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
+    """
+    Nested Expected Goals Model using XGBoost.
+    
+    Structure:
+    1. Block Model: P(Unblocked | Shot)
+    2. Accuracy Model: P(On Net | Unblocked)
+    3. Finish Model: P(Goal | On Net)
+    
+    P(Goal) = P(Unblocked) * P(On Net) * P(Goal | On Net)
+    
+    Features:
+    - Utilizes native XGBoost categorical support.
+    - Handles missing values via marginalization.
+    """
+    
     def __init__(self, 
-                 features: List[str] = None,
+                 features: Optional[List[str]] = None,
                  n_estimators: int = 200,
                  max_depth: int = 6,
                  learning_rate: float = 0.1,
@@ -124,13 +100,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  enable_categorical: bool = True,
                  use_calibration: bool = True,
                  use_balancing: bool = True,
-                 layer_params: Dict[str, Any] = None):
+                 layer_params: Optional[Dict[str, Any]] = None):
         
-        if features is None:
-            self.features = feature_util.get_features('all_inclusive')
-        else:
-            self.features = features
-            
+        self.features = features or feature_util.get_features('all_inclusive')
         self.n_estimators = n_estimators
         self.max_depth = max_depth
         self.learning_rate = learning_rate
@@ -139,23 +111,220 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.use_calibration = use_calibration
         self.use_balancing = use_balancing
         self.layer_params = layer_params or {}
-        self.calibrator = None
+        
+        # Sub-models
+        self.model_block = None
+        self.model_acc = None
+        self.model_finish = None
+        
+        # Calibrators
+        self.calibrator_goal = None
         self.calibrator_block = None
         
-        self.model_block = None
-        self.model_accuracy = None
-        self.model_finish = None
-        self.feature_dtypes = {} # To store dtypes for inference consistency
-        
-        # Introspection Configs (for diagnostics)
-        feat_block = [f for f in self.features if 'shot_type' not in f]
-        self.config_block = LayerConfig(name='block', target_col='is_blocked', feature_cols=feat_block)
-        self.config_accuracy = LayerConfig(name='accuracy', target_col='is_on_net', feature_cols=self.features)
-        self.config_finish = LayerConfig(name='finish', target_col='is_goal_layer', feature_cols=self.features)
+        # Consistent Dtypes for Inference
+        self.feature_dtypes = {}
         
         # Marginalization Support
-        self.categorical_priors_ = {}  # Dict[str, Dict[str, float]] - priors for each categorical feature
+        self.categorical_priors_ = {}
+
+    def fit(self, X: pd.DataFrame, y=None):
+        logger.info(f"Fitting XGBNestedXGClassifier on {len(X)} rows. Calib={self.use_calibration}")
+
+        # 0. Split for Internal Calibration if requested
+        if self.use_calibration:
+            df_train, df_calib = train_test_split(X, test_size=0.2, random_state=self.random_state)
+            logger.info(f"  Internal Split: Train={len(df_train)}, Calib={len(df_calib)}")
+        else:
+            df_train = X
+            df_calib = None
+
+        df = self._prepare_training_df(df_train)
         
+        # 1. Learn Priors for Marginalization
+        self.categorical_priors_ = {}
+        for col, vocab in CATEGORICAL_VOCABS.items():
+            if col in df.columns:
+                counts = df[col].value_counts(normalize=True, dropna=True)
+                priors = {k: v for k, v in counts.items() if k in vocab}
+                total_prob = sum(priors.values())
+                if total_prob > 0:
+                    priors = {k: v/total_prob for k, v in priors.items()}
+                    self.categorical_priors_[col] = priors
+        logger.info(f"Learned Categorical Priors: {list(self.categorical_priors_.keys())}")
+
+        # 2. Block Model (Trained on ALL shots)
+        feat_block = [f for f in self.features if f != 'shot_type']
+        y_block = (df['event'] == 'blocked-shot').astype(int)
+        
+        p_block = self._get_xgb_params('block')
+        self.model_block = XGBClassifier(**p_block)
+        self.model_block.fit(df[feat_block], y_block)
+        
+        # 3. Accuracy Model (Trained on Unblocked shots)
+        mask_unblocked = df['event'] != 'blocked-shot'
+        df_unblocked = df[mask_unblocked].copy()
+        y_acc = df_unblocked['event'].isin(['shot-on-goal', 'goal']).astype(int)
+        
+        p_acc = self._get_xgb_params('accuracy')
+        self.model_acc = XGBClassifier(**p_acc)
+        self.model_acc.fit(df_unblocked[self.features], y_acc)
+        
+        # 4. Finish Model (Trained on Shots On Net)
+        mask_on_net = df['event'].isin(['shot-on-goal', 'goal'])
+        df_on_net = df[mask_on_net].copy()
+        y_finish = (df_on_net['event'] == 'goal').astype(int)
+        
+        p_finish = self._get_xgb_params('finish')
+        if self.use_balancing and 'scale_pos_weight' not in p_finish:
+            pos = y_finish.sum()
+            neg = len(y_finish) - pos
+            if pos > 0:
+                p_finish['scale_pos_weight'] = neg / pos
+        
+        self.model_finish = XGBClassifier(**p_finish)
+        self.model_finish.fit(df_on_net[self.features], y_finish)
+        
+        # Record Dtypes for consistency
+        self.feature_dtypes = df[self.features].dtypes.to_dict()
+
+        # 5. Internal Calibration
+        if self.use_calibration and df_calib is not None:
+            self._fit_calibrators(df_calib)
+
+        logger.info("Fit Complete.")
+        return self
+
+    @classmethod
+    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True):
+        """
+        High-level training routine for XGBoost Nested Model.
+        """
+        from . import data_pipeline, model_summary
+        
+        def vprint(*args):
+            if verbose: print(*args)
+
+        vprint("--- Training XGBoost (Nested) Model ---")
+        
+        # 1. Preprocess
+        vprint("Applying Preprocessing Pipeline...")
+        df = data_pipeline.preprocess_features(
+            df_raw, 
+            is_training=True, 
+            verbose=verbose, 
+            apply_arena_adjustments=True,
+            apply_imputation=True,
+            apply_dithering=True,
+            apply_filtering=True,
+            impute_alpha=0.2
+        )
+
+        # 2. Split
+        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+
+        # 3. Initialize & Fit
+        feature_list = feature_util.get_features('all_inclusive')
+        clf = cls(
+            features=feature_list,
+            n_estimators=300,
+            max_depth=6,
+            learning_rate=0.05,
+            use_calibration=True,
+            use_balancing=True
+        )
+
+        vprint(f"Training on {len(df_train)} rows with {len(feature_list)} features...")
+        start_t = time.time()
+        clf.fit(df_train)
+        vprint(f"Training took {time.time() - start_t:.1f}s.")
+
+        # 4. Evaluate
+        vprint("\n--- Evaluation (Test Set) ---")
+        y_test_goal = (df_test['event'] == 'goal').astype(int)
+        probs = clf.predict_proba(df_test)[:, 1]
+        
+        auc = roc_auc_score(y_test_goal, probs)
+        ll = log_loss(y_test_goal, probs)
+        brier = brier_score_loss(y_test_goal, probs)
+        vprint(f"Overall xG AUC: {auc:.4f}, LogLoss: {ll:.4f}, Brier: {brier:.6f}")
+
+        # 5. Save Model & Metadata
+        if save_path is None:
+            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_nested.joblib')
+        
+        vprint(f"Saving model to {save_path}...")
+        save_dir = Path(save_path).parent
+        save_dir.mkdir(parents=True, exist_ok=True)
+        joblib.dump(clf, save_path)
+        
+        meta = {
+            'final_features': clf.features,
+            'model_type': 'xgboost_nested',
+            'train_params': {
+                'n_estimators': clf.n_estimators,
+                'max_depth': clf.max_depth,
+                'learning_rate': clf.learning_rate
+            }
+        }
+        with open(save_path + '.meta.json', 'w') as f:
+            json.dump(meta, f)
+
+        # 6. Diagnostics
+        if out_dir is None:
+            diag_dir = Path(puck_config.ANALYSIS_DIR) / 'xgboost_nested_xgs'
+        else:
+            diag_dir = Path(out_dir)
+        diag_dir.mkdir(parents=True, exist_ok=True)
+        
+        if plt:
+            cls._plot_calibration(clf, df_test, diag_dir)
+
+        vprint("Generating model summary...")
+        model_summary.generate_model_summary(model_path=save_path, test_df=df_test, output_dir=str(diag_dir), verbose=verbose)
+
+        return clf
+
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
+        df = self._prepare_inference_df(X)
+        
+        # 1. P(Blocked)
+        feat_block = [f for f in self.features if f != 'shot_type']
+        if self.model_block is None:
+            raise NotFittedError("Model not fitted.")
+        p_blocked = self.model_block.predict_proba(df[feat_block])[:, 1]
+        if self.calibrator_block:
+            p_blocked = self.calibrator_block.predict_proba(p_blocked.reshape(-1, 1))[:, 1]
+        
+        p_unblocked = 1.0 - p_blocked
+        
+        # 2. P(On Net) and P(Finish) with Marginalization
+        p_acc = self._predict_marginalized(self.model_acc, df, self.features)
+        p_finish = self._predict_marginalized(self.model_finish, df, self.features)
+        
+        p_goal = p_unblocked * p_acc * p_finish
+        
+        # 3. Final Calibration
+        if self.calibrator_goal:
+            p_goal = self.calibrator_goal.predict(p_goal)
+            
+        return np.column_stack((1 - p_goal, p_goal))
+
+    def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
+        df = self._prepare_inference_df(X)
+        if layer == 'block':
+            feat_block = [f for f in self.features if f != 'shot_type']
+            p = self.model_block.predict_proba(df[feat_block])[:, 1]
+            if self.calibrator_block:
+                p = self.calibrator_block.predict_proba(p.reshape(-1, 1))[:, 1]
+            return p
+        elif layer == 'accuracy':
+            return self._predict_marginalized(self.model_acc, df, self.features)
+        elif layer == 'finish':
+            return self._predict_marginalized(self.model_finish, df, self.features)
+        raise ValueError(f"Unknown layer: {layer}")
+
+    # --- INTERNAL HELPERS ---
+
     def _get_xgb_params(self, layer_name: str) -> Dict[str, Any]:
         params = {
             'n_estimators': int(self.n_estimators),
@@ -163,372 +332,120 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             'learning_rate': float(self.learning_rate),
             'random_state': int(self.random_state),
             'enable_categorical': bool(self.enable_categorical),
-            'eval_metric': 'logloss',
+            'objective': 'binary:logistic',
             'tree_method': 'hist',
             'device': 'cpu',
-            'objective': 'binary:logistic',
-            'base_score': 0.5  # Explicitly set to avoid "must be in (0,1)" error
+            'eval_metric': 'logloss',
+            'base_score': 0.5
         }
         if layer_name in self.layer_params:
-            overrides = self.layer_params[layer_name]
-            params.update({k: v for k, v in overrides.items() if k != 'score'})
+            params.update(self.layer_params[layer_name])
         return params
 
-    def _prepare_df(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Prepare dataframe for prediction (inference)."""
-        df_out = df.copy()
-        
-        # Fast metadata wipe for categoricals to avoid code mismatches
-        df_out = df_out.reset_index(drop=True)
-        for col in (df_out.columns):
-            if hasattr(df_out[col], 'cat'):
-                df_out[col] = df_out[col].astype(object)
-        
-        try:
-            # Standardize known categoricals
-            if 'game_state' in df_out.columns:
-                df_out['game_state'] = pd.Categorical(df_out['game_state'], categories=VOCAB_GAME_STATE)
-            
-            if 'shot_type' in df_out.columns:
-                # If 'Unknown' is passed, map to NaN (since we removed Unknown from VOCAB)
-                df_out['shot_type'] = df_out['shot_type'].replace('Unknown', np.nan)
-                df_out['shot_type'] = pd.Categorical(df_out['shot_type'], categories=VOCAB_SHOT_TYPE)
-
-            for col in (self.features or []):
-                pass # (Snipped for brevity in replacement search)
-                if col not in df_out.columns:
-                    # If we have a recorded dtype (especially categorical), use it
-                    feature_dtypes = getattr(self, 'feature_dtypes', {})
-                    if feature_dtypes and col in feature_dtypes:
-                        dt = feature_dtypes[col]
-                        if isinstance(dt, pd.CategoricalDtype):
-                            df_out[col] = pd.Series([np.nan]*len(df_out), dtype=dt)
-                        else:
-                            df_out[col] = np.nan
-                    else:
-                        df_out[col] = np.nan
-                
-                # Apply recorded categories if they exist to ensure code mapping is identical
-                feature_dtypes = getattr(self, 'feature_dtypes', {})
-                if feature_dtypes and col in feature_dtypes:
-                    dt = feature_dtypes[col]
-                    if isinstance(dt, pd.CategoricalDtype):
-                        # Wipe existing if necessary (safety)
-                        if hasattr(df_out[col], 'cat'):
-                            df_out[col] = df_out[col].astype(object)
-                        df_out[col] = pd.Categorical(df_out[col], categories=dt.categories)
-                    else:
-                        try:
-                            # Standardize numeric to float
-                            if pd.api.types.is_numeric_dtype(dt):
-                                df_out[col] = df_out[col].astype(float)
-                        except:
-                            pass
-                else:
-                    # FALLBACK: If we don't have recorded dtypes yet (e.g. during calibration fit),
-                    # convert objects to category to satisfy XGBoost.
-                    if col not in ['game_state', 'shot_type']:
-                        if pd.api.types.is_object_dtype(df_out[col]) or pd.api.types.is_string_dtype(df_out[col]):
-                            df_out[col] = df_out[col].astype('category')
-                        else:
-                            try:
-                                if pd.api.types.is_numeric_dtype(df_out[col]):
-                                    df_out[col] = df_out[col].astype(float)
-                            except:
-                                pass
-        except Exception as e:
-            logger.error(f"Error in _prepare_df: {e}")
-            raise
-                    
-        # Final clean up: explicitly cast to RangeIndex and ensure no weird index metadata
-        df_out.index = pd.RangeIndex(len(df_out))
-        return df_out
-
-    def fit(self, X: pd.DataFrame, y=None):
-        if self.use_calibration:
-            df_train_raw, df_calib_raw = train_test_split(X, test_size=0.2, random_state=self.random_state)
-            logger.info(f"Calibration enabled. Training on {len(df_train_raw)} rows, Calibrating on {len(df_calib_raw)} rows.")
-        else:
-            df_train_raw = X
-            df_calib_raw = None
-
-        df = preprocess_data(df_train_raw, features=self.features)
-        
-        # Filter out 'Unknown' shot types from training data (for unblocked shots only)
-        if 'shot_type' in df.columns:
-            # We want to train only on valid shot types for accuracy/finish layers.
-            # However, Blocked shots rarely have shot_type recorded (NaN). 
-            # We MUST preserve them for the block layer.
-            # We filter out rows where shot_type is NaN AND the shot was NOT blocked.
-            valid_mask = ~df['shot_type'].isna() | (df['is_blocked'] == 1)
-            
-            if valid_mask.sum() < len(df):
-                logger.info(f"Dropping {len(df) - valid_mask.sum()} rows with Unknown/NaN shot_type (unblocked shots only) from training.")
-                df = df[valid_mask].reset_index(drop=True)
-
-
-        # Calculate Priors for Marginalization (all categorical features)
-        self.categorical_priors_ = {}
-        for col, vocab in CATEGORICAL_VOCABS.items():
+    def _prepare_training_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        for col in self.features:
             if col in df.columns:
-                counts = df[col].value_counts(normalize=True, dropna=True)
-                priors = {k: v for k, v in counts.items() if k in vocab}
-                # Re-normalize 
-                total_prob = sum(priors.values())
-                if total_prob > 0:
-                    priors = {k: v/total_prob for k, v in priors.items()}
-                    self.categorical_priors_[col] = priors
-                    logger.info(f"Learned {col} priors: {priors}")
-        
-        # Backward compatibility
-        self.shot_type_priors_ = self.categorical_priors_.get('shot_type')
-        
-        feat_block = [f for f in self.features if 'shot_type' not in f]
-        feat_full = self.features
-        
-        # 1. Block Model
-        logger.info(f"Training Block Model... Index: {df.index}")
-        y_block = df['is_blocked']
-        logger.info(f"Block Target Stats: Mean={y_block.mean():.4f}, Min={y_block.min()}, Max={y_block.max()}, Unique={y_block.unique()}")
-        
-        p_block = self._get_xgb_params('block')
-        self.model_block = XGBClassifier(**p_block)
-        self.model_block.fit(df[feat_block], y_block)
-        
-        # 2. Accuracy Model
-        df_unblocked = df[df['is_blocked'] == 0].copy().reset_index(drop=True)
-        
-        logger.info(f"Training Accuracy Model (N={len(df_unblocked)})... Index: {df_unblocked.index}")
-        p_acc = self._get_xgb_params('accuracy')
-        self.model_accuracy = XGBClassifier(**p_acc)
-        self.model_accuracy.fit(df_unblocked[feat_full], df_unblocked['is_on_net'])
-        
-        # 3. Finish Model
-        df_on_net = df[df['is_on_net'] == 1].copy().reset_index(drop=True)
-        
-        logger.info(f"Training Finish Model (N={len(df_on_net)})... Index: {df_on_net.index}")
-        p_finish = self._get_xgb_params('finish')
-        if self.use_balancing and 'scale_pos_weight' not in p_finish:
-            pos = df_on_net['is_goal_layer'].sum()
-            neg = len(df_on_net) - pos
-            if pos > 0:
-                p_finish['scale_pos_weight'] = neg / pos
-                logger.info(f"  Applied scale_pos_weight: {p_finish['scale_pos_weight']:.2f}")
+                if df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
+                    vocab = CATEGORICAL_VOCABS.get(col)
+                    df[col] = pd.Categorical(df[col], categories=vocab) if vocab else df[col].astype('category')
+        return df
 
-        self.model_finish = XGBClassifier(**p_finish)
-        self.model_finish.fit(df_on_net[feat_full], df_on_net['is_goal_layer'])
-        
-        # Record final dtypes for categorical consistency
-        # CRITICAL: Do this BEFORE predict_proba call during calibration
-        self.feature_dtypes = df[self.features].dtypes.to_dict()
-        
-        # 4. Calibration
-        if self.use_calibration and df_calib_raw is not None:
-            logger.info("Fitting Platt Scaling calibrators...")
+    def _prepare_inference_df(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        for col, dt in self.feature_dtypes.items():
+            if col not in df.columns:
+                df[col] = np.nan
             
-            # Prepare Calib Data
-            df_c = preprocess_data(df_calib_raw, features=self.features)
-            
-            # A. Block Model Calibration
-            p_block_raw = self.model_block.predict_proba(df_c[feat_block])[:, 1]
-            self.calibrator_block = LogisticRegression(C=0.01) # Robust Regularization (Strategy 1)
-            # check for single class edge case
-            if len(df_c['is_blocked'].unique()) > 1:
-                self.calibrator_block.fit(p_block_raw.reshape(-1, 1), df_c['is_blocked'])
-                logger.info("  Block Model Calibrator FITTED.")
+            if isinstance(dt, pd.CategoricalDtype):
+                df[col] = pd.Categorical(df[col], categories=dt.categories)
+            elif col in CATEGORICAL_VOCABS:
+                 df[col] = pd.Categorical(df[col], categories=CATEGORICAL_VOCABS[col])
             else:
-                logger.warning("  Block Model Calibration skipped (only 1 class in calibration set).")
-                self.calibrator_block = None
-
-            # B. Final Model Calibration
-            # Recalculate full probability flow with newly calibrated block prob?
-            # We should probably use the calibrated block prob in the chain.
-            if self.calibrator_block:
-                p_blocked_c = self.calibrator_block.predict_proba(p_block_raw.reshape(-1, 1))[:, 1]
-            else:
-                p_blocked_c = p_block_raw
-            
-            p_unblocked = 1.0 - p_blocked_c
-            p_on_net_cond = self.model_accuracy.predict_proba(df_c[self.features])[:, 1]
-            p_goal_cond = self.model_finish.predict_proba(df_c[self.features])[:, 1]
-            p_goal_est = p_unblocked * p_on_net_cond * p_goal_cond
-
-            if 'event' in df_calib_raw.columns:
-                targets = (df_c['event'] == 'goal').astype(int)
-            else:
-                 targets = df_c['is_goal_layer'] # Fallback
-            
-            # Switch to Isotonic for aggressive upper-tail calibration
-            # Logic: We prefer to uncap high-danger probabilities even if curve is step-function
-            self.calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0, y_max=1)
-            
-            # DEBUG: Inspect inputs to Isotonic Fit
-            print(f"Isotonic Fit Debug: p_goal_est shape={p_goal_est.shape}, targets shape={targets.shape}")
-            print(f"  p_goal_est stats: Min={p_goal_est.min():.4f}, Max={p_goal_est.max():.4f}, Mean={p_goal_est.mean():.4f}")
-            print(f"  targets stats:    Sum={targets.sum()}, Mean={targets.mean():.4f}")
-            
-            if len(targets.unique()) > 1:
                 try:
-                    self.calibrator.fit(p_goal_est, targets) # Isotonic expects 1D input (n_samples,)
-                    print("  Final Model Calibrator FITTED (Isotonic).")
-                except Exception as e:
-                    print(f"  Isotonic Fit FAILED: {e}")
-            else:
-                print("  Skipping calibration: Targets have only 1 unique value.")
+                    df[col] = df[col].astype(float)
+                except:
+                    pass
+        return df
 
-        self.final_features = self.features
-        return self
-
-    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
-        df = self._prepare_df(X)
-        feat_block = [f for f in self.features if 'shot_type' not in f]
-        
-        # 0. Debug Logging
-        if len(df) < 100: # Only for small/synthetic checks to avoid log spam
-            logger.info(f"Predict Proba Input: Index={type(df.index)}, Dtypes={df.dtypes.to_dict()}")
-
-        # 1. P(Blocked)
-        p_blocked = self.model_block.predict_proba(df[feat_block])[:, 1]
-        
-        # Apply Block Calibration
-        if getattr(self, 'calibrator_block', None):
-            p_blocked = self.calibrator_block.predict_proba(p_blocked.reshape(-1, 1))[:, 1]
-
-        p_unblocked = 1.0 - p_blocked
-        
-        # Standard Calculation (will be overwritten for NaNs)
-        p_start_acc = self.model_accuracy.predict_proba(df[self.features])[:, 1]
-        p_start_fin = self.model_finish.predict_proba(df[self.features])[:, 1]
-        p_goal = p_unblocked * p_start_acc * p_start_fin
-        
-        # 4. Integrate Marginalization for Missing/Unknown Shot Types
-        # Note: If no shot_types are missing, this loop is skipped or p_goal is returned directly.
-        
-        mask_nan = df['shot_type'].isna()
-        if self.shot_type_priors_ and mask_nan.any():
-            # Standard Calculation already done for NaNs (using default branch), 
-            # BUT we want to replace it with weighted average.
-            
-            # Marginalize P(Goal | Unblocked) = E[P(Acc)*P(Fin)]
-            # We assume p_unblocked is constant w.r.t shot_type.
-            
-            df_nan = df[mask_nan].copy()
-            n_nan = len(df_nan)
-            weighted_cond_prob = np.zeros(n_nan)
-            
-            for st_cat, weight in self.shot_type_priors_.items():
-                df_nan['shot_type'] = st_cat
-                df_nan['shot_type'] = pd.Categorical(df_nan['shot_type'], categories=VOCAB_SHOT_TYPE)
-                
-                p_acc_st = self.model_accuracy.predict_proba(df_nan[self.features])[:, 1]
-                p_fin_st = self.model_finish.predict_proba(df_nan[self.features])[:, 1]
-                
-                weighted_cond_prob += (p_acc_st * p_fin_st) * weight
-            
-            # Reconstruct P(Goal) for NaNs
-            p_goal[mask_nan] = p_unblocked[mask_nan] * weighted_cond_prob
-        
-        # 5. Apply Calibration
-        if self.use_calibration and self.calibrator:
-            # Isotonic .predict() takes 1D array and outputs probabilities directly
-            p_goal = self.calibrator.predict(p_goal)
-            
-        return np.column_stack((1 - p_goal, p_goal))
-
-    def predict(self, X: pd.DataFrame) -> np.ndarray:
-        return (self.predict_proba(X)[:, 1] >= 0.5).astype(int)
-        
     def _predict_marginalized(self, model, df, features):
-        """
-        Predict with marginalization over ALL categorical features with missing values.
-        
-        For each row with NaN in any categorical feature, computes weighted average
-        over all possible values of that feature (or combination of features if multiple are missing).
-        
-        E[P(y|x, missing)] = Σ P(y|x, cat=k) × P(cat=k) for each missing categorical
-        """
-        from itertools import product
-        
-        # 1. Standard Prediction (baseline)
+        """Predict with weighted average over categorical priors for NaN values."""
         p_base = model.predict_proba(df[features])[:, 1]
         
-        if not self.categorical_priors_:
+        # Identify rows with NaN in critical categoricals
+        # For XGBoost parity, we usually just care about 'shot_type' missing
+        col = 'shot_type'
+        if col not in df.columns or col not in self.categorical_priors_:
             return p_base
-        
-        # 2. Find which categorical features have NaNs in this data
-        cat_cols_with_nan = []
-        for col, priors in self.categorical_priors_.items():
-            if col in df.columns and col in features:
-                if df[col].isna().any():
-                    cat_cols_with_nan.append(col)
-        
-        if not cat_cols_with_nan:
+            
+        mask_nan = df[col].isna()
+        if not mask_nan.any():
             return p_base
-        
-        # 3. For each row, determine which categoricals are NaN
-        # We'll process rows that have ANY categorical NaN
-        nan_masks = {}
-        combined_nan_mask = pd.Series(False, index=df.index)
-        for col in cat_cols_with_nan:
-            nan_masks[col] = df[col].isna()
-            combined_nan_mask |= nan_masks[col]
-        
-        if not combined_nan_mask.any():
-            return p_base
-        
-        # 4. Marginalize for rows with NaN categoricals
-        # For simplicity and performance, we marginalize one feature at a time
-        # For rows with multiple NaN categoricals, we iterate through each
-        
-        df_work = df.copy()
-        p_result = p_base.copy()
-        
-        for col in cat_cols_with_nan:
-            mask_nan = df_work[col].isna()
-            if not mask_nan.any():
-                continue
             
-            priors = self.categorical_priors_.get(col, {})
-            if not priors:
-                continue
-            
-            vocab = CATEGORICAL_VOCABS.get(col, list(priors.keys()))
-            
-            # Calculate weighted sum for rows with NaN in this column
-            df_nan_rows = df_work[mask_nan].copy()
-            weighted_sum = np.zeros(mask_nan.sum())
-            
-            for cat_val, weight in priors.items():
-                # Set the categorical to this value
-                df_nan_rows[col] = cat_val
-                # Ensure proper categorical dtype
-                df_nan_rows[col] = pd.Categorical(df_nan_rows[col], categories=vocab)
-                
-                # Predict
-                p_cat = model.predict_proba(df_nan_rows[features])[:, 1]
-                weighted_sum += p_cat * weight
-            
-            # Update result for these rows
-            p_result[mask_nan] = weighted_sum
+        priors = self.categorical_priors_[col]
+        df_nan = df[mask_nan].copy()
+        weighted_prob = np.zeros(len(df_nan))
         
-        return p_result
+        for val, weight in priors.items():
+            df_nan[col] = pd.Categorical([val]*len(df_nan), categories=CATEGORICAL_VOCABS[col])
+            weighted_prob += model.predict_proba(df_nan[features])[:, 1] * weight
+            
+        p_base[mask_nan] = weighted_prob
+        return p_base
 
-    def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
-        """Helper for diagnostics."""
-        df = self._prepare_df(X)
-        if layer == 'block':
-            feat_block = [f for f in self.features if 'shot_type' not in f]
-            p = self.model_block.predict_proba(df[feat_block])[:, 1]
-            if getattr(self, 'calibrator_block', None):
-                p = self.calibrator_block.predict_proba(p.reshape(-1, 1))[:, 1]
-            return p
-            
-        elif layer == 'accuracy':
-            return self._predict_marginalized(self.model_accuracy, df, self.features)
-            
-        elif layer == 'finish':
-            # Use _predict_marginalized
-             return self._predict_marginalized(self.model_finish, df, self.features)
-             
-        else:
-            raise ValueError(f"Unknown layer: {layer}")
+    def _fit_calibrators(self, df_calib_raw: pd.DataFrame):
+        df_c = self._prepare_inference_df(df_calib_raw)
+        
+        # 1. Block Calibrator
+        feat_block = [f for f in self.features if f != 'shot_type']
+        p_block_raw = self.model_block.predict_proba(df_c[feat_block])[:, 1]
+        y_block = (df_c['event'] == 'blocked-shot').astype(int)
+        
+        if len(y_block.unique()) > 1:
+            self.calibrator_block = LogisticRegression(C=1.0)
+            self.calibrator_block.fit(p_block_raw.reshape(-1, 1), y_block)
+        
+        # 2. Goal Calibrator
+        p_goal_est = self.predict_proba(df_c)[:, 1]
+        y_goal = (df_c['event'] == 'goal').astype(int)
+        
+        if len(y_goal.unique()) > 1:
+            self.calibrator_goal = IsotonicRegression(out_of_bounds='clip', y_min=0, y_max=1)
+            self.calibrator_goal.fit(p_goal_est, y_goal)
+
+    @staticmethod
+    def _plot_calibration(clf, df_test, diag_dir):
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        
+        # Block
+        y_block = (df_test['event'] == 'blocked-shot').astype(int)
+        p_block = clf.predict_proba_layer(df_test, 'block')
+        prob_true, prob_pred = calibration_curve(y_block, p_block, n_bins=10)
+        axes[0].plot(prob_pred, prob_true, marker='o')
+        axes[0].plot([0, 1], [0, 1], '--k', alpha=0.3)
+        axes[0].set_title("Block Layer")
+        
+        # Accuracy
+        mask_unblocked = df_test['event'] != 'blocked-shot'
+        y_acc = df_test.loc[mask_unblocked, 'event'].isin(['shot-on-goal', 'goal']).astype(int)
+        p_acc = clf.predict_proba_layer(df_test[mask_unblocked], 'accuracy')
+        prob_true, prob_pred = calibration_curve(y_acc, p_acc, n_bins=10)
+        axes[1].plot(prob_pred, prob_true, marker='o')
+        axes[1].plot([0, 1], [0, 1], '--k', alpha=0.3)
+        axes[1].set_title("Accuracy (Unblocked)")
+        
+        # Finish
+        mask_on_net = df_test['event'].isin(['shot-on-goal', 'goal'])
+        y_fin = (df_test.loc[mask_on_net, 'event'] == 'goal').astype(int)
+        p_fin = clf.predict_proba_layer(df_test[mask_on_net], 'finish')
+        prob_true, prob_pred = calibration_curve(y_fin, p_fin, n_bins=10)
+        axes[2].plot(prob_pred, prob_true, marker='o')
+        axes[2].plot([0, 1], [0, 1], '--k', alpha=0.3)
+        axes[2].set_title("Finish (On Net)")
+        
+        plt.tight_layout()
+        plt.savefig(diag_dir / 'xgboost_calibration.png')
+        plt.close()
+
+def train_xgboost_nested(df_raw, **kwargs):
+    return XGBNestedXGClassifier.train(df_raw, **kwargs)

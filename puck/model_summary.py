@@ -82,10 +82,19 @@ def generate_model_summary(model_path: str = None,
     vprint("\n[2/5] Regenerating dashboards...")
     scripts_dir = Path(__file__).parent.parent / 'scripts'
     
-    dashboard_scripts = [
-        ('nested_model_dashboard.py', 'analysis/nested_model_dashboard.html'),
-        # ('generate_blocked_shot_debug_dashboard.py', 'analysis/blocked_shot_debug.html'),  # Optional
-    ]
+    model_type = type(model).__name__
+    dashboard_scripts = []
+    
+    if model_type == 'XGBNestedXGClassifier':
+        dashboard_scripts.append(('xgboost_nested_model_dashboard.py', f'analysis/xgboost_nested_xgs/{Path(model_path).stem}_dashboard.html'))
+    elif model_type == 'XGBNonNestedXGClassifier':
+        dashboard_scripts.append(('xgboost_non_nested_model_dashboard.py', f'analysis/xgboost_non_nested_xgs/{Path(model_path).stem}_dashboard.html'))
+    elif model_type == 'NestedGLM':
+        dashboard_scripts.append(('nested_model_dashboard.py', 'analysis/nested_model_dashboard.html'))
+    elif model_type == 'NonNestedGLM':
+        dashboard_scripts.append(('non_nested_model_dashboard.py', 'analysis/non_nested_model_dashboard.html'))
+    else:
+        vprint(f"  Warning: Unknown model type {model_type}. No dashboard script assigned.")
     
     for script_name, output_name in dashboard_scripts:
         script_path = scripts_dir / script_name
@@ -179,6 +188,10 @@ def _generate_text_summary(model, output_path: Path, model_path: str):
             f.write(f"Splines Enabled: {model.use_splines}\n")
         if hasattr(model, 'poly_degree'):
             f.write(f"Polynomial Degree: {model.poly_degree}\n")
+        if hasattr(model, 'n_estimators'):
+            f.write(f"XGBoost Estimators: {model.n_estimators}\n")
+        if hasattr(model, 'max_depth'):
+            f.write(f"XGBoost Max Depth: {model.max_depth}\n")
         if hasattr(model, 'enable_marginalization'):
             f.write(f"Marginalization: {model.enable_marginalization}\n")
         
@@ -233,30 +246,43 @@ def _generate_feature_analysis(model, output_path: Path):
             f.write("-"*40 + "\n")
             
             try:
-                clf = submodel.named_steps.get('clf')
-                preprocessor = submodel.named_steps.get('preprocessor')
+                # GLM handling
+                clf = None
+                preprocessor = None
+                if hasattr(submodel, 'named_steps'):
+                    clf = submodel.named_steps.get('clf')
+                    preprocessor = submodel.named_steps.get('preprocessor')
+                
+                # XGBoost handling (directly a model or has internal models)
+                if not clf:
+                    clf = submodel # Could be the XGBClassifier itself
                 
                 if clf and hasattr(clf, 'coef_'):
                     coefs = clf.coef_.flatten()
-                    
-                    # Try to get feature names
                     try:
                         feature_names = preprocessor.get_feature_names_out()
                     except:
                         feature_names = [f"feat_{i}" for i in range(len(coefs))]
                     
-                    # Sort by absolute magnitude
                     sorted_idx = np.argsort(np.abs(coefs))[::-1]
-                    
                     f.write(f"Top 20 Features (by |coefficient|):\n\n")
                     for i, idx in enumerate(sorted_idx[:20]):
                         fname = feature_names[idx] if idx < len(feature_names) else f"feat_{idx}"
-                        coef = coefs[idx]
-                        f.write(f"  {i+1:2d}. {fname[:40]:<40} {coef:+.4f}\n")
-                    
-                    f.write(f"\nTotal features: {len(coefs)}\n")
-                    f.write(f"Non-zero: {np.sum(coefs != 0)}\n")
-                    f.write(f"Intercept: {clf.intercept_[0]:.4f}\n")
+                        f.write(f"  {i+1:2d}. {fname[:40]:<40} {coefs[idx]:+.4f}\n")
+                        
+                elif clf and hasattr(clf, 'feature_importances_'):
+                    importances = clf.feature_importances_
+                    # For XGBoost, features are usually what we passed in if not using a pipeline
+                    feature_names = getattr(model, 'features', [f"feat_{i}" for i in range(len(importances))])
+                    if len(feature_names) != len(importances):
+                        # Might be using OHE internally?
+                        feature_names = [f"feat_{i}" for i in range(len(importances))]
+                        
+                    sorted_idx = np.argsort(importances)[::-1]
+                    f.write(f"Top 20 Features (by Importance):\n\n")
+                    for i, idx in enumerate(sorted_idx[:20]):
+                        fname = feature_names[idx] if idx < len(feature_names) else f"feat_{idx}"
+                        f.write(f"  {i+1:2d}. {fname[:40]:<40} {importances[idx]:.4f}\n")
                     
             except Exception as e:
                 f.write(f"  Error: {e}\n")
