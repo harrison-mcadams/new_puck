@@ -27,12 +27,14 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss
 from sklearn.calibration import calibration_curve
 
 from . import features as feature_util
 from . import config as puck_config
+from .spline_transformer import TensorSpline
 
 try:
     import matplotlib.pyplot as plt
@@ -98,9 +100,11 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  learning_rate: float = 0.1,
                  random_state: int = 42,
                  enable_categorical: bool = True,
-                 use_calibration: bool = True,
+                 enable_marginalization: bool = True,
                  use_balancing: bool = True,
-                 layer_params: Optional[Dict[str, Any]] = None):
+                 use_calibration: bool = True,
+                 layer_params: Optional[Dict[str, Any]] = None,
+                 use_splines: bool = True):
         
         self.features = features or feature_util.get_features('all_inclusive')
         self.n_estimators = n_estimators
@@ -108,9 +112,17 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.learning_rate = learning_rate
         self.random_state = random_state
         self.enable_categorical = enable_categorical
-        self.use_calibration = use_calibration
+        self.enable_marginalization = enable_marginalization
         self.use_balancing = use_balancing
+        self.use_calibration = use_calibration
         self.layer_params = layer_params or {}
+        self.use_splines = use_splines
+        
+        # Spatial Base Models (GLMs)
+        self.spatial_glm_block_ = None
+        self.spatial_glm_acc_ = None
+        self.spatial_glm_fin_ = None
+        self.use_splines = use_splines
         
         # Sub-models
         self.model_block = None
@@ -154,6 +166,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
         # 2. Block Model (Trained on ALL shots)
         feat_block = [f for f in self.features if f != 'shot_type']
+        if 'spatial_block' not in feat_block:
+             feat_block.append('spatial_block')
+             
         y_block = (df['event'] == 'blocked-shot').astype(int)
         
         p_block = self._get_xgb_params('block')
@@ -344,6 +359,47 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _prepare_training_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+
+        # 1. Spatial Base Models (Stacked GLMs)
+        if self.use_splines:
+            logger.info("  Training Triple Spatial GLM Baselines...")
+            
+            # Layer 1: Block
+            logger.info("    Fitting Spatial Block GLM...")
+            pipe_block = make_pipeline(TensorSpline(n_knots=7, degree=3), LogisticRegression(C=1.0))
+            y_block = (df['event'] == 'blocked-shot').astype(int)
+            pipe_block.fit(df[['x', 'y']], y_block)
+            self.spatial_glm_block_ = pipe_block
+            df['spatial_block'] = self.spatial_glm_block_.predict_proba(df[['x', 'y']])[:, 1]
+            
+            # Layer 2: Accuracy (Unblocked shots)
+            logger.info("    Fitting Spatial Accuracy GLM...")
+            mask_unblocked = df['event'] != 'blocked-shot'
+            df_unblocked = df[mask_unblocked]
+            pipe_acc = make_pipeline(TensorSpline(n_knots=7, degree=3), LogisticRegression(C=1.0))
+            y_acc = df_unblocked['event'].isin(['shot-on-goal', 'goal']).astype(int)
+            pipe_acc.fit(df_unblocked[['x', 'y']], y_acc)
+            self.spatial_glm_acc_ = pipe_acc
+            df['spatial_acc'] = self.spatial_glm_acc_.predict_proba(df[['x', 'y']])[:, 1]
+            
+            # Layer 3: Finish (On Net shots)
+            logger.info("    Fitting Spatial Finish GLM...")
+            mask_on_net = df['event'].isin(['shot-on-goal', 'goal'])
+            df_on_net = df[mask_on_net]
+            pipe_fin = make_pipeline(TensorSpline(n_knots=7, degree=3), LogisticRegression(C=1.0))
+            y_fin = (df_on_net['event'] == 'goal').astype(int)
+            pipe_fin.fit(df_on_net[['x', 'y']], y_fin)
+            self.spatial_glm_fin_ = pipe_fin
+            df['spatial_fin'] = self.spatial_glm_fin_.predict_proba(df[['x', 'y']])[:, 1]
+
+            # Update features list: 
+            # - Ensure distance and angle_deg are kept/added
+            # - Add spatial features
+            for f in ['distance', 'angle_deg', 'spatial_block', 'spatial_acc', 'spatial_fin']:
+                if f not in self.features:
+                    self.features.append(f)
+            
+        # 2. Categoricals
         for col in self.features:
             if col in df.columns:
                 if df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
@@ -353,6 +409,17 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _prepare_inference_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+        
+        # 1. Spatial Base Models
+        if self.use_splines:
+            if self.spatial_glm_block_:
+                df['spatial_block'] = self.spatial_glm_block_.predict_proba(df[['x', 'y']])[:, 1]
+            if self.spatial_glm_acc_:
+                df['spatial_acc'] = self.spatial_glm_acc_.predict_proba(df[['x', 'y']])[:, 1]
+            if self.spatial_glm_fin_:
+                df['spatial_fin'] = self.spatial_glm_fin_.predict_proba(df[['x', 'y']])[:, 1]
+
+        # 2. Base Features & Dtypes
         for col, dt in self.feature_dtypes.items():
             if col not in df.columns:
                 df[col] = np.nan

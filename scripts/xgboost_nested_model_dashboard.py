@@ -15,7 +15,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from puck import fit_xgboost_nested, config as puck_config
+from puck import fit_xgboost_nested, config as puck_config, data_pipeline
 
 def json_serializable(obj):
     if isinstance(obj, dict):
@@ -115,8 +115,23 @@ def main():
             'is_rush': 0, 'is_rebound': 0, 'is_home': 1, 'score_diff': 0,
             'period_number': 2, 'speed_from_last_event': 0.0, 'last_event_type': 'faceoff'
         },
+        'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
         'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_nested.CATEGORICAL_VOCABS.items()}
     }
+
+    # Pre-calculate Spatial GLM Grids
+    X_POINTS, Y_POINTS = 50, 43
+    grid_x = np.linspace(0, 100, X_POINTS)
+    grid_y = np.linspace(-42.5, 42.5, Y_POINTS)
+    gx, gy = np.meshgrid(grid_x, grid_y)
+    grid_df = pd.DataFrame({'x': gx.flatten(), 'y': gy.flatten()})
+    
+    if hasattr(model, 'spatial_glm_block_') and model.spatial_glm_block_:
+        grid_spatial_layers = {}
+        grid_spatial_layers['block'] = model.spatial_glm_block_.predict_proba(grid_df)[:, 1].reshape(Y_POINTS, X_POINTS).tolist()
+        grid_spatial_layers['accuracy'] = model.spatial_glm_acc_.predict_proba(grid_df)[:, 1].reshape(Y_POINTS, X_POINTS).tolist()
+        grid_spatial_layers['finish'] = model.spatial_glm_fin_.predict_proba(grid_df)[:, 1].reshape(Y_POINTS, X_POINTS).tolist()
+        export_data['grid_spatial_layers'] = grid_spatial_layers
     
     # Add numerical options
     export_data['options'].update({
@@ -255,43 +270,90 @@ def main():
     }
 
     function predictScenario(inputs) {
-        let H = Y_POINTS, W = X_POINTS;
-        let Z_block = new Float32Array(H*W), Z_acc = new Float32Array(H*W), Z_fin = new Float32Array(H*W), Z_xg = new Float32Array(H*W);
-        for(let r=0; r<H; r++) {
-            for(let c=0; c<W; c++) {
-                const idx = r*W + c;
-                const x = gridX[c], y = gridY[r];
-                const dist = Math.sqrt((x - 89)**2 + y**2);
-                const angle_rad = Math.atan2(x - 89, -y);
-                let angle_deg = ((-angle_rad * 180 / Math.PI) % 360 + 360) % 360;
-                
-                let features = {...inputs, distance: dist, angle_deg: angle_deg};
-                for (const fName in MODEL.vocabs) {
-                    const val = features[fName];
-                    if (val === 'Marginalized') features[fName] = null;
-                    else {
-                        const v_idx = MODEL.vocabs[fName].indexOf(val);
-                        features[fName] = (v_idx === -1) ? null : v_idx;
-                    }
+        try {
+            // 1. Common Preprocessing
+            let baseFeatures = {...inputs};
+            // Categorical Encoding
+            for (const fName in MODEL.vocabs) {
+                const val = baseFeatures[fName];
+                if (val === 'Marginalized') baseFeatures[fName] = null;
+                else if (typeof val === 'string') {
+                    const v_idx = MODEL.vocabs[fName].indexOf(val);
+                    baseFeatures[fName] = (v_idx === -1) ? null : v_idx;
                 }
-                ['is_rush', 'is_rebound', 'is_home'].forEach(f => {
-                    if (features[f] === 'Marginalized') features[f] = null;
-                    else features[f] = Number(features[f]);
-                });
-
-                const p_block = getLayerProb('block', features);
-                const p_acc = getLayerProb('accuracy', features);
-                const p_fin = getLayerProb('finish', features);
-                let p_xg = (1 - p_block) * p_acc * p_fin;
-                if (MODEL.calibrators.goal) p_xg = isotonicInterpolate(p_xg, MODEL.calibrators.goal);
-
-                Z_block[idx] = p_block;
-                Z_acc[idx] = p_acc;
-                Z_fin[idx] = p_fin;
-                Z_xg[idx] = p_xg;
             }
+            // Numeric Conversion & Defaults
+            MODEL.features.forEach(f => {
+                if (baseFeatures[f] === undefined) {
+                    baseFeatures[f] = MODEL.numeric_defaults[f] !== undefined ? MODEL.numeric_defaults[f] : 0.0;
+                }
+                if (baseFeatures[f] !== null && baseFeatures[f] !== undefined && baseFeatures[f] !== 'Marginalized') {
+                    if (!MODEL.vocabs[f]) {
+                        const num = Number(baseFeatures[f]);
+                        if (!isNaN(num)) baseFeatures[f] = num;
+                    }
+                } else if (baseFeatures[f] === 'Marginalized') {
+                    baseFeatures[f] = null;
+                }
+            });
+
+            let H = Y_POINTS, W = X_POINTS;
+            let Z_block = new Float32Array(H*W), Z_acc = new Float32Array(H*W), Z_fin = new Float32Array(H*W), Z_xg = new Float32Array(H*W);
+            
+            for(let r=0; r<H; r++) {
+                for(let c=0; c<W; c++) {
+                    const idx = r*W + c;
+                    let features = {...baseFeatures};
+                    
+                    // 1. Resolve Spatial Features
+                    const x = gridX[c], y = gridY[r];
+                    
+                    // Smooth GLM Baselines
+                    if (MODEL.grid_spatial_layers) {
+                        features['spatial_block'] = MODEL.grid_spatial_layers['block'][r][c];
+                        features['spatial_acc'] = MODEL.grid_spatial_layers['accuracy'][r][c];
+                        features['spatial_fin'] = MODEL.grid_spatial_layers['finish'][r][c];
+                    }
+                    
+                    // Dynamic Distance/Angle (Secondary Adjustments)
+                    const dist = Math.sqrt((x - 89)**2 + y**2);
+                    const angle_rad = Math.atan2(x - 89, -y);
+                    let angle_deg = ((-angle_rad * 180 / Math.PI) % 360 + 360) % 360;
+                    features.distance = dist;
+                    features.angle_deg = angle_deg;
+
+                    const m_block = evaluateForest('block', features);
+                    const m_acc = evaluateForest('accuracy', features);
+                    const m_fin = evaluateForest('finish', features);
+                    
+                    const p_block = getLayerProb('block', features);
+                    const p_acc = sigmoid(m_acc);
+                    const p_fin = sigmoid(m_fin);
+                    
+                    let p_xg = (1 - p_block) * p_acc * p_fin;
+                    if (MODEL.calibrators.goal) p_xg = isotonicInterpolate(p_xg, MODEL.calibrators.goal);
+
+                    if (r === 0 && c === 0) {
+                        console.log("DEBUG [0,0]:", {
+                            inputs: inputs,
+                            features: features,
+                            margins: {block: m_block, acc: m_acc, fin: m_fin},
+                            probs: {block: p_block, acc: p_acc, fin: p_fin},
+                            final_xg: p_xg
+                        });
+                    }
+
+                    Z_block[idx] = p_block;
+                    Z_acc[idx] = p_acc;
+                    Z_fin[idx] = p_fin;
+                    Z_xg[idx] = p_xg;
+                }
+            }
+            return [Z_block, Z_acc, Z_fin, Z_xg];
+        } catch (e) {
+            console.error("Predict Error:", e);
+            throw e;
         }
-        return [Z_block, Z_acc, Z_fin, Z_xg];
     }
 
     function init() {
@@ -325,6 +387,7 @@ def main():
             });
             inputDiv.appendChild(fs);
         }
+        console.log("Initializing UI. Features in MODEL:", MODEL.features);
         document.getElementById('loading').style.display = 'none';
         updatePlot();
     }
@@ -338,62 +401,84 @@ def main():
     }
 
     function convertTo2D(flat) {
+        if (!flat) return [];
         let res = [];
-        for(let r=0; r<Y_POINTS; r++) res.push(Array.from(flat.slice(r*X_POINTS, (r+1)*X_POINTS)));
+        for(let r=0; r<Y_POINTS; r++) {
+            const start = r * X_POINTS;
+            const end = (r + 1) * X_POINTS;
+            if (end > flat.length) {
+                 console.error("Index out of bounds in convertTo2D:", end, flat.length);
+                 break;
+            }
+            res.push(Array.from(flat.slice(start, end)));
+        }
         return res;
     }
 
+    let plotRevision = 0;
     function updatePlot() {
-        const inputs = getInputs();
-        const [zb, za, zf, zxg] = predictScenario(inputs);
-        const czb = convertTo2D(zb), cza = convertTo2D(za), czf = convertTo2D(zf), czxg = convertTo2D(zxg);
-        let dzb = czb, dza = cza, dzf = czf, dzxg = czxg;
-        if (baselineData) {
-            dzb = czb.map((row, r) => row.map((val, c) => val - baselineData[0][r][c]));
-            dza = cza.map((row, r) => row.map((val, c) => val - baselineData[1][r][c]));
-            dzf = czf.map((row, r) => row.map((val, c) => val - baselineData[2][r][c]));
-            dzxg = czxg.map((row, r) => row.map((val, c) => val - baselineData[3][r][c]));
-        } else {
-            dzb = dza = dzf = dzxg = czb.map(r => r.map(c => 0));
-        }
-        const layout = {
-            grid: {rows: 2, columns: 4, pattern: 'independent'},
-            paper_bgcolor: '#111', plot_bgcolor: '#111',
-            font: {color: 'white', size: 10},
-            margin: {t: 60, b: 30, l: 30, r: 30},
-            showlegend: false,
-            shapes: []
-        };
-        layout.annotations = [
-            {text: 'Block Layer', x: 0.1, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#ff5555'}},
-            {text: 'Accuracy Layer', x: 0.37, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#55ff55'}},
-            {text: 'Finish Layer', x: 0.63, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#5555ff'}},
-            {text: 'Final xG Score', x: 0.9, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#ffff55'}},
-            {text: 'Δ Block', x: 0.1, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
-            {text: 'Δ Accuracy', x: 0.37, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
-            {text: 'Δ Finish', x: 0.63, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
-            {text: 'Δ xG', x: 0.9, y: 0.48, xref:'paper', yref:'paper', showarrow:false}
-        ];
-        const traces = [
-            {type:'heatmap', z:czb, colorscale:'Magma', zmin:0, zmax:1, xaxis:'x1', yaxis:'y1', name:'Block'},
-            {type:'heatmap', z:cza, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x2', yaxis:'y2', name:'Acc'},
-            {type:'heatmap', z:czf, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x3', yaxis:'y3', name:'Fin'},
-            {type:'heatmap', z:czxg, colorscale:'Hot', zmin:0, zmax:0.4, xaxis:'x4', yaxis:'y4', name:'xG'},
-            {type:'heatmap', z:dzb, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x5', yaxis:'y5'},
-            {type:'heatmap', z:dza, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x6', yaxis:'y6'},
-            {type:'heatmap', z:dzf, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x7', yaxis:'y7'},
-            {type:'heatmap', z:dzxg, colorscale:'RdBu', zmid:0, zmin:-0.1, zmax:0.1, xaxis:'x8', yaxis:'y8'}
-        ];
-        ['','2','3','4','5','6','7','8'].forEach((s, i) => {
-            const ax = (i===0) ? '' : (i+1);
-            layout['xaxis'+ax] = {range:[0, 100], visible:false, fixedrange:true};
-            layout['yaxis'+ax] = {range:[-42.5, 42.5], visible:false, scaleanchor:'x'+ax, fixedrange:true};
-            RINK_SHAPES.forEach(sh => {
-                let sh2 = {...sh}; sh2.xref = 'x' + ax; sh2.yref = 'y' + ax;
-                layout.shapes.push(sh2);
+        try {
+            console.log("updatePlot starting...");
+            const inputs = getInputs();
+            console.log("Current Inputs:", inputs);
+            
+            const [zb, za, zf, zxg] = predictScenario(inputs);
+            console.log("Prediction Complete. xG First Pixel:", zxg[0]);
+            
+            const czb = convertTo2D(zb), cza = convertTo2D(za), czf = convertTo2D(zf), czxg = convertTo2D(zxg);
+            let dzb = czb, dza = cza, dzf = czf, dzxg = czxg;
+            if (baselineData) {
+                dzb = czb.map((row, r) => row.map((val, c) => val - baselineData[0][r][c]));
+                dza = cza.map((row, r) => row.map((val, c) => val - baselineData[1][r][c]));
+                dzf = czf.map((row, r) => row.map((val, c) => val - baselineData[2][r][c]));
+                dzxg = czxg.map((row, r) => row.map((val, c) => val - baselineData[3][r][c]));
+            } else {
+                dzb = dza = dzf = dzxg = czb.map(r => r.map(c => 0));
+            }
+            const layout = {
+                grid: {rows: 2, columns: 4, pattern: 'independent'},
+                paper_bgcolor: '#111', plot_bgcolor: '#111',
+                font: {color: 'white', size: 10},
+                margin: {t: 60, b: 30, l: 30, r: 30},
+                showlegend: false,
+                shapes: [],
+                datarevision: plotRevision++
+            };
+            layout.annotations = [
+                {text: 'Block Layer', x: 0.1, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#ff5555'}},
+                {text: 'Accuracy Layer', x: 0.37, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#55ff55'}},
+                {text: 'Finish Layer', x: 0.63, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#5555ff'}},
+                {text: 'Final xG Score', x: 0.9, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#ffff55'}},
+                {text: 'Δ Block', x: 0.1, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
+                {text: 'Δ Accuracy', x: 0.37, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
+                {text: 'Δ Finish', x: 0.63, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
+                {text: 'Δ xG', x: 0.9, y: 0.48, xref:'paper', yref:'paper', showarrow:false}
+            ];
+            const traces = [
+                {type:'heatmap', x: gridX, y: gridY, z:czb, colorscale:'Magma', zmin:0, zmax:1, xaxis:'x', yaxis:'y', name:'Block', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:cza, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x2', yaxis:'y2', name:'Acc', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:czf, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x3', yaxis:'y3', name:'Fin', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:czxg, colorscale:'Hot', zmin:0, zmax:0.4, xaxis:'x4', yaxis:'y4', name:'xG', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:dzb, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x5', yaxis:'y5', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:dza, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x6', yaxis:'y6', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:dzf, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x7', yaxis:'y7', zsmooth:'best'},
+                {type:'heatmap', x: gridX, y: gridY, z:dzxg, colorscale:'RdBu', zmid:0, zmin:-0.1, zmax:0.1, xaxis:'x8', yaxis:'y8', zsmooth:'best'}
+            ];
+            ['','2','3','4','5','6','7','8'].forEach((s) => {
+                layout['xaxis'+s] = {range:[0, 100], visible:false, fixedrange:true};
+                layout['yaxis'+s] = {range:[-42.5, 42.5], visible:false, scaleanchor:'x'+s, fixedrange:true};
+                RINK_SHAPES.forEach(sh => {
+                    let sh2 = {...sh}; sh2.xref = 'x' + s; sh2.yref = 'y' + s;
+                    layout.shapes.push(sh2);
+                });
             });
-        });
-        Plotly.react('plot', traces, layout);
+            console.log("Calling Plotly.react...");
+            Plotly.react('plot', traces, layout);
+            console.log("updatePlot finished.");
+        } catch (e) {
+            console.error("Plot Update Error:", e);
+            alert("Update Error: " + e.message);
+        }
     }
 
     function setBaseline() {

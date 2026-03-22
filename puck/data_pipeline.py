@@ -9,7 +9,22 @@ import numpy as np
 import warnings
 from typing import Optional, List, Tuple
 
-from . import correction, impute, arena_adjustments, features
+from . import correction, impute, arena_adjustments, features, config
+
+NUMERIC_DEFAULTS = {
+    'is_rebound': 0,
+    'rebound_angle_change': 0.0,
+    'rebound_time_diff': 0.0,
+    'is_rush': 0,
+    'last_event_time_diff': 0.0,
+    'score_diff': 0,
+    'distance': -1.0, 
+    'angle_deg': 0.0,
+    'time_elapsed_in_period_s': 0.0,
+    'total_time_elapsed_s': 0.0,
+    'dist_from_last_event': 0.0,
+    'speed_from_last_event': 0.0
+}
 
 def preprocess_features(df_input: pd.DataFrame, 
                         is_training: bool = False, 
@@ -549,24 +564,7 @@ def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
 
     # 2. Numerics
     # Fill missing numeric features with appropriate defaults (usually 0)
-    numeric_defaults = {
-        'is_rebound': 0,
-        'rebound_angle_change': 0.0,
-        'rebound_time_diff': 0.0,
-        'is_rush': 0,
-        'last_event_time_diff': 0.0,
-        'score_diff': 0,
-        # Ensure coordinates/angles are at least present (though should be calc'd)
-        'distance': -1.0, 
-        'angle_deg': 0.0,
-        # Time
-        'time_elapsed_in_period_s': 0.0,
-        'total_time_elapsed_s': 0.0,
-        'dist_from_last_event': 0.0,
-        'speed_from_last_event': 0.0
-    }
-    
-    for col, default_val in numeric_defaults.items():
+    for col, default_val in NUMERIC_DEFAULTS.items():
         if col not in df.columns:
             df[col] = default_val
         else:

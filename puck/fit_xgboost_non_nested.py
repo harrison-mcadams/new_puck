@@ -24,11 +24,14 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.exceptions import NotFittedError
 from sklearn.model_selection import train_test_split
 from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
+from sklearn.pipeline import make_pipeline
 from sklearn.metrics import log_loss, roc_auc_score, brier_score_loss
 from sklearn.calibration import calibration_curve
 
 from . import features as feature_util
 from . import config as puck_config
+from .spline_transformer import TensorSpline
 
 try:
     import matplotlib.pyplot as plt
@@ -74,7 +77,8 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  learning_rate: float = 0.1,
                  random_state: int = 42,
                  enable_categorical: bool = True,
-                 use_calibration: bool = True):
+                 use_calibration: bool = True,
+                 use_splines: bool = True):
         
         self.features = features or feature_util.get_features('all_inclusive')
         self.n_estimators = n_estimators
@@ -83,6 +87,11 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.enable_categorical = enable_categorical
         self.use_calibration = use_calibration
+        self.use_splines = use_splines
+        
+        # Spatial Base Model (GLM)
+        self.spatial_glm_ = None
+        self.use_splines = use_splines
         
         # Models & Calibrators
         self.model = None
@@ -220,6 +229,37 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _prepare_training_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+
+        # 1. Spatial Base Model (Stacked GLM)
+        if self.use_splines:
+            logger.info("  Training Spatial GLM Base...")
+            # We train a smooth GLM on splines first
+            spatial_pipe = make_pipeline(
+                TensorSpline(n_knots=7, degree=3),
+                LogisticRegression(C=1.0)
+            )
+            
+            # Predict 'goal' outcome for spatial baseline
+            y_spatial = (df['event'] == 'goal').astype(int)
+            spatial_pipe.fit(df[['x', 'y']], y_spatial)
+            self.spatial_glm_ = spatial_pipe
+            
+            # Add spatial_xg as a feature
+            df['spatial_xg'] = self.spatial_glm_.predict_proba(df[['x', 'y']])[:, 1]
+            
+            # Update internal features list: 
+            # - Remove individual splines (though they aren't there yet)
+            # - MUST keep distance and angle_deg as secondary features
+            # - Add spatial_xg
+            if 'spatial_xg' not in self.features:
+                self.features.append('spatial_xg')
+            
+            # Ensure distance and angle are present (they usually are in 'all_inclusive')
+            for f in ['distance', 'angle_deg']:
+                if f not in self.features:
+                    self.features.append(f)
+
+        # 2. Categoricals
         for col in self.features:
             if col in df.columns:
                 if df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
@@ -229,16 +269,25 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _prepare_inference_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+
+        # 1. Spatial Base Model
+        if self.use_splines and self.spatial_glm_:
+            df['spatial_xg'] = self.spatial_glm_.predict_proba(df[['x', 'y']])[:, 1]
+
+        # 2. Base Features & Dtypes
         for col, dt in self.feature_dtypes.items():
             if col not in df.columns:
                 df[col] = np.nan
+            
             if isinstance(dt, pd.CategoricalDtype):
                 df[col] = pd.Categorical(df[col], categories=dt.categories)
             elif col in CATEGORICAL_VOCABS:
-                df[col] = pd.Categorical(df[col], categories=CATEGORICAL_VOCABS[col])
+                 df[col] = pd.Categorical(df[col], categories=CATEGORICAL_VOCABS[col])
             else:
-                try: df[col] = df[col].astype(float)
-                except: pass
+                try:
+                    df[col] = df[col].astype(float)
+                except:
+                    pass
         return df
 
     def _predict_marginalized(self, model, df, features):

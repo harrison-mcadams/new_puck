@@ -15,7 +15,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from puck import fit_xgboost_non_nested, config as puck_config
+from puck import fit_xgboost_non_nested, config as puck_config, data_pipeline
 
 def json_serializable(obj):
     if isinstance(obj, dict):
@@ -98,8 +98,21 @@ def main():
             'is_rush': 0, 'is_rebound': 0, 'is_home': 1, 'score_diff': 0,
             'period_number': 2, 'speed_from_last_event': 0.0, 'last_event_type': 'faceoff'
         },
+        'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
         'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_non_nested.CATEGORICAL_VOCABS.items()}
     }
+
+    # Pre-calculate Spatial GLM Grid
+    X_POINTS, Y_POINTS = 50, 43
+    grid_x = np.linspace(0, 100, X_POINTS)
+    grid_y = np.linspace(-42.5, 42.5, Y_POINTS)
+    gx, gy = np.meshgrid(grid_x, grid_y)
+    grid_df = pd.DataFrame({'x': gx.flatten(), 'y': gy.flatten()})
+    
+    if hasattr(model, 'spatial_glm_') and model.spatial_glm_:
+        grid_probs = model.spatial_glm_.predict_proba(grid_df)[:, 1]
+        grid_spatial_xg = grid_probs.reshape(Y_POINTS, X_POINTS)
+        export_data['grid_spatial_xg'] = grid_spatial_xg.tolist()
     
     export_data['options'].update({
         'is_rush': [0, 1, 'Marginalized'],
@@ -225,23 +238,49 @@ def main():
         for(let r=0; r<H; r++) {
             for(let c=0; c<W; c++) {
                 const idx = r*W + c;
+                let features = {...inputs};
+                
+                // 1. Resolve Spatial Features
                 const x = gridX[c], y = gridY[r];
+                
+                // Baseline Spatial xG (Smooth)
+                if (MODEL.grid_spatial_xg) {
+                    features['spatial_xg'] = MODEL.grid_spatial_xg[r][c];
+                }
+                
+                // Dynamic Distance/Angle (Secondary Adjustments)
                 const dist = Math.sqrt((x - 89)**2 + y**2);
                 const angle_rad = Math.atan2(x - 89, -y);
                 let angle_deg = ((-angle_rad * 180 / Math.PI) % 360 + 360) % 360;
-                
-                let features = {...inputs, distance: dist, angle_deg: angle_deg};
+                features.distance = dist;
+                features.angle_deg = angle_deg;
+
+                // 2. Defaulting Missing Features (Fix High xG Bug)
+                MODEL.features.forEach(f => {
+                    if (features[f] === undefined) {
+                        features[f] = MODEL.numeric_defaults[f] !== undefined ? MODEL.numeric_defaults[f] : 0.0;
+                    }
+                });
+
+                // 3. Categorical Encoding
                 for (const fName in MODEL.vocabs) {
                     const val = features[fName];
                     if (val === 'Marginalized') features[fName] = null;
-                    else {
+                    else if (typeof val === 'string') {
                         const v_idx = MODEL.vocabs[fName].indexOf(val);
                         features[fName] = (v_idx === -1) ? null : v_idx;
                     }
                 }
-                ['is_rush', 'is_rebound', 'is_home'].forEach(f => {
-                    if (features[f] === 'Marginalized') features[f] = null;
-                    else features[f] = Number(features[f]);
+                // 4. Robust Numeric Conversion
+                MODEL.features.forEach(f => {
+                    if (features[f] !== null && features[f] !== undefined && features[f] !== 'Marginalized') {
+                        if (!MODEL.vocabs[f]) {
+                            const num = Number(features[f]);
+                            if (!isNaN(num)) features[f] = num;
+                        }
+                    } else if (features[f] === 'Marginalized') {
+                        features[f] = null;
+                    }
                 });
 
                 let prob = sigmoid(evaluateForest(features));
@@ -324,15 +363,14 @@ def main():
             {text: 'Δ Delta', x: 0.78, y: 1.1, xref:'paper', yref:'paper', showarrow:false, font:{size:16, color:'#ffcc00'}}
         ];
         const traces = [
-            {type:'heatmap', z:czxg, colorscale:'Hot', zmin:0, zmax:0.4, xaxis:'x1', yaxis:'y1'},
-            {type:'heatmap', z:dzxg, colorscale:'RdBu', zmid:0, zmin:-0.1, zmax:0.1, xaxis:'x2', yaxis:'y2'}
+            {type:'heatmap', x: gridX, y: gridY, z:czxg, colorscale:'Hot', zmin:0, zmax:0.4, xaxis:'x', yaxis:'y', zsmooth:'best'},
+            {type:'heatmap', x: gridX, y: gridY, z:dzxg, colorscale:'RdBu', zmid:0, zmin:-0.1, zmax:0.1, xaxis:'x2', yaxis:'y2', zsmooth:'best'}
         ];
-        ['','2'].forEach((ax, i) => {
-            const pr = (i===0) ? '' : (i+1);
-            layout['xaxis'+pr] = {range:[0, 100], visible:false, fixedrange:true};
-            layout['yaxis'+pr] = {range:[-42.5, 42.5], visible:false, scaleanchor:'x'+pr, fixedrange:true};
+        ['','2'].forEach((s, i) => {
+            layout['xaxis'+s] = {range:[0, 100], visible:false, fixedrange:true};
+            layout['yaxis'+s] = {range:[-42.5, 42.5], visible:false, scaleanchor:'x'+s, fixedrange:true};
             RINK_SHAPES.forEach(sh => {
-                let sh2 = {...sh}; sh2.xref = 'x' + pr; sh2.yref = 'y' + pr;
+                let sh2 = {...sh}; sh2.xref = 'x' + s; sh2.yref = 'y' + s;
                 layout.shapes.push(sh2);
             });
         });
