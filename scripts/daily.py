@@ -116,11 +116,11 @@ def main():
     # We run this if we fetched data OR if --force is used (to ensure new model is applied to existing data).
     run_xg_calc = (not args.skip_fetch) or args.force
     if run_xg_calc and not df_season.empty:
-        print(f"\n[1c/4] Running Centralized xG Prediction (Nested Model)...")
+        print(f"\n[1c/4] Running Centralized xG Prediction (20202021+ Nested Model)...")
         try:
-            # Predict (will use Nested Model by default as per analyze.py update)
-            # behavior='overwrite' ensures we actually run it even if 'xgs' column exists 
-            df_season, _, _ = analyze._predict_xgs(df_season, behavior='overwrite')
+            # Predict using the modern era Nested Model
+            model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_nested_tensor_20202021.joblib')
+            df_season, _, _ = analyze._predict_xgs(df_season, model_path=model_path, behavior='overwrite')
             
             # Save back to CSV to be used by subprocesses
             out_csv = os.path.join('data', f"{season}.csv")

@@ -45,6 +45,10 @@ Example Calls:
 
 8) Full Modern Era Stability Sweep with Mixed Effects models:
    python scripts/evaluate_predictive_power.py --seasons 20202021+ --model nested,non_nested,mixed_effects_nested,mixed_effects_non_nested,actual --filter all --hockey-graphs --reps 1000
+
+9) Boss command to look at per-game accuracy for our main defulat models:
+python scripts/evaluate_predictive_power.py --n-boot 1000 --filter all --seasons 20202021+ --model nested_xg,non_nested_xg,mixed_effects_nested,mixed_effects_non_nested,actua
+
 """
 
 import sys
@@ -543,78 +547,103 @@ class PredictiveEvaluator:
         else:
             self.matchup_engine = SimulationMatchupEngine(logic_type=matchup_logic)
 
-    def run_evaluation(self, season, train_split=0.7):
+    def run_evaluation(self, season, train_split=0.7, split_method='random', n_reps=1):
         df = DataUtils.load_season_data(season)
         sched_df = DataUtils.process_schedule(df)
-        
-        # Split data
+        all_gids = sched_df['game_id'].values
         total_games = len(sched_df)
         n_train = int(total_games * train_split)
         
-        if n_train >= total_games:
-            train_df = df.copy()
-            test_df = pd.DataFrame()
-            test_sched = pd.DataFrame()
-            train_gid_cutoff = 99999999
-        else:
-            train_gid_cutoff = sched_df.iloc[n_train]['game_id']
-            train_df = df[df['game_id'] < train_gid_cutoff].copy()
-            test_df = df[df['game_id'] >= train_gid_cutoff].copy()
-            test_sched = DataUtils.process_schedule(test_df)
+        if n_train >= total_games and split_method == 'chronological':
+            logger.warning("Train split >= 1.0, cannot evaluate future games.")
+            return None
+
+        rep_metrics = []
+        all_rep_results = []
+        
+        logger.info(f"Season {season}: Running {n_reps} reps using {split_method} split...")
+        
+        for r in range(n_reps):
+            if split_method == 'random':
+                # Random sample of games for training
+                train_gids = np.random.choice(list(all_gids), n_train, replace=False)
+                test_gids = np.array([g for g in all_gids if g not in train_gids])
+            else:
+                # Chronological split
+                train_gids = all_gids[:n_train]
+                test_gids = all_gids[n_train:]
             
-        logger.info(f"Season {season}: Training on {len(train_df)} events, testing on {len(test_df)} events.")
+            # Sub-sets for this rep
+            train_df = df[df['game_id'].isin(train_gids)].copy()
+            test_sched = sched_df[sched_df['game_id'].isin(test_gids)].copy()
+            
+            if len(test_sched) == 0:
+                continue
+
+            # Summarize Ability (triggers re-fit if mixed effects or local model)
+            abilities = self.summarizer.get_team_abilities(train_df, self.model_name, self.model_registry)
+            
+            # Empirical League Average for this slice
+            league_avg_exp = train_df['event'].str.count('goal').sum() / (2 * len(train_gids)) if len(train_gids) > 0 else 3.0
+            
+            results = []
+            for _, row in test_sched.iterrows():
+                p_hw = self.matchup_engine.predict_winner_prob(row['home_team'], row['away_team'], abilities, league_avg_exp, self.outcome_type)
+                
+                # Actual result
+                if self.outcome_type == 'final':
+                    actual = 1.0 if row['home_goals_final'] > row['away_goals_final'] else 0.0
+                else:
+                    if row['home_goals_reg'] > row['away_goals_reg']: actual = 1.0
+                    elif row['away_goals_reg'] > row['home_goals_reg']: actual = 0.0
+                    else: actual = 0.5
+                    
+                results.append({'p': p_hw, 'y': actual})
+                
+            res_df = pd.DataFrame(results)
+            all_rep_results.append(res_df)
+            
+            # Calculate metrics for THIS rep (disable nested bootstrap for speed)
+            metrics = self.calculate_metrics(res_df, n_boot=0)
+            rep_metrics.append(metrics)
+            
+            if split_method == 'chronological':
+                break
+                
+        if not rep_metrics:
+            return None
+            
+        # Aggregate across all reps
+        briers = [m['Brier'] for m in rep_metrics]
+        accs = [m['Accuracy'] for m in rep_metrics]
         
-        # Summarize Ability
-        abilities = self.summarizer.get_team_abilities(train_df, self.model_name, self.model_registry)
+        summary = {
+            'Brier': np.mean(briers),
+            'Brier_lo': np.percentile(briers, 2.5) if len(briers) > 1 else np.mean(briers),
+            'Brier_hi': np.percentile(briers, 97.5) if len(briers) > 1 else np.mean(briers),
+            'Brier_dist': np.array(briers),
+            'Accuracy': np.mean(accs),
+            'Accuracy_lo': np.percentile(accs, 2.5) if len(accs) > 1 else np.mean(accs),
+            'Accuracy_hi': np.percentile(accs, 97.5) if len(accs) > 1 else np.mean(accs),
+            'Accuracy_dist': np.array(accs)
+        }
         
-        # Ranking Output if requested
+        combined_raw = pd.concat(all_rep_results, ignore_index=True)
+        
+        logger.info(f"Season {season} Complete | Brier: {summary['Brier']:.4f} | Acc: {summary['Accuracy']:.4f}")
+        
+        # Rankings if requested (using the last rep's abilities as a representative sample)
         if self.metric_type == 'rank':
             self._output_rankings(season, abilities)
-            if train_split >= 1.0: return None
-        
-        if len(test_sched) == 0:
-            logger.warning("No test games found. Skipping evaluation.")
-            return None
-        
-        # Calculate empirical league average per game for this slice
-        n_games_train = sched_df[sched_df['game_id'] < (train_gid_cutoff if n_train < total_games else 99999999)]['game_id'].nunique()
-        if n_games_train > 0:
-            # We want goals per team-game
-            league_avg_exp = df[df['game_id'].isin(train_df['game_id'])]['event'].str.count('goal').sum() / (2 * n_games_train)
-        else:
-            league_avg_exp = 3.0
-            
-        logger.info(f"Empirical League Average: {league_avg_exp:.3f} goals per team-game")
-        
-        results = []
-        for _, row in test_sched.iterrows():
-            p_hw = self.matchup_engine.predict_winner_prob(row['home_team'], row['away_team'], abilities, league_avg_exp, self.outcome_type)
-            
-            # Actual result
-            if self.outcome_type == 'final':
-                actual = 1.0 if row['home_goals_final'] > row['away_goals_final'] else 0.0
-            else:
-                if row['home_goals_reg'] > row['away_goals_reg']: actual = 1.0
-                elif row['away_goals_reg'] > row['home_goals_reg']: actual = 0.0
-                else: actual = 0.5
-                
-            results.append({'p': p_hw, 'y': actual})
-            
-        res_df = pd.DataFrame(results)
-        
-        # Metrics with optional Bootstrap
-        summary = self.calculate_metrics(res_df)
-        
-        logger.info(f"Season {season} | Brier: {summary['Brier']:.4f} ({summary['Brier_lo']:.4f}-{summary['Brier_hi']:.4f}) | Acc: {summary['Accuracy']:.4f} ({summary['Accuracy_lo']:.4f}-{summary['Accuracy_hi']:.4f})")
-        
+
         return {
             'Season': season,
             'Model': self.model_name,
             'Filter': self.filter_type,
             'Metric': self.metric_type,
             **summary,
-            'Test_Games': len(test_sched),
-            'Raw_Results': res_df
+            'Test_Games': len(combined_raw),
+            'Raw_Results': combined_raw
         }
 
     def calculate_metrics(self, res_df, n_boot=None):
@@ -964,15 +993,21 @@ class PredictiveEvaluator:
                             tr_xgf, tr_xga = stats_dict['xg_f'][idx_a].sum(), stats_dict['xg_a'][idx_a].sum()
                             tr_gf, tr_ga = stats_dict['gf'][idx_a].sum(), stats_dict['ga'][idx_a].sum()
                             
-                            # For mixed effects, we should ideally adjust base xG to match Group A goals
-                            # to see if that adjustment carries over to Group B.
-                            if 'mixed_effects' in self.model_name:
-                                # Simple ratio-based adjustment (team-specific intercept proxy)
-                                adj_f = tr_gf / tr_xgf if tr_xgf > 0 else 1.0
-                                adj_a = tr_ga / tr_xga if tr_xga > 0 else 1.0
-                                # Clip adjustments to avoid extreme outliers in small samples
-                                adj_f = np.clip(adj_f, 0.5, 2.0)
-                                adj_a = np.clip(adj_a, 0.5, 2.0)
+                            # For mixed effects, apply shrinkage based on the model's L2 regularization.
+                            # This simulates re-fitting the mixed effects model in each rep.
+                            if 'mixed_effects' in self.model_name.lower():
+                                # Pseudo-observations (K goals) based on l2_reg
+                                # We try to get L2 from the model registry's cached model (without re-fitting)
+                                is_local = 'local' in self.model_name
+                                pure_model_name = self.model_name.replace('local_', '')
+                                model_ref = self.model_registry._load_global_model(pure_model_name)
+                                l2_reg = getattr(model_ref, 'l2_reg', 1.0)
+                                
+                                K = max(l2_reg, 5.0) 
+                                
+                                adj_f = (tr_gf + K) / (tr_xgf + K)
+                                adj_a = (tr_ga + K) / (tr_xga + K)
+                                
                                 tr_xgf *= adj_f
                                 tr_xga *= adj_a
 
@@ -1479,8 +1514,8 @@ def main():
     parser.add_argument('--predict-season', action='store_true', help='If set, performs season-level cumulative statistics prediction')
     parser.add_argument('--cumulative-filter', type=str, default=None, help='Filter for cumulative statistics (wins/gd/xg). Defaults to same as --filter')
     parser.add_argument('--prediction-mode', type=str, default='rest_of_season', choices=['rest_of_season', 'end_of_season'], help='Predict rest of season or full season')
-    parser.add_argument('--split-method', type=str, default='chronological', choices=['chronological', 'random'], help='Method for splitting season into train/test')
-    parser.add_argument('--split-reps', type=int, default=1, help='Number of random splits if split-method is random')
+    parser.add_argument('--split-method', type=str, default='random', choices=['chronological', 'random'], help='Method for splitting season into train/test')
+    parser.add_argument('--split-reps', type=int, default=None, help='Number of iterations for evaluation (full bootstrap). Defaults to --n-boot.')
     parser.add_argument('--reps', type=int, default=500, help='Number of bootstrap iterations for Hockey-Graphs study')
     # Hockey Graphs Study
     parser.add_argument('--hockey-graphs', action='store_true', help='Replicate Hockey-Graphs stability intervals analysis')
@@ -1538,7 +1573,9 @@ def main():
                     if res is not None:
                         season_preds.append(res)
                 else:
-                    res = evaluator.run_evaluation(season, args.train_split)
+                    # Use split_reps if provided, otherwise fallback to n_boot for the full-lifecycle reps
+                    n_reps = args.split_reps if args.split_reps is not None else args.n_boot
+                    res = evaluator.run_evaluation(season, args.train_split, split_method=args.split_method, n_reps=n_reps)
                     if res:
                         sweep_results.append(res)
                         all_results.append(res)
