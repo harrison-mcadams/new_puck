@@ -46,8 +46,10 @@ Example Calls:
 8) Full Modern Era Stability Sweep with Mixed Effects models:
    python scripts/evaluate_predictive_power.py --seasons 20202021+ --model nested,non_nested,mixed_effects_nested,mixed_effects_non_nested,actual --filter all --hockey-graphs --reps 1000
 
-9) Boss command to look at per-game accuracy for our main defulat models:
-python scripts/evaluate_predictive_power.py --n-boot 1000 --filter all --seasons 20202021+ --model nested_xg,non_nested_xg,mixed_effects_nested,mixed_effects_non_nested,actua
+9) Boss command to look at per-game accuracy across all primary models and filters:
+   python scripts/evaluate_predictive_power.py --seasons 20202021+ \
+     --model nested_xg,non_nested_xg,mixed_effects_nested,mixed_effects_non_nested,actual \
+     --filter all,5v5 --n-boot 100 --parallel --n-jobs -1
 
 """
 
@@ -169,7 +171,17 @@ class ModelRegistry:
         self._cache = {}
 
     def get_model(self, model_name, train_df=None, is_local=False):
-        cache_key = (model_name, is_local, id(train_df) if train_df is not None else None)
+        # Improved cache key: use a hash of the training game IDs for robustness
+        # if train_df is provided and we expect a re-fit (local or mixed effects)
+        train_id = None
+        if train_df is not None:
+            if is_local or model_name.startswith('mixed_effects'):
+                # Sort for stability
+                train_id = hash(tuple(sorted(train_df['game_id'].unique())))
+            else:
+                train_id = id(train_df) 
+
+        cache_key = (model_name, is_local, train_id)
         if cache_key in self._cache:
             return self._cache[cache_key]
 
@@ -260,9 +272,10 @@ class TeamAbilitySummarizer:
         df = self._apply_filter(train_df)
         
         # Predict xG if not 'actual'
-        if model_name != 'actual':
-            is_local = 'local' in model_name
-            pure_model_name = model_name.replace('local_', '')
+        is_local = 'local' in model_name
+        pure_model_name = model_name.replace('local_', '')
+        
+        if pure_model_name != 'actual':
             model = model_registry.get_model(pure_model_name, train_df, is_local=is_local)
             if model:
                 df = df.copy()
@@ -529,7 +542,7 @@ class SeasonSimulator:
 # --- Orchestration ---
 
 class PredictiveEvaluator:
-    def __init__(self, model_name, metric_type, filter_type, matchup_type='poisson', outcome_type='final', n_boot=1000, matchup_logic='multiplicative'):
+    def __init__(self, model_name, metric_type, filter_type, matchup_type='poisson', outcome_type='final', n_boot=100, matchup_logic='multiplicative', n_jobs=1):
         self.model_registry = ModelRegistry()
         self.summarizer = TeamAbilitySummarizer(metric_type, filter_type)
         
@@ -540,6 +553,7 @@ class PredictiveEvaluator:
         self.outcome_type = outcome_type
         self.n_boot = n_boot
         self.matchup_logic = matchup_logic
+        self.n_jobs = n_jobs
 
         # Engine Selection
         if matchup_type == 'poisson':
@@ -550,7 +564,7 @@ class PredictiveEvaluator:
     def run_evaluation(self, season, train_split=0.7, split_method='random', n_reps=1):
         df = DataUtils.load_season_data(season)
         sched_df = DataUtils.process_schedule(df)
-        all_gids = sched_df['game_id'].values
+        all_gids = np.array(sched_df['game_id'].values, dtype=int)
         total_games = len(sched_df)
         n_train = int(total_games * train_split)
         
@@ -563,49 +577,66 @@ class PredictiveEvaluator:
         
         logger.info(f"Season {season}: Running {n_reps} reps using {split_method} split...")
         
-        for r in range(n_reps):
+        def _run_single_rep(r):
             if split_method == 'random':
                 # Random sample of games for training
-                train_gids = np.random.choice(list(all_gids), n_train, replace=False)
-                test_gids = np.array([g for g in all_gids if g not in train_gids])
+                # Use a specific seed per rep for reproducibility in parallel
+                rng = np.random.default_rng(seed=42 + r)
+                train_gids_rep = rng.choice(all_gids, n_train, replace=False)
+                test_gids_rep = np.array([g for g in all_gids if g not in train_gids_rep])
             else:
                 # Chronological split
-                train_gids = all_gids[:n_train]
-                test_gids = all_gids[n_train:]
+                train_gids_rep = all_gids[:n_train]
+                test_gids_rep = all_gids[n_train:]
             
             # Sub-sets for this rep
-            train_df = df[df['game_id'].isin(train_gids)].copy()
-            test_sched = sched_df[sched_df['game_id'].isin(test_gids)].copy()
+            train_df_rep = df[df['game_id'].isin(train_gids_rep)].copy()
+            test_sched_rep = sched_df[sched_df['game_id'].isin(test_gids_rep)].copy()
             
-            if len(test_sched) == 0:
-                continue
+            if len(test_sched_rep) == 0:
+                return None
 
             # Summarize Ability (triggers re-fit if mixed effects or local model)
-            abilities = self.summarizer.get_team_abilities(train_df, self.model_name, self.model_registry)
+            abilities = self.summarizer.get_team_abilities(train_df_rep, self.model_name, self.model_registry)
             
-            # Empirical League Average for this slice
-            league_avg_exp = train_df['event'].str.count('goal').sum() / (2 * len(train_gids)) if len(train_gids) > 0 else 3.0
+            # Empirical League Average for this slice (Fixed: use same filter as abilities)
+            train_df_filtered = self.summarizer._apply_filter(train_df_rep)
+            league_avg_exp = (train_df_filtered['event'].str.lower() == 'goal').sum() / (2 * len(train_gids_rep)) if len(train_gids_rep) > 0 else 3.0
             
-            results = []
-            for _, row in test_sched.iterrows():
+            rep_results_list = []
+            for _, row in test_sched_rep.iterrows():
                 p_hw = self.matchup_engine.predict_winner_prob(row['home_team'], row['away_team'], abilities, league_avg_exp, self.outcome_type)
                 
-                # Actual result
+                # Actual result (Fixed: handle ties explicitly for robustness)
                 if self.outcome_type == 'final':
-                    actual = 1.0 if row['home_goals_final'] > row['away_goals_final'] else 0.0
+                    if row['home_goals_final'] > row['away_goals_final']:
+                        actual = 1.0
+                    elif row['home_goals_final'] < row['away_goals_final']:
+                        actual = 0.0
+                    else:
+                        actual = 0.5 # Flexible default/fallback
                 else:
                     if row['home_goals_reg'] > row['away_goals_reg']: actual = 1.0
                     elif row['away_goals_reg'] > row['home_goals_reg']: actual = 0.0
                     else: actual = 0.5
                     
-                results.append({'p': p_hw, 'y': actual})
+                rep_results_list.append({'p': p_hw, 'y': actual})
                 
-            res_df = pd.DataFrame(results)
-            all_rep_results.append(res_df)
-            
+            res_df = pd.DataFrame(rep_results_list)
             # Calculate metrics for THIS rep (disable nested bootstrap for speed)
             metrics = self.calculate_metrics(res_df, n_boot=0)
+            return metrics, res_df, abilities
+
+        if self.n_jobs != 1 and split_method == 'random':
+            results = joblib.Parallel(n_jobs=self.n_jobs)(joblib.delayed(_run_single_rep)(r) for r in range(n_reps))
+        else:
+            results = [_run_single_rep(r) for r in range(n_reps)]
+            
+        for res in results:
+            if res is None: continue
+            metrics, res_df, abilities = res
             rep_metrics.append(metrics)
+            all_rep_results.append(res_df)
             
             if split_method == 'chronological':
                 break
@@ -1509,8 +1540,8 @@ def main():
     parser.add_argument('--outcome', type=str, default='final', help='final, regulation')
     parser.add_argument('--train-split', type=float, default=0.7)
     parser.add_argument('--n-boot', type=int, default=100) # Lower default for sweeps
-    
-    # Season Level Prediction Options
+    parser.add_argument('--parallel', action='store_true', help='Use parallel processing for bootstrap repetitions')
+    parser.add_argument('--n-jobs', type=int, default=-1, help='Number of parallel jobs (default -1 uses all cores)')
     parser.add_argument('--predict-season', action='store_true', help='If set, performs season-level cumulative statistics prediction')
     parser.add_argument('--cumulative-filter', type=str, default=None, help='Filter for cumulative statistics (wins/gd/xg). Defaults to same as --filter')
     parser.add_argument('--prediction-mode', type=str, default='rest_of_season', choices=['rest_of_season', 'end_of_season'], help='Predict rest of season or full season')
@@ -1546,7 +1577,8 @@ def main():
         for f in filters:
             m, f = m.strip(), f.strip()
             logger.info(f"==== Starting Sweep: Model={m}, Filter={f} ====")
-            evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot, args.matchup_logic)
+            n_jobs = args.n_jobs if args.parallel else 1
+            evaluator = PredictiveEvaluator(m, args.metric, f, args.matchup, args.outcome, args.n_boot, args.matchup_logic, n_jobs=n_jobs)
             
             if args.hockey_graphs:
                 hg_df = evaluator.run_hockey_graphs_stability(seasons, reps=args.reps, per_season=args.per_season, hg_metric=args.hg_metric)
