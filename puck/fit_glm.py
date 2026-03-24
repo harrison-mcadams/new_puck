@@ -99,7 +99,7 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
         return self
 
     @classmethod
-    def train(cls, df_raw: pd.DataFrame, save_path: str = None, verbose: bool = True):
+    def train(cls, df_raw: pd.DataFrame, save_path: str = None, verbose: bool = True, **kwargs):
         """
         High-level training routine.
         1. Preprocess
@@ -116,16 +116,18 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
         vprint("--- Training Non-Nested GLM (Poly/Tensor) Model ---")
         
         # 1. Preprocess
-        vprint("Applying Preprocessing Pipeline (excluding blocked shots)...")
+        vprint("Applying Preprocessing Pipeline...")
         df = data_pipeline.preprocess_features(
             df_raw, 
             is_training=True, 
             verbose=verbose, 
-            apply_arena_adjustments=True,
-            apply_imputation=False,
-            apply_dithering=True,
-            apply_filtering=True,
-            exclude_blocked=True
+            apply_arena_adjustments=kwargs.get('apply_arena_adjustments', True),
+            apply_imputation=kwargs.get('apply_imputation', True),
+            apply_dithering=kwargs.get('apply_dithering', True),
+            apply_filtering=kwargs.get('apply_filtering', True),
+            apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
+            apply_html_enrichment=kwargs.get('apply_html_enrichment', False),
+            impute_alpha=kwargs.get('impute_alpha', 0.2)
         )
 
         # 2. Split

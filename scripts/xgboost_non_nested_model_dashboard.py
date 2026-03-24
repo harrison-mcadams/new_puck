@@ -91,12 +91,13 @@ def main():
         'vocabs': fit_xgboost_non_nested.CATEGORICAL_VOCABS,
         'priors': model.categorical_priors_,
         'model_data': extract_booster_data(model.model, model.features),
-        'calibrator': extract_isotonic_params(model.calibrator),
+        'calibrator': None,
         'defaults': {
             'distance': 25.0, 'angle_deg': 0.0, 'game_state': '5v5', 'relative_game_state': '5v5',
             'shot_type': 'wrist', 'shooter_role': 'F', 'shoots_catches': 'L',
             'is_rush': 0, 'is_rebound': 0, 'is_home': 1, 'score_diff': 0,
-            'period_number': 2, 'speed_from_last_event': 0.0, 'last_event_type': 'faceoff'
+            'period_number': 2, 'speed_from_last_event': 7.5, 'last_event_type': 'giveaway',
+            'dist_from_last_event': 15.0, 'last_event_time_diff': 2.0
         },
         'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
         'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_non_nested.CATEGORICAL_VOCABS.items()}
@@ -119,7 +120,9 @@ def main():
         'is_rebound': [0, 1, 'Marginalized'],
         'is_home': [0, 1, 'Marginalized'],
         'period_number': [1, 2, 3, 4],
-        'score_diff': [-3, -2, -1, 0, 1, 2, 3]
+        'score_diff': [-3, -2, -1, 0, 1, 2, 3],
+        'dist_from_last_event': None,
+        'last_event_time_diff': None
     })
 
     json_data = json.dumps(json_serializable(export_data))
@@ -181,18 +184,7 @@ def main():
 
     function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
     
-    function isotonicInterpolate(x, knots) {
-        const {x: kx, y: ky} = knots;
-        if (x <= kx[0]) return ky[0];
-        if (x >= kx[kx.length-1]) return ky[ky.length-1];
-        let lo = 0, hi = kx.length - 1;
-        while (hi - lo > 1) {
-            let mid = (lo + hi) >> 1;
-            if (x >= kx[mid]) lo = mid; else hi = mid;
-        }
-        let t = (x - kx[lo]) / (kx[hi] - kx[lo]);
-        return ky[lo] + t * (ky[hi] - ky[lo]);
-    }
+    function isotonicInterpolate(x, knots) { return x; }
 
     function evaluateTree(node, featureValues) {
         if (!node) return 0;
@@ -283,8 +275,7 @@ def main():
                     }
                 });
 
-                let prob = sigmoid(evaluateForest(features));
-                if (MODEL.calibrator) prob = isotonicInterpolate(prob, MODEL.calibrator);
+                const prob = sigmoid(evaluateForest(features));
                 Z_xg[idx] = prob;
             }
         }
@@ -296,7 +287,7 @@ def main():
         const groups = {
             'Context': ['game_state', 'relative_game_state', 'is_home', 'score_diff', 'period_number'],
             'Shooter': ['shooter_role', 'shoots_catches', 'shot_type'],
-            'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event']
+            'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event', 'dist_from_last_event', 'last_event_time_diff']
         };
         for(const [gname, fields] of Object.entries(groups)) {
             let fs = document.createElement('fieldset');
@@ -310,12 +301,21 @@ def main():
                  let sel = document.createElement('select');
                  sel.id = 'in_' + f;
                  sel.onchange = updatePlot;
-                 let opts = MODEL.options[f] || ['Marginalized'];
-                 opts.forEach(o => {
-                     let opt = document.createElement('option');
-                     opt.value = o; opt.innerText = o;
-                     sel.appendChild(opt);
-                 });
+                 if (MODEL.options[f]) {
+                    MODEL.options[f].forEach(o => {
+                        let opt = document.createElement('option');
+                        opt.value = o; opt.innerText = o;
+                        sel.appendChild(opt);
+                    });
+                 } else {
+                    let steps = [0, 1, 2, 3, 5, 10, 15, 20, 30, 50, 80];
+                    if (f === 'last_event_time_diff') steps = [0, 0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 8, 12, 18];
+                    steps.forEach(s => {
+                        let opt = document.createElement('option');
+                        opt.value = s; opt.innerText = s;
+                        sel.appendChild(opt);
+                    });
+                 }
                  if (MODEL.defaults[f] !== undefined) sel.value = MODEL.defaults[f];
                  wrap.appendChild(sel);
                  fs.appendChild(wrap);

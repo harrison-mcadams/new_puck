@@ -95,7 +95,7 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         # Models & Calibrators
         self.model = None
-        self.calibrator = None
+        # Calibrator removed to prevent flattening of feature variance
         
         # Consistent Dtypes
         self.feature_dtypes = {}
@@ -155,22 +155,27 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     @classmethod
-    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, verbose: bool = True):
+    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, verbose: bool = True, **kwargs):
         from . import data_pipeline, model_summary
+        
         def vprint(*args):
             if verbose: print(*args)
 
         vprint("--- Training XGBoost (Non-Nested) Model ---")
         
+        # 1. Preprocess
+        vprint("Applying Preprocessing Pipeline...")
         df = data_pipeline.preprocess_features(
             df_raw, 
             is_training=True, 
             verbose=verbose, 
-            apply_arena_adjustments=True,
-            apply_imputation=False,
-            apply_dithering=True,
-            apply_filtering=True,
-            exclude_blocked=True
+            apply_arena_adjustments=kwargs.get('apply_arena_adjustments', True),
+            apply_imputation=kwargs.get('apply_imputation', True),
+            apply_dithering=kwargs.get('apply_dithering', True),
+            apply_filtering=kwargs.get('apply_filtering', True),
+            apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
+            apply_html_enrichment=kwargs.get('apply_html_enrichment', False),
+            impute_alpha=kwargs.get('impute_alpha', 0.2)
         )
 
         df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
@@ -222,9 +227,6 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = self._prepare_inference_df(X)
         p = self._predict_marginalized(self.model, df, self.features)
         
-        if self.calibrator:
-            p = self.calibrator.predict(p)
-            
         return np.column_stack((1 - p, p))
 
     def _prepare_training_df(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -308,12 +310,8 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         return p_base
 
     def _fit_calibrator(self, df_calib_raw: pd.DataFrame):
-        df_c = self._prepare_inference_df(df_calib_raw)
-        p_raw = self.predict_proba(df_c)[:, 1]
-        y_goal = (df_c['event'] == 'goal').astype(int)
-        if len(y_goal.unique()) > 1:
-            self.calibrator = IsotonicRegression(out_of_bounds='clip', y_min=0, y_max=1)
-            self.calibrator.fit(p_raw, y_goal)
+        # Calibrator removed to prevent flattening of feature variance
+        pass
 
 def train_xgboost(df_raw, **kwargs):
     return XGBNonNestedXGClassifier.train(df_raw, **kwargs)

@@ -41,9 +41,9 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
         
     # --- 1. Swap team_id ---
     # Use safe accessors (handle mixed types by casting to str for comparison)
-    t_id = df.get('team_id', pd.Series(dtype=object)).astype(str).values
-    h_id = df.get('home_id', pd.Series(dtype=object)).astype(str).values
-    a_id = df.get('away_id', pd.Series(dtype=object)).astype(str).values
+    t_id = df.get('team_id', pd.Series(dtype=object)).astype(str).to_numpy()
+    h_id = df.get('home_id', pd.Series(dtype=object)).astype(str).to_numpy()
+    a_id = df.get('away_id', pd.Series(dtype=object)).astype(str).to_numpy()
     
     # Mask where team == home
     mask_home_t = (t_id == h_id)
@@ -51,15 +51,16 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
     mask_away_t = (t_id == a_id)
     
     # New team ID array initialized with original
-    new_t_id = df['team_id'].values.copy()
+    new_t_id = df['team_id'].to_numpy().copy()
     
     # Apply swap logic
     # where team == home -> away
-    new_t_id[mask_home_t] = df.loc[mask_home_t, 'away_id'].values
+    new_t_id[mask_home_t] = df.loc[mask_home_t, 'away_id'].to_numpy()
     # where team == away -> home
-    new_t_id[mask_away_t] = df.loc[mask_away_t, 'home_id'].values
+    new_t_id[mask_away_t] = df.loc[mask_away_t, 'home_id'].to_numpy()
     
     # Assign back to blocked shots ONLY
+    # Ensure types match (e.g. if new_t_id is float but team_id was originally str or vice-versa)
     df.loc[is_blocked, 'team_id'] = new_t_id[is_blocked]
     
     # --- 1.5. Flip Coordinates (X, Y) ---
@@ -116,9 +117,9 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
          m4 = mask_home_t & cond_side_right
          target_xs[m4] = rg_x
          
-         # Apply to blocked shots
-         bx = df.loc[is_blocked, 'x'].values
-         by = df.loc[is_blocked, 'y'].values
+         # Apply to blocked shots with explicit numeric cast
+         bx = pd.to_numeric(df.loc[is_blocked, 'x'], errors='coerce').fillna(0).astype(float).values
+         by = pd.to_numeric(df.loc[is_blocked, 'y'], errors='coerce').fillna(0).astype(float).values
          gxs = target_xs[is_blocked]
          
          # Recalculate metrics

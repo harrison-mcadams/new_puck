@@ -43,7 +43,14 @@ def main():
     
     # 4. Call Consolidated Routine
     print(f"Fitting model and saving to {save_path}...")
-    fit_xgboost_nested.XGBNestedXGClassifier.train(df_raw, save_path=save_path, out_dir=str(out_dir), verbose=True)
+    fit_xgboost_nested.XGBNestedXGClassifier.train(
+        df_raw, 
+        save_path=save_path, 
+        out_dir=str(out_dir), 
+        verbose=True,
+        apply_attribution_fix=False,   # Already fixed in CSV
+        apply_html_enrichment=False    # Already enriched in CSV
+    )
 
     print("\n=== TRAINING COMPLETE ===")
     print(f"Model: {save_path}")

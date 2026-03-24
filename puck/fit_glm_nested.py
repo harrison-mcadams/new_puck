@@ -122,7 +122,7 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         return self
 
     @classmethod
-    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True):
+    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True, **kwargs):
         """
         High-level training routine for NestedGLM.
         1. Preprocess (including imputation)
@@ -144,11 +144,13 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
             df_raw, 
             is_training=True, 
             verbose=verbose, 
-            apply_arena_adjustments=True,
-            apply_imputation=True,
-            apply_dithering=True,
-            apply_filtering=True,
-            impute_alpha=0.2
+            apply_arena_adjustments=kwargs.get('apply_arena_adjustments', True),
+            apply_imputation=kwargs.get('apply_imputation', True),
+            apply_dithering=kwargs.get('apply_dithering', True),
+            apply_filtering=kwargs.get('apply_filtering', True),
+            apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
+            apply_html_enrichment=kwargs.get('apply_html_enrichment', False), # Usually already enriched in CSV
+            impute_alpha=kwargs.get('impute_alpha', 0.2)
         )
 
         # 2. Split

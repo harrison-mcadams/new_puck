@@ -44,7 +44,13 @@ def main():
     
     # 3. Call Consolidated Routine
     print(f"Fitting model and saving to {save_path}...")
-    fit_glm_nested.train_nested_glm(df_raw, save_path=save_path, verbose=True)
+    fit_glm_nested.train_nested_glm(
+        df_raw, 
+        save_path=save_path, 
+        verbose=True,
+        apply_attribution_fix=False,   # Already fixed in CSV
+        apply_html_enrichment=False    # Already enriched in CSV
+    )
 
     print("\n=== TRAINING COMPLETE ===")
     print(f"Model: {save_path}")

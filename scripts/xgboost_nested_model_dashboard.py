@@ -105,17 +105,43 @@ def main():
             'accuracy': extract_booster_data(model.model_acc, model.features),
             'finish': extract_booster_data(model.model_finish, model.features)
         },
-        'calibrators': {
-            'goal': extract_isotonic_params(model.calibrator_goal)
-        },
+        'calibrators': {},
         'defaults': {
             'distance': 25.0, 'angle_deg': 0.0, 'game_state': '5v5', 'relative_game_state': '5v5',
             'shot_type': 'wrist', 'shooter_role': 'F', 'shoots_catches': 'L',
             'is_rush': 0, 'is_rebound': 0, 'is_home': 1, 'score_diff': 0,
-            'period_number': 2, 'speed_from_last_event': 0.0, 'last_event_type': 'giveaway'
+            'period_number': 2, 'speed_from_last_event': 7.5, 'last_event_type': 'giveaway',
+            'dist_from_last_event': 15.0, 'last_event_time_diff': 2.0
         },
         'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
-        'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_nested.CATEGORICAL_VOCABS.items()}
+        'options': {str(k): list(v) + ['Marginalized'] for k, v in fit_xgboost_nested.CATEGORICAL_VOCABS.items()},
+        'presets': {
+            'Owen Tippett (Clean Shot)': {
+                'x': 78, 'y': 10, 'shot_type': 'wrist', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 0, 'period_number': 2, 'score_diff': 0,
+                'last_event_type': 'pass', 'last_event_time_diff': 2.0, 'dist_from_last_event': 30.0, 'speed_from_last_event': 15.0
+            },
+            'Classic Point Shot': {
+                'x': 28, 'y': 25, 'shot_type': 'slap', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 0, 'period_number': 1, 'score_diff': 0,
+                'last_event_type': 'pass', 'last_event_time_diff': 1.5, 'dist_from_last_event': 40.0, 'speed_from_last_event': 25.0
+            },
+            'High-Danger Rush': {
+                'x': 75, 'y': -5, 'shot_type': 'snap', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 1, 'is_rebound': 0, 'period_number': 3, 'score_diff': -1,
+                'last_event_type': 'zone-entry', 'last_event_time_diff': 3.0, 'dist_from_last_event': 60.0, 'speed_from_last_event': 35.0
+            },
+            'Rebound Scramble': {
+                'x': 85, 'y': 2, 'shot_type': 'backhand', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 1, 'period_number': 2, 'score_diff': 1,
+                'last_event_type': 'shot-on-goal', 'last_event_time_diff': 0.8, 'dist_from_last_event': 5.0, 'speed_from_last_event': 5.0
+            },
+            'Power Play Cross-Slot': {
+                'x': 72, 'y': -22, 'shot_type': 'slap', 'game_state': '5v4', 'relative_game_state': '5v4',
+                'is_rush': 0, 'is_rebound': 0, 'period_number': 1, 'score_diff': 0,
+                'last_event_type': 'pass', 'last_event_time_diff': 0.6, 'dist_from_last_event': 45.0, 'speed_from_last_event': 60.0
+            }
+        }
     }
 
     # Pre-calculate Spatial GLM Grids
@@ -133,13 +159,15 @@ def main():
         export_data['grid_spatial_layers'] = grid_spatial_layers
     
     # Add numerical options
-    export_data['options'].update({
+    extra_options = {
         'is_rush': [0, 1, 'Marginalized'],
         'is_rebound': [0, 1, 'Marginalized'],
         'is_home': [0, 1, 'Marginalized'],
         'period_number': [1, 2, 3, 4],
         'score_diff': [-3, -2, -1, 0, 1, 2, 3]
-    })
+    }
+    for k, v in extra_options.items():
+        export_data['options'][k] = v
 
     json_data = json.dumps(json_serializable(export_data))
     rink_shapes_json = json.dumps(get_rink_shapes())
@@ -161,6 +189,9 @@ def main():
         .field { margin-bottom: 12px; }
         label { display: block; font-size: 0.8em; color: #888; margin-bottom: 4px; }
         select { width: 100%; background: #333; color: white; border: 1px solid #444; padding: 6px; border-radius: 4px; box-sizing: border-box; }
+        input[type=range] { width: 100%; margin-top: 8px; -webkit-appearance: none; background: #444; height: 4px; border-radius: 2px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #00ff88; border-radius: 50%; cursor: pointer; }
+        .field label span { font-weight: bold; color: #00ff88; float: right; }
         .btn-row { display: flex; gap: 10px; margin-top: 20px; }
         button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
         .btn-baseline { background: #2d5a27; color: #fff; }
@@ -200,19 +231,7 @@ def main():
 
     function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
     
-    function isotonicInterpolate(x, knots) {
-        const {x: kx, y: ky} = knots;
-        if (x <= kx[0]) return ky[0];
-        if (x >= kx[kx.length-1]) return ky[ky.length-1];
-        let lo = 0, hi = kx.length - 1;
-        while (hi - lo > 1) {
-            let mid = (lo + hi) >> 1;
-            if (x >= kx[mid]) lo = mid;
-            else hi = mid;
-        }
-        let t = (x - kx[lo]) / (kx[hi] - kx[lo]);
-        return ky[lo] + t * (ky[hi] - ky[lo]);
-    }
+    function isotonicInterpolate(x, knots) { return x; }
     function evaluateTree(node, featureValues) {
         if (!node) return 0;
         if (node.leaf !== undefined) return node.leaf;
@@ -324,8 +343,7 @@ def main():
                     const p_acc = sigmoid(m_acc);
                     const p_fin = sigmoid(m_fin);
                     
-                    let p_xg = (1 - p_block) * p_acc * p_fin;
-                    if (MODEL.calibrators.goal) p_xg = isotonicInterpolate(p_xg, MODEL.calibrators.goal);
+                    const p_xg = (1 - p_block) * p_acc * p_fin;
 
                     if (r === 0 && c === 0) {
                         console.log("DEBUG [0,0]:", {
@@ -352,44 +370,103 @@ def main():
 
     function init() {
         const inputDiv = document.getElementById('inputs-container');
+        
+        // 1. Add Preset Selector at the top
+        let presetWrap = document.createElement('div');
+        presetWrap.className = 'ctrl-group';
+        presetWrap.innerHTML = `<legend>Scenario Presets</legend>
+            <select id="preset-select" onchange="applyPreset(this.value)">
+                <option value="">-- Select a Scenario --</option>
+                ${Object.keys(MODEL.presets).map(k => `<option value="${k}">${k}</option>`).join('')}
+            </select>`;
+        inputDiv.appendChild(presetWrap);
+
         const groups = {
             'Context': ['game_state', 'relative_game_state', 'is_home', 'score_diff', 'period_number'],
             'Shooter': ['shooter_role', 'shoots_catches', 'shot_type'],
-            'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event']
+            'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event', 'dist_from_last_event', 'last_event_time_diff']
         };
+
+        const numericRanges = {
+            'speed_from_last_event': {min: 0, max: 60, step: 1},
+            'dist_from_last_event': {min: 0, max: 100, step: 1},
+            'last_event_time_diff': {min: 0.1, max: 20, step: 0.1},
+            'score_diff': {min: -5, max: 5, step: 1},
+            'period_number': {min: 1, max: 4, step: 1}
+        };
+
         for(const [gname, fields] of Object.entries(groups)) {
             let fs = document.createElement('fieldset');
             fs.className = 'ctrl-group';
             fs.innerHTML = `<legend>${gname}</legend>`;
             fields.forEach(f => {
-                 if (!MODEL.features.includes(f) && !MODEL.options[f]) return;
+                 if (!MODEL.features.includes(f) && !MODEL.options[f] && !numericRanges[f]) return;
                  let wrap = document.createElement('div');
                  wrap.className = 'field';
-                 wrap.innerHTML = `<label>${f}</label>`;
-                 let sel = document.createElement('select');
-                 sel.id = 'in_' + f;
-                 sel.onchange = updatePlot;
-                 let opts = MODEL.options[f] || ['Marginalized'];
-                 opts.forEach(o => {
-                     let opt = document.createElement('option');
-                     opt.value = o; opt.innerText = o;
-                     sel.appendChild(opt);
-                 });
-                 if (MODEL.defaults[f] !== undefined) sel.value = MODEL.defaults[f];
-                 wrap.appendChild(sel);
+                 
+                 if (numericRanges[f]) {
+                    // Slider
+                    let r = numericRanges[f];
+                    wrap.innerHTML = `<label>${f}: <span id="val_${f}"></span></label>`;
+                    let sli = document.createElement('input');
+                    sli.type = 'range'; sli.id = 'in_' + f;
+                    sli.min = r.min; sli.max = r.max; sli.step = r.step;
+                    sli.oninput = () => { document.getElementById('val_' + f).innerText = sli.value; updatePlot(); };
+                    if (MODEL.defaults[f] !== undefined) sli.value = MODEL.defaults[f];
+                    wrap.appendChild(sli);
+                 } else if (MODEL.options[f]) {
+                    // Select
+                    wrap.innerHTML = `<label>${f}</label>`;
+                    let sel = document.createElement('select');
+                    sel.id = 'in_' + f;
+                    sel.onchange = updatePlot;
+                    MODEL.options[f].forEach(o => {
+                        let opt = document.createElement('option');
+                        opt.value = o; opt.innerText = o;
+                        sel.appendChild(opt);
+                    });
+                    if (MODEL.defaults[f] !== undefined) sel.value = MODEL.defaults[f];
+                    wrap.appendChild(sel);
+                 } else {
+                    // Fallback to simple number input or similar if needed, but numericRanges covers primary ones
+                 }
                  fs.appendChild(wrap);
             });
             inputDiv.appendChild(fs);
         }
+
+        // Initialize display values for sliders
+        Object.keys(numericRanges).forEach(f => {
+            let el = document.getElementById('in_' + f);
+            if (el) document.getElementById('val_' + f).innerText = el.value;
+        });
+
         console.log("Initializing UI. Features in MODEL:", MODEL.features);
         document.getElementById('loading').style.display = 'none';
         updatePlot();
     }
 
+    function applyPreset(name) {
+        if (!name || !MODEL.presets[name]) return;
+        const p = MODEL.presets[name];
+        for (const [key, val] of Object.entries(p)) {
+            const el = document.getElementById('in_' + key);
+            if (el) {
+                el.value = val;
+                // Update label if it's a slider
+                const lbl = document.getElementById('val_' + key);
+                if (lbl) lbl.innerText = val;
+            }
+        }
+        updatePlot();
+    }
+
     function getInputs() {
         let inp = {};
-        document.querySelectorAll('select').forEach(s => {
-            inp[s.id.substring(3)] = s.value;
+        document.querySelectorAll('select, input[type="range"]').forEach(s => {
+            if (s.id.startsWith('in_')) {
+                inp[s.id.substring(3)] = s.value;
+            }
         });
         return inp;
     }

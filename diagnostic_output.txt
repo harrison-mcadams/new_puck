@@ -1,0 +1,27 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- PIEPLINE PREPROCESSED FEATURES ---
+      x     y   distance   angle_deg
+0  89.0   0.0   0.000000    0.000000
+1  70.0   0.0  19.000000   90.000000
+2  70.0  20.0  27.586228  136.468801
+3  70.0 -20.0  27.586228   43.531199
+4  25.0   0.0  64.000000   90.000000
+
+--- MODEL PREDICTIONS ---
+Error loading Nested GLM: "['angle_change_last_event'] not in index"
+Error loading Non-Nested GLM: "['angle_change_last_event'] not in index"
+
+Nested XGBoost:
+  Direct Front (Goal): 0.2795
+  Center Ice (20ft out): 0.3113
+  Right Wing (20x20): 0.1961
+  Left Wing (20x20): 0.2166
+  Blue Line (64ft out): 0.0176
+
+Non-Nested XGBoost:
+  Direct Front (Goal): 0.2471
+  Center Ice (20ft out): 0.0865
+  Right Wing (20x20): 0.0736
+  Left Wing (20x20): 0.0869
+  Blue Line (64ft out): 0.0125

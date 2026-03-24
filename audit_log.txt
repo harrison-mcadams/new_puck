@@ -1,794 +1,129 @@
 Config: Platform=Mac/PC, Workers=4
 Data Dir: C:/Users/harri/Desktop/new_puck/data
-Starting Season Audit...
-Loading API CSV: data/20252026.csv
-Found 753 games.
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=62
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=22
-Processed 20/753...DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=31
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=26
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=20
-Processed 40/753...DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=28
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=26
-DEBUG: gs_timeline len=94
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=69
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=13
-Processed 60/753...DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=14
-Processed 80/753...DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=69
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=5
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=63
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=13
-Processed 100/753...DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=52
-DEBUG: gs_timeline len=19
-Processed 120/753...DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=75
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=33
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=12
-Processed 140/753...DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=17
-Processed 160/753...DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=23
-Processed 180/753...DEBUG: gs_timeline len=31
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=77
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=71
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=12
-Processed 200/753...DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=28
-DEBUG: gs_timeline len=26
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=62
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=13
-Processed 220/753...DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=26
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=64
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-Processed 240/753...DEBUG: gs_timeline len=68
-DEBUG: gs_timeline len=63
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=50
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=73
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=22
-Processed 260/753...DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=50
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=54
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=60
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=74
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=28
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=10
-Processed 280/753...DEBUG: gs_timeline len=6
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=31
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=59
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=20
-Processed 300/753...DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=60
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=11
-Processed 320/753...DEBUG: gs_timeline len=60
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=44
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=15
-Processed 340/753...DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=60
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=75
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=52
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=59
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-Processed 360/753...DEBUG: gs_timeline len=56
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=5
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=26
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=7
-Processed 380/753...DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=31
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=16
-Processed 400/753...DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=71
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=59
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=65
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=63
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=71
-DEBUG: gs_timeline len=54
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=17
-Processed 420/753...DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=54
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=24
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=71
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=51
-Processed 440/753...DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=73
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=47
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=18
-Processed 460/753...DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=72
-DEBUG: gs_timeline len=53
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=56
-DEBUG: gs_timeline len=75
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=57
-DEBUG: gs_timeline len=71
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=27
-Processed 480/753...DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=45
-DEBUG: gs_timeline len=65
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=51
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=8
-Processed 500/753...DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=30
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=53
-DEBUG: gs_timeline len=15
-Processed 520/753...DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=61
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=18
-Processed 540/753...DEBUG: gs_timeline len=61
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=7
-Processed 560/753...DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=28
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=19
-Processed 580/753...DEBUG: gs_timeline len=2
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=3
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=2
-Processed 600/753...DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=5
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=29
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=66
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=5
-Processed 620/753...DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=3
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=58
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=62
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=13
-Processed 640/753...DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=0
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=63
-Processed 660/753...DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=53
-DEBUG: gs_timeline len=65
-DEBUG: gs_timeline len=74
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=55
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=23
-Processed 680/753...DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=17
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=52
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=10
-Processed 700/753...DEBUG: gs_timeline len=19
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=73
-DEBUG: gs_timeline len=20
-DEBUG: gs_timeline len=22
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=60
-DEBUG: gs_timeline len=13
-DEBUG: gs_timeline len=9
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=29
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=22
-Processed 720/753...DEBUG: gs_timeline len=7
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=18
-DEBUG: gs_timeline len=14
-DEBUG: gs_timeline len=15
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=16
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=60
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=66
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=11
-DEBUG: gs_timeline len=15
-Processed 740/753...DEBUG: gs_timeline len=23
-DEBUG: gs_timeline len=64
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=51
-DEBUG: gs_timeline len=21
-DEBUG: gs_timeline len=53
-DEBUG: gs_timeline len=8
-DEBUG: gs_timeline len=12
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=25
-DEBUG: gs_timeline len=27
-DEBUG: gs_timeline len=10
-DEBUG: gs_timeline len=14
 
-Audit Complete. Saved to audit_shift_stats.csv
+========================================================
+VERIFYING SEASON: 2020-21 | GAME: 2020020004
+========================================================
 
---- Summary Stats ---
-count    753.000000
-mean       8.613546
-std       20.037549
-min        0.000000
-25%        1.000000
-50%        2.000000
-75%        3.000000
-max      122.000000
-Name: abs_diff, dtype: float64
+[RAW API DATA]
+  Event Type:   blocked-shot (508)
+  Owner Team:   23 (Blocker's Team)
+  Shooter ID:   None
+  Blocker ID:   8476326
+  Raw ShotType: None
+  Raw Coords:   (-45, -33)
+  Temporal:     P1 05:11
 
---- Top 20 Outliers ({API} > {Shift} indicates Shift data data missing) ---
-        game_id home away  api_n  shift_n  diff
-654  2025020655  LAK  MIN    122        0   122
-599  2025020600  VGK  COL    120        0   120
-642  2025020643  ANA  MIN    119        0   119
-596  2025020597  LAK  ANA    112        0   112
-645  2025020646  CBJ  BUF    112        0   112
-651  2025020652  WSH  CHI    106        0   106
-602  2025020603  CBJ  NYI    105        0   105
-653  2025020654  CGY  NSH    105        0   105
-597  2025020598  CGY  EDM    104        0   104
-601  2025020602  TBL  MTL    104        0   104
-641  2025020642  VAN  SEA    102        0   102
-640  2025020641  FLA  NYR     98        0    98
-650  2025020651  NYI  TOR     98        0    98
-646  2025020647  EDM  PHI     97        0    97
-711  2025020712  BOS  PIT     97        0    97
-598  2025020599  VAN  SJS     91        0    91
-644  2025020645  NJD  UTA     91        0    91
-652  2025020653  CAR  COL     90        0    90
-655  2025020656  VAN  BOS     85        0    85
-643  2025020644  DET  PIT     85        0    85
+[PIPELINE STARTING...]
+Preprocessing 1 rows. Training=False, Impute=False, Adjust=True
+  Correcting Attribution: Blocked Shots (Blocker -> Shooter)...
+  Enriching shots with HTML PBP for game 2020020004...
+
+[PIPELINE PROCESSED]
+  Final Team ID: 22 (Attacker: YES)
+  Final Coords:  (-45.00, -33.00)
+  Final ShotTyp: wrist
+  Distance:      138.00
+  Angle:         346.17
+
+========================================================
+VERIFYING SEASON: 2021-22 | GAME: 2021020001
+========================================================
+
+[RAW API DATA]
+  Event Type:   blocked-shot (508)
+  Owner Team:   14 (Blocker's Team)
+  Shooter ID:   None
+  Blocker ID:   8476934
+  Raw ShotType: None
+  Raw Coords:   (60, -17)
+  Temporal:     P1 01:25
+
+[PIPELINE STARTING...]
+Preprocessing 1 rows. Training=False, Impute=False, Adjust=True
+  Correcting Attribution: Blocked Shots (Blocker -> Shooter)...
+  Enriching shots with HTML PBP for game 2021020001...
+  Flipping 1 events to Right-Attack orientation.
+
+[PIPELINE PROCESSED]
+  Final Team ID: 5 (Attacker: YES)
+  Final Coords:  (-60.00, 17.00)
+  Final ShotTyp: wrist
+  Distance:      149.97
+  Angle:         6.51
+
+========================================================
+VERIFYING SEASON: 2022-23 | GAME: 2022020002
+========================================================
+
+[RAW API DATA]
+  Event Type:   blocked-shot (508)
+  Owner Team:   18 (Blocker's Team)
+  Shooter ID:   None
+  Blocker ID:   8476881
+  Raw ShotType: None
+  Raw Coords:   (-51, 7)
+  Temporal:     P1 02:29
+
+[PIPELINE STARTING...]
+Preprocessing 1 rows. Training=False, Impute=False, Adjust=True
+  Correcting Attribution: Blocked Shots (Blocker -> Shooter)...
+  Enriching shots with HTML PBP for game 2022020002...
+
+[PIPELINE PROCESSED]
+  Final Team ID: 28 (Attacker: YES)
+  Final Coords:  (-51.00, 7.00)
+  Final ShotTyp: slap
+  Distance:      140.17
+  Angle:         2.86
+
+========================================================
+VERIFYING SEASON: 2023-24 | GAME: 2023020003
+========================================================
+
+[RAW API DATA]
+  Event Type:   blocked-shot (508)
+  Owner Team:   55 (Blocker's Team)
+  Shooter ID:   None
+  Blocker ID:   8479980
+  Raw ShotType: None
+  Raw Coords:   (69, 0)
+  Temporal:     P1 00:43
+
+[PIPELINE STARTING...]
+Preprocessing 1 rows. Training=False, Impute=False, Adjust=True
+  Correcting Attribution: Blocked Shots (Blocker -> Shooter)...
+  Enriching shots with HTML PBP for game 2023020003...
+  Flipping 1 events to Right-Attack orientation.
+
+[PIPELINE PROCESSED]
+  Final Team ID: 54 (Attacker: YES)
+  Final Coords:  (-69.00, -0.00)
+  Final ShotTyp: wrist
+  Distance:      158.00
+  Angle:         0.00
+
+========================================================
+VERIFYING SEASON: 2024-25 | GAME: 2024020005
+========================================================
+
+[RAW API DATA]
+  Event Type:   blocked-shot (508)
+  Owner Team:   16 (Blocker's Team)
+  Shooter ID:   None
+  Blocker ID:   8474013
+  Raw ShotType: None
+  Raw Coords:   (-51, -17)
+  Temporal:     P1 01:15
+
+[PIPELINE STARTING...]
+Preprocessing 1 rows. Training=False, Impute=False, Adjust=True
+  Correcting Attribution: Blocked Shots (Blocker -> Shooter)...
+  Enriching shots with HTML PBP for game 2024020005...
+
+[PIPELINE PROCESSED]
+  Final Team ID: 59 (Attacker: YES)
+  Final Coords:  (-51.00, -17.00)
+  Final ShotTyp: snap
+  Distance:      141.03
+  Angle:         353.08

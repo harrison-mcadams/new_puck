@@ -1,0 +1,39 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- PIEPLINE PREPROCESSED FEATURES ---
+      x     y   distance   angle_deg
+0  89.0   0.0   0.000000    0.000000
+1  70.0   0.0  19.000000   90.000000
+2  70.0  20.0  27.586228  136.468801
+3  70.0 -20.0  27.586228   43.531199
+4  25.0   0.0  64.000000   90.000000
+
+--- MODEL PREDICTIONS ---
+
+Nested GLM:
+  Direct Front (Goal): 0.2472
+  Center Ice (20ft out): 0.0869
+  Right Wing (20x20): 0.0339
+  Left Wing (20x20): 0.0363
+  Blue Line (64ft out): 0.0057
+
+Non-Nested GLM:
+  Direct Front (Goal): 0.3773
+  Center Ice (20ft out): 0.1099
+  Right Wing (20x20): 0.0478
+  Left Wing (20x20): 0.0516
+  Blue Line (64ft out): 0.0104
+
+Nested XGBoost:
+  Direct Front (Goal): 0.6999
+  Center Ice (20ft out): 0.3890
+  Right Wing (20x20): 0.2045
+  Left Wing (20x20): 0.2450
+  Blue Line (64ft out): 0.0225
+
+Non-Nested XGBoost:
+  Direct Front (Goal): 0.1123
+  Center Ice (20ft out): 0.0716
+  Right Wing (20x20): 0.0518
+  Left Wing (20x20): 0.0327
+  Blue Line (64ft out): 0.0107

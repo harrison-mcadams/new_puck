@@ -41,8 +41,16 @@ def main():
     save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_non_nested_20202021.joblib')
     
     # 4. Call Consolidated Routine
+    # 4. Call Consolidated Routine
     print(f"Fitting model and saving to {save_path}...")
-    fit_xgboost_non_nested.XGBNonNestedXGClassifier.train(df_raw, save_path=save_path, verbose=True)
+    fit_xgboost_non_nested.XGBNonNestedXGClassifier.train(
+        df_raw, 
+        save_path=save_path, 
+        verbose=True,
+        apply_attribution_fix=False,   # Already fixed in CSV
+        apply_html_enrichment=False,   # Already enriched in CSV
+        exclude_blocked=True           # Non-nested models should exclude blocked shots from training target
+    )
 
     print("\n=== TRAINING COMPLETE ===")
     print(f"Model: {save_path}")

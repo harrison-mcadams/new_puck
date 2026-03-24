@@ -130,7 +130,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_finish = None
         
         # Calibrators
-        self.calibrator_goal = None
+        # (Calibrators removed to prevent flattening of feature variance in dashboards)
         
         # Consistent Dtypes for Inference
         self.feature_dtypes = {}
@@ -209,7 +209,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         return self
 
     @classmethod
-    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True):
+    def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True, **kwargs):
         """
         High-level training routine for XGBoost Nested Model.
         """
@@ -226,11 +226,13 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             df_raw, 
             is_training=True, 
             verbose=verbose, 
-            apply_arena_adjustments=True,
-            apply_imputation=True,
-            apply_dithering=True,
-            apply_filtering=True,
-            impute_alpha=0.2
+            apply_arena_adjustments=kwargs.get('apply_arena_adjustments', True),
+            apply_imputation=kwargs.get('apply_imputation', True),
+            apply_dithering=kwargs.get('apply_dithering', True),
+            apply_filtering=kwargs.get('apply_filtering', True),
+            apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
+            apply_html_enrichment=kwargs.get('apply_html_enrichment', False), # Usually already enriched in CSV
+            impute_alpha=kwargs.get('impute_alpha', 0.2)
         )
 
         # 2. Split
@@ -315,10 +317,6 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         p_goal = p_unblocked * p_acc * p_finish
         
-        # 3. Final Calibration
-        if self.calibrator_goal:
-            p_goal = self.calibrator_goal.predict(p_goal)
-            
         return np.column_stack((1 - p_goal, p_goal))
 
     def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
@@ -455,15 +453,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         return p_base
 
     def _fit_calibrators(self, df_calib_raw: pd.DataFrame):
-        df_c = self._prepare_inference_df(df_calib_raw)
-        
-        # 2. Goal Calibrator
-        p_goal_est = self.predict_proba(df_c)[:, 1]
-        y_goal = (df_c['event'] == 'goal').astype(int)
-        
-        if len(y_goal.unique()) > 1:
-            self.calibrator_goal = IsotonicRegression(out_of_bounds='clip', y_min=0, y_max=1)
-            self.calibrator_goal.fit(p_goal_est, y_goal)
+        # Calibrators removed to prevent flattening of feature variance.
+        # XGBoost (hist) is natively well-calibrated via log-loss.
+        pass
 
     @staticmethod
     def _plot_calibration(clf, df_test, diag_dir):
