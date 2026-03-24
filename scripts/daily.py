@@ -6,6 +6,11 @@ Workflow:
 2. Pre-Compute Intervals: Generate shared interval cache for 5v5, 5v4, 4v5.
 3. Run Player Analysis: Incremental update of player stats and maps.
 4. Run Team Analysis: Incremental update of team stats and maps.
+
+ARCHITECTURAL WARNING:
+Coordinate orientation and blocked-shot attribution are centralized in `puck/data_pipeline.py`.
+The pipeline uses a "Right-Attack" standardized orientation (x towards +89).
+DO NOT add coordinate flips in this script or sub-scripts; double-flipping causes severe xG inflation.
 """
 
 import os

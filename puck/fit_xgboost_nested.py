@@ -164,7 +164,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         logger.info(f"Learned Categorical Priors: {list(self.categorical_priors_.keys())}")
 
         # 2. Block Model (Trained on ALL shots)
-        feat_block = [f for f in self.features if f != 'shot_type']
+        feat_block = self.features
         if 'spatial_block' not in feat_block:
              feat_block.append('spatial_block')
              
@@ -304,7 +304,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         df = self._prepare_inference_df(X)
         
         # 1. P(Blocked)
-        feat_block = [f for f in self.features if f != 'shot_type']
+        feat_block = self.features
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
         p_blocked = self.model_block.predict_proba(df[feat_block])[:, 1]
@@ -322,7 +322,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
         df = self._prepare_inference_df(X)
         if layer == 'block':
-            feat_block = [f for f in self.features if f != 'shot_type']
+            feat_block = self.features
             return self.model_block.predict_proba(df[feat_block])[:, 1]
         elif layer == 'accuracy':
             return self._predict_marginalized(self.model_acc, df, self.features)

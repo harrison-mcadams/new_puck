@@ -28,6 +28,12 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
             
     Returns:
         pd.DataFrame: The modified DataFrame (copy).
+
+    CRITICAL NOTE ON COORDINATES:
+    This function ONLY swaps team attribution and recalculates distance/angle.
+    It MUST NOT perform unconditional coordinate flipping (* -1). 
+    If you flip here, and the data is later processed by `data_pipeline.py`, 
+    it will result in "double-flipping" (data corruption).
     """
     df = df.copy()
     
@@ -64,8 +70,9 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
     df.loc[is_blocked, 'team_id'] = new_t_id[is_blocked]
     
     # --- 1.5. Flip Coordinates (X, Y) for blocked shots ---
-    # REMOVED: Redundant flip. Downstream data_pipeline handles 
-    # orientation standardization based on the new Attack-Goal state.
+    # CRITICAL: DO NOT ADD COORDINATE FLIPS HERE.
+    # Orientation standardization is handled at the source (data_pipeline.py).
+    # Unconditional flipping here causes double-flipping in repetitive runs.
     pass
 
     

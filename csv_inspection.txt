@@ -1,0 +1,30 @@
+Inspecting data/20232024.csv...
+       game_id         event  team_id  ...     x     y  home_team_defending_side
+2   2023020003   missed-shot       55  ...  29.0  -4.0                     right
+5   2023020003  blocked-shot       55  ...  69.0   0.0                     right
+8   2023020003  shot-on-goal       55  ...  74.0  25.0                     right
+9   2023020003  shot-on-goal       55  ...  87.0  -5.0                     right
+10  2023020003  shot-on-goal       55  ...  68.0  12.0                     right
+11  2023020003  shot-on-goal       55  ...  19.0  25.0                     right
+14  2023020003  blocked-shot       55  ...  86.0  -4.0                     right
+15  2023020003   missed-shot       55  ...  54.0   3.0                     right
+20  2023020003   missed-shot       55  ...  58.0  11.0                     right
+23  2023020003  blocked-shot       54  ... -60.0 -20.0                     right
+
+[10 rows x 7 columns]
+----------------------------------------
+Inspecting data/20252026.csv...
+       game_id         event  ...          y  home_team_defending_side
+2   2025020005  shot-on-goal  ...  23.290000                     right
+7   2025020005   missed-shot  ... -14.000000                      left
+8   2025020005   missed-shot  ... -19.570000                      left
+12  2025020005  shot-on-goal  ...  -1.000000                      left
+14  2025020005  shot-on-goal  ...   5.000000                      left
+16  2025020005  shot-on-goal  ...  -7.000000                      left
+32  2025020005   missed-shot  ...  19.570000                     right
+37  2025020005  blocked-shot  ...  42.000000                      left
+38  2025020005  blocked-shot  ...  19.051456                      left
+42  2025020005  shot-on-goal  ... -34.000000                     right
+
+[10 rows x 7 columns]
+----------------------------------------

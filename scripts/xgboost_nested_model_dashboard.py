@@ -101,7 +101,7 @@ def main():
         'vocabs': fit_xgboost_nested.CATEGORICAL_VOCABS,
         'priors': model.categorical_priors_,
         'layers': {
-            'block': extract_booster_data(model.model_block, [f for f in model.features if f != 'shot_type']),
+            'block': extract_booster_data(model.model_block, model.features),
             'accuracy': extract_booster_data(model.model_acc, model.features),
             'finish': extract_booster_data(model.model_finish, model.features)
         },

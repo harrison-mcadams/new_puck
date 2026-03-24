@@ -1,0 +1,28 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Verifying 20232024...
+RAW (from CSV):
+          event  is_home     x    y home_team_defending_side
+1  shot-on-goal        1  78.0 -1.0                     left
+3  shot-on-goal        1  93.0 -4.0                     left
+4  shot-on-goal        1  80.0  7.0                     left
+
+PROCESSED (thru pipeline):
+          event  is_home      x    y home_team_defending_side
+1  shot-on-goal        1  79.00 -1.0                     left
+3  shot-on-goal        1  92.71 -4.0                     left
+4  shot-on-goal        1  81.00  7.0                     left
+----------------------------------------
+Verifying 20252026...
+RAW (from CSV):
+          event  is_home      x      y home_team_defending_side
+2  shot-on-goal        0  10.86  23.29                    right
+7   missed-shot        1  79.43 -14.00                     left
+8   missed-shot        1  53.00 -19.57                     left
+
+PROCESSED (thru pipeline):
+          event  is_home      x      y home_team_defending_side
+2  shot-on-goal        0  10.86  23.29                    right
+7   missed-shot        1  79.43 -14.00                     left
+8   missed-shot        1  53.00 -19.57                     left
+----------------------------------------

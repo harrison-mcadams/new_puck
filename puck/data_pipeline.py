@@ -2,6 +2,18 @@
 
 Centralized pipeline for preprocessing PBP data for Training and Inference.
 Refactored from logic previously in scripts/train_xgboost_model.py and puck/analyze.py.
+
+ARCHITECTURE NOTE - COORDINATE FLOW:
+1. Raw API Data (PBP) arrives with 'blocked-shots' attributed to the DEFENSE.
+2. correction.fix_blocked_shot_attribution():
+   - Swaps 'team_id' and 'event_owner_team_id' to the ATTACKER.
+   - This ensures we are predicting "Will this player score?" NOT "Will this player block?".
+3. Orientation Standardization:
+   - ALL shots are flipped to a "Right-Attack" orientation (x towards +89 goal).
+   - This is the canonical frame for ALL models (XGBoost, GLM, etc.).
+4. Synchronization:
+   - 'x/y' and 'x_adj/y_adj' MUST be flipped in tandem. 
+   - Coordinate flipping is IDEMPOTENT; multiple runs detect attacking_side to avoid double-flipping.
 """
 
 import pandas as pd
@@ -142,7 +154,13 @@ def preprocess_features(df_input: pd.DataFrame,
         vprint(f"  Enriching shots with HTML PBP for game {game_id}...")
         df = html_enrichment.enrich_blocks_with_html(df, game_id)
 
-    # 2. Standardize Orientation (Attack Right)
+    # 2. Standardize Orientation (Canonical "Right-Attack" Frame)
+    # We rotate/flip all shots so that the shooting team is attacking the goal at x=89.0.
+    # This normalization is required for all models to learn consistent spatial patterns.
+    # 
+    # IDEMPOTENCY: We determine the "attacking side" based on current home_defending_side 
+    # and the team_id. If a shot is already flipped, the calculation below will identify 
+    # it as "Right-Attack" and omit the second flip.
     if 'x' in df.columns and 'home_team_defending_side' in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
         # Determine Coordinate Flip
         side_str = df['home_team_defending_side'].astype(str).str.lower().str.strip()

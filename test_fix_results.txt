@@ -1,0 +1,26 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Traceback (most recent call last):
+  File "C:\Users\harri\Desktop\new_puck\tmp_test_fix.py", line 5, in <module>
+    from scripts import evaluate_predictive_power as eval_script
+  File "C:\Users\harri\Desktop\new_puck\scripts\evaluate_predictive_power.py", line 84, in <module>
+    from puck import moneypuck, data_pipeline
+  File "C:\Users\harri\Desktop\new_puck\puck\data_pipeline.py", line 25, in <module>
+    from . import correction, impute, arena_adjustments, features, config, html_enrichment
+  File "C:\Users\harri\Desktop\new_puck\puck\html_enrichment.py", line 5, in <module>
+    from bs4 import BeautifulSoup
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\bs4\__init__.py", line 65, in <module>
+    from .builder import (
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\bs4\builder\__init__.py", line 24, in <module>
+    from bs4.element import (
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\bs4\element.py", line 9, in <module>
+    from bs4.css import CSS
+  File "C:\Users\harri\AppData\Local\Programs\Python\Python312\Lib\site-packages\bs4\css.py", line 28, in <module>
+    from bs4._typing import _NamespaceMapping
+  File "<frozen importlib._bootstrap>", line 1360, in _find_and_load
+  File "<frozen importlib._bootstrap>", line 1331, in _find_and_load_unlocked
+  File "<frozen importlib._bootstrap>", line 935, in _load_unlocked
+  File "<frozen importlib._bootstrap_external>", line 995, in exec_module
+  File "<frozen importlib._bootstrap_external>", line 1091, in get_code
+  File "<frozen importlib._bootstrap_external>", line 1190, in get_data
+KeyboardInterrupt

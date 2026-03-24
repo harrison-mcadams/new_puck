@@ -1,0 +1,18 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+Checking calibration for 20202021...
+Actual Goals: 4914
+Total Shots: 93781
+Model xgboost_nested Total xG: 4373.34 (Ratio: 0.8900)
+Model xgboost_non_nested Total xG: 4868.38 (Ratio: 0.9907)
+Model nested_xg Total xG: 6532.21 (Ratio: 1.3293)
+Model non_nested_xg Total xG: 7652.15 (Ratio: 1.5572)
+--------------------
+Checking calibration for 20232024...
+Actual Goals: 7821
+Total Shots: 159171
+Model xgboost_nested Total xG: 7174.68 (Ratio: 0.9174)
+Model xgboost_non_nested Total xG: 7836.96 (Ratio: 1.0020)
+Model nested_xg Total xG: 10516.26 (Ratio: 1.3446)
+Model non_nested_xg Total xG: 12312.32 (Ratio: 1.5743)
+--------------------

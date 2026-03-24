@@ -70,7 +70,6 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         logger.info(f"Fitting NestedGLM on {len(X)} rows. Poly Degree={self.poly_degree}, Splines={self.use_splines}")
 
         df = X.copy()
-        # Note: TensorSpline handles interaction internally, no need for _enrich_interaction
         
         logger.info(f"Final Feature Set ({len(self.features)}): {self.features}")
         
@@ -88,8 +87,8 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
             logger.info(f"Learned Shot Type Priors: {self.shot_type_priors_}")
 
         # 1. Block Model (Trained on ALL shots)
-        # Exclude 'shot_type'
-        block_features = [f for f in self.features if f != 'shot_type']
+        # We now INCLUDE shot_type in the block model as requested.
+        block_features = self.features
         logger.info(f"  Fitting Block Model (Features: {len(block_features)})...")
         
         self.model_block = self._build_pipeline(features=block_features)
@@ -125,13 +124,8 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
     def train(cls, df_raw: pd.DataFrame, save_path: Optional[str] = None, out_dir: Optional[str] = None, verbose: bool = True, **kwargs):
         """
         High-level training routine for NestedGLM.
-        1. Preprocess (including imputation)
-        2. Split
-        3. Fit
-        4. Evaluate & Diagnostics
-        5. Save
         """
-        from . import data_pipeline, moneypuck, model_summary
+        from . import data_pipeline, model_summary
         
         def vprint(*args):
             if verbose: print(*args)
@@ -149,7 +143,7 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
             apply_dithering=kwargs.get('apply_dithering', True),
             apply_filtering=kwargs.get('apply_filtering', True),
             apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
-            apply_html_enrichment=kwargs.get('apply_html_enrichment', False), # Usually already enriched in CSV
+            apply_html_enrichment=kwargs.get('apply_html_enrichment', False),
             impute_alpha=kwargs.get('impute_alpha', 0.2)
         )
 
@@ -180,7 +174,7 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
 
         # 5. Save Model & Metadata
         if save_path is None:
-            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_nested_tensor.joblib')
+            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_nested_tensor_20202021.joblib')
         
         vprint(f"Saving model to {save_path}...")
         save_dir = Path(save_path).parent
@@ -264,19 +258,16 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         # 2. Numeric Features
         num_features = [f for f in features if f not in cat_features]
         
-        # Binary features should NOT get spline treatment — just impute + scale
+        # Binary features should NOT get spline treatment 
         binary_feature_names = ['is_home', 'is_rush', 'is_rebound']
         binary_cols = [f for f in binary_feature_names if f in num_features]
         
         transformers = []
         
         if self.use_splines:
-            # Spline Tensor Product Logic
-            # Treat ('distance', 'angle_deg') as a unit for TensorSpline
             spatial_cols = [f for f in ['distance', 'angle_deg'] if f in num_features]
             other_num_cols = [f for f in num_features if f not in spatial_cols and f not in binary_cols]
             
-            # Tensor Spline for Spatial
             if len(spatial_cols) == 2:
                 tensor_pipe = Pipeline([
                     ('imputer', SimpleImputer(strategy='median')),
@@ -285,10 +276,8 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
                 ])
                 transformers.append(('spatial_tensor', tensor_pipe, spatial_cols))
             else:
-                # If we don't have both, just treat them as generic numeric
                 other_num_cols.extend(spatial_cols)
             
-            # Independent Splines for continuous numeric features
             if other_num_cols:
                 other_pipe = Pipeline([
                     ('imputer', SimpleImputer(strategy='median')),
@@ -297,7 +286,6 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
                 ])
                 transformers.append(('other_num', other_pipe, other_num_cols))
             
-            # Simple passthrough for binary features (no spline expansion)
             if binary_cols:
                 binary_pipe = Pipeline([
                     ('imputer', SimpleImputer(strategy='constant', fill_value=0)),
@@ -306,7 +294,6 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
                 transformers.append(('binary', binary_pipe, binary_cols))
                 
         else:
-            # Polynomial Logic (Global curve)
             poly_pipe = Pipeline([
                 ('imputer', SimpleImputer(strategy='median')),
                 ('poly', PolynomialFeatures(degree=self.poly_degree, include_bias=False)),
@@ -314,13 +301,11 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
             ])
             transformers.append(('num_poly', poly_pipe, num_features))
             
-        # Add Categorical
         if cat_features:
             transformers.append(('cat', cat_trans, cat_features))
             
         preprocessor = ColumnTransformer(transformers)
         
-        # Classifier: Logistic Regression (Ridge by default, l2 penalty)
         pipeline = Pipeline([
             ('preprocessor', preprocessor),
             ('clf', LogisticRegression(C=1.0, solver='lbfgs', max_iter=5000)) 
@@ -331,10 +316,9 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
     def predict_proba_layer(self, X, layer):
         """Returns probability of success (1) for a specific layer."""
         if layer == 'block':
-            feats = [f for f in self.features if f != 'shot_type']
-            return self.model_block.predict_proba(X[feats])[:, 1]
+            # Block layer now includes shot_type
+            return self.model_block.predict_proba(X[self.features])[:, 1]
             
-        # Accuracy & Finish need marginalization
         df = X[self.features].copy()
         
         if 'shot_type' in df.columns:
@@ -366,22 +350,15 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         return p_final
 
     def predict_proba(self, X):
-        """
-        Predicts P(Goal) using the nested chain.
-        Applies Marginalization for rows with missing shot_type.
-        """
         df = X[self.features].copy()
         
-        # 1. Identify rows needing marginalization
         if 'shot_type' in df.columns:
             mask_nan = df['shot_type'].isna() | (df['shot_type'].astype(str).str.lower() == 'unknown')
         else:
             mask_nan = pd.Series([False]*len(df), index=df.index)
         
-        # 2. Main Prediction Path
         p_final = self._predict_single_pass(df)
         
-        # 3. Marginalization Path
         if self.enable_marginalization and mask_nan.any() and self.shot_type_priors_:
             df_nan = df[mask_nan].copy()
             accumulated_prob = np.zeros(len(df_nan))
@@ -397,9 +374,8 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         return np.column_stack((1 - p_final, p_final))
 
     def _predict_single_pass(self, df):
-        """Helper to run the P(Unblocked)*P(OnNet)*P(Finish) chain without marginalization logic."""
-        feats_block = [f for f in self.features if f != 'shot_type']
-        p_blocked = self.model_block.predict_proba(df[feats_block])[:, 1]
+        # Now uses full features for all layers
+        p_blocked = self.model_block.predict_proba(df[self.features])[:, 1]
         p_unblocked = 1.0 - p_blocked
         
         p_on_net = self.model_acc.predict_proba(df[self.features])[:, 1]
@@ -408,11 +384,4 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         return p_unblocked * p_on_net * p_finish
 
 def train_nested_glm(df_raw, **kwargs):
-    """Functional wrapper for NestedGLM.train"""
     return NestedGLM.train(df_raw, **kwargs)
-
-def fit_nested_glm(X, y=None, **kwargs):
-    """Functional wrapper for NestedGLM.fit"""
-    model = NestedGLM(**kwargs)
-    return model.fit(X, y)
-

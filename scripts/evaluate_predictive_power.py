@@ -98,10 +98,12 @@ class DataUtils:
         df = pd.read_csv(csv_path)
         
         # Pre-process for models
+        # Alignment: Use impute_alpha=0.2 to match training (instead of default 0.5)
         df = data_pipeline.preprocess_features(
             df, is_training=False, apply_imputation=True, 
             apply_arena_adjustments=apply_arena_adjustments, 
-            apply_bio_enrichment=True, apply_filtering=True
+            apply_bio_enrichment=True, apply_filtering=True,
+            impute_alpha=0.2
         )
         return df
 
@@ -610,9 +612,15 @@ class PredictiveEvaluator:
             # Summarize Ability (triggers re-fit if mixed effects or local model)
             abilities = self.summarizer.get_team_abilities(train_df_rep, self.model_name, self.model_registry)
             
-            # Empirical League Average for this slice (Fixed: use same filter as abilities)
-            train_df_filtered = self.summarizer._apply_filter(train_df_rep)
-            league_avg_exp = (train_df_filtered['event'].str.lower() == 'goal').sum() / (2 * len(train_gids_rep)) if len(train_gids_rep) > 0 else 3.0
+            # THE FIX: Calculate League Average based on the CURRENT model's abilities
+            # Using actual goals average for a potentially deflated/inflated xG model 
+            # creates a scale mismatch in the Poisson denominator, hurting Brier scores.
+            if abilities:
+                league_avg_exp = np.mean([v['for'] for v in abilities.values()])
+            else:
+                # Fallback to empirical goals if no abilities (unlikely)
+                train_df_filtered = self.summarizer._apply_filter(train_df_rep)
+                league_avg_exp = (train_df_filtered['event'].str.lower() == 'goal').sum() / (2 * len(train_gids_rep)) if len(train_gids_rep) > 0 else 3.0
             
             rep_results_list = []
             for _, row in test_sched_rep.iterrows():
