@@ -63,13 +63,11 @@ def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
     # Ensure types match (e.g. if new_t_id is float but team_id was originally str or vice-versa)
     df.loc[is_blocked, 'team_id'] = new_t_id[is_blocked]
     
-    # --- 1.5. Flip Coordinates (X, Y) ---
-    # UPDATED: We do NOT flip coordinates here.
-    # The event location is physically correct (rink-absolute).
-    # We only change the OWNER (Attribution).
-    # Orientation Standardization (later in pipeline) will handle
-    # ensuring the perspective is "Attacking Right".
+    # --- 1.5. Flip Coordinates (X, Y) for blocked shots ---
+    # REMOVED: Redundant flip. Downstream data_pipeline handles 
+    # orientation standardization based on the new Attack-Goal state.
     pass
+
     
     # --- 2. Recalculate Distance and Angle ---
     # Now team_id is the Shooter. We need distance to the Goal the Shooter is Attacking.

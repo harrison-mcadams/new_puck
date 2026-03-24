@@ -48,7 +48,7 @@ def main():
         df_raw, 
         save_path=save_path, 
         verbose=True,
-        apply_attribution_fix=False,   # Already fixed in CSV
+        apply_attribution_fix=True,    # Fix defender-owned blocks
         apply_html_enrichment=False,   # Already enriched in CSV
         exclude_blocked=True           # Non-nested models should exclude blocked shots from training target
     )

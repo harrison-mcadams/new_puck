@@ -101,8 +101,8 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                  random_state: int = 42,
                  enable_categorical: bool = True,
                  enable_marginalization: bool = True,
-                 use_balancing: bool = True,
-                 use_calibration: bool = True,
+                 use_balancing: bool = False,
+                 use_calibration: bool = False,
                  layer_params: Optional[Dict[str, Any]] = None,
                  use_splines: bool = True):
         
@@ -245,8 +245,8 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             n_estimators=300,
             max_depth=6,
             learning_rate=0.05,
-            use_calibration=True,
-            use_balancing=True
+            use_calibration=False,
+            use_balancing=False
         )
 
         vprint(f"Training on {len(df_train)} rows with {len(feature_list)} features...")
@@ -384,10 +384,10 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             self.spatial_glm_fin_ = pipe_fin
             df['spatial_fin'] = self.spatial_glm_fin_.predict_proba(df[['x', 'y']])[:, 1]
 
-            # Update features list: 
             # - Ensure distance and angle_deg are kept/added
             # - Add spatial features
-            for f in ['distance', 'angle_deg', 'spatial_block', 'spatial_acc', 'spatial_fin']:
+            # - Add x, y as features because we need them for inference too (for stacking)
+            for f in ['distance', 'angle_deg', 'spatial_block', 'spatial_acc', 'spatial_fin', 'x', 'y']:
                 if f not in self.features:
                     self.features.append(f)
             

@@ -119,17 +119,17 @@ def main():
             'Owen Tippett (Clean Shot)': {
                 'x': 78, 'y': 10, 'shot_type': 'wrist', 'game_state': '5v5', 'relative_game_state': '5v5',
                 'is_rush': 0, 'is_rebound': 0, 'period_number': 2, 'score_diff': 0,
-                'last_event_type': 'pass', 'last_event_time_diff': 2.0, 'dist_from_last_event': 30.0, 'speed_from_last_event': 15.0
+                'last_event_type': 'giveaway', 'last_event_time_diff': 2.0, 'dist_from_last_event': 30.0, 'speed_from_last_event': 15.0
             },
             'Classic Point Shot': {
                 'x': 28, 'y': 25, 'shot_type': 'slap', 'game_state': '5v5', 'relative_game_state': '5v5',
                 'is_rush': 0, 'is_rebound': 0, 'period_number': 1, 'score_diff': 0,
-                'last_event_type': 'pass', 'last_event_time_diff': 1.5, 'dist_from_last_event': 40.0, 'speed_from_last_event': 25.0
+                'last_event_type': 'faceoff', 'last_event_time_diff': 1.5, 'dist_from_last_event': 40.0, 'speed_from_last_event': 25.0
             },
             'High-Danger Rush': {
                 'x': 75, 'y': -5, 'shot_type': 'snap', 'game_state': '5v5', 'relative_game_state': '5v5',
                 'is_rush': 1, 'is_rebound': 0, 'period_number': 3, 'score_diff': -1,
-                'last_event_type': 'zone-entry', 'last_event_time_diff': 3.0, 'dist_from_last_event': 60.0, 'speed_from_last_event': 35.0
+                'last_event_type': 'takeaway', 'last_event_time_diff': 3.0, 'dist_from_last_event': 60.0, 'speed_from_last_event': 35.0
             },
             'Rebound Scramble': {
                 'x': 85, 'y': 2, 'shot_type': 'backhand', 'game_state': '5v5', 'relative_game_state': '5v5',
@@ -139,7 +139,7 @@ def main():
             'Power Play Cross-Slot': {
                 'x': 72, 'y': -22, 'shot_type': 'slap', 'game_state': '5v4', 'relative_game_state': '5v4',
                 'is_rush': 0, 'is_rebound': 0, 'period_number': 1, 'score_diff': 0,
-                'last_event_type': 'pass', 'last_event_time_diff': 0.6, 'dist_from_last_event': 45.0, 'speed_from_last_event': 60.0
+                'last_event_type': 'giveaway', 'last_event_time_diff': 0.6, 'dist_from_last_event': 45.0, 'speed_from_last_event': 60.0
             }
         }
     }

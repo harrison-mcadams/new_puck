@@ -48,7 +48,7 @@ def main():
         save_path=save_path, 
         out_dir=str(out_dir), 
         verbose=True,
-        apply_attribution_fix=False,   # Already fixed in CSV
+        apply_attribution_fix=True,    # Fix defender-owned blocks
         apply_html_enrichment=False    # Already enriched in CSV
     )
 

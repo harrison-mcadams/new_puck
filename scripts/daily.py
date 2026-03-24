@@ -119,7 +119,7 @@ def main():
         print(f"\n[1c/4] Running Centralized xG Prediction (20202021+ Nested Model)...")
         try:
             # Predict using the modern era Nested Model
-            model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_nested_tensor_20202021.joblib')
+            model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_nested_20202021.joblib')
             df_season, _, _ = analyze._predict_xgs(df_season, model_path=model_path, behavior='overwrite')
             
             # Save back to CSV to be used by subprocesses

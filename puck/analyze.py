@@ -1004,13 +1004,13 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         pass
     
     # Also check via string just in case of reload/import issues
-    if not is_nested and type(clf).__name__ in ['NestedXGClassifier', 'NestedGLM']:
+    # print(f"DEBUG: clf type name: {type(clf).__name__}")
+    if not is_nested and type(clf).__name__ in ['NestedXGClassifier', 'NestedGLM', 'XGBNestedXGClassifier']:
         is_nested = True
         
     # Treat GLM same as XGBoost for data flow (bypass legacy RF cleaning)
     is_xgboost = (type(clf).__name__ in ['XGBNestedXGClassifier', 'NestedGLM'])
-    if is_xgboost:
-        is_nested = True
+    # print(f"DEBUG: is_nested={is_nested}, is_xgboost={is_xgboost}")
 
     if is_nested:
        
@@ -1070,7 +1070,14 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
                     df_model[f] = np.nan
             
             # Subset to features
-            df_model = df_model[input_features].copy()
+            # IMPORTANT: We MUST keep x and y because some nested models (like XGB) use them internally
+            # even if they aren't explicit training features for the final layers.
+            cols_to_keep = list(input_features)
+            for aux in ['x', 'y', 'x_adj', 'y_adj']:
+                if aux in df_model.columns and aux not in cols_to_keep:
+                    cols_to_keep.append(aux)
+
+            df_model = df_model[cols_to_keep].copy()
             
             # Predict
             try:
@@ -1092,6 +1099,7 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
                 
             # Map back
             pred_series = pd.Series(preds, index=df_model.index)
+            # print(f"DEBUG: mapped {len(pred_series)} predictions back to df.")
             if 'xgs' not in df.columns:
                 df['xgs'] = np.nan
             df.loc[pred_series.index, 'xgs'] = pred_series
@@ -1101,10 +1109,10 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             df.loc[pred_series.index, 'prob_accuracy'] = pd.Series(prob_acc, index=df_model.index)
             df.loc[pred_series.index, 'prob_finish'] = pd.Series(prob_fin, index=df_model.index)
             
-            # Map back updated features (distance, angle, imputed coords)
+            # Map back updated features (distance, angle, imputed coords, raw coords, and flipped orientation)
             # This ensures that the returned DF matches the features used for prediction
             # and passes consistency verification against the training pipeline.
-            cols_to_update = ['distance', 'angle_deg', 'imputed_x', 'imputed_y', 'x_adj', 'y_adj']
+            cols_to_update = ['distance', 'angle_deg', 'imputed_x', 'imputed_y', 'x_adj', 'y_adj', 'x', 'y', 'home_team_defending_side']
             for col in cols_to_update:
                 if col in df_imputed.columns:
                     # Only update if the column exists in the processed result

@@ -101,12 +101,19 @@ def preprocess_features(df_input: pd.DataFrame,
             vprint(f"  Filtering out {n_blocked} blocked shots per exclude_blocked config...")
             df = df[df['event'] != 'blocked-shot'].copy()
 
-    # Derive is_home early
-    if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
+    # Derive is_home early (Always derive to reflect corrections like blocked swaps)
+    if 'team_id' in df.columns and 'home_id' in df.columns:
         # Strip decimal points for robust comparison (e.g. '16.0' -> '16')
         tid_s = df['team_id'].astype(str).str.replace(r'\.0$', '', regex=True)
         hid_s = df['home_id'].astype(str).str.replace(r'\.0$', '', regex=True)
         df['is_home'] = (tid_s == hid_s).astype(int)
+
+    # Sync x/y with x_adj/y_adj BEFORE standardization if they exist
+    # This prevents standardization from only affecting one set of coordinates
+    if 'x_adj' in df.columns:
+        df['x'] = df['x_adj'].copy()
+    if 'y_adj' in df.columns:
+        df['y'] = df['y_adj'].copy()
 
     # 1.5 Parse Relative Game State
     if 'game_state' in df.columns and 'is_home' in df.columns:
@@ -139,24 +146,38 @@ def preprocess_features(df_input: pd.DataFrame,
     if 'x' in df.columns and 'home_team_defending_side' in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
         # Determine Coordinate Flip
         side_str = df['home_team_defending_side'].astype(str).str.lower().str.strip()
+        
+        # semantics: 'left' means Home defends Left (-89) and attacks Right (+89).
         def_side_sign = side_str.map({'left': -1, 'right': 1}).fillna(1)
         
         # side_multiplier: Home = -1, Away = 1
-        # If home defends left (-1), home is attacking right (+1). -1 * -1 = 1. Correct.
         is_home_ser = (df['is_home'] == 1)
         side_mult = np.where(is_home_ser.values, -1, 1)
         
         attacking_side = def_side_sign.values * side_mult
         mask_flip = (attacking_side == -1)
         
+        if not np.any(mask_flip):
+            vprint("  [Standardization] Pass has 0 flips.")
+
         if np.any(mask_flip):
             vprint(f"  Flipping {np.sum(mask_flip)} events to Right-Attack orientation.")
+            
+            # Flip standard coordinates
             df.loc[mask_flip, 'x'] *= -1
             df.loc[mask_flip, 'y'] *= -1
+            
+            # CRITICAL: Flip adjusted coordinates in sync
+            if 'x_adj' in df.columns:
+                df.loc[mask_flip, 'x_adj'] *= -1
+            if 'y_adj' in df.columns:
+                df.loc[mask_flip, 'y_adj'] *= -1
             
             # Update metadata
             df.loc[mask_flip & is_home_ser, 'home_team_defending_side'] = 'left'
             df.loc[mask_flip & ~is_home_ser, 'home_team_defending_side'] = 'right'
+
+
 
     # 4. Arena Adjustments
     use_x, use_y = 'x', 'y'

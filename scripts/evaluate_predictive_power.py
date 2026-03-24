@@ -51,6 +51,11 @@ Example Calls:
      --model nested_xg,non_nested_xg,mixed_effects_nested,mixed_effects_non_nested,actual \
      --filter all,5v5 --n-boot 100 --parallel --n-jobs -1
 
+10) Comprehensive Comparison: Nested vs Non-Nested (XGBoost & GLM) vs Actual Goals:
+   python scripts/evaluate_predictive_power.py --seasons 20202021+ \
+     --model xgboost_nested,xgboost_non_nested,nested_xg,non_nested_xg,actual \
+     --filter all --n-boot 100 --parallel --n-jobs -1
+
 """
 
 import sys
@@ -435,8 +440,8 @@ class PoissonMatchupEngine(MatchupEngine):
         
         # Poisson distribution for goals
         max_g = 15
-        h_dist = stats.poisson.pmf(np.arange(max_g), h_exp)
-        a_dist = stats.poisson.pmf(np.arange(max_g), a_exp)
+        h_dist = poisson.pmf(np.arange(max_g), h_exp)
+        a_dist = poisson.pmf(np.arange(max_g), a_exp)
         prob_matrix = np.outer(h_dist, a_dist)
         
         hw = np.tril(prob_matrix, -1).sum()
@@ -565,7 +570,7 @@ class PredictiveEvaluator:
         if matchup_type == 'poisson':
             self.matchup_engine = PoissonMatchupEngine(logic_type=matchup_logic)
         else:
-            self.matchup_engine = SimulationMatchupEngine(logic_type=matchup_logic)
+            self.matchup_engine = SimulationMatchupEngine(logic_type=matchup_logic) # type: ignore
 
     def run_evaluation(self, season, train_split=0.7, split_method='random', n_reps=1):
         df = DataUtils.load_season_data(season, apply_arena_adjustments=self.apply_arena_adjustments)
@@ -892,14 +897,14 @@ class PredictiveEvaluator:
             if split_method == 'chronological': break # One rep is enough
             
         # Aggregate bootstrapping results
-        final_r2s = [float(r['r2']) for r in rep_results if isinstance(r, dict) and 'r2' in r]
+        final_r2s = [float(r['r2']) for r in rep_results if isinstance(r, dict) and 'r2' in r] # type: ignore
         mean_r2 = float(np.mean(final_r2s)) if final_r2s else 0.0
         logger.info(f"Bootstrapping complete ({len(final_r2s)} reps). Mean R²: {mean_r2:.4f}")
         
         # USE THE FIRST REPETITION'S STATS FOR PLOTTING (to maintain realistic scatter)
         # But attach the mean results as attributes
         first_stats = rep_results[0]['stats']
-        plotting_df = first_stats.copy() if hasattr(first_stats, 'copy') else pd.DataFrame(first_stats)
+        plotting_df = first_stats.copy() if hasattr(first_stats, 'copy') else pd.DataFrame(first_stats) # type: ignore
         
         # Re-add metadata
         plotting_df['Season'] = season
@@ -1048,7 +1053,7 @@ class PredictiveEvaluator:
                     # 1. First pass: Calculate abilities for all teams in this rep
                     for season in group_seasons:
                         curr_team_data = all_season_gms[season]['team_data']
-                        for team, stats_dict in curr_team_data.items():
+                        for team, stats_dict in curr_team_data.items(): # type: ignore
                             n_total = stats_dict['count']
                             if n_total < X + 5: continue
                             
@@ -1113,16 +1118,16 @@ class PredictiveEvaluator:
                     for season in group_seasons:
                         season_games = all_season_gms[season]['games']
                         for game in season_games:
-                            h, a = game['home_team'], game['away_team']
+                            h, a = game['home_team'], game['away_team'] # type: ignore
                             
                             # Only predict if both teams have abilities calculated (and not used THIS game in training)
-                            if h in rep_team_abilities and a in rep_team_abilities:
+                            if h in rep_team_abilities and a in rep_team_abilities: # type: ignore
                                 if game['game_id'] not in rep_team_train_gids.get(h, set()) and \
                                    game['game_id'] not in rep_team_train_gids.get(a, set()):
                                     p_hw = self.matchup_engine.predict_winner_prob(
                                         h, a, rep_team_abilities, rep_league_avg, self.outcome_type
                                     )
-                                    rep_preds.append({'p': p_hw, 'y': game['actual']})
+                                    rep_preds.append({'p': p_hw, 'y': game['actual']}) # type: ignore
                     
                     if rep_preds:
                         pred_df = pd.DataFrame(rep_preds)
