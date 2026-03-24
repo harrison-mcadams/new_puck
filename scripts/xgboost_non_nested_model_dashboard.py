@@ -100,7 +100,19 @@ def main():
             'dist_from_last_event': 15.0, 'last_event_time_diff': 2.0
         },
         'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
-        'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_non_nested.CATEGORICAL_VOCABS.items()}
+        'options': {k: v + ['Marginalized'] for k, v in fit_xgboost_non_nested.CATEGORICAL_VOCABS.items()},
+        'presets': {
+            'Owen Tippett (Clean Shot)': {
+                'x': 78, 'y': 10, 'shot_type': 'wrist', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 0, 'period_number': 2, 'score_diff': 0,
+                'last_event_type': 'giveaway', 'last_event_time_diff': 2.0, 'dist_from_last_event': 30.0, 'speed_from_last_event': 15.0
+            },
+            'Classic Point Shot': {
+                'x': 28, 'y': 25, 'shot_type': 'slap', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 0, 'period_number': 1, 'score_diff': 0,
+                'last_event_type': 'faceoff', 'last_event_time_diff': 1.5, 'dist_from_last_event': 40.0, 'speed_from_last_event': 25.0
+            }
+        }
     }
 
     # Pre-calculate Spatial GLM Grid
@@ -186,16 +198,37 @@ def main():
     
     function isotonicInterpolate(x, knots) { return x; }
 
+    /** 
+     * Core Inference Engine: Traverses a single XGBoost tree.
+     * Note: Handles categorical splits using the array-based syntax found in 
+     * standard XGBoost JSON dumps (where split_condition is an array of indices).
+     */
     function evaluateTree(node, featureValues) {
         if (!node) return 0;
         if (node.leaf !== undefined) return node.leaf;
         const fName = node.split;
         const val = featureValues[fName];
+        
+        // 1. Handle Missing Values
         if (val === null || val === undefined || isNaN(val)) {
             const defId = node.default;
             const child = node.children.find(c => String(c.nodeid) == String(defId));
             return evaluateTree(child, featureValues);
         }
+
+        // 2. Handle Categorical Splits (Bitset/Array mapping)
+        // If split_condition is an array, it contains indices for the "yes" branch.
+        if (Array.isArray(node.split_condition)) {
+            if (node.split_condition.includes(val)) {
+                const child = node.children.find(c => String(c.nodeid) == String(node.yes));
+                return evaluateTree(child, featureValues);
+            } else {
+                const child = node.children.find(c => String(c.nodeid) == String(node.no));
+                return evaluateTree(child, featureValues);
+            }
+        }
+
+        // Fallback for explicit split_type metadata
         if (node.split_type === 'categorical') {
             const cats = node.split_categories || [];
             if (cats.includes(val)) {
@@ -206,6 +239,7 @@ def main():
                 return evaluateTree(child, featureValues);
             }
         } else {
+            // 3. Numerical split
             if (val <= node.split_condition) {
                 const child = node.children.find(c => String(c.nodeid) == String(node.yes));
                 return evaluateTree(child, featureValues);
@@ -240,12 +274,21 @@ def main():
                     features['spatial_xg'] = MODEL.grid_spatial_xg[r][c];
                 }
                 
-                // Dynamic Distance/Angle (Secondary Adjustments)
-                const dist = Math.sqrt((x - 89)**2 + y**2);
-                const angle_rad = Math.atan2(x - 89, -y);
+                // GEOMETRY FIX: Sync Pixel (x,y) with Model Features
+                // We must update the raw (x,y) features alongside distance/angle 
+                // for every pixel to prevent the model from seeing contradictory spatial data.
+                // We also clip to training bounds to prevent high-variance extrapolation artifacts.
+                const x_safe = Math.max(0, Math.min(x, 100));
+                const y_safe = Math.max(-42.5, Math.min(y, 42.5));
+
+                const dist = Math.sqrt(Math.pow(x_safe - 89, 2) + Math.pow(y_safe, 2));
+                const angle_rad = Math.atan2(x_safe - 89, -y_safe);
                 let angle_deg = ((-angle_rad * 180 / Math.PI) % 360 + 360) % 360;
+                
                 features.distance = dist;
                 features.angle_deg = angle_deg;
+                features.x = x_safe;
+                features.y = y_safe;
 
                 // 2. Defaulting Missing Features (Fix High xG Bug)
                 MODEL.features.forEach(f => {
@@ -284,6 +327,19 @@ def main():
 
     function init() {
         const inputDiv = document.getElementById('inputs-container');
+        
+        // 1. Add Preset Selector at the top
+        if (MODEL.presets) {
+            let presetWrap = document.createElement('div');
+            presetWrap.className = 'ctrl-group';
+            presetWrap.innerHTML = `<legend>Scenario Presets</legend>
+                <select id="preset-select" onchange="applyPreset(this.value)">
+                    <option value="">-- Select a Scenario --</option>
+                    ${Object.keys(MODEL.presets).map(k => `<option value="${k}">${k}</option>`).join('')}
+                </select>`;
+            inputDiv.appendChild(presetWrap);
+        }
+
         const groups = {
             'Context': ['game_state', 'relative_game_state', 'is_home', 'score_diff', 'period_number'],
             'Shooter': ['shooter_role', 'shoots_catches', 'shot_type'],
@@ -323,6 +379,18 @@ def main():
             inputDiv.appendChild(fs);
         }
         document.getElementById('loading').style.display = 'none';
+        updatePlot();
+    }
+
+    function applyPreset(name) {
+        if (!name || !MODEL.presets[name]) return;
+        const p = MODEL.presets[name];
+        for (const [key, val] of Object.entries(p)) {
+            const el = document.getElementById('in_' + key);
+            if (el) {
+                el.value = val;
+            }
+        }
         updatePlot();
     }
 

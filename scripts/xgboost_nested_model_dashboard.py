@@ -232,6 +232,11 @@ def main():
     function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
     
     function isotonicInterpolate(x, knots) { return x; }
+    /** 
+     * Core Inference Engine: Traverses a single XGBoost tree.
+     * Note: Handles categorical splits using the array-based syntax found in 
+     * standard XGBoost JSON dumps (where split_condition is an array of indices).
+     */
     function evaluateTree(node, featureValues) {
         if (!node) return 0;
         if (node.leaf !== undefined) return node.leaf;
@@ -239,13 +244,26 @@ def main():
         const fName = node.split;
         const val = featureValues[fName];
         
-        // Handle Missing
+        // 1. Handle Missing Values
         if (val === null || val === undefined || isNaN(val)) {
             const defId = node.default;
             const child = node.children.find(c => String(c.nodeid) == String(defId));
             return evaluateTree(child, featureValues);
         }
         
+        // 2. Handle Categorical Splits (Bitset/Array mapping)
+        // If split_condition is an array, it contains indices for the "yes" branch.
+        if (Array.isArray(node.split_condition)) {
+            if (node.split_condition.includes(val)) {
+                const child = node.children.find(c => String(c.nodeid) == String(node.yes));
+                return evaluateTree(child, featureValues);
+            } else {
+                const child = node.children.find(c => String(c.nodeid) == String(node.no));
+                return evaluateTree(child, featureValues);
+            }
+        }
+        
+        // Fallback for explicit split_type metadata
         if (node.split_type === 'categorical') {
             const cats = node.split_categories || [];
             if (cats.includes(val)) {
@@ -256,7 +274,7 @@ def main():
                 return evaluateTree(child, featureValues);
             }
         } else {
-            // Numerical split
+            // 3. Numerical split
             if (val <= node.split_condition) {
                 const child = node.children.find(c => String(c.nodeid) == String(node.yes));
                 return evaluateTree(child, featureValues);
@@ -328,12 +346,21 @@ def main():
                         features['spatial_fin'] = MODEL.grid_spatial_layers['finish'][r][c];
                     }
                     
-                    // Dynamic Distance/Angle (Secondary Adjustments)
-                    const dist = Math.sqrt((x - 89)**2 + y**2);
-                    const angle_rad = Math.atan2(x - 89, -y);
+                    // GEOMETRY FIX: Sync Pixel (x,y) with Model Features
+                    // We must update the raw (x,y) features alongside distance/angle 
+                    // for every pixel to prevent the model from seeing contradictory spatial data.
+                    // We also clip to training bounds to prevent high-variance extrapolation artifacts.
+                    const x_safe = Math.max(0, Math.min(x, 100));
+                    const y_safe = Math.max(-42.5, Math.min(y, 42.5));
+
+                    const dist = Math.sqrt((x_safe - 89)**2 + y_safe**2);
+                    const angle_rad = Math.atan2(x_safe - 89, -y_safe);
                     let angle_deg = ((-angle_rad * 180 / Math.PI) % 360 + 360) % 360;
+                    
                     features.distance = dist;
                     features.angle_deg = angle_deg;
+                    features.x = x_safe;
+                    features.y = y_safe;
 
                     const m_block = evaluateForest('block', features);
                     const m_acc = evaluateForest('accuracy', features);
