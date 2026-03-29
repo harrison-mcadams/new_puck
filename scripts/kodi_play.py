@@ -25,9 +25,13 @@ def play_url(url, user_agent=None, referer=None, origin=None):
     if not origin:
         origin = "https://streamed.su"
 
+    from urllib.parse import quote_plus
+    
     # Construct the Kodi-style URL with headers
-    # The | character initiates the header block in Kodi's stream URL parser
-    kodi_url = f"{url}|User-Agent={user_agent}&Referer={referer}&Origin={origin}"
+    # Values MUST be URL-encoded so Kodi's internal parser doesn't break on spaces or ampersands
+    headers_str = f"User-Agent={quote_plus(user_agent)}&Referer={quote_plus(referer)}&Origin={quote_plus(origin)}"
+    kodi_url = f"{url}|{headers_str}"
+
     
     payload = {
         "jsonrpc": "2.0",
