@@ -23,12 +23,15 @@ REBOUND = ['is_rebound', 'rebound_angle_change', 'rebound_time_diff']
 RUSH = ['is_rush']
 PRIOR_EVENT = ['last_event_type', 'last_event_time_diff', 'dist_from_last_event', 'speed_from_last_event', 'angle_change_last_event']
 
+# context
+CONTEXT = ['season']
+
 # Named Feature Sets
 FEATURE_SETS = {
     'minimal': COORDINATES,
     'baseline': COORDINATES + ['relative_game_state'] + SHOT_TYPE + HANDEDNESS + PLAYER_ROLE,
     'standard': COORDINATES + SITUATION + REBOUND + RUSH + PRIOR_EVENT + PLAYER_ROLE,
-    'all_inclusive': COORDINATES + SITUATION + SHOT_TYPE + HANDEDNESS + REBOUND + RUSH + PRIOR_EVENT + PLAYER_ROLE,
+    'all_inclusive': COORDINATES + SITUATION + SHOT_TYPE + HANDEDNESS + REBOUND + RUSH + PRIOR_EVENT + PLAYER_ROLE + CONTEXT,
 }
 
 def get_features(name: str = 'standard') -> List[str]:

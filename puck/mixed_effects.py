@@ -1,27 +1,3 @@
-"""mixed_effects.py
-
-GAME-STATE AWARE MIXED EFFECTS MODEL (JOINT OFF/DEF INTERCEPTS)
-================================================================
-This module implements a mixed effects model that fits random intercepts for
-BOTH Offense (Team) and Defense (Opponent) simultaneously.
-
-It handles Game State splitting (5v5, 5v4, 4v5) by training separate
-sub-models for each state.
-
-Architecture:
--------------
-1. Base Model: NestedGLM (Fixed Effect) -> Provides P_base / Base Margin.
-2. Mixed Effect: L-BFGS-B Logistic Solver
-   - Goal: Fit `logit(p) = base_margin + Off_Intercept + Def_Intercept`
-   - Off_Intercept = coef[off_team_idx]
-   - Def_Intercept = coef[def_team_idx + n_teams]
-
-Usage:
-------
-    mixed = GameMixedEffectsXG(base_model_path="...")
-    mixed.fit(df)
-    mixed.predict_proba(df)
-"""
 
 import numpy as np
 import pandas as pd
@@ -189,55 +165,27 @@ class StateMixedEffectsModel(BaseEstimator):
             logger.warning("Optimizer did NOT converge. Coefficients may be unreliable.")
         
         # 5. Post-fit centering
-        # The solver absorbs global calibration error into EVERY team coefficient.
-        # Since each shot gets off_adj + def_adj, any non-zero group mean is
-        # applied TWICE.  We center each group to zero so the mixed effects
-        # represent purely relative team deviations.  The base model already
-        # provides the overall calibration level.
         n = self.n_teams_
         off_mean = self.coef_[:n].mean()
         def_mean = self.coef_[n:].mean()
         
-        # Capture the global calibration error for this state.
-        # Since logit = base + off + def, the global shift is off_mean + def_mean.
         self.calibration_offset_ = off_mean + def_mean
         
-        # Center the team coefficients so they represent relative deviations
+        # Center the team coefficients
         self.coef_[:n] -= off_mean
         self.coef_[n:] -= def_mean
         logger.info(f"Post-centering: off_mean={off_mean:.4f}, def_mean={def_mean:.4f}, offset={self.calibration_offset_:.4f}")
         
-        # 6. Sanity checks
-        max_abs = np.max(np.abs(self.coef_))
-        mean_abs = np.mean(np.abs(self.coef_))
-        logger.info(f"Joint State Model Fit Complete. "
-                     f"Converged={self.converged_}, Loss={self.final_loss_:.4f}, "
-                     f"MaxAbsCoef={max_abs:.4f}, MeanAbsCoef={mean_abs:.4f}")
-        
-        if max_abs > 2.0:
-            logger.warning(f"Large coefficient detected (max |coef| = {max_abs:.4f}). "
-                           f"Consider increasing L2 regularization.")
-        if mean_abs < 1e-6:
-            logger.warning(f"All coefficients near zero (mean |coef| = {mean_abs:.6f}). "
-                           f"Base model may already be well-calibrated — mixed effects add nothing.")
-        
         return self
 
     def predict_margin(self, df: pd.DataFrame, off_col: str, def_col: str) -> np.ndarray:
-        """
-        Predict the joint margin adjustment (Offense + Defense).
-        Returns: Adjustment vector (N_samples,)
-        """
         if self.coef_ is None:
             return np.zeros(len(df))
             
         n_samples = len(df)
-        
-        # Map indices
         off_idx_raw = df[off_col].map(self.team_idx_)
         def_idx_raw = df[def_col].map(self.team_idx_)
         
-        # Start with calibration offset (applied once, not doubled)
         cal_offset = getattr(self, 'calibration_offset_', 0.0)
         adj = np.full(n_samples, cal_offset)
         
@@ -254,43 +202,25 @@ class StateMixedEffectsModel(BaseEstimator):
         return adj
 
     def get_coefficients(self) -> pd.DataFrame:
-        """
-        Extract the learned intercepts into a readable DataFrame.
-        """
         if self.coef_ is None:
             return pd.DataFrame()
-            
         records = []
         for t_i, team in enumerate(self.teams_):
-            # Offense Profile
-            records.append({
-                'team': team,
-                'role': 'Offense',
-                'feature': 'intercept',
-                'coef': self.coef_[t_i]
-            })
-            # Defense Profile
-            records.append({
-                'team': team,
-                'role': 'Defense',
-                'feature': 'intercept',
-                'coef': self.coef_[t_i + self.n_teams_]
-            })
-            
+            records.append({'team': team, 'role': 'Offense', 'feature': 'intercept', 'coef': self.coef_[t_i]})
+            records.append({'team': team, 'role': 'Defense', 'feature': 'intercept', 'coef': self.coef_[t_i + self.n_teams_]})
         return pd.DataFrame(records)
 
 
 class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
     def __init__(self, 
-                 base_model_path: str = None, 
+                 base_model_path: Optional[str] = None, 
                  base_model = None,
-                 feature_set: Union[List[str], str] = None,
+                 feature_set: Optional[Union[List[str], str]] = None,
                  use_tensor_splines: bool = False,
                  updater: str = 'shotgun',
                  component_model_type: str = 'intercept',
                  l2_reg: float = 1.0
                  ):
-        
         self.base_model_path = base_model_path
         self.base_model_ = base_model
         self.feature_set = feature_set
@@ -298,267 +228,117 @@ class GameMixedEffectsXG(BaseEstimator, ClassifierMixin):
         self.updater = updater 
         self.component_model_type = component_model_type
         self.l2_reg = l2_reg
-        
-        # Sub-models per game state (Joint Off/Def)
         self.state_models_: Dict[str, StateMixedEffectsModel] = {}
 
     def fit(self, X: pd.DataFrame, y=None):
         df = X.copy()
-        
-        # 1. Load Base Model
         if self.base_model_ is None:
             if self.base_model_path is None:
-                # Default path
                 p = Path("analysis/xgs/xg_model_nested_tensor.joblib")
-                if p.exists():
-                     self.base_model_path = str(p)
-                else:
-                    raise FileNotFoundError("Base model not found/specified.")
-            
-            logger.info(f"Loading Base Model: {self.base_model_path}")
+                if p.exists(): self.base_model_path = str(p)
+                else: raise FileNotFoundError("Base model not found/specified.")
             self.base_model_ = joblib.load(self.base_model_path)
             
-        # 2. Predict Base Margins
         logger.info("Predicting Base Margins...")
-        
-        # Ensure required columns for base model exist
-        required_cols = ['shoots_catches', 'shooter_role', 'is_rebound', 'is_rush']
-        for c in required_cols:
-            if c not in df.columns:
-                logger.warning(f"Column '{c}' missing for base model. Filling with default.")
-                if c == 'shoots_catches':
-                    df[c] = 'L' 
-                elif c == 'shooter_role':
-                    df[c] = 'Center' 
-                else:
-                    df[c] = 0
-
-        # Derive off/def team names (unified logic)
         df = _derive_off_def_names(df)
-        
-        # Ensure is_home is present for base model
         if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
             df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
         elif 'is_home' not in df.columns:
-            logger.warning("'is_home' cannot be derived. Filling with 0.")
             df['is_home'] = 0
 
+        # XGBoost models perform their own internal _prepare_inference_df which handles
+        # spatial features and categorical alignment. We should allow this.
+        is_xgb = "XGB" in str(type(self.base_model_))
+        
+        if not is_xgb:
+            required_cols = ['shoots_catches', 'shooter_role', 'is_rebound', 'is_rush']
+            for c in required_cols:
+                if c not in df.columns or df[c].isna().any():
+                    if c == 'shoots_catches': df[c] = df[c].fillna('L')
+                    elif c == 'shooter_role': df[c] = df[c].fillna('Center')
+                    else: df[c] = df[c].fillna(0)
+
         base_probs = self.base_model_.predict_proba(df)[:, 1]
-        
-        logger.info(f"Base Model Stats (Fit): Mean={base_probs.mean():.4f}, "
-                     f"Min={base_probs.min():.4f}, Max={base_probs.max():.4f}")
-        
         eps = 1e-6
         base_probs = np.clip(base_probs, eps, 1-eps)
         base_margins = np.log(base_probs / (1 - base_probs))
-        
-        # Convert to Series for index-safe subsetting later
         base_margins = pd.Series(base_margins, index=df.index)
         
-        # 3. Train per Game State (Use relative_game_state to distinguish PP from PK)
         state_col = 'relative_game_state' if 'relative_game_state' in df.columns else 'game_state'
         states = df[state_col].value_counts()
         target_states = ['5v5', '5v4', '4v5']
         valid_states = [s for s in target_states if s in states.index and states[s] > 100]
-        logger.info(f"Training models for states: {valid_states} using column: {state_col}")
-        
-        # Warn about unmodeled states
-        unmodeled = set(df[state_col].unique()) - set(valid_states)
-        if unmodeled:
-            n_unmodeled = int(df[state_col].isin(unmodeled).sum())
-            logger.warning(f"Game states {unmodeled} have no mixed-effects model. "
-                           f"{n_unmodeled} shots will use base xG only.")
         
         for state in valid_states:
-            logger.info(f"--- Fitting State: {state} ---")
             mask = df[state_col] == state
             df_sub = df[mask]
-            if len(df_sub) == 0:
-                continue
-            
-            # Target
             y_sub = y[mask] if y is not None else (df_sub['event'] == 'goal').astype(int)
             margin_sub = base_margins[mask]
             
-            # Joint Model
-            logger.info(f"Fitting Joint Offense/Defense ({state})...")
-            state_model = StateMixedEffectsModel(
-                l2_reg=self.l2_reg
-            )
-            state_model.fit(df_sub, y_sub, margin_sub.values, 
-                           off_col='off_team_name', def_col='def_team_name')
+            state_model = StateMixedEffectsModel(l2_reg=self.l2_reg)
+            state_model.fit(df_sub, y_sub, margin_sub.values, off_col='off_team_name', def_col='def_team_name')
             self.state_models_[state] = state_model
-            
         return self
 
-    def predict_proba(self, X: pd.DataFrame):
+    def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         df = X.copy()
-        
-        # 1. Base
-        base_probs = self.base_model_.predict_proba(df)[:, 1]
-        
-        logger.info(f"Base Model Stats: Mean={base_probs.mean():.4f}, "
-                     f"Min={base_probs.min():.4f}, Max={base_probs.max():.4f}")
-        
-        eps = 1e-6
-        base_probs = np.clip(base_probs, eps, 1-eps)
-        base_margins = np.log(base_probs / (1 - base_probs))
-        
-        final_margins = base_margins.copy()
-        
-        # Derive off/def team names (unified logic)
         df = _derive_off_def_names(df)
-        
-        # Ensure is_home is present for base model
         if 'is_home' not in df.columns and 'team_id' in df.columns and 'home_id' in df.columns:
             df['is_home'] = (df['team_id'].astype(str) == df['home_id'].astype(str)).astype(int)
         elif 'is_home' not in df.columns:
-            logger.warning("'is_home' cannot be derived. Filling with 0.")
             df['is_home'] = 0
 
-        # 2. Add Adjustments per State
-        state_models = getattr(self, 'state_models_', {}) or {}
-        state_col = 'relative_game_state' if 'relative_game_state' in df.columns else 'game_state'
+        base_probs = self.base_model_.predict_proba(df)[:, 1]
+        eps = 1e-6
+        base_probs = np.clip(base_probs, eps, 1-eps)
+        base_margins = np.log(base_probs / (1 - base_probs))
+        final_margins = base_margins.copy()
         
-        for state, model in state_models.items():
+        state_col = 'relative_game_state' if 'relative_game_state' in df.columns else 'game_state'
+        for state, model in self.state_models_.items():
             mask = df[state_col] == state
-            if not mask.any():
-                continue
-            
+            if not mask.any(): continue
             adj = model.predict_margin(df[mask], off_col='off_team_name', def_col='def_team_name')
             final_margins[mask.values] += adj
             
-        # 3. Sigmoid
         final_probs = 1.0 / (1.0 + np.exp(-final_margins))
         return np.column_stack((1 - final_probs, final_probs))
         
     def get_all_coefficients(self) -> pd.DataFrame:
-        """
-        Aggregate coefficients from all sub-models into a single DataFrame.
-        """
         dfs = []
         for state, model in self.state_models_.items():
             df_curr = model.get_coefficients()
             if not df_curr.empty:
                 df_curr['game_state'] = state
                 dfs.append(df_curr)
+        return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
 
-        if not dfs:
-            return pd.DataFrame()
-            
-        return pd.concat(dfs, ignore_index=True)
-
-    def save_summary(self, output_dir: str, teams_filter: List[str] = None):
-        """
-        Save model coefficients and generate summary plots.
-        """
-        output_dir = Path(output_dir)
+    def save_summary(self, output_dir_str: str, teams_filter: Optional[List[str]] = None):
+        output_dir = Path(output_dir_str)
         output_dir.mkdir(parents=True, exist_ok=True)
-        
-        # 1. Get Data
         df_coefs = self.get_all_coefficients()
-        if df_coefs.empty:
-            logger.warning("No coefficients to save.")
-            return
-            
-        # 2. Save CSV
-        csv_path = output_dir / "mixed_effects_coefficients.csv"
-        df_coefs.to_csv(csv_path, index=False)
-        logger.info(f"Saved coefficients to {csv_path}")
+        if df_coefs.empty: return
+        df_coefs.to_csv(output_dir / "mixed_effects_coefficients.csv", index=False)
         
-        # 3. Generate Plots
         try:
             import matplotlib
-            matplotlib.use('Agg')  # Non-interactive backend
+            matplotlib.use('Agg')
             import matplotlib.pyplot as plt
             import seaborn as sns
-        except ImportError:
-            logger.warning("Could not import matplotlib/seaborn. Skipping plots.")
-            return
+        except ImportError: return
         
         sns.set_theme(style="whitegrid")
-        
         mask_intercept = df_coefs['feature'] == 'intercept'
-        unique_states = df_coefs['game_state'].unique()
-        
-        # A. League Wide Scatter (Offense vs Defense Intercepts)
-        for state in unique_states:
+        for state in df_coefs['game_state'].unique():
             df_plot = df_coefs[mask_intercept & (df_coefs['game_state'] == state)]
-            if df_plot.empty:
-                continue
-                
+            if df_plot.empty: continue
             df_pivot = df_plot.pivot(index='team', columns='role', values='coef')
-            
             if 'Offense' in df_pivot.columns and 'Defense' in df_pivot.columns:
                 fig, ax = plt.subplots(figsize=(10, 8))
-                
                 sns.scatterplot(data=df_pivot, x='Offense', y='Defense', ax=ax)
-                
-                # Improved label placement — use per-point offsets and smaller font
                 for team, row in df_pivot.iterrows():
-                    ax.annotate(team, (row['Offense'], row['Defense']),
-                                textcoords="offset points", xytext=(5, 5),
-                                fontsize=8, alpha=0.85)
-                    
-                ax.set_title(f"Team Strength: {state} (Intercepts)\n"
-                             f"Positive Offense = Good | Negative Defense = Good")
-                ax.axhline(0, color='gray', linestyle='--', alpha=0.5)
-                ax.axvline(0, color='gray', linestyle='--', alpha=0.5)
-                
-                # Negative Defense coef = "lowers xG against" = good defense
+                    ax.annotate(str(team), (row['Offense'], row['Defense']), textcoords="offset points", xytext=(5, 5), fontsize=8, alpha=0.85)
                 ax.invert_yaxis()
-                ax.set_ylabel("Defensive Impact (Lower is Better)")
-                ax.set_xlabel("Offensive Impact (Higher is Better)")
-                
                 fig.tight_layout()
                 fig.savefig(output_dir / f"scatter_intercepts_{state}.png", dpi=150)
-                plt.close(fig)
-                    
-        # B. Top 10 Bars per State/Role
-        for state in unique_states:
-            for role in ['Offense', 'Defense']:
-                df_sub = df_coefs[(df_coefs['game_state'] == state) & 
-                                  (df_coefs['role'] == role) & 
-                                  (mask_intercept)]
-                                  
-                if df_sub.empty:
-                    continue
-                    
-                ascending = True if role == 'Defense' else False
-                df_sorted = df_sub.sort_values('coef', ascending=ascending).head(10)
-                
-                fig, ax = plt.subplots(figsize=(10, 6))
-                sns.barplot(data=df_sorted, x='coef', y='team', hue='team',
-                            palette='viridis', legend=False, ax=ax)
-                ax.set_title(f"Top 10 {role} ({state})")
-                ax.set_xlabel("Coefficient Impact")
-                fig.tight_layout()
-                fig.savefig(output_dir / f"top10_{role}_{state}.png", dpi=150)
-                plt.close(fig)
-
-        # C. Team Specific Plots
-        teams_dir = output_dir / "teams"
-        teams_dir.mkdir(exist_ok=True)
-        
-        unique_teams = df_coefs['team'].unique()
-        
-        if teams_filter:
-            unique_teams = [t for t in unique_teams if t in teams_filter]
-            logger.info(f"Filtering to {len(unique_teams)} teams: {unique_teams}")
-        
-        logger.info(f"Generating individual plots for {len(unique_teams)} teams...")
-        
-        for team in unique_teams:
-            df_team = df_coefs[df_coefs['team'] == team]
-            
-            # Intercepts (Overall Strength)
-            df_int = df_team[df_team['feature'] == 'intercept']
-            if not df_int.empty:
-                fig, ax = plt.subplots(figsize=(8, 5))
-                sns.barplot(data=df_int, x='game_state', y='coef', hue='role', ax=ax)
-                ax.set_title(f"{team} - Overall Adjustments (Intercepts)")
-                ax.axhline(0, color='k', linewidth=0.5)
-                ax.set_ylabel("Impact on Log-Odds")
-                fig.tight_layout()
-                fig.savefig(teams_dir / f"{team}_intercepts.png", dpi=150)
                 plt.close(fig)

@@ -1,0 +1,13 @@
+Config: Platform=Mac/PC, Workers=4
+Data Dir: C:/Users/harri/Desktop/new_puck/data
+--- Original ---
+          event  team_id     x     y
+0  blocked-shot        1  60.0  10.0
+
+--- Processed (alpha=0.2) ---
+          event  team_id         x          y
+0  blocked-shot        2  49.53959  19.584786
+
+--- Processed (alpha=0.5) ---
+          event  team_id         x          y
+0  blocked-shot        2  49.53959  19.584786

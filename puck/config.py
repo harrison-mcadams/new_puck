@@ -86,6 +86,13 @@ def get_cache_dir(season):
 def get_analysis_dir(season):
     return os.path.join(ANALYSIS_DIR, season)
 
+# --- Kodi Connectivity ---
+KODI_HOST = "puck-server.tailcfee0c.ts.net"
+KODI_PORT = 8080
+KODI_USER = "kodi"
+KODI_PASS = "flyers2026"
+KODI_USER = "kodi"
+KODI_PASS = "flyers2026"
+
 print(f"Config: Platform={'Pi' if IS_PI else 'Mac/PC'}, Workers={MAX_WORKERS}")
 print(f"Data Dir: {DATA_DIR}")
-

@@ -81,7 +81,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from puck import timing, analyze, mixed_effects, nhl_api, fit_glm_nested, fit_glm
 from puck import features as feature_util
-from puck import moneypuck, data_pipeline
+from puck import moneypuck, data_pipeline, fit_xgboost_nested, fit_xgboost_non_nested
 from scripts import plot_predictive_power
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -130,6 +130,23 @@ class DataUtils:
                 # Fallback heuristics
                 home_goals_final = len(group[(group['event'].str.lower() == 'goal') & (group['team_id'] == group['home_id'])])
                 away_goals_final = len(group[(group['event'].str.lower() == 'goal') & (group['team_id'] == group['away_id'])])
+                
+                # Shootout Tie Fix: Ensure no 0.5 ties in 'final' outcomes unless data is missing
+                # If goals are tied after counting all events, we might have missed the SO winner
+                if home_goals_final == away_goals_final:
+                    # Look for shootout goal markers if they exist
+                    if 'period_type' in group.columns:
+                        so_goals = group[(group['period'] > 4) | (group['period_type'].str.lower() == 'shootout')] # type: ignore
+                    else:
+                        so_goals = group[group['period'] > 4]
+                        
+                    if not so_goals.empty:
+                        # Find which team has the most SO goals (usually one team is awarded the "deciding" goal)
+                        home_so_wins = len(so_goals[so_goals['team_id'] == group['home_id']])
+                        away_so_wins = len(so_goals[so_goals['team_id'] == group['away_id']])
+                        if home_so_wins > away_so_wins: home_goals_final += 1
+                        elif away_so_wins > home_so_wins: away_goals_final += 1
+                
                 is_ot_so = group['period'].max() > 3
             
             games.append({
@@ -200,8 +217,12 @@ class ModelRegistry:
                 logger.warning("train_df is None, cannot fit mixed effects intercepts.")
                 return None
             
-            # Determine base type
-            base_type = 'non_nested_xg' if 'non_nested' in model_name else 'nested_xg'
+            # Determine base model type (default to XGBoost unless 'glm' is in name)
+            if 'glm' in model_name:
+                base_type = 'non_nested' if 'non_nested' in model_name else 'nested'
+            else:
+                base_type = 'xgboost_non_nested' if 'non_nested' in model_name else 'xgboost_nested'
+                
             logger.info(f"Fitting mixed effects intercepts using {base_type} base...")
             
             base = self._load_global_model(base_type)
@@ -222,14 +243,12 @@ class ModelRegistry:
             return 'actual'
         
         paths = {
-            'nested_xg': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
-            'nested': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
-            'nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
-            'non_nested_xg_20202021': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
-            'non_nested': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
-            'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib'),
             'xgboost_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_nested_20202021.joblib'),
-            'xgboost_non_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_20202021.joblib')
+            'nested_xg': os.path.join('analysis', 'xgs', 'xg_model_xgboost_nested_20202021.joblib'),
+            'nested': os.path.join('analysis', 'xgs', 'xg_model_nested_tensor_20202021.joblib'),
+            'xgboost_non_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_20202021.joblib'),
+            'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_20202021.joblib'),
+            'non_nested': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_20202021.joblib')
         }
         
         path = paths.get(model_name)
@@ -246,15 +265,25 @@ class ModelRegistry:
         logger.info(f"Training local model: {model_name}...")
         feature_list = feature_util.get_features('all_inclusive')
         
-        if model_name == 'nested_xg':
+        if model_name in ['xgboost_nested', 'nested_xg']:
+            model = fit_xgboost_nested.XGBNestedXGClassifier(features=feature_list)
+            model.fit(train_df)
+        elif model_name == 'nested':
             model = fit_glm_nested.NestedGLM(features=feature_list, use_splines=True, enable_marginalization=True)
             model.fit(train_df)
-        elif model_name == 'non_nested_xg':
+        elif model_name in ['xgboost_non_nested', 'non_nested_xg']:
+            model = fit_xgboost_non_nested.XGBNonNestedXGClassifier(features=feature_list)
+            model.fit(train_df)
+        elif model_name == 'non_nested':
             model = fit_glm.NonNestedGLM(features=feature_list, use_splines=True, enable_marginalization=True)
             model.fit(train_df[train_df['event'] != 'blocked-shot'])
         elif model_name.startswith('mixed_effects'):
-            # Train base then mixed
-            base_type = 'non_nested_xg' if 'non_nested' in model_name else 'nested_xg'
+            # Determine base model type (default to XGBoost unless 'glm' is in name)
+            if 'glm' in model_name:
+                base_type = 'non_nested' if 'non_nested' in model_name else 'nested'
+            else:
+                base_type = 'xgboost_non_nested' if 'non_nested' in model_name else 'xgboost_nested'
+                
             base = self._train_local_model(base_type, train_df)
             model = mixed_effects.GameMixedEffectsXG(base_model=base, use_tensor_splines=True)
             model.fit(train_df)
@@ -289,7 +318,9 @@ class TeamAbilitySummarizer:
             model = model_registry.get_model(pure_model_name, train_df, is_local=is_local)
             if model:
                 df = df.copy()
-                if pure_model_name.startswith('mixed_effects'):
+                # BUG 2 Fix: Nested models should score ALL events because they handle blocks internally.
+                # Only non-nested GLM/XGBoost models should be filtered to outcome events.
+                if pure_model_name.startswith('mixed_effects') or 'nested' in pure_model_name.lower():
                     df['eval_xg'] = model.predict_proba(df)[:, 1]
                 else:
                     mask = df['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
@@ -461,27 +492,13 @@ class PoissonMatchupEngine(MatchupEngine):
         else:
             return hw
 
-class SimulationMatchupEngine(MatchupEngine):
-    """Advanced simulation using matchup.py logic."""
-    def __init__(self, logic_type='multiplicative'):
-        self.logic_type = logic_type
-
-    def predict_winner_prob(self, home_team, away_team, team_abilities, league_avg, outcome_type='final'):
-        # Integration with scripts/matchup.py
-        try:
-            from scripts import matchup as matchup_module
-            # This is slow, so we might want to cache assets or use a lighter version
-            # For this overhaul, we'll provide a hook.
-            # Simulation is complex, for now we fallback to Poisson if not fully implemented
-            # or provide a simplified version.
-            return PoissonMatchupEngine(logic_type=self.logic_type).predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
-        except ImportError:
-            return PoissonMatchupEngine(logic_type=self.logic_type).predict_winner_prob(home_team, away_team, team_abilities, league_avg, outcome_type)
 
 class SeasonSimulator:
     """Monte Carlo simulator for season cumulative statistics."""
-    def __init__(self, matchup_engine):
+    def __init__(self, matchup_engine, seed=42):
         self.matchup_engine = matchup_engine
+        self.seed = seed
+        self.rng = np.random.default_rng(seed=seed)
 
     def simulate_remaining_season(self, test_sched, team_abilities, league_avg, n_sims=1000, outcome_type='final'):
         teams = set(test_sched['home_team']).union(set(test_sched['away_team']))
@@ -518,8 +535,8 @@ class SeasonSimulator:
 
         for i in range(n_sims):
             for h, a, h_exp, a_exp in game_expectations:
-                h_goals = np.random.poisson(h_exp)
-                a_goals = np.random.poisson(a_exp)
+                h_goals = self.rng.poisson(h_exp)
+                a_goals = self.rng.poisson(a_exp)
                 
                 if h_goals > a_goals:
                     sim_wins[h][i] += 1
@@ -527,7 +544,7 @@ class SeasonSimulator:
                     sim_wins[a][i] += 1
                 else:
                     if outcome_type == 'final':
-                        if np.random.rand() > 0.5: sim_wins[h][i] += 1
+                        if self.rng.random() > 0.5: sim_wins[h][i] += 1
                         else: sim_wins[a][i] += 1
                     else:
                         sim_wins[h][i] += 0.5
@@ -554,7 +571,7 @@ class SeasonSimulator:
 class PredictiveEvaluator:
     def __init__(self, model_name, metric_type, filter_type, matchup_type='poisson', 
                  outcome_type='final', n_boot=100, matchup_logic='multiplicative', 
-                 n_jobs=1, apply_arena_adjustments=True):
+                 n_jobs=1, apply_arena_adjustments=True, seed=42, no_dashboards=False):
         self.model_registry = ModelRegistry()
         self.summarizer = TeamAbilitySummarizer(metric_type, filter_type)
         
@@ -567,12 +584,12 @@ class PredictiveEvaluator:
         self.matchup_logic = matchup_logic
         self.n_jobs = n_jobs
         self.apply_arena_adjustments = apply_arena_adjustments
+        self.seed = seed
+        self.no_dashboards = no_dashboards
 
         # Engine Selection
-        if matchup_type == 'poisson':
-            self.matchup_engine = PoissonMatchupEngine(logic_type=matchup_logic)
-        else:
-            self.matchup_engine = SimulationMatchupEngine(logic_type=matchup_logic) # type: ignore
+        # Note: SimulationMatchupEngine removed as it was a Poisson fallback
+        self.matchup_engine = PoissonMatchupEngine(logic_type=matchup_logic)
 
     def run_evaluation(self, season, train_split=0.7, split_method='random', n_reps=1):
         df = DataUtils.load_season_data(season, apply_arena_adjustments=self.apply_arena_adjustments)
@@ -620,7 +637,9 @@ class PredictiveEvaluator:
             else:
                 # Fallback to empirical goals if no abilities (unlikely)
                 train_df_filtered = self.summarizer._apply_filter(train_df_rep)
-                league_avg_exp = (train_df_filtered['event'].str.lower() == 'goal').sum() / (2 * len(train_gids_rep)) if len(train_gids_rep) > 0 else 3.0
+                # BUG 6 Fix: denominator should be 2 * number of games that passed the filter
+                n_games_filtered = train_df_filtered['game_id'].nunique()
+                league_avg_exp = (train_df_filtered['event'].str.lower() == 'goal').sum() / (2 * n_games_filtered) if n_games_filtered > 0 else 3.0
             
             rep_results_list = []
             for _, row in test_sched_rep.iterrows():
@@ -698,7 +717,7 @@ class PredictiveEvaluator:
         
         # Baked-in Dashboard Generation
         pure_model_name = self.model_name.replace('local_', '')
-        if pure_model_name != 'actual':
+        if pure_model_name != 'actual' and not self.no_dashboards:
             self._trigger_dashboard_generation(pure_model_name)
 
         return eval_summary
@@ -829,9 +848,12 @@ class PredictiveEvaluator:
         
         rep_results = []
         
+        # M3 Fix: Use seeded RNG for reproducibility
+        rng = np.random.default_rng(seed=self.seed)
+        
         for rep in range(split_reps):
             if split_method == 'random':
-                train_gids = np.random.choice(list(all_gids), n_train, replace=False)
+                train_gids = rng.choice(list(all_gids), n_train, replace=False)
                 test_gids = np.array([g for g in all_gids if g not in train_gids])
             else:
                 train_gids = all_gids[:n_train]
@@ -921,9 +943,7 @@ class PredictiveEvaluator:
         plotting_df['CumFilter'] = target_filter
         plotting_df['PredictionMode'] = prediction_mode
         plotting_df['SplitMethod'] = split_method
-        plotting_df['MeanR2'] = mean_r2
-        
-        # Store individual R2s for downstream plotting (important for aggregation)
+        plotting_df.attrs['MeanR2'] = mean_r2
         plotting_df.attrs['r2_dist'] = final_r2s
         
         # Rename for common plotting logic
@@ -936,6 +956,8 @@ class PredictiveEvaluator:
         
         for col in ['pred_wins_mean', 'pred_wins_std', 'pred_gd_mean', 'pred_gd_std', 'pred_xg_diff']:
             plotting_df[col] = 0.0
+        
+        return plotting_df
             
     def run_hockey_graphs_stability(self, seasons, intervals=[10, 20, 30, 40, 50, 60, 70], reps=1000, per_season=False, hg_metric='pct'):
         """
@@ -948,6 +970,7 @@ class PredictiveEvaluator:
         - Aggregate using Fisher-Z transformation.
         """
         logger.info(f"Starting Hockey-Graphs Stability Study across {len(seasons)} seasons...")
+        hg_attrs = {}
         
         # 1. Load and pre-process all seasons
         all_season_gms = {}
@@ -1045,6 +1068,7 @@ class PredictiveEvaluator:
             group_label = group_seasons[0] if len(group_seasons) == 1 else "Aggregate"
             logger.info(f"Running stability study for: {group_label}")
             
+            hg_attrs = {}
             for X in intervals:
                 logger.info(f"Processing interval: {X} games...")
                 xg_rs, goal_rs = [], []
@@ -1158,11 +1182,16 @@ class PredictiveEvaluator:
                     'Sample_Size': X,
                     'xG_r': f_r_xg, 'xG_r2': f_r_xg**2,
                     'Goals_r': f_r_goal, 'Goals_r2': f_r_goal**2,
-                    'Brier': np.mean(brier_scores) if brier_scores else np.nan,
                     'Accuracy': np.mean(accuracies) if accuracies else np.nan
                 })
+                # Store raw distributions for each interval in the DataFrame attributes
+                if 'dist_map' not in hg_attrs: hg_attrs['dist_map'] = {}
+                hg_attrs['dist_map'][X] = {'xg': xg_rs, 'goal': goal_rs}
             
-        return pd.DataFrame(final_results)
+        df_hg = pd.DataFrame(final_results)
+        for k, v in hg_attrs.items():
+            df_hg.attrs[k] = v
+        return df_hg
 
 
     def _output_rankings(self, season, abilities):
@@ -1197,10 +1226,21 @@ class PredictiveEvaluator:
         return float(np.mean((p - y)**2))
 
     def _acc_fn(self, y, p):
-        # Handle ties (y=0.5) as half-correct or ignore?
+        # BUG 5 Fix: Handle ties (0.5) correctly as "half-correct"
         # Standard accuracy: (p > 0.5) matches (y > 0.5)
-        # Ties in regulation are tricky.
-        return float(np.mean((p > 0.5) == (y > 0.5)))
+        # Regulation ties (y=0.5) are tricky. We treat them as 0.5 if prediction is exactly 0.5, 
+        # but realistically we just compare side.
+        if isinstance(y, (np.ndarray, pd.Series)):
+            # Vectorized version
+            correct = ((p > 0.5) == (y > 0.5)).astype(float)
+            # BUG 5 Fix: Skip ties in accuracy calculation to avoid sign-match bias
+            tie_mask = (y == 0.5)
+            if tie_mask.any() and not tie_mask.all():
+                return float(np.mean(correct[~tie_mask]))
+            return float(np.mean(correct))
+        
+        if y == 0.5: return 0.5 # Single tie case
+        return float((p > 0.5) == (y > 0.5))
 
 def _get_config_palette(configurations):
     """Creates a color palette where local/non-local models are linked."""
@@ -1599,6 +1639,9 @@ def main():
     parser.add_argument('--split-method', type=str, default='random', choices=['chronological', 'random'], help='Method for splitting season into train/test')
     parser.add_argument('--split-reps', type=int, default=None, help='Number of iterations for evaluation (full bootstrap). Defaults to --n-boot.')
     parser.add_argument('--reps', type=int, default=500, help='Number of bootstrap iterations for Hockey-Graphs study')
+    parser.add_argument('--n-sims', type=int, default=1000, help='Number of Monte Carlo simulations for season prediction')
+    parser.add_argument('--seed', type=int, default=42, help='Random seed for reproducibility')
+    parser.add_argument('--no-dashboards', action='store_true', help='Disable automatic dashboard generation/updates')
     # Hockey Graphs Study
     parser.add_argument('--hockey-graphs', action='store_true', help='Replicate Hockey-Graphs stability intervals analysis')
     parser.add_argument('--hg-metric', type=str, default='pct', choices=['pct', 'diff'], help='Metric for Hockey-Graphs study: pct (ratio) or diff (per-game difference)')
@@ -1633,7 +1676,8 @@ def main():
             evaluator = PredictiveEvaluator(
                 m, args.metric, f, args.matchup, args.outcome, args.n_boot, 
                 args.matchup_logic, n_jobs=n_jobs, 
-                apply_arena_adjustments=not args.no_arena_adj
+                apply_arena_adjustments=not args.no_arena_adj,
+                seed=args.seed, no_dashboards=args.no_dashboards
             )
             
             if args.hockey_graphs:

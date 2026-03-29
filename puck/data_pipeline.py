@@ -49,7 +49,7 @@ def preprocess_features(df_input: pd.DataFrame,
                         apply_bio_enrichment: bool = True,
                         apply_html_enrichment: bool = True,
                         apply_attribution_fix: bool = True,
-                        impute_alpha: float = 0.5,
+                        impute_alpha: float = 0.2,
                         exclude_blocked: bool = False,
                         game_id: Optional[str] = None) -> pd.DataFrame:
     """Preprocess NHL game data for model consumption.
@@ -304,7 +304,7 @@ def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
     """Final formatting and default filling."""
     # Categoricals
     cat_cols = features.SHOT_TYPE + features.HANDEDNESS + features.PLAYER_ROLE + \
-               ['last_event_type', 'game_state', 'relative_game_state', 'period_time_type']
+               ['last_event_type', 'game_state', 'relative_game_state', 'period_time_type', 'season']
     for col in cat_cols:
         if col not in df.columns:
             df[col] = 'Unknown'

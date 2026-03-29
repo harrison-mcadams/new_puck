@@ -57,6 +57,10 @@ CATEGORICAL_VOCABS = {
     'relative_game_state': VOCAB_GAME_STATE,
     'last_event_type': [
         'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty'
+    ],
+    'season': [
+        '20142015', '20152016', '20162017', '20172018', '20182019', '20192020',
+        '20202021', '20212022', '20222023', '20232024', '20242025', '20252026'
     ]
 }
 

@@ -879,7 +879,7 @@ def _predict_xtg(df: pd.DataFrame, behavior='load'):
 
 
 
-def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True):
+def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True, impute_alpha: float = None):
     if model_path is None:
         model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested_tensor.joblib')
 
@@ -1047,7 +1047,8 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
                     verbose=False, # cleaner output
                     apply_arena_adjustments=True, 
                     apply_imputation=True,
-                    apply_dithering=False 
+                    apply_dithering=False,
+                    impute_alpha=impute_alpha if impute_alpha is not None else 0.2
                 )
             else:
                 # Assume Input is already processed
