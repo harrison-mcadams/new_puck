@@ -19,18 +19,19 @@ def play_url(url, user_agent=None, referer=None, origin=None):
     """
     # Use verified Pulsar headers by default
     if not user_agent:
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        user_agent = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36"
     if not referer:
-        referer = "https://streamed.su/"
+        referer = "https://embedsports.top/"
     if not origin:
-        origin = "https://streamed.su"
+        origin = "https://embedsports.top"
 
-    from urllib.parse import quote_plus
+    from urllib.parse import quote
     
     # Construct the Kodi-style URL with headers
-    # Values MUST be URL-encoded so Kodi's internal parser doesn't break on spaces or ampersands
-    headers_str = f"User-Agent={quote_plus(user_agent)}&Referer={quote_plus(referer)}&Origin={quote_plus(origin)}"
+    # Using quote() instead of quote_plus() to ensure %20 for spaces
+    headers_str = f"User-Agent={quote(user_agent)}&Referer={quote(referer)}&Origin={quote(origin)}"
     kodi_url = f"{url}|{headers_str}"
+
 
     
     payload = {
