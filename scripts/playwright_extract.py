@@ -90,8 +90,9 @@ def extract_stream(url, timeout_secs=80):
                     if "pooembed" in url_low or "embed" in url_low or "modifiles" in url_low:
                         print(f"[*] Deep-clicking inside frame: {frame.url[:50]}...", file=sys.stderr)
                         try:
-                            # Force click the specific container we saw in its HTML!
-                            frame.locator('#player, video, .jw-video, button_parent, body').first.click(force=True, timeout=5000)
+                            # Force click the specific container we saw in its HTML! 
+                            # (Removed 'body' from fallback because .first was catching the background!)
+                            frame.locator('#player, video, .jw-video, button_parent, .fp-ui').first.click(force=True, timeout=5000)
                         except Exception as e:
                             print(f"[!] Force-click ignored: {e}", file=sys.stderr)
                             try:
