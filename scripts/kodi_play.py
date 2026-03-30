@@ -35,10 +35,8 @@ def get_live_games(base_domain):
         soup = BeautifulSoup(response.text, 'html.parser')
         
         games = []
-        # Current site structure: a tags containing h1/h2 or just text with team names
         links = soup.find_all('a', href=re.compile(r'/watch/'))
         for link in links:
-            # Check h1 inside link or the link text itself
             title_tag = link.find(['h1', 'h2', 'h3', 'p', 'span'])
             title = title_tag.text.strip() if title_tag else link.text.strip()
             
@@ -67,8 +65,51 @@ def find_game_page(team_name, preferred_domain="streamed.pk"):
     print(f"[-] No live game found for '{team_name}' on any monitored domain.")
     return None
 
+def deep_extract_m3u8(page_url):
+    """Deep-dive into a specific page (embed or stream) to find a direct .m3u8 link."""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": page_url
+    }
+    
+    print(f"[*] Deep-diving into: {page_url}...")
+    try:
+        response = SCRAPER.get(page_url, headers=headers, timeout=10)
+        
+        # 1. Broad Look for m3u8 patterns (handles many poocloud/modifiles patterns)
+        # Often looks like: file: "https://lb1.modifiles.fans/secure/TOKEN/index.m3u8"
+        # Or: source: "https://..."
+        m3u8_patterns = [
+            r'file:\s*["\'](https://[^"\'\s]+\.m3u8[^"\'\s]*)["\']',
+            r'source:\s*["\'](https://[^"\'\s]+\.m3u8[^"\'\s]*)["\']',
+            r'(https://[^"\'\s]+\.m3u8[^"\'\s]*)'
+        ]
+        
+        for pattern in m3u8_patterns:
+            matches = re.findall(pattern, response.text)
+            for m in matches:
+                url = m.replace('\\', '')
+                if "placeholder" not in url.lower():
+                    print(f"[+] Successfully extracted direct stream: {url}")
+                    return url
+                    
+        # 2. Look for nested iframes that might contain the stream
+        if "embedsport" in page_url:
+            # If we are already on an embed page and found no m3u8, check if there's another iframe
+            iframe_match = re.search(r'<iframe[^>]+src=["\'](https://[^"\'\s]+)["\']', response.text)
+            if iframe_match:
+                nested_url = iframe_match.group(1)
+                # Avoid recursion loop
+                if nested_url != page_url:
+                    return deep_extract_m3u8(nested_url)
+
+        return None
+    except Exception as e:
+        print(f"(!) Deep-extraction failure on {page_url}: {e}")
+        return None
+
 def extract_m3u8(game_url):
-    """Extract a playable m3u8 or embed URL with 'Brute-Force' fallback."""
+    """Extract a playable m3u8 with exhaustive search and brute-force fallback."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         "Referer": game_url
@@ -79,78 +120,85 @@ def extract_m3u8(game_url):
     
     print(f"[*] Analyzing stream sources at {game_url}...")
     
-    # Brute-force guessing priority list (common paths for Admin, Delta, etc.)
-    priority_paths = ["/admin/1", "/delta/1", "/echo/1", "/golf/1", "/bravo/1"]
+    # Brute-force guessing priority list
+    priority_suffixes = ["/admin/1", "/delta/1", "/echo/1", "/golf/1", "/bravo/1"]
     
-    # Try actual scraping first
     try:
         response = SCRAPER.get(game_url, headers=headers, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # 1. Look for direct links in the HTML
+        # 1. Identify direct links on the game page
         game_id = game_url.strip('/').split('/')[-1]
-        provider_links = soup.find_all('a', href=re.compile(rf'/watch/{game_id}/\w+/\d+'))
+        found_links = soup.find_all('a', href=re.compile(r'/watch/'))
         
-        if provider_links:
-            # Prioritize found links
-            found_paths = [link['href'] for link in provider_links]
-            # Add to brute-force list at the front
-            priority_paths = found_paths + priority_paths
-            
-        # 2. Visit prioritized paths and look for iframe/m3u8
-        for path in priority_paths:
+        candidate_paths = []
+        for a in found_links:
+            href = a['href']
+            # We want paths that look like provider stream links
+            if any(s in href for s in priority_suffixes) or len(href.split('/')) > 3:
+                candidate_paths.append(href)
+        
+        # Combine found links with priority guesses (uniques only)
+        final_search_paths = candidate_paths + priority_suffixes
+        seen = set()
+        final_search_paths = [x for x in final_search_paths if not (x in seen or seen.add(x))]
+        
+        # 2. Iterate and deep-dive
+        for path in final_search_paths:
             stream_page = f"{base_url}{path}" if path.startswith('/') else path
-            # Normalizing path in case of double slashes
-            if f"{base_url}//" in stream_page: stream_page = stream_page.replace(f"{base_url}//", f"{base_url}/")
+            # Cleanup double slashes
+            if "://" in stream_page:
+                parts = stream_page.split("://")
+                stream_page = parts[0] + "://" + parts[1].replace("//", "/")
             
-            print(f"[*] Testing stream source: {stream_page}...")
+            # First, check if there's an embed iframe on the stream page
+            print(f"[*] Checking path: {stream_page}...")
             try:
                 stream_response = SCRAPER.get(stream_page, headers=headers, timeout=10)
                 
-                # Check for direct m3u8 in scripts
-                m3u8_match = re.search(r'(https://[^"\'\s]+\.m3u8[^"\'\s]*)', stream_response.text)
-                if m3u8_match:
-                    url = m3u8_match.group(1).replace('\\', '')
-                    print(f"[+] Found direct m3u8: {url}")
-                    return url
-                    
                 # Check for embed iframe (embedsports.top)
                 embed_match = re.search(r'https://embedsport[sy]\.top/embed/[^"\'\s]+', stream_response.text)
                 if embed_match:
                     embed_url = embed_match.group(0)
-                    print(f"[*] Found Embed URL: {embed_url}")
-                    return embed_url
+                    # Deep-dive into the embed
+                    m3u8 = deep_extract_m3u8(embed_url)
+                    if m3u8: return m3u8
+                
+                # Also try deep-diving into the stream page itself (it might have the m3u8)
+                m3u8 = deep_extract_m3u8(stream_page)
+                if m3u8: return m3u8
+                
             except:
                 continue
                 
-        # 3. Last resort: check if SvelteKit data exists in the base page
-        sources_match = re.search(r'sources:\s*\[(.*?)\]', response.text)
-        if sources_match:
-            # ... Pulsar-style regex parsing if needed ...
-            pass
-            
     except Exception as e:
-        print(f"(!) Scraping error: {e}")
+        print(f"(!) Primary extraction error: {e}")
         
-    print("[-] Extraction failed. Falling back to direct embed guessing...")
-    # If all above fails, return a guess based on the game-url ID
+    print("[-] Extraction failed to find a direct link. Falling back to manual embed dispatch...")
+    # Last resort fallback: dispatch the guessed embed URL to Kodi (unlikely to work without plugin)
     game_id = game_url.strip('/').split('/')[-1]
     return f"https://embedsports.top/embed/admin/{game_id}/1"
 
 def play_url(url, user_agent=None, referer=None, origin=None):
-    """Sends play request to Kodi via JSON-RPC."""
-    # Standard desktop UA often works best for these CDNs
+    """Sends play request to Kodi via JSON-RPC with smart header piping."""
     if not user_agent:
         user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     
-    # If it's a specific provider domain, set recommended headers
-    if "embedsport" in url:
+    # Auto-detect necessary headers based on domain
+    parsed = urlparse(url)
+    if "embedsport" in parsed.netloc:
         referer = "https://embedsports.top/"
         origin = "https://embedsports.top"
-    elif "modifiles.fans" in url:
-        # Modifiles often requires high-priority headers
+    elif "modifiles.fans" in parsed.netloc or "poocloud" in parsed.netloc:
+        # These are the modern Pulsar-verified headers for Modifiles
         referer = "https://streamed.su/" 
         origin = "https://streamed.su"
+    elif not referer:
+        # Generic fallback
+        referer = f"{parsed.scheme}://{parsed.netloc}/"
+        
+    if not origin and referer:
+        origin = referer.rstrip('/')
 
     from urllib.parse import quote
     
@@ -172,7 +220,7 @@ def play_url(url, user_agent=None, referer=None, origin=None):
     rpc_url = f"http://{config.KODI_HOST}:{config.KODI_PORT}/jsonrpc"
     
     print(f"[*] Dispatching stream to Kodi...")
-    print(f"[*] Payload Final: {kodi_url[:150]}...")
+    print(f"[*] Using CDN: {parsed.netloc}")
 
     try:
         response = requests.post(rpc_url, json=payload, auth=auth, timeout=10)
