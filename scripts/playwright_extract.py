@@ -81,16 +81,17 @@ def extract_stream(url, timeout_secs=80):
                         break
                 time.sleep(10)
 
-            # Step C: Heavy Interaction (If still no stream)
+            # Step C: Heavy Interaction (Resolution Independent for Xvfb)
             if not target_m3u8:
-                print(f"[*] Still searching. Triggering player interaction...", file=sys.stderr)
-                page.mouse.click(640, 360) 
+                print(f"[*] Still searching. Triggering resolution-independent player clicks...", file=sys.stderr)
+                # Use JS to click the exact center of the window automatically
+                page.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
                 time.sleep(5)
                 # Scroll to wake up lazy-loaded iframes
                 page.evaluate("window.scrollTo(0, 500)")
                 time.sleep(5)
-                # Click some more
-                page.mouse.click(960, 500)
+                # Secondary click incase of popup
+                page.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
                 time.sleep(10)
 
             # Step D: Final Monitoring
