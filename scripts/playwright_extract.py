@@ -21,15 +21,10 @@ def extract_stream(url, timeout_secs=80):
     print(f"[*] Turbo Launch for: {url}", file=sys.stderr)
 
     with sync_playwright() as p:
-        # Player throws 'Error 102630' if browser lacks H.264 codec support.
-        # Playwright's default chromium lacks it. We MUST use the Pi's native system browser!
-        chromium_path = shutil.which("chromium-browser") or shutil.which("chromium")
+        # Launch Chromium directly. Native Pi Chromium wasn't found (Headless server OS), 
+        # so we will use Javascript injection to fake the H.264 video codec support below!
         launch_args = {'headless': False, 'args': ['--no-sandbox']}
         
-        if chromium_path:
-            print(f"[*] Using native Pi browser for H.264 codec support: {chromium_path}", file=sys.stderr)
-            launch_args['executable_path'] = chromium_path
-            
         browser = p.chromium.launch(**launch_args)
         context = browser.new_context(
             viewport={'width': 1280, 'height': 720},
@@ -37,10 +32,24 @@ def extract_stream(url, timeout_secs=80):
         )
         page = context.new_page()
 
-        # Mask Playwright automation (Stealth Mode) so the player's obfuscated JS doesn't silently block us
+        # Mask Playwright automation (Stealth Mode)
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
-        page.add_init_script("window.navigator.chrome = { runtime: {} };")
-        page.add_init_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});")
+        page.add_init_script("window.chrome = { runtime: {} };")
+        
+        # MOCK CODECS (Crucial for Playwright Chromium): 
+        # Trick JWPlayer into thinking we have H.264 support so it proceeds to fetch the .m3u8 !
+        mock_codec_script = """
+        const originalCanPlayType = HTMLMediaElement.prototype.canPlayType;
+        Object.defineProperty(HTMLMediaElement.prototype, 'canPlayType', {
+            value: function(type) {
+                if (type.includes('mp4') || type.includes('avc1') || type.includes('m3u8') || type.includes('hls')) {
+                    return 'probably';
+                }
+                return originalCanPlayType.apply(this, arguments);
+            }
+        });
+        """
+        page.add_init_script(mock_codec_script)
         # and likely aborted the .m3u8 fetch itself. The Pi will just have to load the full page.
         
         # 2. Network Listener (Total Intercept)
