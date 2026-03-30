@@ -29,17 +29,9 @@ def extract_stream(url, timeout_secs=80):
         )
         page = context.new_page()
 
-        # 1. Resource Blocking (Speeds up loading on Pi)
-        def block_resources(route):
-            if route.request.resource_type in ["image", "media", "font"]:
-                route.abort()
-            elif any(ad in route.request.url for ad in ["doubleclick", "adservice", "analytics", "popunder"]):
-                route.abort()
-            else:
-                route.continue_()
+        # Removed Resource Blocking: Aborting media/fonts caused the player's 'Play' button to break 
+        # and likely aborted the .m3u8 fetch itself. The Pi will just have to load the full page.
         
-        page.route("**/*", block_resources)
-
         # 2. Network Listener (Total Intercept)
         def handle_request(request):
             nonlocal target_m3u8
