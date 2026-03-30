@@ -73,17 +73,24 @@ def extract_stream(url, timeout_secs=80):
                         break
                 time.sleep(10)
 
-            # Step C: Heavy Interaction (Resolution Independent for Xvfb)
+            # Step C: Heavy Interaction (Frame Penetration)
             if not target_m3u8:
-                print(f"[*] Still searching. Triggering resolution-independent player clicks...", file=sys.stderr)
-                # Use JS to click the exact center of the window automatically
-                page.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
+                print(f"[*] Still searching. Triggering player inside nested iframes...", file=sys.stderr)
                 time.sleep(5)
                 # Scroll to wake up lazy-loaded iframes
                 page.evaluate("window.scrollTo(0, 500)")
                 time.sleep(5)
-                # Secondary click incase of popup
-                page.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
+                
+                # Iterate through all frames (flattened hierarchy) and explicitly click inside the player frames
+                for frame in page.frames:
+                    url_low = frame.url.lower()
+                    if "pooembed" in url_low or "embed" in url_low or "modifiles" in url_low:
+                        print(f"[*] Deep-clicking inside frame: {frame.url[:50]}...", file=sys.stderr)
+                        try:
+                            frame.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
+                        except:
+                            pass
+                
                 time.sleep(10)
 
             # Step D: Final Monitoring
