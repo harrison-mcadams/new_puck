@@ -13,25 +13,24 @@ sys.path.append(str(Path(__file__).parent.parent))
 from puck import config
 
 def extract_via_playwright(page_url):
-    """Call the Nuclear Playwright extractor."""
-    print(f"[*] Nuclear Headless Discovery in progress (Playwright)...")
+    """Call the Turbo Playwright extractor with a long 120s timeout."""
+    print(f"[*] Turbo Headless Discovery in progress (120s limit)...")
     script_path = Path(__file__).parent / "playwright_extract.py"
     
     try:
-        # Run the extractor script and capture stdout
-        # Timeout adjusted for slower Pi browsing
+        # Long timeout for the Pi browser to resolve the manifest
         result = subprocess.run(
             [sys.executable, str(script_path), "--url", page_url],
-            capture_output=True, text=True, timeout=60
+            capture_output=True, text=True, timeout=120
         )
         
         if result.returncode == 0:
             m3u8 = result.stdout.strip()
             if m3u8:
-                print(f"[+] Nuclear Success: {m3u8}")
+                print(f"[+] Turbo Success: {m3u8}")
                 return m3u8
         else:
-            print(f"(!) Nuclear Extraction Failed: {result.stderr}")
+            print(f"(!) Turbo Extraction Failed: {result.stderr}")
             
     except Exception as e:
         print(f"(!) Failed to invoke Playwright script: {e}")
@@ -41,7 +40,7 @@ def extract_via_playwright(page_url):
 def play_url(url, user_agent=None, referer=None, origin=None):
     """Sends play request to Kodi via JSON-RPC with smart header piping."""
     if not user_agent:
-        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
     
     parsed = urlparse(url)
     if "embedsport" in parsed.netloc:
@@ -66,6 +65,7 @@ def play_url(url, user_agent=None, referer=None, origin=None):
     rpc_url = f"http://{config.KODI_HOST}:{config.KODI_PORT}/jsonrpc"
     
     print(f"[*] Dispatching stream to Kodi...")
+    print(f"[*] Target: {parsed.netloc}")
     try:
         response = requests.post(rpc_url, json=payload, auth=auth, timeout=10)
         response.raise_for_status()
@@ -75,7 +75,7 @@ def play_url(url, user_agent=None, referer=None, origin=None):
         print(f"(!) RPC Call Failed: {e}")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Kodi Remote Discovery & Launcher")
+    parser = argparse.ArgumentParser(description="Kodi Turbo Launcher")
     parser.add_argument("--url", help="Direct HLS/m3u8 URL to play")
     parser.add_argument("--game-url", help="Direct game page URL")
     parser.add_argument("--team", help="Team name to discover (e.g. Flyers)")
@@ -87,14 +87,12 @@ if __name__ == "__main__":
     if args.url:
         play_url(args.url, user_agent=args.ua, referer=args.ref)
     elif args.game_url:
-        # Use the Nuclear option directly for game pages
         stream_url = extract_via_playwright(args.game_url)
         if stream_url:
             play_url(stream_url, user_agent=args.ua, referer=args.ref)
     elif args.team:
-        # We'll use your direct game URL for now as discovery was blocked
-        # But we can try to guess the game URL for the team
-        print("[-] Discovery blocked by Cloudflare. Running brute-force guess on pk mirror...")
+        print(f"[*] Discovery blocked by Cloudflare. Running brute-force guess for '{args.team}'...")
+        # Friendly URL guess
         game_url_guess = f"https://streamed.pk/watch/ppv-dallas-stars-vs-philadelphia-flyers"
         stream_url = extract_via_playwright(game_url_guess)
         if stream_url:
