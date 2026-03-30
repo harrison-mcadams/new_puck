@@ -34,7 +34,7 @@ def extract_stream(url, timeout_secs=80):
 
         # Mask Playwright automation (Stealth Mode)
         page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
-        page.add_init_script("window.chrome = { runtime: {} };")
+        page.add_init_script("if (!window.chrome) { window.chrome = { runtime: {} }; }")
         
         # MOCK CODECS (Crucial for Playwright Chromium): 
         # Trick JWPlayer into thinking we have H.264 support so it proceeds to fetch the .m3u8 !
@@ -42,7 +42,7 @@ def extract_stream(url, timeout_secs=80):
         const originalCanPlayType = HTMLMediaElement.prototype.canPlayType;
         Object.defineProperty(HTMLMediaElement.prototype, 'canPlayType', {
             value: function(type) {
-                if (type.includes('mp4') || type.includes('avc1') || type.includes('m3u8') || type.includes('hls')) {
+                if (type && typeof type === 'string' && (type.includes('mp4') || type.includes('avc1') || type.includes('m3u8') || type.includes('hls'))) {
                     return 'probably';
                 }
                 return originalCanPlayType.apply(this, arguments);
