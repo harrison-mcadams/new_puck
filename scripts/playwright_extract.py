@@ -29,7 +29,10 @@ def extract_stream(url, timeout_secs=80):
         )
         page = context.new_page()
 
-        # Removed Resource Blocking: Aborting media/fonts caused the player's 'Play' button to break 
+        # Mask Playwright automation (Stealth Mode) so the player's obfuscated JS doesn't silently block us
+        page.add_init_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined});")
+        page.add_init_script("window.navigator.chrome = { runtime: {} };")
+        page.add_init_script("Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3]});")
         # and likely aborted the .m3u8 fetch itself. The Pi will just have to load the full page.
         
         # 2. Network Listener (Total Intercept)
@@ -87,9 +90,13 @@ def extract_stream(url, timeout_secs=80):
                     if "pooembed" in url_low or "embed" in url_low or "modifiles" in url_low:
                         print(f"[*] Deep-clicking inside frame: {frame.url[:50]}...", file=sys.stderr)
                         try:
-                            frame.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
-                        except:
-                            pass
+                            # Force click the specific container we saw in its HTML!
+                            frame.locator('#player, video, .jw-video, button_parent, body').first.click(force=True, timeout=5000)
+                        except Exception as e:
+                            print(f"[!] Force-click ignored: {e}", file=sys.stderr)
+                            try:
+                                frame.evaluate('document.elementFromPoint(window.innerWidth/2, window.innerHeight/2)?.click()')
+                            except: pass
                 
                 time.sleep(10)
 
