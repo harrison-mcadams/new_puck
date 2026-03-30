@@ -39,7 +39,7 @@ def extract_stream(url, timeout_secs=80):
         def handle_request(request):
             nonlocal target_m3u8
             u = request.url.lower()
-            if ".m3u8" in u or "manifest" in u or "master.json" in u:
+            if ".m3u8" in u:
                 if not target_m3u8 and "placeholder" not in u:
                     target_m3u8 = request.url
                     print(f"[!] Traffic Found: {target_m3u8}", file=sys.stderr)

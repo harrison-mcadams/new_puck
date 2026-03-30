@@ -54,7 +54,7 @@ def play_url(url, user_agent=None, referer=None, origin=None):
         origin = "https://streamed.su"
         
     from urllib.parse import quote
-    headers_str = f"User-Agent={quote(user_agent)}&Referer={quote(referer)}&Origin={quote(origin)}"
+    headers_str = f"User-Agent={quote(user_agent or '')}&Referer={quote(referer or '')}&Origin={quote(origin or '')}"
     kodi_url = f"{url}|{headers_str}"
     
     payload = {
