@@ -19,8 +19,10 @@ def extract_via_playwright(page_url):
     
     try:
         # Long timeout for the Pi browser to resolve the manifest
+        # We must use xvfb-run because playwright_extract.py now runs headful (headless=False)
+        cmd = ["xvfb-run", sys.executable, str(script_path), "--url", page_url]
         result = subprocess.run(
-            [sys.executable, str(script_path), "--url", page_url],
+            cmd,
             capture_output=True, text=True, timeout=120
         )
         

@@ -20,8 +20,9 @@ def extract_stream(url, timeout_secs=80):
     print(f"[*] Turbo Launch for: {url}", file=sys.stderr)
 
     with sync_playwright() as p:
-        # Launch Chromium (optimized)
-        browser = p.chromium.launch(headless=True)
+        # Launch Chromium (optimized) - HEADLESS=FALSE is required
+        # Player blocks headless=True, causing the 120s timeouts!
+        browser = p.chromium.launch(headless=False, args=['--no-sandbox'])
         context = browser.new_context(
             viewport={'width': 1280, 'height': 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
