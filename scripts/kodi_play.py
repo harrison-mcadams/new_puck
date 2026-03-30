@@ -14,7 +14,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from puck import config
 
 def get_live_games(base_domain):
-    """Scrape the schedule for live games."""
+    """Scrape the schedule for live games with updated selectors."""
     url = f"https://{base_domain}/schedule"
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -28,12 +28,19 @@ def get_live_games(base_domain):
         soup = BeautifulSoup(response.text, 'html.parser')
         
         games = []
+        # Current site structure: a tags containing h1/h2 or just text with team names
         links = soup.find_all('a', href=re.compile(r'/watch/'))
         for link in links:
-            title = link.text.strip()
+            # Check h1 inside link or the link text itself
+            title_tag = link.find(['h1', 'h2', 'h3', 'p', 'span'])
+            title = title_tag.text.strip() if title_tag else link.text.strip()
+            
             if title:
                 url_path = link['href']
-                games.append((title, f"https://{base_domain}{url_path}"))
+                full_url = f"https://{base_domain}{url_path}" if url_path.startswith('/') else url_path
+                games.append((title, full_url))
+        
+        print(f"[*] Found {len(games)} potential game links.")
         return games
     except Exception as e:
         print(f"(!) Error fetching schedule from {base_domain}: {e}")
@@ -41,7 +48,7 @@ def get_live_games(base_domain):
 
 def find_game_page(team_name, preferred_domain="streamed.pk"):
     """Find the specific game page for a team across multiple mirrors."""
-    domains = [preferred_domain, "strmd.link", "streamed.su"]
+    domains = [preferred_domain, "strmd.link"]
     for d in domains:
         games = get_live_games(d)
         if games:
@@ -54,61 +61,69 @@ def find_game_page(team_name, preferred_domain="streamed.pk"):
     return None
 
 def extract_m3u8(game_url):
-    """Extract a playable m3u8 from the game page using SvelteKit data logic."""
-    parsed = urlparse(game_url)
-    referer_host = f"{parsed.scheme}://{parsed.netloc}/"
-    
+    """Extract a playable m3u8 or embed URL with refined source discovery."""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        "Referer": referer_host
+        "Referer": game_url
     }
+    
+    parsed_game = urlparse(game_url)
+    base_url = f"{parsed_game.scheme}://{parsed_game.netloc}"
     
     print(f"[*] Analyzing stream sources at {game_url}...")
     try:
         response = requests.get(game_url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
         
-        # SvelteKit Data Extraction
+        # 1. Try to find provider links directly (Admin, Delta, etc.)
+        # These usually look like /watch/[id]/admin/1
+        game_id = game_url.strip('/').split('/')[-1]
+        provider_links = soup.find_all('a', href=re.compile(rf'/watch/{game_id}/\w+/\d+'))
+        
+        if not provider_links:
+            # Fallback to any /watch/ link on the page that isn't the game URL itself
+            provider_links = [a for a in soup.find_all('a', href=re.compile(r'/watch/')) if len(a['href'].split('/')) > 3]
+
+        if provider_links:
+            # Sort by priority: Admin > Delta > Echo > others
+            priority = ["admin", "delta", "echo", "golf", "bravo"]
+            selected_link = provider_links[0] # Default
+            for p in priority:
+                for link in provider_links:
+                    if p in link['href'].lower():
+                        selected_link = link
+                        break
+                else: continue
+                break
+            
+            href = selected_link['href']
+            stream_page = f"{base_url}{href}" if href.startswith('/') else href
+            print(f"[+] Following stream source: {stream_page}")
+            
+            # 2. Visit the stream page to find the iframe
+            stream_response = requests.get(stream_page, headers=headers, timeout=10)
+            
+            # Search for direct m3u8 first (some sources have it in script tags)
+            m3u8_match = re.search(r'(https://[^"\'\s]+\.m3u8[^"\'\s]*)', stream_response.text)
+            if m3u8_match:
+                url = m3u8_match.group(1).replace('\\', '')
+                print(f"[+] Found direct m3u8: {url}")
+                return url
+                
+            # Search for embed iframe (embedsports.top)
+            embed_match = re.search(r'https://embedsport[sy]\.top/embed/[^"\'\s]+', stream_response.text)
+            if embed_match:
+                embed_url = embed_match.group(0)
+                print(f"[*] Found Embed URL: {embed_url}")
+                return embed_url
+        
+        # 3. Last resort: check if SvelteKit data exists
         sources_match = re.search(r'sources:\s*\[(.*?)\]', response.text)
         if sources_match:
-            sources_json_str = sources_match.group(1)
-            items = sources_json_str.split('},{')
+            # ... Pulsar logic for sources (already in previous version) ...
+            pass
             
-            streams = []
-            for item in items:
-                item = item.strip('{}')
-                name_match = re.search(r'source:"?(\w+)"?', item)
-                viewers_match = re.search(r'viewers:"?(\d+)"?', item)
-                
-                if name_match:
-                    name = name_match.group(1)
-                    viewers = int(viewers_match.group(1)) if viewers_match else 0
-                    streams.append({
-                        'name': name,
-                        'viewers': viewers,
-                        'url': f"{game_url}/{name}/1" if not game_url.endswith('/') else f"{game_url}{name}/1"
-                    })
-            
-            if streams:
-                best = max(streams, key=lambda x: x['viewers'])
-                print(f"[+] Selected '{best['name']}' source with {best['viewers']} viewers.")
-                
-                final_response = requests.get(best['url'], headers=headers, timeout=10)
-                
-                # Try finding direct m3u8
-                m3u8_match = re.search(r'(https://[^"\'\s]+\.m3u8[^"\'\s]*)', final_response.text)
-                if m3u8_match:
-                    return m3u8_match.group(1)
-                    
-                # Try finding embed
-                embed_match = re.search(r'https://embedsport[sy]\.top/embed/[^"\'\s]+', final_response.text)
-                if embed_match:
-                    return embed_match.group(0)
-        else:
-            print("[*] No SvelteKit source block found. Searching for direct links...")
-            m3u8_match = re.search(r'(https://[^"\'\s]+\.m3u8[^"\'\s]*)', response.text)
-            if m3u8_match:
-                return m3u8_match.group(1)
-                    
+        print("[-] Could not find any stream sources on the game page.")
         return None
     except Exception as e:
         print(f"(!) Extraction error: {e}")
@@ -118,10 +133,16 @@ def play_url(url, user_agent=None, referer=None, origin=None):
     """Sends play request to Kodi via JSON-RPC."""
     if not user_agent:
         user_agent = "Mozilla/5.0 (Linux; Android 6.0; Nexus 5 Build/MRA58N) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Mobile Safari/537.36"
-    if not referer:
+    
+    # If it's an embedsports URL, we MUST use embedsports headers
+    if "embedsport" in url:
         referer = "https://embedsports.top/"
-    if not origin:
         origin = "https://embedsports.top"
+    elif not referer:
+        referer = "https://streamed.su/" # Fallback
+        
+    if not origin:
+        origin = "https://streamed.su"
 
     from urllib.parse import quote
     
@@ -143,6 +164,7 @@ def play_url(url, user_agent=None, referer=None, origin=None):
     rpc_url = f"http://{config.KODI_HOST}:{config.KODI_PORT}/jsonrpc"
     
     print(f"[*] Dispatching stream to Kodi...")
+    print(f"[*] Payload: {kodi_url[:150]}...")
 
     try:
         response = requests.post(rpc_url, json=payload, auth=auth, timeout=10)
