@@ -4,6 +4,7 @@ import argparse
 import time
 import re
 import os
+import shutil
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -20,9 +21,16 @@ def extract_stream(url, timeout_secs=80):
     print(f"[*] Turbo Launch for: {url}", file=sys.stderr)
 
     with sync_playwright() as p:
-        # Launch Chromium (optimized) - HEADLESS=FALSE is required
-        # Player blocks headless=True, causing the 120s timeouts!
-        browser = p.chromium.launch(headless=False, args=['--no-sandbox'])
+        # Player throws 'Error 102630' if browser lacks H.264 codec support.
+        # Playwright's default chromium lacks it. We MUST use the Pi's native system browser!
+        chromium_path = shutil.which("chromium-browser") or shutil.which("chromium")
+        launch_args = {'headless': False, 'args': ['--no-sandbox']}
+        
+        if chromium_path:
+            print(f"[*] Using native Pi browser for H.264 codec support: {chromium_path}", file=sys.stderr)
+            launch_args['executable_path'] = chromium_path
+            
+        browser = p.chromium.launch(**launch_args)
         context = browser.new_context(
             viewport={'width': 1280, 'height': 720},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
