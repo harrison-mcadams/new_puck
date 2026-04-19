@@ -246,12 +246,12 @@ def plot_events(
     # Default event styles
     default_styles = {
         'shot-on-goal': {'marker': 'o', 'size': 20, 'home_color': 'black',
-                  'away_color': 'orange'},
+                  'away_color': '#f74902'},
         'missed-shot': {'marker': 'o', 'size': 15, 'home_color': 'black',
-                         'away_color': 'orange'},
+                         'away_color': '#f74902'},
         'blocked-shot': {'marker': 'o', 'size': 15, 'home_color': 'black',
-                         'away_color': 'orange'},
-        'goal': {'marker': 'x', 'size': 60, 'home_color': 'black', 'away_color': 'orange'},
+                         'away_color': '#f74902'},
+        'goal': {'marker': 'x', 'size': 60, 'home_color': 'black', 'away_color': '#f74902'},
     }
     # Merge user-provided event_styles into defaults (case-insensitive keys)
     merged_styles = {}
@@ -835,14 +835,14 @@ def plot_events(
                 # pick colors depending on split mode (allow overrides via event_styles)
                 if heatmap_split_mode == 'team_not_team':
                     team_color = 'black'
-                    not_team_color = 'orange'
+                    not_team_color = '#f74902'
                     if event_styles and isinstance(event_styles, dict):
                         evx = event_styles.get('xgs') or {}
                         team_color = evx.get('team_color', team_color)
                         not_team_color = evx.get('not_team_color', not_team_color)
                 else:
                     home_color = 'black'
-                    away_color = 'orange'
+                    away_color = '#f74902'
                     if event_styles and isinstance(event_styles, dict):
                         evx = event_styles.get('xgs') or {}
                         home_color = evx.get('home_color', home_color)
@@ -1551,7 +1551,7 @@ def plot_relative_map(
             colors = [
                 '#053061', '#2166ac', '#4393c3', '#92c5de', '#d1e5f0',
                 '#ffffff', # PURE WHITE (was #f7f7f7)
-                '#fddbc7', '#f4a582', '#d6604d', '#b2182b', '#67001f'
+                '#ffccaa', '#ffaa88', '#f74902', '#c13902', '#8c2a01'
             ]
             # Create smooth colormap (defaults to N=256)
             cmap = mcolors.LinearSegmentedColormap.from_list('RdBu_White', colors)
@@ -1586,6 +1586,7 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
     """
     import os
     import matplotlib.pyplot as plt
+    import matplotlib.patheffects as pe
     import numpy as np
 
     if df is None or df.empty or 'xgs' not in df.columns or 'total_time_elapsed_seconds' not in df.columns:
@@ -1601,26 +1602,21 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
     time_min = time_sec / 60.0
 
     # Determine "Home" or "Selected Team"
-    team_mask = np.zeros(len(df_sorted), dtype=bool)
-    if team_for_heatmap:
-        target = str(team_for_heatmap).upper()
-        if 'home_abb' in df_sorted.columns:
-            m1 = df_sorted['home_abb'].astype(str).str.upper() == target
-            m1 = m1 & (df_sorted['team_id'].astype(str) == df_sorted['home_id'].astype(str))
-            team_mask = team_mask | m1.values
-        if 'away_abb' in df_sorted.columns:
-            m2 = df_sorted['away_abb'].astype(str).str.upper() == target
-            m2 = m2 & (df_sorted['team_id'].astype(str) == df_sorted['away_id'].astype(str))
-            team_mask = team_mask | m2.values
-    elif 'home_id' in df_sorted.columns:
+    # User requested: standard Home vs Away (Home positive, Away negative)
+    # We will ignore `team_for_heatmap` and strictly use Home vs Away
+    if 'home_id' in df_sorted.columns:
         team_mask = (df_sorted['team_id'].astype(str) == df_sorted['home_id'].astype(str)).values
-        target = "Home"
+        home_team_lbl = df_sorted['home_abb'].iloc[0] if 'home_abb' in df_sorted.columns else 'HOME'
+        away_team_lbl = df_sorted['away_abb'].iloc[0] if 'away_abb' in df_sorted.columns else 'AWAY'
     else:
         # Fallback
-        target = "Team"
         if len(df_sorted['team_id'].unique()) > 0:
             first_team = df_sorted['team_id'].unique()[0]
             team_mask = (df_sorted['team_id'].astype(str) == str(first_team)).values
+        else:
+            team_mask = np.zeros(len(df_sorted), dtype=bool)
+        home_team_lbl = 'TEAM'
+        away_team_lbl = 'OPPONENT'
             
     xgs = pd.to_numeric(df_sorted['xgs'], errors='coerce').fillna(0).values
     
@@ -1637,52 +1633,133 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
     time_min = np.insert(time_min, 0, 0.0)
     net_xg = np.insert(net_xg, 0, 0.0)
 
-    # Plot Setup - Dark Mode Aesthetic
-    fig, ax = plt.subplots(figsize=(10, 4), facecolor='#2B2B2B')
-    ax.set_facecolor('#2B2B2B')
+    # Determine the game's actual end time (avoiding post-game penalty expiration artificial extensions)
+    real_mask = (df_sorted['total_time_elapsed_seconds'] > 3600) & df_sorted['event'].isin(['shot-on-goal', 'goal', 'faceoff', 'hit', 'period_start'])
+    real_events_past_60 = df_sorted[real_mask]
+    
+    if real_events_past_60.empty:
+        max_time = 60.0
+    else:
+        if 'period_type' in df_sorted.columns and 'SHOOTOUT' in df_sorted['period_type'].values:
+            max_time = 65.0
+        else:
+            max_time = real_events_past_60['total_time_elapsed_seconds'].max() / 60.0
 
-    # Plot the net xG line
-    line_color = '#FFFFFF' # White line for contrast
-    fill_positive = '#f74902' # Flyers Orange
-    fill_negative = '#555555' # Dark Grey
+    # Truncate arrays to max_time
+    valid_idx = time_min <= max_time
+    time_min = time_min[valid_idx]
+    net_xg = net_xg[valid_idx]
 
-    # Make step plot instead of direct connecting lines? Real worms often plot stepwise
-    # We will use normal plot, it looks slightly smoother, but step is fine too 
-    # Let's just use normal lines for simplicity and smooth aesthetic
-    ax.plot(time_min, net_xg, color=line_color, linewidth=2, zorder=5)
-    ax.fill_between(time_min, 0, net_xg, where=(net_xg > 0), interpolate=True, color=fill_positive, alpha=0.7, zorder=4)
-    ax.fill_between(time_min, 0, net_xg, where=(net_xg <= 0), interpolate=True, color=fill_negative, alpha=0.5, zorder=4)
+    # Plot Setup - Light Mode Aesthetic (White background, Black axes)
+    fig, ax = plt.subplots(figsize=(10, 4), facecolor='#FFFFFF')
+    ax.set_facecolor('#FFFFFF')
 
-    # Add period markers
-    max_time = max(60.0, time_min[-1] if len(time_min)>0 else 60.0)
-    # Add a little padding to the max ylim to not overlap text
+    fill_positive = '#000000' # Black
+    fill_negative = '#f74902' # Flyers Orange
+
+    ax.fill_between(time_min, 0, net_xg, where=(net_xg > 0), interpolate=True, color=fill_positive, alpha=0.8, zorder=4)
+    ax.fill_between(time_min, 0, net_xg, where=(net_xg <= 0), interpolate=True, color=fill_negative, alpha=0.8, zorder=4)
+
+    # Plot the net xG line - Black line outlined with white
+    line_color = '#000000'
+    ax.plot(time_min, net_xg, color=line_color, linewidth=2.0, 
+            path_effects=[pe.withStroke(linewidth=4, foreground='#FFFFFF')], zorder=5)
+
+    # Base line
+    ax.axhline(0, color='#000000', linewidth=1, zorder=3)
+
+    # Set basic limits before drawing elements that depend on y limits
     ymin, ymax = ax.get_ylim()
     if ymax < 1.0: ymax = 1.0
     if ymin > -1.0: ymin = -1.0
-    ax.set_ylim(ymin * 1.1, ymax * 1.2)
+    # Add a little padding to the max ylim to not overlap text
+    ymin, ymax = ymin * 1.2, ymax * 1.2
+    ax.set_ylim(ymin, ymax)
+    ax.set_xlim(0, max(60.0, max_time + 1.0))
 
+    # Add Power Play shading
+    pp_intervals = []
+    current_pp_state = None
+    start_time = None
+    
+    unreliable_gs_events = ['blocked-shot', 'penalty', 'penalty_end', 'stoppage']
+    
+    for _, row in df_sorted.iterrows():
+        t = row['total_time_elapsed_seconds'] / 60.0
+        event = str(row.get('event', ''))
+        
+        # Determine relative game state (Home vs Away skaters)
+        rel_gs = '5v5'
+        if 'relative_game_state' in row and pd.notna(row['relative_game_state']):
+            rel_gs = str(row['relative_game_state']).strip()
+        else:
+            gs = str(row.get('game_state', '5v5')).strip()
+            if len(gs) == 3 and gs[1] == 'v':
+                if 'is_home' in df_sorted.columns:
+                    is_home = row['is_home'] == 1
+                else:
+                    is_home = str(row.get('team_id', '')) == str(row.get('home_id', '-1'))
+                rel_gs = gs if is_home else f"{gs[2]}v{gs[0]}"
+                
+        state = current_pp_state # hold previous state by default
+        
+        # Only update state based on events where game_state reliably maps to skater advantage
+        if event not in unreliable_gs_events:
+            if len(rel_gs) == 3 and rel_gs[1] == 'v':
+                h_skaters, a_skaters = int(rel_gs[0]), int(rel_gs[2])
+                if h_skaters > a_skaters: state = 'home'
+                elif a_skaters > h_skaters: state = 'away'
+                else: state = None
+            else:
+                state = None
+                
+        if state != current_pp_state:
+            if current_pp_state is not None:
+                pp_intervals.append((current_pp_state, start_time, t))
+            current_pp_state = state
+            start_time = t
+            
+    if current_pp_state is not None and start_time < max_time:
+        pp_intervals.append((current_pp_state, start_time, max_time))
+
+    for state, t0, t1 in pp_intervals:
+        if t1 > max_time: t1 = max_time
+        if t0 >= max_time: continue
+        if state == 'home':
+            ax.fill_between([t0, t1], 0, ymax, color=fill_positive, alpha=0.15, zorder=1)
+        elif state == 'away':
+            ax.fill_between([t0, t1], ymin, 0, color=fill_negative, alpha=0.15, zorder=1)
+
+    # Add period markers
     for p in range(1, int(max_time/20) + 1):
-        ax.axvline(x=p*20, color='#666666', linestyle='--', alpha=0.5, zorder=2)
+        ax.axvline(x=p*20, color='#000000', linestyle='--', alpha=0.3, zorder=2)
         if p <= 3:
-            ax.text(p*20 - 10, ymax*1.05, f'P{p}', color='#AAAAAA', ha='center', va='top', fontsize=10)
+            ax.text(p*20 - 10, ymax*0.9, f'P{p}', color='#000000', ha='center', va='top', fontsize=10)
     if max_time > 60:
-         ax.text(60 + (max_time-60)/2.0, ymax*1.05, 'OT', color='#AAAAAA', ha='center', va='top', fontsize=10)
+         ax.text(60 + (max_time-60)/2.0, ymax*0.9, 'OT', color='#000000', ha='center', va='top', fontsize=10)
 
-    # Base line
-    ax.axhline(0, color='#888888', linewidth=1, zorder=3)
+    # Add Goal vertical lines
+    goals = df_sorted[df_sorted['event'] == 'goal']
+    for _, row in goals.iterrows():
+        t = row['total_time_elapsed_seconds'] / 60.0
+        if t > max_time: continue
+        is_home_goal = (str(row['team_id']) == str(row.get('home_id', -1)))
+        if is_home_goal:
+            ax.plot([t, t], [0, ymax], color=fill_positive, linewidth=2, zorder=6)
+        else:
+            ax.plot([t, t], [0, ymin], color=fill_negative, linewidth=2, zorder=6)
 
     # Styling axes
-    ax.tick_params(colors='#AAAAAA', labelsize=10)
+    ax.tick_params(colors='#000000', labelsize=10)
     for spine in ax.spines.values():
-        spine.set_edgecolor('#444444')
+        spine.set_edgecolor('#000000')
 
-    ax.set_xlim(0, max(60.0, max_time + 1.0))
+    # Remove Title entirely
+    ax.set_title("")
     
-    # Title and Labels
-    label_team = target if team_for_heatmap else "Home"
-    ax.set_title(f'Net xG: {label_team} vs Opponent', color='#FFFFFF', fontsize=14, pad=10)
-    ax.set_xlabel('Game Time (Minutes)', color='#AAAAAA', fontsize=12)
-    ax.set_ylabel('Net Expected Goals (xG)', color='#AAAAAA', fontsize=12)
+    # Y-axis format: HOME_ABB vs AWAY_ABB
+    ax.set_ylabel(f'{home_team_lbl} vs {away_team_lbl}', color='#000000', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Game Time (Minutes)', color='#000000', fontsize=12)
 
     # Final layout
     plt.tight_layout()

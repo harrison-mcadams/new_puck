@@ -87,6 +87,8 @@ def generate_model_summary(model_path: str = None,
     
     if model_type == 'XGBNestedXGClassifier':
         dashboard_scripts.append(('xgboost_nested_model_dashboard.py', f'analysis/xgboost_nested_xgs/{Path(model_path).stem}_dashboard.html'))
+    elif model_type == 'XGBAlternateXGClassifier':
+        dashboard_scripts.append(('xgboost_alternate_model_dashboard.py', f'analysis/xgboost_alternate_xgs/{Path(model_path).stem}_dashboard.html'))
     elif model_type == 'XGBNonNestedXGClassifier':
         dashboard_scripts.append(('xgboost_non_nested_model_dashboard.py', f'analysis/xgboost_non_nested_xgs/{Path(model_path).stem}_dashboard.html'))
     elif model_type == 'NestedGLM':
@@ -107,11 +109,11 @@ def generate_model_summary(model_path: str = None,
                 )
                 if result.returncode == 0:
                     artifacts[script_name] = output_name
-                    vprint(f"    ✓ {output_name}")
+                    vprint(f"    [OK] {output_name}")
                 else:
-                    vprint(f"    ✗ Failed: {result.stderr[:200]}")
+                    vprint(f"    [FAILED] {result.stderr[:200]}")
             except Exception as e:
-                vprint(f"    ✗ Error: {e}")
+                vprint(f"    [ERROR] {e}")
         else:
             vprint(f"  Skipping {script_name} (not found)")
     
@@ -122,9 +124,9 @@ def generate_model_summary(model_path: str = None,
     try:
         _generate_text_summary(model, summary_path, model_path)
         artifacts['summary'] = str(summary_path)
-        vprint(f"  ✓ {summary_path}")
+        vprint(f"  [OK] {summary_path}")
     except Exception as e:
-        vprint(f"  ✗ Error: {e}")
+        vprint(f"  [ERROR] {e}")
     
     # 4. Feature Analysis
     vprint("\n[4/5] Feature analysis...")
@@ -133,9 +135,9 @@ def generate_model_summary(model_path: str = None,
     try:
         _generate_feature_analysis(model, feature_path)
         artifacts['feature_analysis'] = str(feature_path)
-        vprint(f"  ✓ {feature_path}")
+        vprint(f"  [OK] {feature_path}")
     except Exception as e:
-        vprint(f"  ✗ Error: {e}")
+        vprint(f"  [ERROR] {e}")
     
     # 5. Calibration Testing
     vprint("\n[5/5] Calibration testing...")
@@ -151,7 +153,7 @@ def generate_model_summary(model_path: str = None,
             with open(calibration_output, 'w') as f:
                 f.write(result.stdout)
             artifacts['calibration'] = str(calibration_output)
-            vprint(f"  ✓ {calibration_output}")
+            vprint(f"  [OK] {calibration_output}")
             
             # Extract key metrics for display
             if 'Ratio (xG/Goals):' in result.stdout:
@@ -159,7 +161,7 @@ def generate_model_summary(model_path: str = None,
                     if 'Ratio' in line or 'Total' in line:
                         vprint(f"    {line.strip()}")
         except Exception as e:
-            vprint(f"  ✗ Error: {e}")
+            vprint(f"  [ERROR] {e}")
     
     vprint("\n" + "="*60)
     vprint("SUMMARY COMPLETE")
