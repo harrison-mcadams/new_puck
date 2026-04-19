@@ -46,7 +46,7 @@ except Exception as e:
 
 # --- RF CONTROL CONFIGURATION ---
 # Path to the virtualenv python and the pico bridge script
-RF_PYTHON_EXEC = "/home/spoon/new_puck/.venv/bin/python"
+RF_PYTHON_EXEC = sys.executable
 RF_SCRIPT_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rf_testing", "mimic_pico.py")
 # --------------------------------
 
@@ -229,6 +229,15 @@ def replot():
         # Extract metadata from returned DataFrame (ret[2])
         if isinstance(ret, tuple) and len(ret) >= 3:
             df = ret[2]
+            
+            # Generate Game Worm Plot
+            worm_out_path = os.path.join(ANALYSIS_DIR, 'game_worm.png')
+            plot_team = condition.get('team') if 'team' in condition else None
+            try:
+                plot.plot_game_worm(df, worm_out_path, team_for_heatmap=plot_team)
+            except Exception as e:
+                logger.error(f"Failed to generate game worm plot: {e}")
+
             if df is not None and not df.empty:
                 # Extract unique game states
                 states = sorted(df['game_state'].dropna().unique().tolist())
@@ -649,13 +658,13 @@ def control_outlet():
             }), 500
             
     except Exception as e:
-        logger.error(f"❌ RF Exception: {str(e)}")
+        logger.error(f"RF Exception: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
 if __name__ == '__main__':
-    print("\n🚀 STARTING PUCK SERVER...", flush=True)
-    print("🌍 ATTEMPTING TO BIND TO: http://0.0.0.0:8000", flush=True)
+    print("\nSTARTING PUCK SERVER...", flush=True)
+    print("ATTEMPTING TO BIND TO: http://0.0.0.0:8000", flush=True)
     print("------------------------------------------", flush=True)
     
     logger.info('Starting Flask development server on http://0.0.0.0:8000')

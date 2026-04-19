@@ -13,7 +13,9 @@ print("Loading nested model...")
 model = joblib.load('analysis/xgs/xg_model_xgboost_nested_20202021.joblib')
 
 df_c = model._prepare_inference_df(df_test)
-feat_block = [f for f in model.features if f != 'shot_type']
+feat_block = model.features.copy()
+if 'spatial_block' not in feat_block:
+    feat_block.append('spatial_block')
 y = (df_c['event'] == 'blocked-shot').astype(int)
 
 # Find a real row at ~39ft, 5v5, Forward

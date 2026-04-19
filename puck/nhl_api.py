@@ -284,7 +284,7 @@ SESSION.headers.update({
 })
 
 
-def get_season(team: str = 'PHI', season: str = '20252026', game_types: Optional[List[str]] = ['02']) -> List[Dict[str, Any]]:
+def get_season(team: str = 'PHI', season: str = '20252026', game_types: Optional[List[str]] = ['02', '03']) -> List[Dict[str, Any]]:
     """Return the season's games list for the given team, filtered by game types.
 
     Parameters

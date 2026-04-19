@@ -14,7 +14,7 @@ def extract_stream(url, timeout_secs=80):
     Blocks images/ads to save CPU and uses long timeouts.
     """
     target_m3u8 = None
-    data_dir = Path("/home/spoon/new_puck/data")
+    data_dir = Path(__file__).parent.parent / "data"
     data_dir.mkdir(parents=True, exist_ok=True)
     screenshot_path = data_dir / "debug_pi_view.png"
     

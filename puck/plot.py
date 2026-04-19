@@ -1579,3 +1579,120 @@ def plot_relative_map(
     
     ax.axis('off')
     return im
+
+def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None):
+    """
+    Plot a game worm (net xG over time) with Flyers aesthetic (Orange/Dark/White).
+    """
+    import os
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    if df is None or df.empty or 'xgs' not in df.columns or 'total_time_elapsed_seconds' not in df.columns:
+        print("plot_game_worm: missing required data")
+        return False
+        
+    df_sorted = df.dropna(subset=['xgs', 'total_time_elapsed_seconds']).sort_values('total_time_elapsed_seconds').copy()
+    if df_sorted.empty:
+        return False
+
+    # Extract time and convert to minutes
+    time_sec = df_sorted['total_time_elapsed_seconds'].values
+    time_min = time_sec / 60.0
+
+    # Determine "Home" or "Selected Team"
+    team_mask = np.zeros(len(df_sorted), dtype=bool)
+    if team_for_heatmap:
+        target = str(team_for_heatmap).upper()
+        if 'home_abb' in df_sorted.columns:
+            m1 = df_sorted['home_abb'].astype(str).str.upper() == target
+            m1 = m1 & (df_sorted['team_id'].astype(str) == df_sorted['home_id'].astype(str))
+            team_mask = team_mask | m1.values
+        if 'away_abb' in df_sorted.columns:
+            m2 = df_sorted['away_abb'].astype(str).str.upper() == target
+            m2 = m2 & (df_sorted['team_id'].astype(str) == df_sorted['away_id'].astype(str))
+            team_mask = team_mask | m2.values
+    elif 'home_id' in df_sorted.columns:
+        team_mask = (df_sorted['team_id'].astype(str) == df_sorted['home_id'].astype(str)).values
+        target = "Home"
+    else:
+        # Fallback
+        target = "Team"
+        if len(df_sorted['team_id'].unique()) > 0:
+            first_team = df_sorted['team_id'].unique()[0]
+            team_mask = (df_sorted['team_id'].astype(str) == str(first_team)).values
+            
+    xgs = pd.to_numeric(df_sorted['xgs'], errors='coerce').fillna(0).values
+    
+    # Calculate rolling xG for team and opponent
+    team_xg_vals = np.where(team_mask, xgs, 0.0)
+    opp_xg_vals = np.where(~team_mask, xgs, 0.0)
+    
+    cum_team = np.cumsum(team_xg_vals)
+    cum_opp = np.cumsum(opp_xg_vals)
+    
+    net_xg = cum_team - cum_opp
+
+    # We want to start at (0,0)
+    time_min = np.insert(time_min, 0, 0.0)
+    net_xg = np.insert(net_xg, 0, 0.0)
+
+    # Plot Setup - Dark Mode Aesthetic
+    fig, ax = plt.subplots(figsize=(10, 4), facecolor='#2B2B2B')
+    ax.set_facecolor('#2B2B2B')
+
+    # Plot the net xG line
+    line_color = '#FFFFFF' # White line for contrast
+    fill_positive = '#f74902' # Flyers Orange
+    fill_negative = '#555555' # Dark Grey
+
+    # Make step plot instead of direct connecting lines? Real worms often plot stepwise
+    # We will use normal plot, it looks slightly smoother, but step is fine too 
+    # Let's just use normal lines for simplicity and smooth aesthetic
+    ax.plot(time_min, net_xg, color=line_color, linewidth=2, zorder=5)
+    ax.fill_between(time_min, 0, net_xg, where=(net_xg > 0), interpolate=True, color=fill_positive, alpha=0.7, zorder=4)
+    ax.fill_between(time_min, 0, net_xg, where=(net_xg <= 0), interpolate=True, color=fill_negative, alpha=0.5, zorder=4)
+
+    # Add period markers
+    max_time = max(60.0, time_min[-1] if len(time_min)>0 else 60.0)
+    # Add a little padding to the max ylim to not overlap text
+    ymin, ymax = ax.get_ylim()
+    if ymax < 1.0: ymax = 1.0
+    if ymin > -1.0: ymin = -1.0
+    ax.set_ylim(ymin * 1.1, ymax * 1.2)
+
+    for p in range(1, int(max_time/20) + 1):
+        ax.axvline(x=p*20, color='#666666', linestyle='--', alpha=0.5, zorder=2)
+        if p <= 3:
+            ax.text(p*20 - 10, ymax*1.05, f'P{p}', color='#AAAAAA', ha='center', va='top', fontsize=10)
+    if max_time > 60:
+         ax.text(60 + (max_time-60)/2.0, ymax*1.05, 'OT', color='#AAAAAA', ha='center', va='top', fontsize=10)
+
+    # Base line
+    ax.axhline(0, color='#888888', linewidth=1, zorder=3)
+
+    # Styling axes
+    ax.tick_params(colors='#AAAAAA', labelsize=10)
+    for spine in ax.spines.values():
+        spine.set_edgecolor('#444444')
+
+    ax.set_xlim(0, max(60.0, max_time + 1.0))
+    
+    # Title and Labels
+    label_team = target if team_for_heatmap else "Home"
+    ax.set_title(f'Net xG: {label_team} vs Opponent', color='#FFFFFF', fontsize=14, pad=10)
+    ax.set_xlabel('Game Time (Minutes)', color='#AAAAAA', fontsize=12)
+    ax.set_ylabel('Net Expected Goals (xG)', color='#AAAAAA', fontsize=12)
+
+    # Final layout
+    plt.tight_layout()
+    try:
+        os.makedirs(os.path.dirname(out_path), exist_ok=True)
+        fig.savefig(out_path, dpi=150, facecolor=fig.get_facecolor(), edgecolor='none', transparent=False)
+    except Exception as e:
+        print("Failed to save game worm:", e)
+    finally:
+        plt.close(fig)
+        
+    return True
+

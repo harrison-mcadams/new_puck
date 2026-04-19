@@ -25,9 +25,7 @@ import traceback
 import os
 from datetime import datetime
 
-ROOT = Path(__file__).resolve().parents[1]
-ROOT = Path(__file__).resolve().parents[1]
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = ROOT / 'web' / 'static'
 TEAMS_PATH = STATIC_DIR / 'teams.json'
 OUT_PATH = STATIC_DIR / 'games_by_team.json'
@@ -135,7 +133,7 @@ def main(argv: List[str]):
     use_direct_http = False
     if not no_api:
         try:
-            import nhl_api as _nhl_api
+            from puck import nhl_api as _nhl_api
             nhl_api = _nhl_api
         except Exception as e:
             print('Warning: failed to import nhl_api; will attempt direct HTTP fetches instead:', e)

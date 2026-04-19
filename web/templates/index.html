@@ -112,9 +112,10 @@
     <div class="card-header">
       <h2>Viz</h2>
     </div>
-    <div class="card-body plot-container">
+    <div class="card-body plot-container" style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
       {% if exists %}
-      <img src="{{ url_for('analysis_file', filename=img) }}" alt="Shot Plot" />
+      <img src="{{ url_for('analysis_file', filename=img) }}" alt="Shot Plot" style="max-width: 100%; height: auto;" />
+      <img src="{{ url_for('analysis_file', filename='game_worm.png') }}" alt="Game Worm Plot" onerror="this.style.display='none'" onload="this.style.display='block'" style="max-width: 100%; height: auto;" />
       {% else %}
       <p class="empty-state">Select a game and click "Update Plot"</p>
       {% endif %}

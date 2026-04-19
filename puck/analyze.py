@@ -881,7 +881,7 @@ def _predict_xtg(df: pd.DataFrame, behavior='load'):
 
 def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True, impute_alpha: float = None):
     if model_path is None:
-        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_nested_tensor.joblib')
+        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_nested_20202021.joblib')
 
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 
@@ -3118,7 +3118,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
     # Determine return structure: always return (out_path, heatmaps_or_None, filtered_df_or_None)
     ret_heat = heatmaps if (return_heatmaps or heatmap_only) else None
-    ret_df = df_filtered.copy() if ('df_filtered' in locals() and return_filtered_df) else None
+    ret_df = df_to_plot.copy() if ('df_to_plot' in locals() and return_filtered_df) else None
     return out_path, ret_heat, ret_df, summary_stats
 
 
