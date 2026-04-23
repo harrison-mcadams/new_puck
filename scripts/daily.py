@@ -50,7 +50,7 @@ def main():
     df_season = pd.DataFrame()
     if args.skip_fetch:
         print("Skipping data fetch as requested.")
-        csv_path = os.path.join('data', f"{season}.csv")
+        csv_path = os.path.join(config.DATA_DIR, f"{season}.csv")
         if os.path.exists(csv_path):
             try:
                 df_season = pd.read_csv(csv_path)
@@ -75,12 +75,12 @@ def main():
             
             # Also remove potential shadowing CSVs that timing.load_season_df might prefer
             files_to_nuke = [
-                os.path.join('data', season, f'{season}.csv'),
-                os.path.join('data', season, f'{season}_df.csv'),
-                os.path.join('data', season, f'{season}_game_feeds.csv'),
-                os.path.join('data', season, f'{season}_game_feeds.json'),
-                os.path.join('data', f'{season}.csv'),
-                os.path.join('data', f'{season}_df.csv')
+                os.path.join(config.DATA_DIR, season, f'{season}.csv'),
+                os.path.join(config.DATA_DIR, season, f'{season}_df.csv'),
+                os.path.join(config.DATA_DIR, season, f'{season}_game_feeds.csv'),
+                os.path.join(config.DATA_DIR, season, f'{season}_game_feeds.json'),
+                os.path.join(config.DATA_DIR, f'{season}.csv'),
+                os.path.join(config.DATA_DIR, f'{season}_df.csv')
             ]
             
             for f in files_to_nuke:
@@ -98,7 +98,7 @@ def main():
         
         df_season = parse._season(
             season=season, 
-            out_path='data', 
+            out_path=config.DATA_DIR, 
             use_cache=not args.force,
             max_workers=fetch_workers
         )
@@ -128,7 +128,7 @@ def main():
             df_season, _, _ = analyze._predict_xgs(df_season, model_path=model_path, behavior='overwrite')
             
             # Save back to CSV to be used by subprocesses
-            out_csv = os.path.join('data', f"{season}.csv")
+            out_csv = os.path.join(config.DATA_DIR, f"{season}.csv")
             df_season.to_csv(out_csv, index=False)
             print(f"Saved updated xG data to {out_csv}")
             

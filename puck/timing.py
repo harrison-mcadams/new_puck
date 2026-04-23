@@ -40,6 +40,7 @@ import numpy as np
 # Local imports (these modules are part of the workspace)
 from . import nhl_api
 from . import parse
+from . import config
 # Re-use get_game_state helper
 
 try:
@@ -600,13 +601,15 @@ def debug_print_game_intervals(res: Dict[str, Any], max_intervals_display: int =
 
 
 
-def load_season_df(season: str = '20252026', data_dir: str = 'data') -> pd.DataFrame:
+def load_season_df(season: str = '20252026', data_dir: str = None) -> pd.DataFrame:
     """Load a season-level CSV from likely locations and return DataFrame.
 
     The function tries several conventional locations then falls back to a
     recursive search under `data/`. It prints which file was loaded (if
     any) and returns an empty DataFrame when none is found.
     """
+    if data_dir is None:
+        data_dir = config.DATA_DIR
     candidates = [
         Path(data_dir) / season / f"{season}.csv",
         Path(data_dir) / season / f"{season}_df.csv",

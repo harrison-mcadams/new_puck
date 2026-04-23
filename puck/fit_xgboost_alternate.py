@@ -103,11 +103,20 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         self.use_calibration = use_calibration
         self.layer_params = layer_params or {}
         
+        # Original features (e.g. Accurate/Finish)
+        self.features = features.copy() if features else feature_util.get_features('all_inclusive').copy()
+        
         # Ensure raw spatial features exist since we drop GLMs
         for sf in ['distance', 'angle_deg', 'x', 'y']:
             if sf not in self.features:
                 self.features.append(sf)
                 
+        # [FEATURE PRUNING] Define layer-specific features
+        # Block layer excludes raw X/Y to prevent spatial "traps" behind the net
+        self.features_block = [f for f in self.features if f not in ['x', 'y']]
+        self.features_acc = self.features
+        self.features_fin = self.features
+        
         # Sub-models
         self.model_block = None
         self.model_acc = None
@@ -142,11 +151,10 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
                     self.categorical_priors_[col] = priors
 
         # 2. Block Model
-        feat_block = self.features
         y_block = (df['event'] == 'blocked-shot').astype(int)
         p_block = self._get_xgb_params('block')
         self.model_block = XGBClassifier(**p_block)
-        self.model_block.fit(df[feat_block], y_block)
+        self.model_block.fit(df[self.features_block], y_block)
         
         # 3. Accuracy Model
         mask_unblocked = df['event'] != 'blocked-shot'
@@ -265,10 +273,10 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
             
-        p_blocked = self.model_block.predict_proba(df[self.features])[:, 1]
+        p_blocked = self.model_block.predict_proba(df[self.features_block])[:, 1]
         p_unblocked = 1.0 - p_blocked
-        p_acc = self._predict_marginalized(self.model_acc, df, self.features)
-        p_finish = self._predict_marginalized(self.model_finish, df, self.features)
+        p_acc = self._predict_marginalized(self.model_acc, df, self.features_acc)
+        p_finish = self._predict_marginalized(self.model_finish, df, self.features_fin)
         
         p_goal = p_unblocked * p_acc * p_finish
         return np.column_stack((1 - p_goal, p_goal))
@@ -276,11 +284,11 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
         df = self._prepare_inference_df(X)
         if layer == 'block':
-            return self.model_block.predict_proba(df[self.features])[:, 1]
+            return self.model_block.predict_proba(df[self.features_block])[:, 1]
         elif layer == 'accuracy':
-            return self._predict_marginalized(self.model_acc, df, self.features)
+            return self._predict_marginalized(self.model_acc, df, self.features_acc)
         elif layer == 'finish':
-            return self._predict_marginalized(self.model_finish, df, self.features)
+            return self._predict_marginalized(self.model_finish, df, self.features_fin)
         raise ValueError(f"Unknown layer: {layer}")
 
     def _get_xgb_params(self, layer_name: str) -> Dict[str, Any]:

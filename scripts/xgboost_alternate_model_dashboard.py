@@ -81,9 +81,9 @@ def main():
         'vocabs': fit_xgboost_alternate.CATEGORICAL_VOCABS,
         'priors': model.categorical_priors_,
         'layers': {
-            'block': extract_booster_data(model.model_block, model.features),
-            'accuracy': extract_booster_data(model.model_acc, model.features),
-            'finish': extract_booster_data(model.model_finish, model.features)
+            'block': extract_booster_data(model.model_block, getattr(model, 'features_block', model.features)),
+            'accuracy': extract_booster_data(model.model_acc, getattr(model, 'features_acc', model.features)),
+            'finish': extract_booster_data(model.model_finish, getattr(model, 'features_fin', model.features))
         },
         'calibrators': {},
         'defaults': {
@@ -298,10 +298,11 @@ def main():
                     const p_fin = sigmoid(m_fin);
                     const p_xg = (1 - p_block) * p_acc * p_fin;
 
-                    Z_block[idx] = p_block;
-                    Z_acc[idx] = p_acc;
-                    Z_fin[idx] = p_fin;
-                    Z_xg[idx] = p_xg;
+                    const isBehindNet = x_safe > 89.0;
+                    Z_block[idx] = isBehindNet ? NaN : p_block;
+                    Z_acc[idx] = isBehindNet ? NaN : p_acc;
+                    Z_fin[idx] = isBehindNet ? NaN : p_fin;
+                    Z_xg[idx] = isBehindNet ? NaN : p_xg;
                 }
             }
             return [Z_block, Z_acc, Z_fin, Z_xg];

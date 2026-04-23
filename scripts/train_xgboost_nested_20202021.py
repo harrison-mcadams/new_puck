@@ -18,11 +18,10 @@ def main():
     print("--- Training Nested XGBoost Model (Modern Era: 20202021+) ---")
     
     # 1. Load Data
-    project_root = Path(__file__).resolve().parent.parent
-    data_dir = project_root / 'data'
+    data_dir = puck_config.DATA_DIR
     
-    print("Loading all seasons data...")
-    df_raw = fit_xgs.load_all_seasons_data(base_dir=str(data_dir))
+    print(f"Loading all seasons data from {data_dir}...")
+    df_raw = fit_xgs.load_all_seasons_data()
     
     # 2. Filter for Modern Era
     if 'season' in df_raw.columns:
