@@ -197,8 +197,14 @@ class ModelConfig:
     def to_dict(self):
         return {k: v for k, v in self.__dict__.items() if k != 'name'}
 
-def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
-    """Load and concatenate all season CSVs found in data/{season}."""
+def load_all_seasons_data(base_dir: str = None, seasons: list = None, min_season: int = None) -> pd.DataFrame:
+    """Load and concatenate all season CSVs found in data/{season}.
+    
+    Args:
+        base_dir: Base directory to look for data.
+        seasons: Optional list of season strings/ints to load.
+        min_season: Optional minimum season integer to load (inclusive).
+    """
     if base_dir is None:
         base_dir = puck_config.DATA_DIR
 
@@ -228,15 +234,22 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
         if item.is_file() and (item.name.endswith('.csv')):
             # check if starts with digit year
             stem = item.stem
-            if stem.isdigit() or (stem.endswith('_df') and stem[:-3].isdigit()):
+            year_key_str = stem[:-3] if stem.endswith('_df') else stem
+            if year_key_str.isdigit():
+                year_key = int(year_key_str)
+                
+                # Filter by seasons/min_season
+                if seasons is not None and year_key not in [int(s) for s in seasons]:
+                    continue
+                if min_season is not None and year_key < int(min_season):
+                    continue
+
                 print(f"Loading season file: {item.name}...")
                 try:
                     df = pd.read_csv(item)
-                    df = pd.read_csv(item)
                     frames.append(df)
-                    year_key = stem[:-3] if stem.endswith('_df') else stem
-                    loaded_stems.add(year_key)
-                    print(f"DEBUG: Step 1 loaded {year_key} from {item.name}")
+                    loaded_stems.add(year_key_str)
+                    print(f"DEBUG: Step 1 loaded {year_key_str} from {item.name}")
                     continue # already handled
                 except Exception as e:
                     print(f"Failed to load {item}: {e}")
@@ -247,14 +260,22 @@ def load_all_seasons_data(base_dir: str = None) -> pd.DataFrame:
     print(f"DEBUG: Globbing {base_path} for */*.csv...")
     # Matches data/20142015/20142015_df.csv or data/20142015/20142015.csv
     for csv_path in base_path.glob("*/*.csv"):
-         year_search = csv_path.parent.name
+         year_search_str = csv_path.parent.name
          # Strict check: Must be 8 digits (e.g. 20142015)
-         if not (year_search.isdigit() and len(year_search) == 8):
+         if not (year_search_str.isdigit() and len(year_search_str) == 8):
              # vprint(f"DEBUG: Skipping non-season dir {year_search}")
              continue
 
-         if year_search in loaded_stems:
-             print(f"DEBUG: Skipping {year_search} (already loaded flat)")
+         year_search = int(year_search_str)
+         
+         # Filter by seasons/min_season
+         if seasons is not None and year_search not in [int(s) for s in seasons]:
+             continue
+         if min_season is not None and year_search < int(min_season):
+             continue
+
+         if year_search_str in loaded_stems:
+             print(f"DEBUG: Skipping {year_search_str} (already loaded flat)")
              continue
          
          print(f"DEBUG: Compiling {csv_path}...")

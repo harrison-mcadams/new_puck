@@ -20,8 +20,9 @@ def main():
     # 1. Load Data
     data_dir = puck_config.DATA_DIR
     
-    print(f"Loading all seasons data from {data_dir}...")
-    df_raw = fit_xgs.load_all_seasons_data()
+    print(f"Loading modern era data (20202021+) from {data_dir}...")
+    # SELECTIVE LOAD: Only read modern seasons into memory
+    df_raw = fit_xgs.load_all_seasons_data(min_season=20202021)
     
     # 2. Filter for Modern Era
     if 'season' in df_raw.columns:

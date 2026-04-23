@@ -19,6 +19,7 @@ import sys
 import os
 import subprocess
 import time
+from puck import config as puck_config
 
 def run_step(cmd, log_filename, step_name):
     print(f">>> STEP {step_name}: Running command...")
@@ -45,6 +46,7 @@ def main():
     parser.add_argument('--resume', action='store_true', help='Resume from existing data (skip already downloaded seasons)')
     parser.add_argument('--skip-backfill', action='store_true', help='Skip Step 1 (Backfill) entirely')
     parser.add_argument('--turbo', action='store_true', help='Use parallel processing if execution is not on Pi')
+    parser.add_argument('--low-mem', action='store_true', help='Force low memory mode (sequental processing, frequent GC)')
     args = parser.parse_args()
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -59,6 +61,7 @@ def main():
     
     print("\n########################################################")
     print("###           STARTING FRESH SYSTEM REFRESH          ###")
+    print(f"###   PLATFORM: {'Pi (Low-Res)' if puck_config.IS_PI or args.low_mem else 'Mac/PC (High-Res)'}   ###")
     if args.resume:
         print("###                (RESUME MODE)                     ###")
     print("########################################################\n")
