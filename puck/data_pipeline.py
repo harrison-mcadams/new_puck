@@ -304,7 +304,7 @@ def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
     """Final formatting and default filling."""
     # Categoricals
     cat_cols = features.SHOT_TYPE + features.HANDEDNESS + features.PLAYER_ROLE + \
-               ['last_event_type', 'game_state', 'relative_game_state', 'period_time_type', 'season']
+               ['last_event_type', 'game_state', 'relative_game_state', 'period_time_type']
     for col in cat_cols:
         if col not in df.columns:
             df[col] = 'Unknown'
@@ -315,5 +315,11 @@ def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = default
         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(default)
+        
+    # Season (Special handling: force int)
+    if 'season' in df.columns:
+        df['season'] = pd.to_numeric(df['season'], errors='coerce').fillna(20252026).astype(int)
+    else:
+        df['season'] = 20252026
         
     return df

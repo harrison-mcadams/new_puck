@@ -140,6 +140,8 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
 
     def fit(self, X: pd.DataFrame, y=None):
         logger.info(f"Fitting XGBNestedXGClassifier on {len(X)} rows. Calib={self.use_calibration}")
+        import xgboost
+        logger.info(f"  XGBoost Version: {xgboost.__version__}")
 
         # 0. Split for Internal Calibration if requested
         if self.use_calibration:
@@ -171,6 +173,7 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         y_block = (df['event'] == 'blocked-shot').astype(int)
         
         p_block = self._get_xgb_params('block')
+        logger.info(f"    XGB Params (Block): {p_block}")
         self.model_block = XGBClassifier(**p_block)
         self.model_block.fit(df[feat_block], y_block)
         
@@ -394,7 +397,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         # 2. Categoricals
         for col in self.features:
             if col in df.columns:
-                if df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
+                if col == 'season':
+                    df[col] = pd.to_numeric(df[col], errors='coerce').fillna(20252026).astype(int)
+                elif df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
                     vocab = CATEGORICAL_VOCABS.get(col)
                     df[col] = pd.Categorical(df[col], categories=vocab) if vocab else df[col].astype('category')
         return df
