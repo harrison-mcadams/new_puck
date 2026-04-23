@@ -19,6 +19,10 @@ import sys
 import os
 import subprocess
 import time
+
+# Add project root to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from puck import config as puck_config
 
 def run_step(cmd, log_filename, step_name):
