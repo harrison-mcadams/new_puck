@@ -40,6 +40,10 @@ shifts/
 *.npz
 *.npy
 
+# Allow specific package data models
+!puck/data/*.json
+!puck/data/*.joblib
+
 # --- Outputs & Logs ---
 analysis/
 logs/

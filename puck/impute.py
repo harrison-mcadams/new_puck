@@ -6,9 +6,11 @@ import os
 import json
 import warnings
 
+from . import config as puck_config
+
 _BLOCKED_SHOT_MODEL = None
-# Relative path to data directory
-_MODEL_PATH = os.path.join(os.path.dirname(__file__), 'data', 'blocked_shot_model.json')
+# Absolute path to data directory
+_MODEL_PATH = os.path.join(puck_config.BASE_DIR, 'puck', 'data', 'blocked_shot_model.json')
 
 _BLOCKED_SHOT_MODEL_F = None
 _BLOCKED_SHOT_MODEL_D = None
