@@ -19,9 +19,14 @@ import sys
 import os
 import subprocess
 import time
+from pathlib import Path
 
 # Add project root to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+root_dir = Path(__file__).resolve().parent.parent
+sys.path.append(str(root_dir))
+
+# DEBUG: Print path if import fails (uncomment if needed)
+# print(f"DEBUG: sys.path = {sys.path}")
 
 from puck import config as puck_config
 
