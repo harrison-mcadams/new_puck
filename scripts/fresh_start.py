@@ -42,7 +42,8 @@ def run_step(cmd, log_filename, step_name):
 
 def main():
     parser = argparse.ArgumentParser(description='Fresh Start Routine')
-    parser.add_argument('--resume', action='store_true', help='Resume from existing data (skip full wipe)')
+    parser.add_argument('--resume', action='store_true', help='Resume from existing data (skip already downloaded seasons)')
+    parser.add_argument('--skip-backfill', action='store_true', help='Skip Step 1 (Backfill) entirely')
     parser.add_argument('--turbo', action='store_true', help='Use parallel processing if execution is not on Pi')
     args = parser.parse_args()
 
@@ -63,11 +64,14 @@ def main():
     print("########################################################\n")
     
     # STEP 1: BACKFILL (Purge + Download)
-    log_backfill = os.path.join(logs_dir, 'backfill.log')
-    cmd1 = [sys.executable, '-u', os.path.join(script_dir, 'backfill_seasons.py')]
-    if args.resume:
-         cmd1.append('--resume')
-    run_step(cmd1, log_backfill, "1 (Backfill Data)")
+    if not args.skip_backfill:
+        log_backfill = os.path.join(logs_dir, 'backfill.log')
+        cmd1 = [sys.executable, '-u', os.path.join(script_dir, 'backfill_seasons.py')]
+        if args.resume:
+             cmd1.append('--resume')
+        run_step(cmd1, log_backfill, "1 (Backfill Data)")
+    else:
+        print(">>> STEP 1 SKIPPED (--skip-backfill requested)\n")
 
     # STEP 2: TRAIN XGBOOST MODEL (Modern Era nested model)
     log_train = os.path.join(logs_dir, 'train_xgboost.log')
