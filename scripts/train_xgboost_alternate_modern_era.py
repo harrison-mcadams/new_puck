@@ -75,7 +75,8 @@ def main():
         df_modern,
         save_path=save_path,
         out_dir=out_dir,
-        verbose=True
+        verbose=True,
+        use_balancing=True
     )
     
     print("\n============================================================")

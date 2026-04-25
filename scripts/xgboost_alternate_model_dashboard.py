@@ -85,6 +85,10 @@ def main():
             'accuracy': extract_booster_data(model.model_acc, getattr(model, 'features_acc', model.features)),
             'finish': extract_booster_data(model.model_finish, getattr(model, 'features_fin', model.features))
         },
+        'spline': {
+            'use': getattr(model, 'use_splines', False),
+            'feature_names': getattr(model, 'spline_feature_names_', [])
+        },
         'calibrators': {},
         'defaults': {
             'distance': 25.0, 'angle_deg': 0.0, 'game_state': '5v5', 'relative_game_state': '5v5',
@@ -129,6 +133,21 @@ def main():
     }
     for k, v in extra_options.items():
         export_data['options'][k] = v
+
+    # --- Pre-calculate Basis Grid ---
+    if export_data['spline']['use']:
+        print("Calculating Spline Basis Lookup Table...")
+        # Mirror grid from JS: X_POINTS=50, Y_POINTS=43
+        grid_x = np.linspace(0, 100, 50)
+        grid_y = np.linspace(-42.5, 42.5, 43)
+        
+        # Flattened grid for transformer
+        xx, yy = np.meshgrid(grid_x, grid_y)
+        points = np.column_stack([xx.ravel(), yy.ravel()])
+        
+        basis = model.spline_transformer_.transform(pd.DataFrame(points, columns=['x', 'y']))
+        # basis shape: (50*43, 49)
+        export_data['spline']['basis_lookup'] = basis.tolist() # [pixel_idx][basis_idx]
 
     json_data = json.dumps(json_serializable(export_data))
     rink_shapes_json = json.dumps(get_rink_shapes())
@@ -286,8 +305,13 @@ def main():
                     
                     features.distance = dist;
                     features.angle_deg = angle_deg;
-                    features.x = x_safe;
-                    features.y = y_safe;
+                    
+                    if (MODEL.spline.use && MODEL.spline.basis_lookup) {
+                        const basis = MODEL.spline.basis_lookup[idx];
+                        MODEL.spline.feature_names.forEach((name, i) => {
+                            features[name] = basis[i];
+                        });
+                    }
 
                     const m_block = evaluateForest('block', features);
                     const m_acc = evaluateForest('accuracy', features);
@@ -298,11 +322,10 @@ def main():
                     const p_fin = sigmoid(m_fin);
                     const p_xg = (1 - p_block) * p_acc * p_fin;
 
-                    const isBehindNet = x_safe > 89.0;
-                    Z_block[idx] = isBehindNet ? NaN : p_block;
-                    Z_acc[idx] = isBehindNet ? NaN : p_acc;
-                    Z_fin[idx] = isBehindNet ? NaN : p_fin;
-                    Z_xg[idx] = isBehindNet ? NaN : p_xg;
+                    Z_block[idx] = p_block;
+                    Z_acc[idx] = p_acc;
+                    Z_fin[idx] = p_fin;
+                    Z_xg[idx] = p_xg;
                 }
             }
             return [Z_block, Z_acc, Z_fin, Z_xg];

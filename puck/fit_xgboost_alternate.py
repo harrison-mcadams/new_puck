@@ -34,6 +34,7 @@ from sklearn.calibration import calibration_curve
 
 from . import features as feature_util
 from . import config as puck_config
+from .spline_transformer import TensorSpline
 
 try:
     import matplotlib.pyplot as plt
@@ -46,7 +47,8 @@ VOCAB_GAME_STATE = [
     '6v4', '3v5', '4v6', '3v4', '6v3', '3v6', '6v6', '1v0', '0v1'
 ]
 VOCAB_SHOT_TYPE = [
-    'wrist', 'snap', 'slap', 'backhand', 'tip-in', 'deflected', 'wrap-around'
+    'wrist', 'snap', 'slap', 'backhand', 'tip-in', 'deflected', 'wrap-around', 
+    'bat', 'poke', 'between-legs', 'cradle', 'Unknown'
 ]
 VOCAB_SHOOTER_ROLE = ['F', 'D']
 VOCAB_SHOOTS_CATCHES = ['L', 'R']
@@ -59,7 +61,7 @@ CATEGORICAL_VOCABS = {
     'game_state': VOCAB_GAME_STATE,
     'relative_game_state': VOCAB_GAME_STATE,
     'last_event_type': [
-        'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty'
+        'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty', 'stoppage', 'period-start', 'period-end'
     ]
 }
 
@@ -87,7 +89,8 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
                  enable_marginalization: bool = True,
                  use_balancing: bool = False,
                  use_calibration: bool = False,
-                 layer_params: Optional[Dict[str, Any]] = None):
+                 layer_params: Optional[Dict[str, Any]] = None,
+                 use_splines: bool = True):
         
         # Defensive copy to prevent bleeding from other model's modifications to the global feature set
         base_feats = features.copy() if features else feature_util.get_features('all_inclusive').copy()
@@ -102,20 +105,12 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         self.use_balancing = use_balancing
         self.use_calibration = use_calibration
         self.layer_params = layer_params or {}
+        self.use_splines = use_splines
+        self.n_knots = 5
+        self.spline_transformer_ = None
+        self.spline_feature_names_ = []
         
-        # Original features (e.g. Accurate/Finish)
-        self.features = features.copy() if features else feature_util.get_features('all_inclusive').copy()
-        
-        # Ensure raw spatial features exist since we drop GLMs
-        for sf in ['distance', 'angle_deg', 'x', 'y']:
-            if sf not in self.features:
-                self.features.append(sf)
-                
-        # [FEATURE PRUNING] Define layer-specific features
-        # Block layer excludes raw X/Y to prevent spatial "traps" behind the net
-        self.features_block = [f for f in self.features if f not in ['x', 'y']]
-        self.features_acc = self.features
-        self.features_fin = self.features
+        # Sub-models
         
         # Sub-models
         self.model_block = None
@@ -137,8 +132,21 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
             df_train = X
             df_calib = None
 
+        # Initialize feature lists from core features
+        core_feats = self.features.copy()
+        self.features_block = core_feats.copy()
+        self.features_acc = core_feats.copy()
+        self.features_fin = core_feats.copy()
+        
         df = self._prepare_training_df(df_train)
         
+        # If splines were added, update the layer-specific lists
+        if self.use_splines:
+            for flist in [self.features_block, self.features_acc, self.features_fin]:
+                for bname in self.spline_feature_names_:
+                    if bname not in flist:
+                        flist.append(bname)
+
         # 1. Learn Priors for Marginalization
         self.categorical_priors_ = {}
         for col, vocab in CATEGORICAL_VOCABS.items():
@@ -152,7 +160,22 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
 
         # 2. Block Model
         y_block = (df['event'] == 'blocked-shot').astype(int)
+        
+        # [DIAGNOSTIC] Check alignment
+        if 'distance' in df.columns:
+            corr = df['distance'].corr(y_block)
+            logger.info(f"  [ALIGNMENT CHECK] Correlation(distance, y_block): {corr:.4f}")
+            logger.info(f"  [ALIGNMENT CHECK] Block Rate in Training DF: {y_block.mean():.4f}")
+
         p_block = self._get_xgb_params('block')
+        
+        if self.use_balancing and 'scale_pos_weight' not in p_block:
+            pos = y_block.sum()
+            neg = len(y_block) - pos
+            if pos > 0:
+                p_block['scale_pos_weight'] = neg / pos
+                logger.info(f"  Block Model Balance (scale_pos_weight): {p_block['scale_pos_weight']:.2f}")
+
         self.model_block = XGBClassifier(**p_block)
         self.model_block.fit(df[self.features_block], y_block)
         
@@ -163,7 +186,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         
         p_acc = self._get_xgb_params('accuracy')
         self.model_acc = XGBClassifier(**p_acc)
-        self.model_acc.fit(df_unblocked[self.features], y_acc)
+        self.model_acc.fit(df_unblocked[self.features_acc], y_acc)
         
         # 4. Finish Model
         mask_on_net = df['event'].isin(['shot-on-goal', 'goal'])
@@ -178,9 +201,9 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
                 p_finish['scale_pos_weight'] = neg / pos
                 
         self.model_finish = XGBClassifier(**p_finish)
-        self.model_finish.fit(df_on_net[self.features], y_finish)
+        self.model_finish.fit(df_on_net[self.features_fin], y_finish)
         
-        # Record Dtypes
+        # Record Dtypes (excluding splines which are always float)
         self.feature_dtypes = df[self.features].dtypes.to_dict()
 
         if self.use_calibration and df_calib is not None:
@@ -219,8 +242,9 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
             n_estimators=300,
             max_depth=6,
             learning_rate=0.05,
-            use_calibration=False,
-            use_balancing=False
+            use_calibration=kwargs.get('use_calibration', False),
+            use_balancing=kwargs.get('use_balancing', False),
+            use_splines=kwargs.get('use_splines', True)
         )
 
         vprint(f"Training on {len(df_train)} rows with {len(clf.features)} features...")
@@ -293,16 +317,18 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _get_xgb_params(self, layer_name: str) -> Dict[str, Any]:
         params = {
-            'n_estimators': int(self.n_estimators),
-            'max_depth': int(self.max_depth),
-            'learning_rate': float(self.learning_rate),
+            'n_estimators': 500 if layer_name == 'block' else int(self.n_estimators),
+            'max_depth': 8 if layer_name == 'block' else int(self.max_depth),
+            'learning_rate': 0.02 if layer_name == 'block' else float(self.learning_rate),
             'random_state': int(self.random_state),
             'enable_categorical': bool(self.enable_categorical),
             'objective': 'binary:logistic',
             'tree_method': 'hist',
             'device': 'cpu',
             'eval_metric': 'logloss',
-            'base_score': 0.5
+            'base_score': 0.5,
+            'min_child_weight': 1,
+            'gamma': 0
         }
         if layer_name in self.layer_params:
             params.update(self.layer_params[layer_name])
@@ -310,6 +336,20 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _prepare_training_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+        
+        if self.use_splines:
+            logger.info(f"  Generating Tensor Product Spline Basis ({self.n_knots}x{self.n_knots})...")
+            self.spline_transformer_ = TensorSpline(n_knots=self.n_knots, degree=3)
+            # Use raw coordinates for basis
+            coords = df[['x', 'y']].astype(float)
+            self.spline_transformer_.fit(coords)
+            self.spline_feature_names_ = self.spline_transformer_.get_feature_names_out(['x', 'y'])
+            
+            basis = self.spline_transformer_.transform(coords)
+            df_basis = pd.DataFrame(basis, columns=self.spline_feature_names_, index=df.index)
+            # Ensure indices are perfectly aligned before joining
+            df = pd.merge(df, df_basis, left_index=True, right_index=True, how='left')
+                        
         for col in self.features:
             if col in df.columns:
                 if df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
@@ -319,6 +359,13 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _prepare_inference_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
+        
+        if self.use_splines and self.spline_transformer_:
+            coords = df[['x', 'y']].astype(float).fillna(0)
+            basis = self.spline_transformer_.transform(coords)
+            df_basis = pd.DataFrame(basis, columns=self.spline_feature_names_, index=df.index)
+            df = pd.concat([df, df_basis], axis=1)
+            
         for col, dt in self.feature_dtypes.items():
             if col not in df.columns:
                 df[col] = np.nan
