@@ -141,7 +141,7 @@ def generate_model_summary(model_path: str = None,
         vprint(f"  [ERROR] {e}")
     
     # 5. Calibration Testing
-    vprint("\n[5/5] Calibration testing...")
+    vprint("\n[5/6] Calibration testing...")
     calibration_output = Path(output_dir) / 'calibration_results.txt'
     
     if test_df is not None:
@@ -154,6 +154,43 @@ def generate_model_summary(model_path: str = None,
     else:
         vprint("  Skipping Calibration (no test_df provided)")
     
+    # 6. Predictive Power Analysis (Optional)
+    vprint("\n[6/6] Predictive power analysis...")
+    if kwargs.get('run_predictive_analysis', False):
+        predictive_script = scripts_dir / 'evaluate_predictive_power.py'
+        if predictive_script.exists():
+            vprint("  Running comprehensive predictive power comparison...")
+            try:
+                # Use the user's preferred "Boss Command" parameters
+                cmd = [
+                    sys.executable, str(predictive_script),
+                    "--seasons", "20202021+",
+                    "--model", "xgboost_nested,xgboost_non_nested,xgboost_alternate,nested,non_nested,actual",
+                    "--filter", "all",
+                    "--n-boot", "100",
+                    "--parallel",
+                    "--n-jobs", "-1"
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=1200)
+                
+                predictive_output = Path(output_dir) / 'predictive_power_results.txt'
+                with open(predictive_output, 'w') as f:
+                    f.write(result.stdout)
+                
+                artifacts['predictive_power'] = str(predictive_output)
+                vprint(f"  [OK] {predictive_output}")
+                
+                # Display top-level result if found
+                for line in result.stdout.split('\n'):
+                    if 'Stability' in line or 'MAE' in line:
+                        vprint(f"    {line.strip()}")
+            except Exception as e:
+                vprint(f"  [ERROR] {e}")
+        else:
+            vprint("  Skipping Predictive Analysis (script not found)")
+    else:
+        vprint("  Skipping Predictive Analysis (run_predictive_analysis=False)")
+
     vprint("\n" + "="*60)
     vprint("SUMMARY COMPLETE")
     vprint("="*60)

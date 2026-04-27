@@ -53,7 +53,7 @@ Example Calls:
 
 10) Comprehensive Comparison: Nested vs Non-Nested (XGBoost & GLM) vs Actual Goals:
    python scripts/evaluate_predictive_power.py --seasons 20202021+ \
-     --model xgboost_nested,xgboost_non_nested,nested_xg,non_nested_xg,actual \
+     --model xgboost_nested,xgboost_non_nested,xgboost_alternate,nested,non_nested,actual \
      --filter all --n-boot 100 --parallel --n-jobs -1
 
 """
