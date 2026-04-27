@@ -179,10 +179,15 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
             apply_filtering=kwargs.get('apply_filtering', True),
             apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
             apply_html_enrichment=kwargs.get('apply_html_enrichment', False),
-            impute_alpha=kwargs.get('impute_alpha', 0.2)
+            impute_alpha=kwargs.get('impute_alpha', 0.2),
+            exclude_blocked=kwargs.get('exclude_blocked', False)
         )
 
-        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        df_train, df_test = train_test_split(
+            df, 
+            test_size=kwargs.get('test_size', 0.2), 
+            random_state=kwargs.get('random_state', 42)
+        )
 
         feature_list = feature_util.get_features('all_inclusive')
         clf = cls(
@@ -199,6 +204,14 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         y_test = (df_test['event'] == 'goal').astype(int)
         probs = clf.predict_proba(df_test)[:, 1]
         vprint(f"AUC: {roc_auc_score(y_test, probs):.4f}, LogLoss: {log_loss(y_test, probs):.4f}")
+        
+        auc = roc_auc_score(y_test, probs)
+        ll = log_loss(y_test, probs)
+        try:
+            brier = brier_score_loss(y_test, probs)
+        except Exception:
+            brier = np.nan
+        clf.test_metrics_ = {'auc': auc, 'logloss': ll, 'brier': brier}
 
         if save_path is None:
             save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_non_nested.joblib')

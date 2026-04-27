@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import joblib
 import logging
+from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 
 logger = logging.getLogger(__name__)
 
@@ -141,27 +142,17 @@ def generate_model_summary(model_path: str = None,
     
     # 5. Calibration Testing
     vprint("\n[5/5] Calibration testing...")
-    calibration_script = scripts_dir / 'verify_calibration.py'
     calibration_output = Path(output_dir) / 'calibration_results.txt'
     
-    if calibration_script.exists():
+    if test_df is not None:
         try:
-            result = subprocess.run(
-                [sys.executable, str(calibration_script), '--model', model_path],
-                capture_output=True, text=True, timeout=300
-            )
-            with open(calibration_output, 'w') as f:
-                f.write(result.stdout)
+            _generate_calibration_results(model, test_df, calibration_output)
             artifacts['calibration'] = str(calibration_output)
             vprint(f"  [OK] {calibration_output}")
-            
-            # Extract key metrics for display
-            if 'Ratio (xG/Goals):' in result.stdout:
-                for line in result.stdout.split('\n'):
-                    if 'Ratio' in line or 'Total' in line:
-                        vprint(f"    {line.strip()}")
         except Exception as e:
             vprint(f"  [ERROR] {e}")
+    else:
+        vprint("  Skipping Calibration (no test_df provided)")
     
     vprint("\n" + "="*60)
     vprint("SUMMARY COMPLETE")
@@ -274,10 +265,23 @@ def _generate_feature_analysis(model, output_path: Path):
                         
                 elif clf and hasattr(clf, 'feature_importances_'):
                     importances = clf.feature_importances_
-                    # For XGBoost, features are usually what we passed in if not using a pipeline
-                    feature_names = getattr(model, 'features', [f"feat_{i}" for i in range(len(importances))])
-                    if len(feature_names) != len(importances):
-                        # Might be using OHE internally?
+                    
+                    # Priority 1: Check if the classifier has its own feature names (XGBoost >= 1.5)
+                    feature_names = getattr(clf, 'feature_names_in_', None)
+                    
+                    # Priority 2: Check model-specific feature lists (Nested models)
+                    if feature_names is None:
+                        attr_map = {'Block': 'features_block', 'Accuracy': 'features_acc', 'Finish': 'features_fin'}
+                        feat_attr = attr_map.get(name)
+                        if feat_attr and hasattr(model, feat_attr):
+                            feature_names = getattr(model, feat_attr)
+                    
+                    # Priority 3: Fallback to global model features
+                    if feature_names is None or len(feature_names) != len(importances):
+                        feature_names = getattr(model, 'features', None)
+                        
+                    # Final Fallback
+                    if feature_names is None or len(feature_names) != len(importances):
                         feature_names = [f"feat_{i}" for i in range(len(importances))]
                         
                     sorted_idx = np.argsort(importances)[::-1]
@@ -289,6 +293,98 @@ def _generate_feature_analysis(model, output_path: Path):
             except Exception as e:
                 f.write(f"  Error: {e}\n")
         
+        f.write("\n" + "="*60 + "\n")
+        f.write("Generated: " + time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
+
+
+def _generate_calibration_results(model, test_df: pd.DataFrame, output_path: Path):
+    """Calculate and save calibration metrics for overall and submodels."""
+    
+    with open(output_path, 'w') as f:
+        f.write("="*60 + "\n")
+        f.write("CALIBRATION & PERFORMANCE ANALYSIS\n")
+        f.write("="*60 + "\n\n")
+        
+        # 1. Overall xG Calibration
+        y_true = (test_df['event'] == 'goal').astype(int)
+        try:
+            # predict_proba returns [P(no goal), P(goal)]
+            probs = model.predict_proba(test_df)[:, 1]
+            
+            total_xg = probs.sum()
+            total_goals = y_true.sum()
+            ratio = total_xg / total_goals if total_goals > 0 else 0
+            
+            auc = roc_auc_score(y_true, probs)
+            ll = log_loss(y_true, probs)
+            brier = brier_score_loss(y_true, probs)
+            
+            f.write("## Overall Goal Prediction (xG)\n")
+            f.write(f"  Total Shots:        {len(test_df)}\n")
+            f.write(f"  Total Actual Goals: {total_goals}\n")
+            f.write(f"  Total Predicted xG: {total_xg:.2f}\n")
+            f.write(f"  Ratio (xG/Goals):   {ratio:.4f}\n")
+            f.write(f"  AUC:                {auc:.4f}\n")
+            f.write(f"  LogLoss:            {ll:.4f}\n")
+            f.write(f"  Brier Score:        {brier:.6f}\n\n")
+        except Exception as e:
+            f.write(f"## Overall Goal Prediction\n  Error: {e}\n\n")
+
+        # 2. Submodel Calibration (if Nested)
+        if hasattr(model, 'predict_proba_layer'):
+            f.write("## Submodel Performance Breakdown\n")
+            f.write("-" * 40 + "\n")
+            
+            # --- Block Layer ---
+            try:
+                y_block = (test_df['event'] == 'blocked-shot').astype(int)
+                p_block = model.predict_proba_layer(test_df, 'block')
+                # Ensure 1D
+                if len(p_block.shape) > 1: p_block = p_block[:, 1]
+                
+                f.write("\n### Block Layer (P(Blocked | Shot))\n")
+                f.write(f"  AUC:         {roc_auc_score(y_block, p_block):.4f}\n")
+                f.write(f"  LogLoss:     {log_loss(y_block, p_block):.4f}\n")
+                f.write(f"  Brier Score: {brier_score_loss(y_block, p_block):.6f}\n")
+                f.write(f"  Actual Rate: {y_block.mean():.2%}\n")
+                f.write(f"  Pred Rate:   {p_block.mean():.2%}\n")
+            except Exception as e:
+                f.write(f"\n### Block Layer\n  Error: {e}\n")
+                
+            # --- Accuracy Layer ---
+            try:
+                mask_unblocked = (test_df['event'] != 'blocked-shot')
+                df_unblocked = test_df[mask_unblocked]
+                y_acc = df_unblocked['event'].isin(['shot-on-goal', 'goal']).astype(int)
+                p_acc = model.predict_proba_layer(df_unblocked, 'accuracy')
+                if len(p_acc.shape) > 1: p_acc = p_acc[:, 1]
+                
+                f.write("\n### Accuracy Layer (P(On Net | Unblocked))\n")
+                f.write(f"  AUC:         {roc_auc_score(y_acc, p_acc):.4f}\n")
+                f.write(f"  LogLoss:     {log_loss(y_acc, p_acc):.4f}\n")
+                f.write(f"  Brier Score: {brier_score_loss(y_acc, p_acc):.6f}\n")
+                f.write(f"  Actual Rate: {y_acc.mean():.2%}\n")
+                f.write(f"  Pred Rate:   {p_acc.mean():.2%}\n")
+            except Exception as e:
+                f.write(f"\n### Accuracy Layer\n  Error: {e}\n")
+                
+            # --- Finish Layer ---
+            try:
+                mask_on_net = test_df['event'].isin(['shot-on-goal', 'goal'])
+                df_on_net = test_df[mask_on_net]
+                y_fin = (df_on_net['event'] == 'goal').astype(int)
+                p_fin = model.predict_proba_layer(df_on_net, 'finish')
+                if len(p_fin.shape) > 1: p_fin = p_fin[:, 1]
+                
+                f.write("\n### Finish Layer (P(Goal | On Net))\n")
+                f.write(f"  AUC:         {roc_auc_score(y_fin, p_fin):.4f}\n")
+                f.write(f"  LogLoss:     {log_loss(y_fin, p_fin):.4f}\n")
+                f.write(f"  Brier Score: {brier_score_loss(y_fin, p_fin):.6f}\n")
+                f.write(f"  Actual Rate: {y_fin.mean():.2%}\n")
+                f.write(f"  Pred Rate:   {p_fin.mean():.2%}\n")
+            except Exception as e:
+                f.write(f"\n### Finish Layer\n  Error: {e}\n")
+
         f.write("\n" + "="*60 + "\n")
         f.write("Generated: " + time.strftime("%Y-%m-%d %H:%M:%S") + "\n")
 

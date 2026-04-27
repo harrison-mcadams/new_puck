@@ -1,3 +1,9 @@
+"""
+DEPRECATED - 2026-04-27
+This script has been deprecated because it bypasses the unified .train() pipeline 
+enforced in the core model classes (puck/fit_*.py). 
+Use scripts/train_all_models_modern_era.py or individual core model .train() methods instead.
+"""
 
 import sys
 import os

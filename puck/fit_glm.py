@@ -127,11 +127,16 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
             apply_filtering=kwargs.get('apply_filtering', True),
             apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
             apply_html_enrichment=kwargs.get('apply_html_enrichment', False),
-            impute_alpha=kwargs.get('impute_alpha', 0.2)
+            impute_alpha=kwargs.get('impute_alpha', 0.2),
+            exclude_blocked=kwargs.get('exclude_blocked', False)
         )
 
         # 2. Split
-        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        df_train, df_test = train_test_split(
+            df, 
+            test_size=kwargs.get('test_size', 0.2), 
+            random_state=kwargs.get('random_state', 42)
+        )
 
         # 3. Initialize & Fit
         feature_list = feature_util.get_features('all_inclusive')
@@ -153,7 +158,13 @@ class NonNestedGLM(BaseEstimator, ClassifierMixin):
         
         auc = roc_auc_score(y_test_goal, probs)
         ll = log_loss(y_test_goal, probs)
-        vprint(f"AUC: {auc:.4f}, LogLoss: {ll:.4f}")
+        try:
+            brier = brier_score_loss(y_test_goal, probs)
+        except Exception:
+            brier = np.nan
+        vprint(f"AUC: {auc:.4f}, LogLoss: {ll:.4f}, Brier: {brier:.6f}")
+        
+        clf.test_metrics_ = {'auc': auc, 'logloss': ll, 'brier': brier}
 
         # 5. Save Model & Metadata
         if save_path is None:

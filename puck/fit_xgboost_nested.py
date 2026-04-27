@@ -235,11 +235,16 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             apply_filtering=kwargs.get('apply_filtering', True),
             apply_attribution_fix=kwargs.get('apply_attribution_fix', True),
             apply_html_enrichment=kwargs.get('apply_html_enrichment', False), # Usually already enriched in CSV
-            impute_alpha=kwargs.get('impute_alpha', 0.2)
+            impute_alpha=kwargs.get('impute_alpha', 0.2),
+            exclude_blocked=kwargs.get('exclude_blocked', False)
         )
 
         # 2. Split
-        df_train, df_test = train_test_split(df, test_size=0.2, random_state=42)
+        df_train, df_test = train_test_split(
+            df, 
+            test_size=kwargs.get('test_size', 0.2), 
+            random_state=kwargs.get('random_state', 42)
+        )
 
         # 3. Initialize & Fit
         feature_list = feature_util.get_features('all_inclusive')
@@ -266,6 +271,8 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         ll = log_loss(y_test_goal, probs)
         brier = brier_score_loss(y_test_goal, probs)
         vprint(f"Overall xG AUC: {auc:.4f}, LogLoss: {ll:.4f}, Brier: {brier:.6f}")
+        
+        clf.test_metrics_ = {'auc': auc, 'logloss': ll, 'brier': brier}
 
         # 5. Save Model & Metadata
         if save_path is None:
