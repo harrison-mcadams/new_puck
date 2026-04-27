@@ -34,8 +34,9 @@ def main():
     dfs = []
     for s in modern_seasons:
         try:
-            # DataUtils.load_season_data handles the PBP normalization (orientation, attribution fixes)
-            df_s = DataUtils.load_season_data(s)
+            from puck import analyze
+            csv_path = analyze.locate_season_csv(s)
+            df_s = pd.read_csv(csv_path)
             print(f"  [OK] {s}: {len(df_s)} events loaded.")
             dfs.append(df_s)
         except Exception as e:

@@ -41,16 +41,19 @@ def main():
     parser.add_argument('--turbo', action='store_true', help='Enable parallel processing for intervals and analysis')
     parser.add_argument('--teams-only', action='store_true', help='Only process team intermediates and plots')
     parser.add_argument('--players-only', action='store_true', help='Only process player intermediates and plots')
+    parser.add_argument('--playoffs', action='store_true', help='Process playoff games (Game Type 03)')
     args = parser.parse_args()
     
     season = args.season
-    print(f"--- Starting Daily Update for Season {season} (Turbo={'ON' if args.turbo else 'OFF'}) ---")
+    target_season = f"{season}_playoffs" if args.playoffs else season
+    
+    print(f"--- Starting Daily Update for {target_season} (Turbo={'ON' if args.turbo else 'OFF'}) ---")
     
     # 1. Update Data
     df_season = pd.DataFrame()
     if args.skip_fetch:
         print("Skipping data fetch as requested.")
-        csv_path = os.path.join(config.DATA_DIR, f"{season}.csv")
+        csv_path = os.path.join(config.DATA_DIR, f"{target_season}.csv")
         if os.path.exists(csv_path):
             try:
                 df_season = pd.read_csv(csv_path)
@@ -75,12 +78,12 @@ def main():
             
             # Also remove potential shadowing CSVs that timing.load_season_df might prefer
             files_to_nuke = [
-                os.path.join(config.DATA_DIR, season, f'{season}.csv'),
-                os.path.join(config.DATA_DIR, season, f'{season}_df.csv'),
-                os.path.join(config.DATA_DIR, season, f'{season}_game_feeds.csv'),
-                os.path.join(config.DATA_DIR, season, f'{season}_game_feeds.json'),
-                os.path.join(config.DATA_DIR, f'{season}.csv'),
-                os.path.join(config.DATA_DIR, f'{season}_df.csv')
+                os.path.join(config.DATA_DIR, target_season, f'{target_season}.csv'),
+                os.path.join(config.DATA_DIR, target_season, f'{target_season}_df.csv'),
+                os.path.join(config.DATA_DIR, target_season, f'{target_season}_game_feeds.csv'),
+                os.path.join(config.DATA_DIR, target_season, f'{target_season}_game_feeds.json'),
+                os.path.join(config.DATA_DIR, f'{target_season}.csv'),
+                os.path.join(config.DATA_DIR, f'{target_season}_df.csv')
             ]
             
             for f in files_to_nuke:
@@ -96,12 +99,20 @@ def main():
         # In Turbo mode, we increase workers for fetching
         fetch_workers = 16 if args.turbo else 4
         
+        game_types = ['03'] if args.playoffs else ['02']
+        
         df_season = parse._season(
             season=season, 
-            out_path=config.DATA_DIR, 
+            out_path=None, # We manually save below to handle target_season suffix
             use_cache=not args.force,
-            max_workers=fetch_workers
+            max_workers=fetch_workers,
+            game_types=game_types
         )
+        # Manually save to target_season.csv
+        if not df_season.empty:
+            out_csv = os.path.join(config.DATA_DIR, f"{target_season}.csv")
+            df_season.to_csv(out_csv, index=False)
+            print(f"Saved freshly fetched data to {out_csv}")
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
     # 1b. Update Teams List (Ensure analysis/teams.json is fresh)
@@ -128,7 +139,7 @@ def main():
             df_season, _, _ = analyze._predict_xgs(df_season, model_path=model_path, behavior='overwrite')
             
             # Save back to CSV to be used by subprocesses
-            out_csv = os.path.join(config.DATA_DIR, f"{season}.csv")
+            out_csv = os.path.join(config.DATA_DIR, f"{target_season}.csv")
             df_season.to_csv(out_csv, index=False)
             print(f"Saved updated xG data to {out_csv}")
             
@@ -164,7 +175,7 @@ def main():
         
         # Run
         Parallel(n_jobs=-1, verbose=1)(
-            delayed(timing.get_game_intervals_cached)(*t) for t in tasks
+            delayed(timing.get_game_intervals_cached)(gid, target_season, c) for gid, _, c in tasks
         )
         print("Interval cache updated (Parallel).")
         
@@ -173,7 +184,7 @@ def main():
         count = 0
         for game_id in game_ids:
             for cond in conditions_to_cache:
-                timing.get_game_intervals_cached(game_id, season, cond)
+                timing.get_game_intervals_cached(game_id, target_season, cond)
             count += 1
             if count % 50 == 0:
                 print(f"Processed intervals for {count}/{len(game_ids)} games...")
@@ -200,7 +211,7 @@ def main():
     for cond in conditions_to_process:
         print(f"  -> Processing {cond} cache...")
         try:
-            cmd = [sys.executable, cache_script, '--season', season, '--condition', cond]
+            cmd = [sys.executable, cache_script, '--season', target_season, '--condition', cond]
             if args.force:
                 cmd.append('--force')
             if args.turbo:
@@ -244,7 +255,7 @@ def main():
     print("-> Processing 5v5...")
     
     # Scan League 5v5
-    cmd_l_scan = [sys.executable, league_script, '--season', season, '--condition', '5v5', '--scan-limit']
+    cmd_l_scan = [sys.executable, league_script, '--season', target_season, '--condition', '5v5', '--scan-limit']
     out_l = run_cmd_capture(cmd_l_scan)
     max_l = parse_max(out_l)
     print(f"   League 5v5 Max: {max_l}")
@@ -253,7 +264,7 @@ def main():
     # Note: run_player_analysis currently defaults to 5v5.
     max_p = 0.0
     if not args.teams_only:
-        cmd_p_scan = [sys.executable, player_script, '--season', season, '--scan-limit']
+        cmd_p_scan = [sys.executable, player_script, '--season', target_season, '--scan-limit']
         if args.turbo:
             cmd_p_scan.append('--turbo')
         out_p = run_cmd_capture(cmd_p_scan)
@@ -283,12 +294,12 @@ def main():
     
     # Plot League 5v5
     if not args.players_only:
-        subprocess.run([sys.executable, league_script, '--season', season, 
+        subprocess.run([sys.executable, league_script, '--season', target_season, 
                         '--condition', '5v5', '--vmax', str(vmax_l)], check=True)
                     
     # Plot Players 5v5
     if not args.teams_only:
-        cmd_p_plot = [sys.executable, player_script, '--season', season, '--vmax', str(vmax_p)]
+        cmd_p_plot = [sys.executable, player_script, '--season', target_season, '--vmax', str(vmax_p)]
         if args.turbo:
             cmd_p_plot.append('--turbo')
         subprocess.run(cmd_p_plot, check=True)
@@ -298,7 +309,7 @@ def main():
         for cond in ['5v4', '4v5']:
             print(f"-> Processing {cond}...")
             # Scan
-            cmd_scan = [sys.executable, league_script, '--season', season, '--condition', cond, '--scan-limit']
+            cmd_scan = [sys.executable, league_script, '--season', target_season, '--condition', cond, '--scan-limit']
             out_scan = run_cmd_capture(cmd_scan)
             raw_max_c = parse_max(out_scan)
             
@@ -309,7 +320,7 @@ def main():
             
             # Plot
             if not args.players_only:
-                subprocess.run([sys.executable, league_script, '--season', season, 
+                subprocess.run([sys.executable, league_script, '--season', target_season, 
                                '--condition', cond, '--vmax', str(vmax_c)], check=True)
 
     # 5. Mixed Effects Summaries

@@ -169,6 +169,8 @@ def preprocess_features(df_input: pd.DataFrame,
         def_side_sign = side_str.map({'left': -1, 'right': 1}).fillna(1)
         
         # side_multiplier: Home = -1, Away = 1
+        # NOTE: correction.py ALREADY swaps team_id to the SHOOTING team for blocked shots!
+        # So is_home correctly identifies if the SHOOTING team is home.
         is_home_ser = (df['is_home'] == 1)
         side_mult = np.where(is_home_ser.values, -1, 1)
         

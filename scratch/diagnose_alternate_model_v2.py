@@ -15,13 +15,13 @@ def diagnose():
     model = joblib.load(model_path)
     
     test_pt = pd.DataFrame([{
-        'x': 60.0, 'y': 0.0,
-        'distance': 29.0, 'angle_deg': 0.0,
-        'shot_type': 'wrist', 'shooter_role': 'F',
+        'x': 83.0, 'y': 0.0,
+        'distance': 6.0, 'angle_deg': 90.0,
+        'shot_type': 'wrist', 'shooter_role': 'F', 'shoots_catches': 'L',
         'is_rush': 0, 'is_rebound': 0, 'period_number': 2,
         'game_state': '5v5', 'relative_game_state': '5v5', 'is_home': 1,
-        'score_diff': 0, 'last_event_type': 'faceoff', 'last_event_time_diff': 5.0,
-        'dist_from_last_event': 20.0, 'speed_from_last_event': 4.0
+        'score_diff': 0, 'last_event_type': 'giveaway', 'last_event_time_diff': 2.0,
+        'dist_from_last_event': 15.0, 'speed_from_last_event': 7.5
     }])
     
     df_inf = model._prepare_inference_df(test_pt)

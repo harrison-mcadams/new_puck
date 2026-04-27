@@ -34,7 +34,13 @@ class TensorSpline(BaseEstimator, TransformerMixin):
         self.splines_ = []
         for i in range(self.n_features_in_):
             # Fit independent spline for each dimension
-            st = SplineTransformer(n_knots=self.n_knots, degree=self.degree, include_bias=self.include_bias)
+            # Handle missing values by encoding as zeros (available in newer sklearn)
+            try:
+                st = SplineTransformer(n_knots=self.n_knots, degree=self.degree, include_bias=self.include_bias, handle_missing='zeros')
+            except TypeError:
+                # Fallback for older sklearn
+                st = SplineTransformer(n_knots=self.n_knots, degree=self.degree, include_bias=self.include_bias)
+            
             st.fit(X.iloc[:, [i]])
             self.splines_.append(st)
         
@@ -55,9 +61,6 @@ class TensorSpline(BaseEstimator, TransformerMixin):
             bases.append(b)
             
         # 2. Compute Tensor Product
-        # Currently optimized for 2D (Distance, Angle). 
-        # For general N-D, we need recursive Kronecker product.
-        
         if len(bases) == 1:
             return bases[0]
         
@@ -66,17 +69,10 @@ class TensorSpline(BaseEstimator, TransformerMixin):
         
         for i in range(1, len(bases)):
             b_next = bases[i]
-            # Row-wise Kronecker product (Outer product)
-            # Result size = result.shape[1] * b_next.shape[1]
-            
-            # Efficient way using einsum
-            # result: (N, A), b_next: (N, B) -> (N, A, B) -> flatten to (N, A*B)
-            # Using broadcasting
             N = result.shape[0]
             A = result.shape[1]
             B = b_next.shape[1]
             
-            # (N, A, 1) * (N, 1, B) = (N, A, B)
             tensor = result[:, :, np.newaxis] * b_next[:, np.newaxis, :]
             result = tensor.reshape(N, A * B)
             
@@ -86,7 +82,6 @@ class TensorSpline(BaseEstimator, TransformerMixin):
         if input_features is None:
             input_features = self.feature_names_in_
             
-        # Generate names recursively
         names = self.splines_[0].get_feature_names_out([input_features[0]])
         
         for i in range(1, len(self.splines_)):

@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Series Detail - {{ series.away_team }} vs {{ series.home_team }}{% endblock %}
+
+{% block nav_playoffs %}active{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <div class="header-back">
+        <a href="{{ url_for('playoffs', season=season) }}" class="back-link">← Back to Playoffs</a>
+    </div>
+    <h1>Round {{ series.round }} Series {{ series.series_number }}: {{ series.away_team }} vs {{ series.home_team }}</h1>
+</div>
+
+<!-- Aggregate Section -->
+<section class="analysis-section aggregate-section">
+    <div class="section-title">
+        <h2>Series Aggregate Analysis</h2>
+        <p class="section-subtitle">Aggregated data across all {{ series.num_games }} games</p>
+    </div>
+    
+    <div class="viz-row">
+        <div class="viz-card">
+            <h3>Aggregate xG Heatmap</h3>
+            <div class="viz-container">
+                <img src="{{ url_for('analysis_file', filename=series.aggregate_heatmap) }}" alt="Aggregate xG Heatmap" class="analysis-img">
+            </div>
+        </div>
+        <div class="viz-card">
+            <h3>Aggregate Game Worm</h3>
+            <div class="viz-container">
+                <img src="{{ url_for('analysis_file', filename=series.aggregate_worm) }}" alt="Aggregate Game Worm" class="analysis-img">
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Individual Games Section -->
+<section class="analysis-section games-section">
+    <div class="section-title">
+        <h2>Individual Game Breakdown</h2>
+    </div>
+
+    <div class="games-list">
+        {% for game in series.games %}
+        <div class="game-item">
+            <div class="game-header">
+                <h3>Game {{ loop.index }} (ID: {{ game.game_id }})</h3>
+            </div>
+            <div class="viz-row">
+                <div class="viz-card small">
+                    <h4>xG Heatmap</h4>
+                    <div class="viz-container">
+                        <img src="{{ url_for('analysis_file', filename=game.heatmap) }}" alt="Game {{ loop.index }} Heatmap" class="analysis-img">
+                    </div>
+                </div>
+                <div class="viz-card small">
+                    <h4>Game Worm</h4>
+                    <div class="viz-container">
+                        <img src="{{ url_for('analysis_file', filename=game.worm) }}" alt="Game {{ loop.index }} Worm" class="analysis-img">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<style>
+    .back-link {
+        text-decoration: none;
+        color: #f74902;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: block;
+        margin-bottom: 10px;
+    }
+
+    .analysis-section {
+        margin-bottom: 60px;
+    }
+
+    .section-title {
+        margin-bottom: 30px;
+    }
+
+    .section-title h2 {
+        font-size: 1.75rem;
+        margin-bottom: 5px;
+    }
+
+    .section-subtitle {
+        color: #666;
+        font-size: 1rem;
+    }
+
+    .viz-row {
+        display: flex;
+        gap: 30px;
+        margin-bottom: 30px;
+        flex-wrap: wrap;
+    }
+
+    .viz-card {
+        flex: 1;
+        min-width: 450px;
+        background: white;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        border: 1px solid #eee;
+    }
+
+    .viz-card.small {
+        min-width: 350px;
+    }
+
+    .viz-card h3, .viz-card h4 {
+        margin-top: 0;
+        margin-bottom: 20px;
+        font-size: 1.1rem;
+        color: #333;
+        border-left: 4px solid #f74902;
+        padding-left: 12px;
+    }
+
+    .viz-container {
+        width: 100%;
+        background: #fdfdfd;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .analysis-img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+    }
+
+    .games-list {
+        display: flex;
+        flex-direction: column;
+        gap: 40px;
+    }
+
+    .game-item {
+        background: #fafafa;
+        border-radius: 16px;
+        padding: 30px;
+        border: 1px solid #eaeaea;
+    }
+
+    .game-header {
+        margin-bottom: 25px;
+    }
+
+    .game-header h3 {
+        margin: 0;
+        font-size: 1.4rem;
+        color: #1a1a1a;
+    }
+
+    @media (max-width: 1024px) {
+        .viz-card {
+            min-width: 100%;
+        }
+    }
+</style>
+{% endblock %}

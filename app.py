@@ -127,6 +127,7 @@ def replot():
         from puck import plot
         from puck import fit_xgs
         from puck import analyze
+        from puck import playoffs
         import json
         import numpy as np
     except Exception as e:
@@ -619,6 +620,69 @@ def admin_flush_cache():
     except Exception as e:
         logger.exception('failed to flush cache: %s', e)
         return (f'failed to flush cache: {e}', 500)
+
+
+@app.route("/playoffs")
+def playoffs():
+    """Render the playoffs summary page."""
+    import json
+    season = request.args.get('season', '20252026')
+    
+    summary_path = os.path.join(ANALYSIS_DIR, 'playoffs', season, 'series_summary.json')
+    series_list = []
+    
+    if os.path.exists(summary_path):
+        try:
+            with open(summary_path, 'r') as f:
+                series_list = json.load(f)
+        except Exception as e:
+            logger.error(f"Failed to load playoff summary: {e}")
+            
+    # Sort series by round then series number
+    series_list.sort(key=lambda x: (x.get('round', 0), x.get('series_number', 0)))
+    
+    return render_template("playoffs.html", series_list=series_list, season=season)
+
+
+@app.route("/playoffs/series/<series_id>")
+def playoff_series(series_id):
+    """Render the detailed view for a specific playoff series."""
+    import json
+    season = request.args.get('season', '20252026')
+    
+    summary_path = os.path.join(ANALYSIS_DIR, 'playoffs', season, 'series_summary.json')
+    target_series = None
+    
+    if os.path.exists(summary_path):
+        try:
+            with open(summary_path, 'r') as f:
+                series_list = json.load(f)
+                for s in series_list:
+                    if str(s.get('series_id')) == str(series_id):
+                        target_series = s
+                        break
+        except Exception as e:
+            logger.error(f"Failed to load playoff summary: {e}")
+            
+    if not target_series:
+        return "Series not found", 404
+        
+    return render_template("playoff_series.html", series=target_series, season=season)
+
+
+@app.route("/admin/generate_playoffs", methods=['POST'])
+def admin_generate_playoffs():
+    """Trigger playoff plot generation."""
+    try:
+        from puck import playoffs
+        season = request.form.get('season', '20252026')
+        force = request.form.get('force') == 'true'
+        
+        playoffs.generate_playoff_plots(season=season, force=force)
+        return redirect(url_for('playoffs', season=season))
+    except Exception as e:
+        logger.exception('failed to generate playoffs: %s', e)
+        return (f'failed to generate playoffs: {e}', 500)
 
 
 @app.route('/api/control', methods=['POST'])

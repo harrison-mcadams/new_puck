@@ -471,7 +471,7 @@ def plot_events(
         is_goal = pd.Series([False] * len(events), index=events.index) # Dummy to prevent crash if referenced later
 
     # Count goals using the original events DataFrame (more complete than filtered df)
-    if not goals_precomputed and heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
+    if heatmap_split_mode == 'team_not_team' and team_for_heatmap is not None:
         # compute group1 (team) vs group2 (not team) goal counts
         def _is_team_row_events(r):
             try:
@@ -489,28 +489,52 @@ def plot_events(
                 return False
 
         mask_team = events.apply(_is_team_row_events, axis=1) if 'team_id' in events.columns or 'home_abb' in events.columns else pd.Series([False] * len(events), index=events.index)
+        # Define is_goal if not already defined (needed for team counting below)
+        ev_lc = events['event'].astype(str).str.strip().str.lower() if 'event' in events.columns else pd.Series([], dtype=object)
+        is_goal_local = ev_lc == 'goal'
+        
         if 'home_id' in events.columns and home_id is not None and team_for_heatmap is not None:
              # Check if Team is Home or Away
-             is_team_home = (str(team_for_heatmap).strip() == str(home_id).strip())
+             is_team_home_actual = (str(team_for_heatmap).strip() == str(home_id).strip())
              # If using abbreviation
-             if not is_team_home and 'home_abb' in events.columns:
-                 is_team_home = (str(team_for_heatmap).strip().upper() == str(events['home_abb'].iloc[0]).strip().upper())
+             if not is_team_home_actual and 'home_abb' in events.columns:
+                 is_team_home_actual = (str(team_for_heatmap).strip().upper() == str(events['home_abb'].iloc[0]).strip().upper())
              
-             # Calculate Team vs Other counts
-             team_goals_count = int(((mask_team) & is_goal).sum())
-             other_goals_count = int(((~mask_team) & is_goal).sum())
+             # Calculate Team vs Other counts (if not precomputed)
+             if not goals_precomputed:
+                 team_goals_count = int(((mask_team) & is_goal_local).sum())
+                 other_goals_count = int(((~mask_team) & is_goal_local).sum())
+             else:
+                 # Use precomputed if possible, but map to team/other
+                 if is_team_home_actual:
+                     team_goals_count = home_goals
+                     other_goals_count = away_goals
+                 else:
+                     team_goals_count = away_goals
+                     other_goals_count = home_goals
              
-             if is_team_home:
+             # IMPORTANT: In 'team_not_team' mode, we ALWAYS want the target team on the LEFT (Home)
+             # because adjust_xy_for_homeaway already flipped them to the left.
+             if heatmap_split_mode == 'team_not_team':
                  home_goals = team_goals_count
                  away_goals = other_goals_count
+                 # Also override the names for the plot display if needed
+                 home_name = str(team_for_heatmap).upper()
+                 away_name = "OPP" # or resolve second team name
              else:
-                 # Team is Away (or unknown, assume Away if not Home)
-                 home_goals = other_goals_count
-                 away_goals = team_goals_count
+                 if is_team_home_actual:
+                     home_goals = team_goals_count
+                     away_goals = other_goals_count
+                 else:
+                     home_goals = other_goals_count
+                     away_goals = team_goals_count
         else:
              # Fallback if we can't identify home/away: treat Team as Home (Left)
              home_goals = int(((mask_team) & is_goal).sum())
              away_goals = int(((~mask_team) & is_goal).sum())
+             if team_for_heatmap:
+                 home_name = str(team_for_heatmap).upper()
+                 away_name = "OPP"
     else:
         if 'team_id' in events.columns and home_id is not None:
             home_goals = int(((events['team_id'].astype(str) == str(home_id)) & is_goal).sum())
@@ -680,12 +704,27 @@ def plot_events(
         if title:
             main_title = title
         else:
-            main_title = f"Season Summary for {team_for_heatmap}"
+            # Try to identify the specific matchup if it's a series or single-matchup aggregate
+            # We can infer this from the home/away names in the events dataframe
+            h_name = home_name if home_name else "Team"
+            a_name = away_name if away_name else "Opponent"
+            
+            # If team_for_heatmap is set, we want "Team A vs Team B"
+            if team_for_heatmap:
+                tupper = str(team_for_heatmap).upper()
+                if str(h_name).upper() == tupper:
+                    main_title = f"{h_name} vs. {a_name}"
+                elif str(a_name).upper() == tupper:
+                    main_title = f"{a_name} vs. {h_name}"
+                else:
+                    main_title = f"{team_for_heatmap} vs. Opponents"
+            else:
+                main_title = f"{h_name} vs. {a_name}"
     else:
         # Ensure we have valid names
         h_name = home_name if home_name else "Home"
         a_name = away_name if away_name else "Away"
-        main_title = title if title else f"{h_name} vs {a_name}"
+        main_title = title if title else f"{h_name} vs. {a_name}"
         
 
         
@@ -784,30 +823,6 @@ def plot_events(
                         events_with_xg, grid_res=hm_res, sigma=hm_sigma, x_col=xcol, y_col=ycol, amp_col='xgs', normalize_per60=False, total_seconds=total_seconds)
                     # To use team colors, pass 'team_name' matching a key in team_colors
     
-                    # Force copy to ensure writeability and avoid "output array is read-only" errors
-                    # especially when calculating percentiles/partitions on mmap'd or masked views.
-                    processed_grid = np.array(rel_grid, copy=True)
-                    
-                    # 1. Orientation Adjustment
-                    # If the user wants the "Home" team on the left or right, we can flip.
-                    # Standard: Home team attacks Right? Left?
-                    # New Standard: We assume input is "Team Relative" (Team is Home).
-                    # If we want standard orientation (Home Right), we don't flip.
-                    # But usually heatmaps are shown "Attacking Right" (Offense on Right).
-                    # Our data format: x > 0 is offensive zone?
-                    # Rink: -100 to 100.
-                    # If we assume standard NHL data (Offense variable):
-                    # We don't rotate here unless requested.
-                    
-                    if rotate:
-                        processed_grid = np.rot90(processed_grid)
-                    # Overlay as a single color (e.g., black)
-                    all_color = 'black'
-
-                    heat_home = None
-                    heat_away = None
-                    heat_team = None
-                    heat_not_team = None
                     heat_all_arr = heat_all
                 else:
                     # legacy home/away: detect canonical home_id and use that as selected_team
@@ -1601,10 +1616,39 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
     time_sec = df_sorted['total_time_elapsed_seconds'].values
     time_min = time_sec / 60.0
 
-    # Determine "Home" or "Selected Team"
-    # User requested: standard Home vs Away (Home positive, Away negative)
-    # We will ignore `team_for_heatmap` and strictly use Home vs Away
-    if 'home_id' in df_sorted.columns:
+    # Determine "Positive" team (Top) and "Negative" team (Bottom)
+    if team_for_heatmap:
+        # User explicitly requested a team to be the baseline
+        tupper = str(team_for_heatmap).upper()
+        
+        # Helper to identify if a row belongs to the selected team
+        def _is_team_row(r):
+            try:
+                if str(team_for_heatmap).strip().isdigit():
+                    return str(r.get('team_id')) == str(int(team_for_heatmap))
+                h_abb = str(r.get('home_abb', '')).upper()
+                a_abb = str(r.get('away_abb', '')).upper()
+                if h_abb == tupper:
+                    return str(r.get('team_id')) == str(r.get('home_id'))
+                if a_abb == tupper:
+                    return str(r.get('team_id')) == str(r.get('away_id'))
+                return False
+            except Exception:
+                return False
+        
+        team_mask = df_sorted.apply(_is_team_row, axis=1).values
+        home_team_lbl = tupper
+        
+        # Identify the other team (Opponent)
+        opps = df_sorted[~team_mask]
+        if not opps.empty:
+            # Pick the most frequent opponent abbreviation
+            away_team_lbl = opps['team_abb'].mode().iloc[0] if 'team_abb' in opps.columns else 'OPP'
+        else:
+            away_team_lbl = 'OPP'
+            
+    elif 'home_id' in df_sorted.columns:
+        # Standard Home vs Away
         team_mask = (df_sorted['team_id'].astype(str) == df_sorted['home_id'].astype(str)).values
         home_team_lbl = df_sorted['home_abb'].iloc[0] if 'home_abb' in df_sorted.columns else 'HOME'
         away_team_lbl = df_sorted['away_abb'].iloc[0] if 'away_abb' in df_sorted.columns else 'AWAY'
@@ -1627,7 +1671,18 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
     cum_team = np.cumsum(team_xg_vals)
     cum_opp = np.cumsum(opp_xg_vals)
     
-    net_xg = cum_team - cum_opp
+    # In aggregate mode (multiple games), we should probably normalize by number of games
+    # if we want an "average" worm, or keep as is for "total momentum".
+    # User feedback suggests they expect "aggregate", which usually means summed.
+    # However, if time is 0-60, it's more like "Momentum at this minute across all games".
+    num_games = len(df_sorted['game_id'].unique())
+    if num_games > 1:
+        cum_team = cum_team / float(num_games)
+        cum_opp = cum_opp / float(num_games)
+    
+    # Orientation flip: User wants Team A (selected team) to be negative/downwards
+    # So net_xg = Opponent - TeamA
+    net_xg = cum_opp - cum_team
 
     # We want to start at (0,0)
     time_min = np.insert(time_min, 0, 0.0)
@@ -1726,9 +1781,11 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
         if t1 > max_time: t1 = max_time
         if t0 >= max_time: continue
         if state == 'home':
-            ax.fill_between([t0, t1], 0, ymax, color=fill_positive, alpha=0.15, zorder=1)
-        elif state == 'away':
+            # Home/Team A advantage shades DOWN (negative)
             ax.fill_between([t0, t1], ymin, 0, color=fill_negative, alpha=0.15, zorder=1)
+        elif state == 'away':
+            # Away/Opponent advantage shades UP (positive)
+            ax.fill_between([t0, t1], 0, ymax, color=fill_positive, alpha=0.15, zorder=1)
 
     # Add period markers
     for p in range(1, int(max_time/20) + 1):
@@ -1739,15 +1796,23 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
          ax.text(60 + (max_time-60)/2.0, ymax*0.9, 'OT', color='#000000', ha='center', va='top', fontsize=10)
 
     # Add Goal vertical lines
-    goals = df_sorted[df_sorted['event'] == 'goal']
-    for _, row in goals.iterrows():
+    # We need to re-identify goals and their side based on the same logic as the worm
+    goals_idx = df_sorted.index[df_sorted['event'].astype(str).str.strip().str.lower() == 'goal']
+    for idx in goals_idx:
+        row = df_sorted.loc[idx]
         t = row['total_time_elapsed_seconds'] / 60.0
         if t > max_time: continue
-        is_home_goal = (str(row['team_id']) == str(row.get('home_id', -1)))
-        if is_home_goal:
-            ax.plot([t, t], [0, ymax], color=fill_positive, linewidth=2, zorder=6)
-        else:
+        
+        # Determine if this goal was for the "Positive" side
+        # Use team_mask at the specific index
+        pos_side = team_mask[np.where(df_sorted.index == idx)[0][0]]
+        
+        if pos_side:
+            # Team A goal draws DOWN
             ax.plot([t, t], [0, ymin], color=fill_negative, linewidth=2, zorder=6)
+        else:
+            # Team B goal draws UP
+            ax.plot([t, t], [0, ymax], color=fill_positive, linewidth=2, zorder=6)
 
     # Styling axes
     ax.tick_params(colors='#000000', labelsize=10)
@@ -1757,8 +1822,12 @@ def plot_game_worm(df: pd.DataFrame, out_path: str, team_for_heatmap: str = None
     # Remove Title entirely
     ax.set_title("")
     
-    # Y-axis format: HOME_ABB vs AWAY_ABB
-    ax.set_ylabel(f'{home_team_lbl} vs {away_team_lbl}', color='#000000', fontsize=12, fontweight='bold')
+    # Y-axis format: TOP_TEAM vs BOTTOM_TEAM (Away vs Home)
+    # The user wants "Team A vs Team B" but A is at the bottom.
+    # To match the visual, we'll label it "B (+) vs A (-)" or just swap the names in the label if preferred.
+    # Given the request "Team A vs Team B bottom towards top", the label "A vs B" might be ambiguous.
+    # Let's use a clear "Opponent (+) / Team (-)" style or just "B vs A".
+    ax.set_ylabel(f'{away_team_lbl} (+) vs. {home_team_lbl} (-)', color='#000000', fontsize=12, fontweight='bold')
     ax.set_xlabel('Game Time (Minutes)', color='#000000', fontsize=12)
 
     # Final layout

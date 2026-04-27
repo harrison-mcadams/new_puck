@@ -21,6 +21,7 @@ import requests
 
 from . import nhl_api
 from . import arena_adjustments
+from . import html_enrichment
 from .rink import rink_goal_xs, BLUE_LINE_X
 
 
@@ -790,6 +791,11 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
     for gm, game_feed in feeds:
         try:
             events_df = _game(game_feed)
+            
+            # Option A: Enrich blocked shots with HTML PBP during parsing
+            game_id = str(gm.get('id') or gm.get('gamePk'))
+            if not events_df.empty:
+                events_df = html_enrichment.enrich_blocks_with_html(events_df, game_id)
         except Exception as e:
             logging.warning('Parser error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
             events_df = pd.DataFrame()
@@ -1723,13 +1729,15 @@ def build_mask(df, condition):
         mask = _pd.Series(True, index=df.index)
         
         # --- Implied Defaults ---
-        # If is_net_empty is not specified, default to goalie-present (0)
-        if 'is_net_empty' not in condition and 'is_net_empty' in df.columns:
-             mask &= (df['is_net_empty'] == 0) | (df['is_net_empty'] == False)
+        # If is_net_empty is not specified and condition is None or non-empty, default to goalie-present (0)
+        # BUT if condition is an empty dict {}, assume the caller wants to override defaults and include everything.
+        if condition and 'is_net_empty' not in condition and 'is_net_empty' in df.columns:
+             # Handle both numeric and string representations (common in CSVs)
+             mask &= (df['is_net_empty'].astype(str).str.replace(r'\.0$', '', regex=True).isin(['0', 'False', 'false']))
              
-        # If game_state is not specified, exclude extreme situations (1v0, 0v1)
-        if 'game_state' not in condition and 'game_state' in df.columns:
-             mask &= ~df['game_state'].isin(['1v0', '0v1'])
+        # Similarly for game_state
+        if condition and 'game_state' not in condition and 'game_state' in df.columns:
+             mask &= ~df['game_state'].astype(str).str.lower().isin(['1v0', '0v1'])
              
         for col, spec in condition.items():
             if col not in df.columns:
@@ -1747,6 +1755,14 @@ def build_mask(df, condition):
                 if isinstance(spec, (list, set)):
                     # Try to match the spec items directly
                     try:
+                        if any(isinstance(x, str) for x in spec):
+                            # If spec contains strings, cast series to string for matching
+                            # and strip .0 to handle float-to-string conversion artifacts
+                            s_series = series.astype(str).str.replace(r'\.0$', '', regex=True)
+                            m = s_series.isin([str(x).replace('.0', '') for x in spec])
+                        else:
+                            m = series.isin(spec)
+                    except Exception:
                         m = series.isin(spec)
                         # If no matches found, attempt robust fallbacks:
                         if not m.any():

@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}Playoffs - New Puck Analysis{% endblock %}
+
+{% block nav_playoffs %}active{% endblock %}
+
+{% block content %}
+<div class="content-header">
+    <h1>Playoff Series - {{ season }}</h1>
+    <div class="header-actions">
+        <form action="{{ url_for('admin_generate_playoffs') }}" method="POST" style="display: inline;">
+            <input type="hidden" name="season" value="{{ season }}">
+            <button type="submit" class="btn btn-secondary">Refresh Playoff Plots</button>
+        </form>
+    </div>
+</div>
+
+<div class="series-grid">
+    {% for series in series_list %}
+    <a href="{{ url_for('playoff_series', series_id=series.series_id, season=season) }}" class="series-card">
+        <div class="series-header">
+            <span class="round-badge">Round {{ series.round }}</span>
+            <span class="series-num">Series {{ series.series_number }}</span>
+        </div>
+        <div class="series-matchup">
+            <div class="team-info">
+                <span class="team-abbr">{{ series.away_team }}</span>
+            </div>
+            <div class="matchup-vs">VS</div>
+            <div class="team-info">
+                <span class="team-abbr">{{ series.home_team }}</span>
+            </div>
+        </div>
+        <div class="series-footer">
+            <span class="game-count">{{ series.num_games }} Games Played</span>
+            <span class="view-details">View Series Details →</span>
+        </div>
+    </a>
+    {% else %}
+    <div class="empty-state">
+        <p>No playoff series data found for this season.</p>
+        <p>Click "Refresh Playoff Plots" to generate analysis from available data.</p>
+    </div>
+    {% endfor %}
+</div>
+
+<style>
+    .series-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .series-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        text-decoration: none;
+        color: inherit;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s, box-shadow 0.2s;
+        border: 1px solid #eee;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .series-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 8px 12px rgba(0, 0, 0, 0.1);
+        border-color: #f74902;
+    }
+
+    .series-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+
+    .round-badge {
+        background: #f74902;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .series-num {
+        color: #666;
+        font-size: 0.85rem;
+    }
+
+    .series-matchup {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 25px;
+        flex-grow: 1;
+    }
+
+    .team-info {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+
+    .team-abbr {
+        font-size: 2rem;
+        font-weight: 800;
+        color: #1a1a1a;
+    }
+
+    .matchup-vs {
+        font-weight: 700;
+        color: #999;
+        font-size: 0.9rem;
+    }
+
+    .series-footer {
+        border-top: 1px solid #eee;
+        padding-top: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.85rem;
+    }
+
+    .game-count {
+        color: #666;
+    }
+
+    .view-details {
+        color: #f74902;
+        font-weight: 600;
+    }
+
+    .empty-state {
+        grid-column: 1 / -1;
+        text-align: center;
+        padding: 100px 20px;
+        background: white;
+        border-radius: 12px;
+        color: #666;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+        transition: background 0.2s;
+    }
+    
+    .btn-secondary {
+        background: #f0f0f0;
+        color: #333;
+    }
+    
+    .btn-secondary:hover {
+        background: #e0e0e0;
+    }
+</style>
+{% endblock %}

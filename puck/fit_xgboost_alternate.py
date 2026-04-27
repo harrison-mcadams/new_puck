@@ -297,7 +297,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
             
-        p_blocked = self.model_block.predict_proba(df[self.features_block])[:, 1]
+        p_blocked = self._predict_marginalized(self.model_block, df, self.features_block)
         p_unblocked = 1.0 - p_blocked
         p_acc = self._predict_marginalized(self.model_acc, df, self.features_acc)
         p_finish = self._predict_marginalized(self.model_finish, df, self.features_fin)
@@ -308,7 +308,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
         df = self._prepare_inference_df(X)
         if layer == 'block':
-            return self.model_block.predict_proba(df[self.features_block])[:, 1]
+            return self._predict_marginalized(self.model_block, df, self.features_block)
         elif layer == 'accuracy':
             return self._predict_marginalized(self.model_acc, df, self.features_acc)
         elif layer == 'finish':

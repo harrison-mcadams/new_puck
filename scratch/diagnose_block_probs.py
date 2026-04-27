@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from puck import fit_xgboost_alternate, config
 
 def main():
-    model_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_alternate_modern_era.joblib')
+    model_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_alternate_20232024.joblib')
     if not os.path.exists(model_path):
         print("Model not found.")
         return

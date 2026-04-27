@@ -38,8 +38,8 @@ def get_features(name: str = 'standard') -> List[str]:
     """Retrieve a feature set by name."""
     if name not in FEATURE_SETS:
         print(f"Warning: Feature set '{name}' not found. Defaulting to 'standard'.")
-        return FEATURE_SETS['standard']
-    return FEATURE_SETS[name]
+        return list(FEATURE_SETS['standard'])
+    return list(FEATURE_SETS[name])
 
 def list_feature_sets() -> Dict[str, List[str]]:
     """Return all available feature sets."""

@@ -2081,7 +2081,9 @@ def xgs_map(season: Optional[str] = '20252026', *,
               interval_time_col: str = 'total_time_elapsed_seconds',
               force_refresh: bool = False,
               preprocess: bool = True,
-              debug: bool = False):
+              debug: bool = False,
+              heatmap_split_mode: Optional[str] = None,
+              team_for_heatmap: Optional[object] = None):
     
     if total_seconds is None:
         # Default to 0.0 if not provided, to avoid None propagation
@@ -2675,6 +2677,12 @@ def xgs_map(season: Optional[str] = '20252026', *,
     else:
         df_filtered, team_val = _apply_condition(df_all)
 
+    # Use overrides if provided
+    if team_for_heatmap is not None:
+        team_val = team_for_heatmap
+    
+    heatmap_mode = heatmap_split_mode
+
     # Removed manual correction: Handled by preprocess=True (calling data_pipeline)
     # or assumed done if preprocess=False.
     # if int(df_filtered.shape[0]) > 0:
@@ -2915,6 +2923,39 @@ def xgs_map(season: Optional[str] = '20252026', *,
         'game_ongoing': game_ongoing,
         'time_remaining': time_remaining,
     }
+
+    # Map for plot_events expectations
+    if team_val is not None:
+        # Determine if team_val is "Home" (Left) based on the first row's home team
+        # (This is a convention for aggregate plots)
+        is_team_left = True
+        try:
+            h_abb = df_filtered['home_abb'].dropna().iloc[0] if 'home_abb' in df_filtered.columns else None
+            if h_abb and str(team_val).upper() != str(h_abb).upper():
+                is_team_left = False
+        except Exception: pass
+        
+        if is_team_left:
+            summary_stats['home_goals'] = team_goals
+            summary_stats['away_goals'] = other_goals
+            summary_stats['home_xg'] = team_xgs
+            summary_stats['away_xg'] = other_xgs
+            summary_stats['home_attempts'] = team_attempts
+            summary_stats['away_attempts'] = other_attempts
+        else:
+            summary_stats['home_goals'] = other_goals
+            summary_stats['away_goals'] = team_goals
+            summary_stats['home_xg'] = other_xgs
+            summary_stats['away_xg'] = team_xgs
+            summary_stats['home_attempts'] = other_attempts
+            summary_stats['away_attempts'] = team_attempts
+    else:
+        summary_stats['home_goals'] = team_goals
+        summary_stats['away_goals'] = other_goals
+        summary_stats['home_xg'] = team_xgs
+        summary_stats['away_xg'] = other_xgs
+        summary_stats['home_attempts'] = team_attempts
+        summary_stats['away_attempts'] = other_attempts
 
     # Construct filter string for display
     filter_str = ""

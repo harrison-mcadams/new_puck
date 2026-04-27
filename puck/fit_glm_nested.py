@@ -315,16 +315,26 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
 
     def predict_proba_layer(self, X, layer):
         """Returns probability of success (1) for a specific layer."""
-        if layer == 'block':
-            # Block layer now includes shot_type
-            return self.model_block.predict_proba(X[self.features])[:, 1]
-            
         df = X[self.features].copy()
         
         if 'shot_type' in df.columns:
             mask_nan = df['shot_type'].isna() | (df['shot_type'].astype(str).str.lower() == 'unknown')
         else:
             mask_nan = pd.Series([False]*len(df), index=df.index)
+
+        if layer == 'block':
+            # Block layer now includes shot_type
+            p_final = self.model_block.predict_proba(df[self.features])[:, 1]
+            if self.enable_marginalization and mask_nan.any() and self.shot_type_priors_:
+                df_nan = df[mask_nan].copy()
+                accumulated_prob = np.zeros(len(df_nan))
+                for st, weight in self.shot_type_priors_.items():
+                    df_nan_imputed = df_nan.copy()
+                    df_nan_imputed['shot_type'] = st
+                    prob_st = self.model_block.predict_proba(df_nan_imputed[self.features])[:, 1]
+                    accumulated_prob += prob_st * weight
+                p_final[mask_nan] = accumulated_prob
+            return p_final
             
         if layer == 'accuracy':
             model = self.model_acc

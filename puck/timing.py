@@ -601,7 +601,7 @@ def debug_print_game_intervals(res: Dict[str, Any], max_intervals_display: int =
 
 
 
-def load_season_df(season: str = '20252026', data_dir: str = None) -> pd.DataFrame:
+def load_season_df(season: str = '20252026', data_dir: str = None, is_playoffs: bool = False) -> pd.DataFrame:
     """Load a season-level CSV from likely locations and return DataFrame.
 
     The function tries several conventional locations then falls back to a
@@ -610,11 +610,13 @@ def load_season_df(season: str = '20252026', data_dir: str = None) -> pd.DataFra
     """
     if data_dir is None:
         data_dir = config.DATA_DIR
+    
+    suffix = "_playoffs" if is_playoffs else ""
     candidates = [
-        Path(data_dir) / season / f"{season}.csv",
-        Path(data_dir) / season / f"{season}_df.csv",
-        Path(data_dir) / f"{season}.csv",
-        Path(data_dir) / f"{season}_df.csv",
+        Path(data_dir) / season / f"{season}{suffix}.csv",
+        Path(data_dir) / season / f"{season}{suffix}_df.csv",
+        Path(data_dir) / f"{season}{suffix}.csv",
+        Path(data_dir) / f"{season}{suffix}_df.csv",
     ]
     for p in candidates:
         if p.exists():
