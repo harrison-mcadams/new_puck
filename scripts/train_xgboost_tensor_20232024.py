@@ -1,4 +1,4 @@
-"""train_xgboost_alternate_20232024.py
+"""train_xgboost_tensor_20232024.py
 
 Training script for the Pure spatial XGBoost model on the 2023-2024 season.
 Generates full dashboard and summary artifacts.
@@ -12,7 +12,7 @@ import pandas as pd
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_xgboost_alternate, config
+from puck import fit_xgboost_tensor, config
 
 def main():
     print("Loading 2023-2024 data for training...")
@@ -24,11 +24,11 @@ def main():
     df = pd.read_csv(data_path)
     
     # Save directory
-    save_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_alternate_20232024.joblib')
-    out_dir = str(Path(config.ANALYSIS_DIR) / 'xgboost_alternate_xgs')
+    save_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_tensor_20232024.joblib')
+    out_dir = str(Path(config.ANALYSIS_DIR) / 'xgboost_tensor_xgs')
     
     print("Starting training...")
-    fit_xgboost_alternate.train_xgboost_alternate(
+    fit_xgboost_tensor.train_xgboost_tensor(
         df, 
         save_path=save_path, 
         out_dir=out_dir,

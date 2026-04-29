@@ -1,6 +1,6 @@
-"""fit_xgboost_alternate.py
+"""fit_xgboost_tensor.py
 
-XGBOOST ALTERNATE EXPECTED GOALS MODEL
+XGBOOST TENSOR EXPECTED GOALS MODEL
 ===================================
 This module implements the "Layered" or "Nested" xG model using pure XGBoost
 for spatial representation (No GLM pre-processing).
@@ -67,7 +67,8 @@ CATEGORICAL_VOCABS = {
 
 logger = logging.getLogger(__name__)
 
-class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
+class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
+
     """
     Nested Expected Goals Model using Pure XGBoost (No GLM Base).
     
@@ -124,7 +125,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         self.categorical_priors_ = {}
 
     def fit(self, X: pd.DataFrame, y=None):
-        logger.info(f"Fitting XGBAlternateXGClassifier on {len(X)} rows.")
+        logger.info(f"Fitting XGBTensorXGClassifier on {len(X)} rows.")
 
         if self.use_calibration:
             df_train, df_calib = train_test_split(X, test_size=0.2, random_state=self.random_state)
@@ -219,7 +220,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         def vprint(*args):
             if verbose: print(*args)
 
-        vprint("--- Training XGBoost (Alternate - No GLM) Model ---")
+        vprint("--- Training XGBoost (Tensor - No GLM) Model ---")
         
         df = data_pipeline.preprocess_features(
             df_raw, 
@@ -269,7 +270,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         clf.test_metrics_ = {'auc': auc, 'logloss': ll, 'brier': brier}
 
         if save_path is None:
-            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_alternate.joblib')
+            save_path = str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_tensor.joblib')
         
         vprint(f"Saving model to {save_path}...")
         save_dir = Path(save_path).parent
@@ -278,7 +279,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
         
         meta = {
             'final_features': clf.features,
-            'model_type': 'xgboost_alternate',
+            'model_type': 'xgboost_tensor',
             'train_params': {
                 'n_estimators': clf.n_estimators,
                 'max_depth': clf.max_depth,
@@ -289,7 +290,7 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
             json.dump(meta, f)
 
         if out_dir is None:
-            diag_dir = Path(puck_config.ANALYSIS_DIR) / 'xgboost_alternate_xgs'
+            diag_dir = Path(puck_config.ANALYSIS_DIR) / 'xgboost_tensor_xgs'
         else:
             diag_dir = Path(out_dir)
         diag_dir.mkdir(parents=True, exist_ok=True)
@@ -407,5 +408,9 @@ class XGBAlternateXGClassifier(BaseEstimator, ClassifierMixin):
     def _fit_calibrators(self, df_calib_raw: pd.DataFrame):
         pass
 
-def train_xgboost_alternate(df_raw, **kwargs):
-    return XGBAlternateXGClassifier.train(df_raw, **kwargs)
+def train_xgboost_tensor(df_raw, **kwargs):
+    return XGBTensorXGClassifier.train(df_raw, **kwargs)
+
+# Alias for backward compatibility with pickled models
+XGBAlternateXGClassifier = XGBTensorXGClassifier
+

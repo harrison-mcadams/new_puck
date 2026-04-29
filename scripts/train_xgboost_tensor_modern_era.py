@@ -1,4 +1,4 @@
-"""train_xgboost_alternate_modern_era.py
+"""train_xgboost_tensor_modern_era.py
 
 Training script for the Pure spatial XGBoost model on the full Modern Era (20202021+).
 Aggregates all available modern seasons and generates full dashboard artifacts.
@@ -12,12 +12,12 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_xgboost_alternate, config
+from puck import fit_xgboost_tensor, config
 from scripts.evaluate_predictive_power import DataUtils
 
 def main():
     print("============================================================")
-    print("MODERN ERA TRAINING: Pure Spatial XGBoost (Alternate)")
+    print("MODERN ERA TRAINING: Pure Spatial XGBoost (Tensor)")
     print("============================================================")
 
     # 1. Discover Modern Era Seasons
@@ -68,11 +68,11 @@ def main():
 
     # 3. Train
     # Use the train_xgboost_alternate helper which triggers model_summary generation
-    save_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_alternate_modern_era.joblib')
-    out_dir = str(Path(config.ANALYSIS_DIR) / 'xgboost_alternate_xgs_modern')
+    save_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_tensor_modern_era.joblib')
+    out_dir = str(Path(config.ANALYSIS_DIR) / 'xgboost_tensor_xgs_modern')
     
     print("\nStarting training session...")
-    fit_xgboost_alternate.train_xgboost_alternate(
+    fit_xgboost_tensor.train_xgboost_tensor(
         df_modern,
         save_path=save_path,
         out_dir=out_dir,
@@ -83,7 +83,7 @@ def main():
     print("\n============================================================")
     print("MODERN ERA TRAINING COMPLETE")
     print(f"Model: {save_path}")
-    print(f"Dashboard: {out_dir}/xg_model_xgboost_alternate_modern_era_dashboard.html")
+    print(f"Dashboard: {out_dir}/xg_model_xgboost_tensor_modern_era_dashboard.html")
     print("============================================================")
 
 if __name__ == "__main__":

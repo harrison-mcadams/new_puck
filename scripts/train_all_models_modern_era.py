@@ -15,7 +15,7 @@ from puck import (
     fit_glm_nested, 
     fit_xgboost_nested, 
     fit_xgboost_non_nested, 
-    fit_xgboost_alternate,
+    fit_xgboost_tensor,
     analyze,
     config as puck_config
 )
@@ -56,7 +56,7 @@ def main():
         (fit_glm.NonNestedGLM, "Non-Nested GLM", "non_nested_tensor"),
         (fit_xgboost_nested.XGBNestedXGClassifier, "XGBoost Nested", "xgboost_nested"),
         (fit_xgboost_non_nested.XGBNonNestedXGClassifier, "XGBoost Non-Nested", "xgboost_non_nested"),
-        (fit_xgboost_alternate.XGBAlternateXGClassifier, "XGBoost Alternate", "xgboost_alternate")
+        (fit_xgboost_tensor.XGBTensorXGClassifier, "XGBoost Tensor", "xgboost_tensor")
     ]
 
     # 3. Train Each Model

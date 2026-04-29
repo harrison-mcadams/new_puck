@@ -249,7 +249,7 @@ class ModelRegistry:
             'xgboost_non_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_modern_era.joblib'),
             'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_modern_era.joblib'),
             'non_nested': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_modern_era.joblib'),
-            'xgboost_alternate': os.path.join('analysis', 'xgs', 'xg_model_xgboost_alternate_modern_era.joblib')
+            'xgboost_tensor': os.path.join('analysis', 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib')
         }
         
         path = paths.get(model_name)
@@ -278,8 +278,9 @@ class ModelRegistry:
         elif model_name == 'non_nested':
             model = fit_glm.NonNestedGLM(features=feature_list, use_splines=True, enable_marginalization=True)
             model.fit(train_df[train_df['event'] != 'blocked-shot'])
-        elif model_name == 'xgboost_alternate':
-            model = fit_xgboost_alternate.XGBAlternateXGClassifier(features=feature_list)
+        elif model_name == 'xgboost_tensor':
+            from puck import fit_xgboost_tensor
+            model = fit_xgboost_tensor.XGBTensorXGClassifier(features=feature_list)
             model.fit(train_df)
         elif model_name.startswith('mixed_effects'):
             # Determine base model type (default to XGBoost unless 'glm' is in name)
@@ -737,7 +738,8 @@ class PredictiveEvaluator:
             'non_nested_xg': ('scripts/non_nested_model_dashboard.py', 'analysis/xgs/xg_model_non_nested_tensor_20202021.joblib'),
             'non_nested': ('scripts/non_nested_model_dashboard.py', 'analysis/xgs/xg_model_non_nested_tensor_20202021.joblib'),
             'xgboost_nested': ('scripts/xgboost_nested_model_dashboard.py', 'analysis/xgs/xg_model_xgboost_nested_20202021.joblib'),
-            'xgboost_non_nested': ('scripts/xgboost_non_nested_model_dashboard.py', 'analysis/xgs/xg_model_xgboost_non_nested_20202021.joblib')
+            'xgboost_non_nested': ('scripts/xgboost_non_nested_model_dashboard.py', 'analysis/xgs/xg_model_xgboost_non_nested_20202021.joblib'),
+            'xgboost_tensor': ('scripts/xgboost_tensor_model_dashboard.py', 'analysis/xgs/xg_model_xgboost_tensor_modern_era.joblib')
         }
         
         if model_name in dashboard_map:

@@ -1,4 +1,4 @@
-"""xgboost_alternate_model_dashboard.py
+"""xgboost_tensor_model_dashboard.py
 
 Generates an interactive HTML dashboard for the XGBoost Alternate xG model.
 Functional Parity: Uses a client-side JavaScript tree inference engine.
@@ -16,7 +16,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from puck import fit_xgboost_alternate, config as puck_config, data_pipeline
+from puck import fit_xgboost_tensor, config as puck_config, data_pipeline
 
 def json_serializable(obj):
     if isinstance(obj, dict):
@@ -63,9 +63,9 @@ def get_rink_shapes(xref='x', yref='y'):
     return shapes
 
 def main():
-    model_path = sys.argv[1] if len(sys.argv) > 1 else str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_alternate.joblib')
+    model_path = sys.argv[1] if len(sys.argv) > 1 else str(Path(puck_config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_tensor.joblib')
     base_name = os.path.basename(model_path).replace('.joblib', '')
-    output_path = f"analysis/xgboost_alternate_xgs/{base_name}_dashboard.html"
+    output_path = f"analysis/xgboost_tensor_xgs/{base_name}_dashboard.html"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     if not os.path.exists(model_path):
@@ -78,7 +78,7 @@ def main():
     export_data = {
         'model_name': base_name,
         'features': model.features,
-        'vocabs': fit_xgboost_alternate.CATEGORICAL_VOCABS,
+        'vocabs': fit_xgboost_tensor.CATEGORICAL_VOCABS,
         'priors': model.categorical_priors_,
         'layers': {
             'block': extract_booster_data(model.model_block, getattr(model, 'features_block', model.features)),
@@ -98,7 +98,7 @@ def main():
             'dist_from_last_event': 15.0, 'last_event_time_diff': 2.0
         },
         'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
-        'options': {str(k): list(v) + ['Marginalized'] for k, v in fit_xgboost_alternate.CATEGORICAL_VOCABS.items()},
+        'options': {str(k): list(v) + ['Marginalized'] for k, v in fit_xgboost_tensor.CATEGORICAL_VOCABS.items()},
         'presets': {
             'Owen Tippett (Clean Shot)': {
                 'x': 78, 'y': 10, 'shot_type': 'wrist', 'game_state': '5v5', 'relative_game_state': '5v5',
