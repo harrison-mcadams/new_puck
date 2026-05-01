@@ -82,11 +82,11 @@ def locate_season_csv(season: str, csv_path: str = None) -> str:
     # Prioritize data/ directory and support both naming conventions
     candidates = [
         # Primary flat structure
-        Path('data') / season / f'{season}_df.csv',
-        Path('data') / season / f'{season}.csv',
+        Path(puck_config.DATA_DIR) / season / f'{season}_df.csv',
+        Path(puck_config.DATA_DIR) / season / f'{season}.csv',
         # Legacy processed path (deprecated but kept for fallback just in case)
-        Path('data') / 'processed' / season / f'{season}.csv',
-        Path('data') / 'processed' / season / f'{season}_df.csv',
+        Path(puck_config.DATA_DIR) / 'processed' / season / f'{season}.csv',
+        Path(puck_config.DATA_DIR) / 'processed' / season / f'{season}_df.csv',
     ]
     for c in candidates:
         try:
@@ -95,7 +95,7 @@ def locate_season_csv(season: str, csv_path: str = None) -> str:
         except Exception:
             continue
     # fallback: find any CSV under data/ matching season
-    data_dir = Path('data')
+    data_dir = Path(puck_config.DATA_DIR)
     if data_dir.exists():
         found = list(data_dir.rglob(f'*{season}*.csv'))
         if found:

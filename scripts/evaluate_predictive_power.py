@@ -166,7 +166,7 @@ class DataUtils:
     @staticmethod
     def get_available_seasons():
         """Scans data/ directory for season folders."""
-        data_dir = Path("data")
+        data_dir = Path(analyze.puck_config.DATA_DIR)
         seasons = []
         if data_dir.exists():
             for d in data_dir.iterdir():
