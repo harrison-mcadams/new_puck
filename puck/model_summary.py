@@ -33,7 +33,8 @@ except ImportError:
 def generate_model_summary(model_path: str = None, 
                            test_df: pd.DataFrame = None,
                            output_dir: str = None,
-                           verbose: bool = True):
+                           verbose: bool = True,
+                           **kwargs):
     """
     Generate comprehensive model performance summary after training.
     
@@ -96,6 +97,8 @@ def generate_model_summary(model_path: str = None,
         dashboard_scripts.append(('nested_model_dashboard.py', 'analysis/nested_model_dashboard.html'))
     elif model_type == 'NonNestedGLM':
         dashboard_scripts.append(('non_nested_model_dashboard.py', 'analysis/non_nested_model_dashboard.html'))
+    elif model_type == 'XGBTensorXGClassifier':
+        dashboard_scripts.append(('xgboost_tensor_model_dashboard.py', f'analysis/xgboost_tensor_xgs_modern/{Path(model_path).stem}_dashboard.html'))
     else:
         vprint(f"  Warning: Unknown model type {model_type}. No dashboard script assigned.")
     
