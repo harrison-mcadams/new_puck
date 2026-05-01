@@ -77,6 +77,20 @@ except ImportError:
     except ImportError:
         XGBNestedXGClassifier = None
 
+# Import XGBoost Tensor Model
+try:
+    from . import fit_xgboost_tensor
+    XGBTensorXGClassifier = fit_xgboost_tensor.XGBTensorXGClassifier
+    TensorSpline = fit_xgboost_tensor.TensorSpline
+except ImportError:
+    try:
+        import fit_xgboost_tensor
+        XGBTensorXGClassifier = fit_xgboost_tensor.XGBTensorXGClassifier
+        TensorSpline = fit_xgboost_tensor.TensorSpline
+    except ImportError:
+        XGBTensorXGClassifier = None
+        TensorSpline = None
+
 # Import Config for valid Data Directory
 try:
     from . import config as puck_config

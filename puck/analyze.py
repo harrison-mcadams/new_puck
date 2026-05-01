@@ -1005,11 +1005,11 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
     
     # Also check via string just in case of reload/import issues
     # print(f"DEBUG: clf type name: {type(clf).__name__}")
-    if not is_nested and type(clf).__name__ in ['NestedXGClassifier', 'NestedGLM', 'XGBNestedXGClassifier']:
+    if not is_nested and type(clf).__name__ in ['NestedXGClassifier', 'NestedGLM', 'XGBNestedXGClassifier', 'XGBTensorXGClassifier']:
         is_nested = True
         
     # Treat GLM same as XGBoost for data flow (bypass legacy RF cleaning)
-    is_xgboost = (type(clf).__name__ in ['XGBNestedXGClassifier', 'NestedGLM'])
+    is_xgboost = (type(clf).__name__ in ['XGBNestedXGClassifier', 'NestedGLM', 'XGBTensorXGClassifier'])
     # print(f"DEBUG: is_nested={is_nested}, is_xgboost={is_xgboost}")
 
     if is_nested:
