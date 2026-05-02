@@ -302,6 +302,12 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
 
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         df = self._prepare_inference_df(X)
+        
+        # [DIAGNOSTIC] Check coordinate bounds during inference to detect orientation issues
+        if 'x' in df.columns and len(df) > 0:
+            x_min, x_max = df['x'].min(), df['x'].max()
+            if abs(x_min) > 200 or abs(x_max) > 200:
+                logger.warning(f"  [INFERENCE WARNING] Extreme X coordinates detected: [{x_min:.1f}, {x_max:.1f}]")
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
             
