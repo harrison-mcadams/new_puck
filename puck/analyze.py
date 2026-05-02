@@ -879,7 +879,7 @@ def _predict_xtg(df: pd.DataFrame, behavior='load'):
 
 
 
-def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True, impute_alpha: float = None):
+def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True, impute_alpha: float = None, game_id: str = None):
     if model_path is None:
         model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib')
 
@@ -1048,7 +1048,8 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
                     apply_arena_adjustments=True, 
                     apply_imputation=True,
                     apply_dithering=False,
-                    impute_alpha=impute_alpha if impute_alpha is not None else 0.2
+                    impute_alpha=impute_alpha if impute_alpha is not None else 0.2,
+                    game_id=game_id
                 )
             else:
                 # Assume Input is already processed
@@ -2694,8 +2695,8 @@ def xgs_map(season: Optional[str] = '20252026', *,
         pass # print(f"Filtered season dataframe to {len(df_filtered)} events by condition {condition!r} team={team_val!r}")
 
     # Predict xgs only when needed and possible
-    # We pass preprocess=False because we either did it at the top, or caller said skip.
-    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered, model_path=model_path, behavior=behavior, csv_path=chosen_csv, preprocess=False)
+    # We pass preprocess=True to ensure enrichment (shot types) and orientation are correct for new models.
+    df_with_xgs, clf, clf_meta = _predict_xgs(df_filtered, model_path=model_path, behavior=behavior, csv_path=chosen_csv, preprocess=True, game_id=game_id)
 
     # Orientation deprecation: plotting routines now decide orientation and
     # splitting (team vs not-team or home vs away). Do not perform an

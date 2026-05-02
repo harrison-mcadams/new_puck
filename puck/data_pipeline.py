@@ -150,9 +150,22 @@ def preprocess_features(df_input: pd.DataFrame,
         df['relative_game_state'] = df['game_state'].astype(str)
 
     # 1.6 HTML Enrichment
-    if apply_html_enrichment and game_id:
-        vprint(f"  Enriching shots with HTML PBP for game {game_id}...")
-        df = html_enrichment.enrich_blocks_with_html(df, game_id)
+    if apply_html_enrichment:
+        if game_id:
+            vprint(f"  Enriching shots with HTML PBP for game {game_id}...")
+            df = html_enrichment.enrich_blocks_with_html(df, game_id)
+        elif 'game_id' in df.columns:
+            # Handle multi-game enrichment (e.g. during seasonal update)
+            unique_games = df['game_id'].unique()
+            if len(unique_games) > 1:
+                vprint(f"  Enriching shots with HTML PBP for {len(unique_games)} games...")
+                # We iterate to apply enrichment per-game
+                enriched_frames = []
+                for g_id in unique_games:
+                    sub_df = df[df['game_id'] == g_id].copy()
+                    sub_df = html_enrichment.enrich_blocks_with_html(sub_df, str(g_id))
+                    enriched_frames.append(sub_df)
+                df = pd.concat(enriched_frames, ignore_index=True)
 
     # 2. Standardize Orientation (Canonical "Right-Attack" Frame)
     # We rotate/flip all shots so that the shooting team is attacking the goal at x=89.0.
