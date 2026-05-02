@@ -6,7 +6,7 @@ import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 sys.path.append(os.getcwd())
-from puck import html_enrichment, correction
+from puck import html_enrichment, correction, config as puck_config
 
 # Configure Logging
 logging.basicConfig(
@@ -15,9 +15,9 @@ logging.basicConfig(
 )
 
 def enrich_season(season_str: str, overwrite: bool = False, max_workers: int = 4):
-    csv_path = f"data/{season_str}/{season_str}_df.csv"
+    csv_path = os.path.join(puck_config.DATA_DIR, season_str, f"{season_str}_df.csv")
     if not os.path.exists(csv_path):
-        csv_path = f"data/{season_str}.csv"
+        csv_path = os.path.join(puck_config.DATA_DIR, f"{season_str}.csv")
         if not os.path.exists(csv_path):
             logging.error(f"Season CSV NOT FOUND: {csv_path}")
             return

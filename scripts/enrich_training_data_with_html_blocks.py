@@ -5,23 +5,23 @@ import sys
 import logging
 
 sys.path.append(os.getcwd())
-from puck import html_enrichment
+from puck import html_enrichment, config as puck_config
 
 # Configure Logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler("data/html_enrichment_batch.log"),
+        logging.FileHandler(os.path.join(puck_config.DATA_DIR, "html_enrichment_batch.log")),
         logging.StreamHandler()
     ]
 )
 
 def enrich_season(season_str: str, overwrite: bool = False):
-    csv_path = f"data/{season_str}/{season_str}_df.csv"
+    csv_path = os.path.join(puck_config.DATA_DIR, season_str, f"{season_str}_df.csv")
     if not os.path.exists(csv_path):
         # Try root data dir as fallback
-        csv_path = f"data/{season_str}.csv"
+        csv_path = os.path.join(puck_config.DATA_DIR, f"{season_str}.csv")
         if not os.path.exists(csv_path):
             logging.error(f"Season CSV NOT FOUND: {csv_path}")
             return
