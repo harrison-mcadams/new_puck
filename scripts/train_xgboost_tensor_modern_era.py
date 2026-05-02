@@ -77,7 +77,8 @@ def main():
         save_path=save_path,
         out_dir=out_dir,
         verbose=True,
-        use_balancing=False
+        use_balancing=False,
+        apply_html_enrichment=True
     )
     
     print("\n============================================================")
