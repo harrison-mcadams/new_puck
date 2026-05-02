@@ -24,7 +24,7 @@ def load_assets(season="20252026"):
     model_path = base_dir / "models" / "joint_mixed_effects.joblib"
     # Actually, v2 model is saved at analysis/xgs/joint_mixed_effects.joblib
     # Let's check both paths to be safe, but default to the known good one
-    global_model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
+    global_model_path = Path("analysis/xgs/xg_model_xgboost_tensor_modern_era.joblib")
     
     if global_model_path.exists():
         print(f"Loading global model: {global_model_path}")
@@ -110,6 +110,12 @@ def precalculate_matchup_xg(events_bank, model, home_team, away_team):
         
         # Subset for this state
         df_state = events_bank[mask].copy()
+        
+        # Ensure x/y exists for XGBoost Tensor (which uses raw x/y for splines)
+        if 'x_adj' in df_state.columns:
+            df_state['x'] = df_state['x_adj']
+        if 'y_adj' in df_state.columns:
+            df_state['y'] = df_state['y_adj']
         
         # 1. Home Offense Context (Home Team vs Away Team)
         df_home = df_state.copy()

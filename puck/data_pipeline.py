@@ -1,4 +1,4 @@
-"""data_pipeline.py
+﻿"""data_pipeline.py
 
 Centralized pipeline for preprocessing PBP data for Training and Inference.
 Refactored from logic previously in scripts/train_xgboost_model.py and puck/analyze.py.
@@ -155,16 +155,16 @@ def preprocess_features(df_input: pd.DataFrame,
             vprint(f"  Enriching shots with HTML PBP for game {game_id}...")
             df = html_enrichment.enrich_blocks_with_html(df, game_id)
         elif 'game_id' in df.columns:
-            # Handle multi-game enrichment (e.g. during seasonal update)
+            # Handle multi-game enrichment
             unique_games = df['game_id'].unique()
             if len(unique_games) > 1:
-                vprint(f"  Enriching shots with HTML PBP for {len(unique_games)} games...")
-                # We iterate to apply enrichment per-game
-                enriched_frames = []
-                for g_id in unique_games:
-                    sub_df = df[df['game_id'] == g_id].copy()
-                    sub_df = html_enrichment.enrich_blocks_with_html(sub_df, str(g_id))
-                    enriched_frames.append(sub_df)
+                from joblib import Parallel, delayed
+                vprint(f'  Enriching shots with HTML PBP for {len(unique_games)} games in parallel (optimized)...')
+                game_groups = [(str(g_id), group) for g_id, group in df.groupby('game_id')]
+                def process_group(args):
+                    g_id_str, sub_df = args
+                    return html_enrichment.enrich_blocks_with_html(sub_df, g_id_str)
+                enriched_frames = Parallel(n_jobs=-1)(delayed(process_group)(arg) for arg in game_groups)
                 df = pd.concat(enriched_frames, ignore_index=True)
 
     # 2. Standardize Orientation (Canonical "Right-Attack" Frame)

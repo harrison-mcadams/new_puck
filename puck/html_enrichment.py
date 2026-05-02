@@ -93,9 +93,12 @@ def enrich_blocks_with_html(api_df: pd.DataFrame, game_id: str) -> pd.DataFrame:
     if api_df.empty:
         return api_df
         
-    # Only try if we have blocked shots
+    # Only try if we have blocked shots with MISSING or UNKNOWN shot types
     blocks_mask = (api_df['event'].str.lower() == 'blocked-shot')
-    if not blocks_mask.any():
+    unknown_mask = api_df['shot_type'].isna() | (api_df['shot_type'].str.lower().isin(['unknown', 'none', '']))
+    
+    target_mask = blocks_mask & unknown_mask
+    if not target_mask.any():
         return api_df
         
     # Fetch HTML
@@ -128,7 +131,7 @@ def enrich_blocks_with_html(api_df: pd.DataFrame, game_id: str) -> pd.DataFrame:
 
     # Attempt to match
     updated_count = 0
-    for idx, row in api_df[blocks_mask].iterrows():
+    for idx, row in api_df[target_mask].iterrows():
         # Ensure row[t_col] is numeric
         api_time = row[t_col]
         if isinstance(api_time, str):

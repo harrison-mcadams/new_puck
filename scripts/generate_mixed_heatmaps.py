@@ -64,7 +64,9 @@ def main():
         apply_imputation=True,
         apply_arena_adjustments=True,
         apply_bio_enrichment=True,
-        apply_filtering=True
+        apply_filtering=True,
+        apply_attribution_fix=True,
+        apply_html_enrichment=True
     )
     
     # Enrich Team Name
@@ -255,7 +257,7 @@ def main():
     # --- PREDICT xG GLOBALLY ---
     # Load Unified Mixed Effects Model Once
     model = None
-    model_path = Path("analysis/xgs/joint_mixed_effects.joblib")
+    model_path = Path("analysis/xgs/xg_model_xgboost_tensor_modern_era.joblib")
     
     # We need off_team_name and def_team_name globally for output as well
     def get_opp_name(row):
@@ -692,13 +694,13 @@ def main():
     # 2. Base GLM Features (Fixed Effects)
     # Hardcoded list from inspection to avoid scope/NameError issues
     base_glm_features = [
-        'distance', 'angle_deg', 'game_state', 'score_diff', 
-        'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s',
-        'shot_type', 'shoots_catches', 'is_rebound', 'is_rush',
+        'distance', 'angle_deg', 'game_state', 'relative_game_state',
+        'score_diff', 'period_number', 'time_elapsed_in_period_s', 'total_time_elapsed_s',
+        'shot_type', 'shoots_catches', 'is_rebound', 'is_rush', 'is_home',
         'rebound_angle_change', 'rebound_time_diff', 
         'last_event_type', 'last_event_time_diff', 
         'dist_from_last_event', 'speed_from_last_event', 'angle_change_last_event',
-        'shooter_role'
+        'shooter_role', 'season'
     ]
     bank_cols.extend(base_glm_features)
     
@@ -709,8 +711,6 @@ def main():
     bank_cols = [c for c in bank_cols if c in df.columns]
     
     events_bank = df[bank_cols].copy()
-
-
 
     # Compress types to save space?
     for c in events_bank.select_dtypes(include=['float64']).columns:
