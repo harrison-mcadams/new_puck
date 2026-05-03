@@ -1121,17 +1121,29 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
                 # A. Rebound
                 prev_shot = team_last_shot.get(tid)
                 if prev_shot and total_elapsed is not None:
-                    # check if the last shot was in the same period and within a threshold (5 seconds)
+                    # [AUDIT FIX] Rebound Definition: < 5s after a Save (shot-on-goal).
+                    # IMPORTANT: This logic is replicated in puck/data_pipeline.py for inference consistency.
+                    # If you change the threshold or event types here, update it there as well.
                     time_diff = total_elapsed - prev_shot.get('time')
                     if time_diff <= 5 and rec.get('period') == prev_shot.get('period'):
-                        rec['is_rebound'] = 1
+                        # [AUDIT FIX] Restrict is_rebound to TRUE rebounds (following saves)
+                        # This prevents "dilution" from blocked shot recoveries.
+                        prev_event = prev_shot.get('event')
+                        if prev_event == 'shot-on-goal':
+                            rec['is_rebound'] = 1
+                        else:
+                            rec['is_rebound'] = 0
+                        
+                        rec['rebound_source'] = prev_event
                         rec['rebound_time_diff'] = float(time_diff)
                         # We need angle_deg from the current and previous same-team shot
-                        # Angle info is stored if available
                         curr_angle = rec.get('angle_deg')
                         prev_angle = prev_shot.get('angle')
                         if curr_angle is not None and prev_angle is not None:
                             rec['rebound_angle_change'] = float(abs(curr_angle - prev_angle))
+                else:
+                    rec['rebound_source'] = 'none'
+                    rec['is_rebound'] = 0
 
                 # B. Rush
                 # Definition: < 5 seconds after an event outside the defending zone
@@ -1169,6 +1181,7 @@ def _elaborate(game_feed: pd.DataFrame) -> pd.DataFrame:
 
                 # Update team's last shot state (even if not a rebound)
                 team_last_shot[tid] = {
+                    'event': rec.get('event'),
                     'angle': rec.get('angle_deg'),
                     'time': total_elapsed,
                     'period': rec.get('period')

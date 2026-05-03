@@ -1,4 +1,4 @@
-﻿"""data_pipeline.py
+"""data_pipeline.py
 
 Centralized pipeline for preprocessing PBP data for Training and Inference.
 Refactored from logic previously in scripts/train_xgboost_model.py and puck/analyze.py.
@@ -28,6 +28,7 @@ NUMERIC_DEFAULTS = {
     'is_rebound': 0,
     'rebound_angle_change': 0.0,
     'rebound_time_diff': 0.0,
+    'rebound_source': 'none',
     'is_rush': 0,
     'last_event_time_diff': 2.0,
     'score_diff': 0,
@@ -289,6 +290,36 @@ def preprocess_features(df_input: pd.DataFrame,
     
     df['distance'] = pd.Series(new_dists, index=df.index)
     df['angle_deg'] = pd.Series(new_angles, index=df.index)
+
+    # 6.5 REBOUND RECALCULATION
+    # [AUDIT FIX] Apply stricter rebound definition (Save-only) to all data.
+    # IMPORTANT: This logic MUST match puck/parse.py for ingestion consistency.
+    # Definition: is_rebound=1 ONLY if last shot was 'shot-on-goal' within 5s.
+    if 'team_id' in df.columns:
+        df = df.sort_values(['game_id', 'period_number', 'total_time_elapsed_s'])
+        df['is_rebound'] = 0
+        df['rebound_source'] = 'none'
+        
+        # Use groupby team_id and game_id to find previous same-team shots
+        groups = df.groupby(['game_id', 'team_id', 'period_number'])
+        for _, group_idx in groups.groups.items():
+            sub = df.loc[group_idx]
+            if len(sub) < 2:
+                continue
+            
+            prev_event = sub['event'].shift(1)
+            prev_time = sub['total_time_elapsed_s'].shift(1)
+            prev_angle = sub['angle_deg'].shift(1)
+            time_diff = sub['total_time_elapsed_s'] - prev_time
+            
+            is_reb_mask = (time_diff <= 5.0) & (prev_event == 'shot-on-goal')
+            
+            df.loc[group_idx, 'is_rebound'] = is_reb_mask.astype(int)
+            df.loc[group_idx, 'rebound_source'] = prev_event.fillna('none')
+            df.loc[group_idx, 'rebound_time_diff'] = time_diff.fillna(0.0)
+            
+            ang_diff = (sub['angle_deg'] - prev_angle).abs()
+            df.loc[group_idx, 'rebound_angle_change'] = ang_diff.fillna(0.0)
 
     # 7. Filtering
     if apply_filtering:

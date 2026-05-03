@@ -19,7 +19,7 @@ HANDEDNESS = ['shoots_catches']
 PLAYER_ROLE = ['shooter_role']
 
 # prior event
-REBOUND = ['is_rebound', 'rebound_angle_change', 'rebound_time_diff']
+REBOUND = ['is_rebound', 'rebound_angle_change', 'rebound_time_diff', 'rebound_source']
 RUSH = ['is_rush']
 PRIOR_EVENT = ['last_event_type', 'last_event_time_diff', 'dist_from_last_event', 'speed_from_last_event', 'angle_change_last_event']
 

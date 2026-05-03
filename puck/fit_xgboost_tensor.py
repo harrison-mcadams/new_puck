@@ -62,7 +62,8 @@ CATEGORICAL_VOCABS = {
     'relative_game_state': VOCAB_GAME_STATE,
     'last_event_type': [
         'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty', 'stoppage', 'period-start', 'period-end'
-    ]
+    ],
+    'rebound_source': ['none', 'shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
 }
 
 logger = logging.getLogger(__name__)
