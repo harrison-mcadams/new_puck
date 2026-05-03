@@ -79,6 +79,8 @@ _CACHE = {}
 _CACHE_TTL = 300
 # Store metadata about the last loaded game to populate UI filters
 _LAST_GAME_METADATA = {}
+# Store the actual shots DataFrame for interactive plotting
+_LAST_GAME_SHOTS = None
 
 
 def _cache_get(key):
@@ -240,6 +242,11 @@ def replot():
                 logger.error(f"Failed to generate game worm plot: {e}")
 
             if df is not None and not df.empty:
+                # Defensive cleaning: ensure coordinates and xG are numeric and have no NaNs
+                for col in ['x_adj', 'y_adj', 'xgs', 'distance', 'angle_deg']:
+                    if col in df.columns:
+                        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+                        
                 # Extract unique game states
                 states = sorted(df['game_state'].dropna().unique().tolist())
                 
@@ -263,19 +270,84 @@ def replot():
                 players.sort(key=lambda x: x['name'])
                 
                 # Update global metadata
-                global _LAST_GAME_METADATA
+                global _LAST_GAME_METADATA, _LAST_GAME_SHOTS
                 _LAST_GAME_METADATA = {
                     'game_id': game_val,
                     'game_states': states,
                     'players': players,
                     'current_condition': condition
                 }
+                
+                # Convert to records, handling NaN values which are invalid in JSON
+                # Converting to object type first ensures NaNs are consistently replaced by None
+                shots_data = df.astype(object).where(pd.notnull(df), None).to_dict(orient='records') if df is not None else []
+                _LAST_GAME_SHOTS = shots_data
+                
+                # Also save to file for persistence and multi-process support
+                try:
+                    import json
+                    json_path = os.path.join(ANALYSIS_DIR, "last_shots.json")
+                    with open(json_path, 'w') as f:
+                        json.dump(shots_data, f)
+                    logger.info(f"Saved {len(shots_data)} shots to {json_path}")
+                except Exception as e:
+                    logger.error(f"Failed to save shots JSON: {e}")
 
     except Exception as e:
         logger.exception('Unhandled error in replot handler: %s', e)
         return (f"Error generating plot: {e}", 500)
 
     return redirect(url_for('index'))
+
+
+@app.route("/api/last_shots")
+def api_last_shots():
+    """Return the shots from the last generated game as JSON."""
+    global _LAST_GAME_SHOTS
+    
+    shots = []
+    # Try memory cache first
+    if _LAST_GAME_SHOTS is not None:
+        shots = _LAST_GAME_SHOTS
+    else:
+        # Fallback to file
+        json_path = os.path.join(ANALYSIS_DIR, "last_shots.json")
+        if os.path.exists(json_path):
+            try:
+                import json
+                with open(json_path, 'r') as f:
+                    shots = json.load(f)
+                _LAST_GAME_SHOTS = shots
+            except Exception as e:
+                logger.error(f"Failed to load shots JSON: {e}")
+    
+    if shots:
+        # Debug Summary
+        event_counts = {}
+        for s in shots:
+            ev = s.get('event', 'unknown')
+            event_counts[ev] = event_counts.get(ev, 0) + 1
+        
+        has_coords = all('x_adj' in s and 'y_adj' in s for s in shots[:10])
+        logger.info(f"Serving {len(shots)} shots. Event summary: {event_counts}. Coords present in samples: {has_coords}")
+        if len(shots) > 0:
+            sample = shots[0]
+            logger.info(f"Sample record keys: {list(sample.keys())}")
+            logger.info(f"Sample coords: x_adj={sample.get('x_adj')}, y_adj={sample.get('y_adj')}, x_a={sample.get('x_a')}")
+    else:
+        logger.warning("Serving EMPTY shot list.")
+            
+    return jsonify(shots)
+
+
+@app.route("/api/log_error", methods=['POST'])
+def log_error():
+    """Endpoint for frontend to log errors to server console."""
+    err_data = request.json
+    msg = err_data.get('message', 'No message')
+    stack = err_data.get('stack', '')
+    logger.error(f"🌐 FRONTEND ERROR: {msg}\nStack: {stack}")
+    return jsonify({"status": "ok"})
 
 
 @app.route("/teams")

@@ -476,3 +476,22 @@ th { cursor: pointer; user-select: none; }
   border-bottom-color: var(--primary-color); 
   font-weight: 600; 
 }
+
+/* Interactive Plots */
+.plotly-chart {
+  width: 100%;
+  min-height: 450px;
+  background-color: white;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+  margin-bottom: 2rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.plotly-chart:empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-style: italic;
+}

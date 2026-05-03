@@ -2126,9 +2126,16 @@ def xgs_map(season: Optional[str] = '20252026', *,
 
     # --- Helpers ------------------------------------------------------------
     # Determine the CSV path to use for model training if needed, even if we have df_all
+    target_season = season
+    if game_id is not None and str(game_id)[4:6] == '03':
+        target_season = f"{season}_playoffs"
+
     chosen_csv = None
     try:
-        chosen_csv = locate_season_csv(season, csv_path)
+        chosen_csv = locate_season_csv(target_season, csv_path)
+        # Fallback to regular season if playoff CSV not found
+        if chosen_csv is None and target_season != season:
+            chosen_csv = locate_season_csv(season, csv_path)
     except Exception:
         chosen_csv = None
 
@@ -2580,13 +2587,16 @@ def xgs_map(season: Optional[str] = '20252026', *,
         else:
             # If we didn't find a CSV above, we can't proceed here
             if chosen_csv is None:
-                 # _locate_csv raises FileNotFoundError, so we might have caught it or it wasn't called if csv_path was set
-                 # Let's call it again to raise the error if needed, or just rely on the fact that we need a source
-                 # Let's call it again to raise the error if needed, or just rely on the fact that we need a source
+                 # Final fallback to locate_season_csv with original season to raise error if totally missing
                  chosen_csv = locate_season_csv(season, None)
             
             print('xgs_map: loading CSV ->', chosen_csv)
             df_all = pd.read_csv(chosen_csv)
+            
+            if game_id is not None:
+                # Filter to single game immediately to prevent expensive preprocessing on whole season
+                df_all = df_all[df_all['game_id'].astype(str) == str(game_id)].copy()
+                print(f"xgs_map: filtered to game_id={game_id} ({len(df_all)} rows) before preprocessing")
 
     # --- Preprocessing: Standardize coordinates and extract features early
     if preprocess and df_all is not None and not df_all.empty:
@@ -2597,7 +2607,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
     timing_full = {'per_game': {}, 'aggregate': {'intersection_pooled_seconds': {'team': 0.0, 'other': 0.0}}}
     if timing is not None:
         try:
-            timing_full = timing.compute_game_timing(df_all, condition, force_refresh=force_refresh, season=season)
+            timing_full = timing.compute_game_timing(df_all, condition, force_refresh=force_refresh, season=target_season)
         except Exception as e:
             print(f'Warning: timing.compute_game_timing failed: {e}; using empty timing structure')
 

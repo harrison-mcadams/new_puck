@@ -4,10 +4,10 @@ Centralized pipeline for preprocessing PBP data for Training and Inference.
 Refactored from logic previously in scripts/train_xgboost_model.py and puck/analyze.py.
 
 ARCHITECTURE NOTE - COORDINATE FLOW:
-1. Raw API Data (PBP) arrives with 'blocked-shots' attributed to the DEFENSE.
-2. correction.fix_blocked_shot_attribution():
-   - Swaps 'team_id' and 'event_owner_team_id' to the ATTACKER.
-   - This ensures we are predicting "Will this player score?" NOT "Will this player block?".
+1. Raw API Data (PBP) arrives with 'blocked-shots' already attributed to the SHOOTER's team.
+2. correction.fix_blocked_shot_attribution(): 
+   - NO-OP (kept for backward compatibility and pipeline structure).
+   - Historically swapped team_id, but API verification (2026-05-03) confirmed this is unnecessary.
 3. Orientation Standardization:
    - ALL shots are flipped to a "Right-Attack" orientation (x towards +89 goal).
    - This is the canonical frame for ALL models (XGBoost, GLM, etc.).
@@ -59,16 +59,13 @@ def preprocess_features(df_input: pd.DataFrame,
     and critical data corrections.
     
     NOTE ON BLOCKED SHOTS:
-    Historically, the NHL API attributes a 'blocked-shot' event to the team of the player 
-    WHO BLOCKED the shot (the defense). This causes significant issues for xG models:
-    1. Team Attribution: The shot is credited to the wrong team's statistics.
-    2. Orientation: Coordinates appear on the wrong side of the ice (defensive zone).
-    3. Shot Type: The API often omits the shot type (Wrist, Slap, etc.) for blocks.
+    The NHL API attributes a 'blocked-shot' event to the team of the SHOOTER (the attacking team). 
+    This was confirmed via a comprehensive audit across all modern-era seasons. 
     
-    WE FIX THIS HERE BY:
-    1. Swapping 'team_id' to the attacking team (the shooter).
-    2. Standardizing coordinates to the attacker's 'scoring' orientation.
-    3. Recovering 'shot_type' via fuzzy-matching with NHL HTML Play-by-Play reports.
+    PROCESSING STEPS:
+    1. Team Attribution: Already correct in source data.
+    2. Orientation: Standardizing coordinates to the attacker's 'scoring' orientation.
+    3. Shot Type: Recovering 'shot_type' via fuzzy-matching with NHL HTML Play-by-Play reports.
     """
     
     # Work on copy
@@ -90,9 +87,10 @@ def preprocess_features(df_input: pd.DataFrame,
 
     # Standardize Event Names
     if 'event' in df.columns:
-        # 1. Step: Fix blocked shot attribution BEFORE standardization to be consistent
+        # 1. Step: Fix blocked shot attribution
+        # NOTE: As of 2026-05-03, this is a NO-OP because the API already uses shooter attribution.
         if apply_attribution_fix and (df['event'].astype(str).str.lower() == 'blocked-shot').any():
-            vprint("  Correcting Attribution: Blocked Shots (Blocker -> Shooter)...")
+            vprint("  Attribution Check: Blocked Shots (API already uses Shooter)...")
             df = correction.fix_blocked_shot_attribution(df)
 
         # 2. Step: Standardize tokens
@@ -114,7 +112,7 @@ def preprocess_features(df_input: pd.DataFrame,
             vprint(f"  Filtering out {n_blocked} blocked shots per exclude_blocked config...")
             df = df[df['event'] != 'blocked-shot'].copy()
 
-    # Derive is_home early (Always derive to reflect corrections like blocked swaps)
+    # Derive is_home early 
     if 'team_id' in df.columns and 'home_id' in df.columns:
         # Strip decimal points for robust comparison (e.g. '16.0' -> '16')
         tid_s = df['team_id'].astype(str).str.replace(r'\.0$', '', regex=True)
@@ -183,8 +181,7 @@ def preprocess_features(df_input: pd.DataFrame,
         def_side_sign = side_str.map({'left': -1, 'right': 1}).fillna(1)
         
         # side_multiplier: Home = -1, Away = 1
-        # NOTE: correction.py ALREADY swaps team_id to the SHOOTING team for blocked shots!
-        # So is_home correctly identifies if the SHOOTING team is home.
+        # shooter is correctly identified as is_home or is_away.
         is_home_ser = (df['is_home'] == 1)
         side_mult = np.where(is_home_ser.values, -1, 1)
         

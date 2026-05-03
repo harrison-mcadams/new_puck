@@ -1,5 +1,42 @@
 {% extends "base.html" %}
 
+{% block head %}
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js" charset="utf-8"></script>
+<style>
+  .interactive-plot-container {
+    width: 100%;
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  }
+  #interactive-shot-plot, #interactive-game-worm {
+    width: 100%;
+    height: 450px;
+  }
+  .plot-mode-toggle {
+    margin-bottom: 10px;
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+</style>
+<script>
+  // Global error handler to pipe browser errors to server logs
+  window.onerror = function(message, source, lineno, colno, error) {
+    fetch('/api/log_error', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        stack: error ? error.stack : `at ${source}:${lineno}:${colno}`
+      })
+    }).catch(err => console.error("Failed to log error to server:", err));
+  };
+</script>
+{% endblock %}
+
 {% block title %}Shot Plot - New Puck Analysis{% endblock %}
 {% block nav_games %}active{% endblock %}
 
@@ -114,8 +151,30 @@
     </div>
     <div class="card-body plot-container" style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
       {% if exists %}
-      <img src="{{ url_for('analysis_file', filename=img) }}" alt="Shot Plot" style="max-width: 100%; height: auto;" />
-      <img src="{{ url_for('analysis_file', filename='game_worm.png') }}" alt="Game Worm Plot" onerror="this.style.display='none'" onload="this.style.display='block'" style="max-width: 100%; height: auto;" />
+      
+      <div class="plot-mode-toggle">
+        <button type="button" onclick="showInteractive()" class="btn btn-primary btn-sm">Interactive</button>
+        <button type="button" onclick="showStatic()" class="btn btn-secondary btn-sm">Static (Legacy)</button>
+      </div>
+
+      <!-- Interactive Plots -->
+      <div id="interactive-viz" style="width: 100%;">
+        <div class="interactive-plot-container">
+          <h4 style="text-align:center; margin: 10px 0;">Interactive Shot Map</h4>
+          <div id="interactive-shot-plot"></div>
+        </div>
+        <div class="interactive-plot-container">
+          <h4 style="text-align:center; margin: 10px 0;">Expected Goals Worm</h4>
+          <div id="interactive-game-worm"></div>
+        </div>
+      </div>
+
+      <!-- Static Plots (Fallback) -->
+      <div id="static-viz" style="display: none; width: 100%; text-align: center;">
+        <img src="{{ url_for('analysis_file', filename=img) }}" alt="Shot Plot" style="max-width: 100%; height: auto;" />
+        <img src="{{ url_for('analysis_file', filename='game_worm.png') }}" alt="Game Worm Plot" onerror="this.style.display='none'" onload="this.style.display='block'" style="max-width: 100%; height: auto;" />
+      </div>
+
       {% else %}
       <p class="empty-state">Select a game and click "Update Plot"</p>
       {% endif %}
@@ -485,5 +544,284 @@
     loadStaticTeams();
 
   })();
+
+  function showInteractive() {
+    document.getElementById('interactive-viz').style.display = 'block';
+    document.getElementById('static-viz').style.display = 'none';
+  }
+
+  function showStatic() {
+    document.getElementById('interactive-viz').style.display = 'none';
+    document.getElementById('static-viz').style.display = 'block';
+  }
+
+  // Plotly Rendering Logic
+  async function renderInteractivePlots() {
+    console.log("Fetching interactive shot data...");
+    try {
+      const response = await fetch('/api/last_shots');
+      const shots = await response.json();
+      console.log(`Received ${shots.length} shots for interactive plotting.`);
+      
+      if (!shots || shots.length === 0) {
+        console.warn("No shot data available for interactive plot.");
+        document.getElementById('interactive-shot-plot').innerHTML = '<div style="padding:20px; text-align:center;">No interactive data available for this game.</div>';
+        return;
+      }
+
+      renderShotPlot(shots);
+      renderGameWorm(shots);
+    } catch (err) {
+      console.error("Failed to render interactive plots:", err);
+    }
+  }
+
+  function getRinkShapes() {
+    const shapes = [];
+    
+    // Curved Boards (SVG Path)
+    // Rink is 200x85, corners have 28ft radius.
+    // Starts at x=-72, y=42.5 (top-left corner start)
+    const rinkPath = 'M -72,42.5 L 72,42.5 Q 100,42.5 100,14.5 L 100,-14.5 Q 100,-42.5 72,-42.5 L -72,-42.5 Q -100,-42.5 -100,-14.5 L -100,14.5 Q -100,42.5 -72,42.5 Z';
+    
+    shapes.push({
+      type: 'path',
+      path: rinkPath,
+      line: { color: 'rgba(0,0,0,0.4)', width: 2 },
+      fillcolor: 'rgba(255,255,255,1)',
+      layer: 'below'
+    });
+    
+    // Center Line (Red Line)
+    shapes.push({
+      type: 'line', x0: 0, y0: -42.5, x1: 0, y1: 42.5,
+      line: { color: 'rgba(255,0,0,0.6)', width: 4 },
+      layer: 'below'
+    });
+    
+    // Blue Lines
+    [-25, 25].forEach(x => {
+      shapes.push({
+        type: 'line', x0: x, y0: -42.5, x1: x, y1: 42.5,
+        line: { color: 'rgba(0,0,255,0.5)', width: 4 },
+        layer: 'below'
+      });
+    });
+    
+    // Goal Lines
+    [-89, 89].forEach(x => {
+      shapes.push({
+        type: 'line', x0: x, y0: -37, x1: x, y1: 37,
+        line: { color: 'rgba(255,0,0,0.5)', width: 2 },
+        layer: 'below'
+      });
+    });
+    
+    // Faceoff Circles (approximate locations)
+    const circles = [
+      {x: 69, y: 22}, {x: 69, y: -22},
+      {x: -69, y: 22}, {x: -69, y: -22},
+      {x: 0, y: 0}
+    ];
+    circles.forEach(c => {
+      shapes.push({
+        type: 'circle',
+        x0: c.x - 15, y0: c.y - 15, x1: c.x + 15, y1: c.y + 15,
+        line: { color: 'rgba(255,0,0,0.2)', width: 2 },
+        layer: 'below'
+      });
+    });
+
+    // Nets
+    shapes.push({
+      type: 'rect', x0: 89, y0: -3, x1: 93, y1: 3,
+      line: { color: 'rgba(0,0,0,0.5)', width: 1 },
+      fillcolor: 'rgba(0,0,0,0.1)'
+    });
+    shapes.push({
+      type: 'rect', x0: -89, y0: -3, x1: -93, y1: 3,
+      line: { color: 'rgba(0,0,0,0.5)', width: 1 },
+      fillcolor: 'rgba(0,0,0,0.1)'
+    });
+
+    return shapes;
+  }
+
+  function renderShotPlot(shots) {
+    const container = document.getElementById('interactive-shot-plot');
+    if (!container) return;
+
+    // Find homeId by scanning for a valid record
+    let homeId = null;
+    for (const s of shots) {
+      if (s.home_id) {
+        homeId = s.home_id;
+        break;
+      }
+    }
+
+    // Filter for shots and goals
+    const plotShots = shots.filter(s => {
+      const ev = (s.event || "").toLowerCase();
+      return ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot'].includes(ev);
+    });
+
+    // Home = Black, Away = Orange
+    const groups = {
+      'Home Goal': { x: [], y: [], text: [], color: '#000000', marker: 'star', size: 12, name: 'Home Goal' },
+      'Home Shot': { x: [], y: [], text: [], color: '#000000', marker: 'circle', size: 8, name: 'Home Shot' },
+      'Away Goal': { x: [], y: [], text: [], color: '#F74902', marker: 'star', size: 12, name: 'Away Goal' },
+      'Away Shot': { x: [], y: [], text: [], color: '#F74902', marker: 'circle', size: 8, name: 'Away Shot' }
+    };
+
+    plotShots.forEach(s => {
+      const isHome = String(s.team_id) === String(homeId);
+      const isGoal = (s.event || "").toLowerCase() === 'goal';
+      
+      let key = isHome ? 'Home Shot' : 'Away Shot';
+      if (isGoal) key = isHome ? 'Home Goal' : 'Away Goal';
+
+      groups[key].x.push(s.x_a);
+      groups[key].y.push(s.y_a);
+      
+      const xG = s.xgs ? s.xgs.toFixed(3) : '0.000';
+      const dist = s.distance ? s.distance.toFixed(1) : 'N/A';
+      
+      let hoverText = `<b>${s.player_name || 'Unknown'}</b> (${isHome ? 'Home' : 'Away'})<br>` +
+                      `Event: ${s.event}<br>` +
+                      `xG: ${xG}<br>` +
+                      `Distance: ${dist} ft<br>` +
+                      `Type: ${s.shot_type || 'Unknown'}`;
+      
+      groups[key].text.push(hoverText);
+    });
+
+    const data = Object.keys(groups).map(key => ({
+      x: groups[key].x,
+      y: groups[key].y,
+      text: groups[key].text,
+      mode: 'markers',
+      name: groups[key].name,
+      hoverinfo: 'text',
+      marker: {
+        color: groups[key].color,
+        symbol: groups[key].marker,
+        size: groups[key].size,
+        line: { color: 'white', width: 1 }
+      }
+    }));
+
+    const layout = {
+      hovermode: 'closest',
+      xaxis: { 
+        range: [-100, 100], 
+        fixedrange: true,
+        showgrid: false, zeroline: false, showticklabels: false
+      },
+      yaxis: { 
+        range: [-42.5, 42.5], 
+        scaleanchor: 'x', 
+        fixedrange: true,
+        showgrid: false, zeroline: false, showticklabels: false
+      },
+      shapes: getRinkShapes(),
+      margin: { l: 0, r: 0, t: 5, b: 60 },
+      legend: { orientation: 'h', y: -0.1 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)'
+    };
+
+    Plotly.newPlot('interactive-shot-plot', data, layout, { responsive: true, displayModeBar: false });
+  }
+
+  function renderGameWorm(shots) {
+    const container = document.getElementById('interactive-game-worm');
+    if (!container) return;
+
+    // Find homeId by scanning for a valid record
+    let homeId = null;
+    for (const s of shots) {
+      if (s.home_id) {
+        homeId = s.home_id;
+        break;
+      }
+    }
+    
+    const homeAbb = shots[0] ? (shots[0].home_abb || 'Home') : 'Home';
+    const awayAbb = shots[0] ? (shots[0].away_abb || 'Away') : 'Away';
+
+    // Sort by time
+    const sorted = [...shots].sort((a, b) => (a.total_time_elapsed_s || 0) - (b.total_time_elapsed_s || 0));
+    
+    let homeCumXG = 0;
+    let awayCumXG = 0;
+    
+    const homePoints = { x: [0], y: [0], text: ['Start'] };
+    const awayPoints = { x: [0], y: [0], text: ['Start'] };
+    
+    sorted.forEach(s => {
+      const time = (s.total_time_elapsed_s || 0) / 60; // in minutes
+      const xG = parseFloat(s.xgs || 0);
+      const isHome = String(s.team_id) === String(homeId);
+      
+      const playerName = s.player_name || 'Unknown';
+      const eventDesc = `<b>${playerName}</b> (${s.event})<br>xG: ${xG.toFixed(3)}`;
+      
+      if (isHome) {
+        homeCumXG += xG;
+        homePoints.x.push(time);
+        homePoints.y.push(homeCumXG);
+        homePoints.text.push(eventDesc);
+      } else {
+        awayCumXG += xG;
+        awayPoints.x.push(time);
+        awayPoints.y.push(awayCumXG);
+        awayPoints.text.push(eventDesc);
+      }
+    });
+
+    // Final point at 60m
+    homePoints.x.push(60); homePoints.y.push(homeCumXG); homePoints.text.push('End');
+    awayPoints.x.push(60); awayPoints.y.push(awayCumXG); awayPoints.text.push('End');
+
+    const homeTrace = {
+        x: homePoints.x,
+        y: homePoints.y,
+        mode: 'lines',
+        line: { shape: 'hv', width: 3, color: '#000000' },
+        name: homeAbb,
+        hoverinfo: 'text',
+        text: homePoints.text
+    };
+      
+    const awayTrace = {
+        x: awayPoints.x,
+        y: awayPoints.y,
+        mode: 'lines',
+        line: { shape: 'hv', width: 3, color: '#F74902' },
+        name: awayAbb,
+        hoverinfo: 'text',
+        text: awayPoints.text
+    };
+
+    const data = [homeTrace, awayTrace];
+
+    const layout = {
+      xaxis: { title: 'Game Time (minutes)', range: [0, 60], dtick: 20 },
+      yaxis: { title: 'Cumulative xG', rangemode: 'nonnegative' },
+      margin: { l: 60, r: 20, t: 10, b: 60 },
+      legend: { orientation: 'h', y: -0.1 },
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      hovermode: 'closest'
+    };
+
+    Plotly.newPlot(container, data, layout, { responsive: true, displayModeBar: false });
+  }
+
+  // Auto-run on load if data exists
+  {% if exists %}
+  document.addEventListener('DOMContentLoaded', renderInteractivePlots);
+  {% endif %}
 </script>
 {% endblock %}

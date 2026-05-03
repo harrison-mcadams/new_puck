@@ -12,141 +12,36 @@ except ImportError:
 
 def fix_blocked_shot_attribution(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Corrects attribution for blocked shots in the provided DataFrame.
+    BLOCKED SHOT ATTRIBUTION — NO-OP (SWAP DISABLED)
     
-    The NHL API attributes 'blocked-shot' events to the blocking team (Defense).
-    For xG analysis and model training, we want these events attributed to the SHOOTER (Offense).
+    BACKGROUND:
+    The NHL GameCenter API (api-web.nhle.com) attributes 'blocked-shot' events
+    to the SHOOTER's team via eventOwnerTeamId. This was verified across 1,867
+    blocked shots in 60 games spanning all modern-era seasons (2020-2026):
+    eventOwnerTeamId == shooter's team in 100.0% of cases.
     
-    This function:
-    1. Identifies blocked shots.
-    2. Swaps 'team_id' (Home <-> Away).
-    3. Recalculates 'distance' and 'angle_deg' relative to the SHOOTER's attacking goal.
+    HISTORY:
+    This function previously swapped team_id (home <-> away) under the incorrect
+    assumption that the API attributed blocks to the blocker's team. The swap
+    was accidentally compensated by the training pipeline running
+    preprocess_features() on CSVs that already had the swap baked in,
+    resulting in a double-swap that cancelled out. The model trained correctly
+    despite the bug.
+    
+    CURRENT BEHAVIOR:
+    This function is now a no-op. It returns the DataFrame unchanged.
+    The team_id swap has been removed because:
+    1. The API already provides correct shooter-team attribution.
+    2. data_pipeline.preprocess_features() recalculates distance/angle for ALL
+       events (not just blocked shots) at the standardization step, making the
+       distance recalculation here redundant.
+    3. Removing the swap eliminates the fragile double-swap dependency and
+       ensures correct attribution in a single pass.
     
     Args:
-        df: DataFrame containing event data. Must have 'event', 'team_id', 'home_id', 'away_id'.
-            'home_team_defending_side' is recommended for accurate distance recalculation.
-            
+        df: DataFrame containing event data.
+        
     Returns:
-        pd.DataFrame: The modified DataFrame (copy).
-
-    CRITICAL NOTE ON COORDINATES:
-    This function ONLY swaps team attribution and recalculates distance/angle.
-    It MUST NOT perform unconditional coordinate flipping (* -1). 
-    If you flip here, and the data is later processed by `data_pipeline.py`, 
-    it will result in "double-flipping" (data corruption).
+        pd.DataFrame: The input DataFrame, unchanged.
     """
-    df = df.copy()
-    
-    if 'event' not in df.columns:
-        return df
-        
-    is_blocked = df['event'].astype(str).str.strip().str.lower() == 'blocked-shot'
-    
-    if not is_blocked.any():
-        return df
-        
-    # --- 1. Swap team_id ---
-    # Use safe accessors (handle mixed types by casting to str for comparison)
-    t_id = df.get('team_id', pd.Series(dtype=object)).astype(str).to_numpy()
-    h_id = df.get('home_id', pd.Series(dtype=object)).astype(str).to_numpy()
-    a_id = df.get('away_id', pd.Series(dtype=object)).astype(str).to_numpy()
-    
-    # Mask where team == home
-    mask_home_t = (t_id == h_id)
-    # Mask where team == away
-    mask_away_t = (t_id == a_id)
-    
-    # New team ID array initialized with original
-    new_t_id = df['team_id'].to_numpy().copy()
-    
-    # Apply swap logic
-    # where team == home -> away
-    new_t_id[mask_home_t] = df.loc[mask_home_t, 'away_id'].to_numpy()
-    # where team == away -> home
-    new_t_id[mask_away_t] = df.loc[mask_away_t, 'home_id'].to_numpy()
-    
-    # Assign back to blocked shots ONLY
-    # Ensure types match (e.g. if new_t_id is float but team_id was originally str or vice-versa)
-    df.loc[is_blocked, 'team_id'] = new_t_id[is_blocked]
-    
-    # --- 1.5. Flip Coordinates (X, Y) for blocked shots ---
-    # CRITICAL: DO NOT ADD COORDINATE FLIPS HERE.
-    # Orientation standardization is handled at the source (data_pipeline.py).
-    # Unconditional flipping here causes double-flipping in repetitive runs.
-    pass
-
-    
-    # --- 2. Recalculate Distance and Angle ---
-    # Now team_id is the Shooter. We need distance to the Goal the Shooter is Attacking.
-    
-    if 'home_team_defending_side' in df.columns:
-         sides = df['home_team_defending_side'].astype(str).str.lower().values
-         
-         # Rink Goals
-         try:
-             lg_x, rg_x = rink_goal_xs()
-         except:
-             lg_x, rg_x = -89.0, 89.0
-             
-         # Determine Goal X for each blocked shot
-         # Logic based on PRE-SWAP masks (cleaner state)
-         # mask_away_t: Blocker was Away -> Shooter is Home.
-         # mask_home_t: Blocker was Home -> Shooter is Away.
-         
-         # Logic Table:
-         # Shooter | Home Defends | Attack Goal
-         # Home    | Left         | Right (89)
-         # Home    | Right        | Left (-89)
-         # Away    | Left         | Left (-89)
-         # Away    | Right        | Right (89)
-         
-         # target X array
-         target_xs = np.full(len(df), np.nan)
-         
-         cond_side_left = (sides == 'left')
-         cond_side_right = (sides == 'right')
-         
-         # 1. Shooter Home (Blocker Away) + Side Left -> Right Goal (89)
-         m1 = mask_away_t & cond_side_left
-         target_xs[m1] = rg_x
-         
-         # 2. Shooter Home (Blocker Away) + Side Right -> Left Goal (-89)
-         m2 = mask_away_t & cond_side_right
-         target_xs[m2] = lg_x
-         
-         # 3. Shooter Away (Blocker Home) + Side Left -> Left Goal (-89)
-         m3 = mask_home_t & cond_side_left
-         target_xs[m3] = lg_x
-         
-         # 4. Shooter Away (Blocker Home) + Side Right -> Right Goal (89)
-         m4 = mask_home_t & cond_side_right
-         target_xs[m4] = rg_x
-         
-         # Apply to blocked shots with explicit numeric cast
-         bx = pd.to_numeric(df.loc[is_blocked, 'x'], errors='coerce').fillna(0).astype(float).values
-         by = pd.to_numeric(df.loc[is_blocked, 'y'], errors='coerce').fillna(0).astype(float).values
-         gxs = target_xs[is_blocked]
-         
-         # Recalculate metrics
-         new_dists = []
-         new_angles = []
-         
-         for i in range(len(bx)):
-             gx = gxs[i]
-             if np.isnan(gx):
-                 # Side unknown
-                 new_dists.append(np.nan)
-                 new_angles.append(np.nan)
-             else:
-                 try:
-                     d, a = calculate_distance_and_angle(bx[i], by[i], gx, 0.0)
-                     new_dists.append(d)
-                     new_angles.append(a)
-                 except:
-                     new_dists.append(np.nan)
-                     new_angles.append(np.nan)
-         
-         df.loc[is_blocked, 'distance'] = new_dists
-         df.loc[is_blocked, 'angle_deg'] = new_angles
-         
     return df

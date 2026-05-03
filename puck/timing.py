@@ -292,6 +292,17 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: boo
         need_html_fallback = True
         logging.info('timing_new._get_shifts_df: API shifts minimal (%d rows) for game %s; will try HTML fallback', 
                     len(df_shifts), game_id)
+    else:
+        # HARDENING: Check if shifts for BOTH teams are present.
+        # Common in 2025-2026 for API to return shifts for only one team.
+        try:
+            team_count = df_shifts['team_id'].nunique()
+            if team_count < 2:
+                need_html_fallback = True
+                logging.info('timing_new._get_shifts_df: API shifts only present for %d team(s) in game %s; triggering HTML fallback', 
+                            team_count, game_id)
+        except Exception:
+            pass
     
     # If API response is insufficient, try HTML fallback
     if need_html_fallback:
@@ -1097,6 +1108,21 @@ def compute_game_timing(df: pd.DataFrame, condition: Dict[str, Any], verbose: bo
                 df_for_gids = df.loc[(df.get('home_abb', pd.Series(dtype=object)).astype(str).str.upper() == tstr) | (df.get('away_abb', pd.Series(dtype=object)).astype(str).str.upper() == tstr)].copy()
             except Exception:
                 df_for_gids = df
+
+    # If caller provided game_id(s) in the condition, further filter the gids list
+    if isinstance(condition, dict) and 'game_id' in condition and condition.get('game_id') is not None:
+        gids_filter = condition.get('game_id')
+        if not isinstance(gids_filter, (list, tuple, set)):
+            gids_filter = [gids_filter]
+        
+        # Convert to set of strings for robust comparison
+        gids_filter_strs = {str(g) for g in gids_filter if g is not None}
+        
+        if gids_filter_strs:
+            try:
+                df_for_gids = df_for_gids.loc[df_for_gids['game_id'].astype(str).isin(gids_filter_strs)].copy()
+            except Exception:
+                pass
 
     gids = pd.unique(df_for_gids['game_id'].dropna().astype(int)).tolist()
 
