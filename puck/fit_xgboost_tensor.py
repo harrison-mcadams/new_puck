@@ -85,9 +85,9 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
     
     def __init__(self, 
                  features: Optional[List[str]] = None,
-                 n_estimators: int = 200,
+                 n_estimators: int = 2000,
                  max_depth: int = 6,
-                 learning_rate: float = 0.1,
+                 learning_rate: float = 0.05,
                  random_state: int = 42,
                  enable_categorical: bool = True,
                  enable_marginalization: bool = False,
@@ -134,11 +134,14 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         logger.info(f"Fitting XGBTensorXGClassifier on {len(X)} rows.")
 
         if self.use_calibration:
-            df_train, df_calib = train_test_split(X, test_size=0.2, random_state=self.random_state)
+            df_pool, df_calib = train_test_split(X, test_size=0.2, random_state=self.random_state)
         else:
-            df_train = X
+            df_pool = X
             df_calib = None
 
+        # Reserve 10% for early stopping from the training pool
+        df_train_raw, df_val_raw = train_test_split(df_pool, test_size=0.1, random_state=self.random_state)
+        
         # Feature parity across all sub-models as requested by USER.
         core_feats = self.features.copy()
         # Previously restricted leaky features (spatial sequence inconsistencies) are now included.
@@ -146,7 +149,13 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         self.features_acc = core_feats.copy()
         self.features_fin = core_feats.copy()
         
-        df = self._prepare_training_df(df_train)
+        # Prepare DFs
+        df = self._prepare_training_df(df_train_raw)
+        
+        # Record Dtypes so _prepare_inference_df can apply them to the validation set
+        self.feature_dtypes = df[self.features].dtypes.to_dict()
+        
+        df_val = self._prepare_inference_df(df_val_raw)
         
         # If splines were added, update the layer-specific lists
         if self.use_splines:
@@ -188,7 +197,15 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                 logger.info(f"  Block Model Balance (scale_pos_weight): {p_block['scale_pos_weight']:.2f}")
 
         self.model_block = XGBClassifier(**p_block)
-        self.model_block.fit(df[self.features_block], y_block)
+        
+        X_val_block = df_val[self.features_block]
+        y_val_block = (df_val['event'] == 'blocked-shot').astype(int)
+        
+        self.model_block.fit(
+            df[self.features_block], y_block,
+            eval_set=[(X_val_block, y_val_block)],
+            verbose=False
+        )
         
         # 3. Accuracy Model
         mask_unblocked = df['event'] != 'blocked-shot'
@@ -197,7 +214,15 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         
         p_acc = self._get_xgb_params('accuracy')
         self.model_acc = XGBClassifier(**p_acc)
-        self.model_acc.fit(df_unblocked[self.features_acc], y_acc)
+        
+        X_val_acc = df_val[df_val['event'] != 'blocked-shot'][self.features_acc]
+        y_val_acc = df_val[df_val['event'] != 'blocked-shot']['event'].isin(['shot-on-goal', 'goal']).astype(int)
+        
+        self.model_acc.fit(
+            df_unblocked[self.features_acc], y_acc,
+            eval_set=[(X_val_acc, y_val_acc)],
+            verbose=False
+        )
         
         # 4. Finish Model
         mask_on_net = df['event'].isin(['shot-on-goal', 'goal'])
@@ -212,7 +237,16 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                 p_finish['scale_pos_weight'] = neg / pos
                 
         self.model_finish = XGBClassifier(**p_finish)
-        self.model_finish.fit(df_on_net[self.features_fin], y_finish)
+        
+        mask_val_on_net = df_val['event'].isin(['shot-on-goal', 'goal'])
+        X_val_finish = df_val[mask_val_on_net][self.features_fin]
+        y_val_finish = (df_val[mask_val_on_net]['event'] == 'goal').astype(int)
+        
+        self.model_finish.fit(
+            df_on_net[self.features_fin], y_finish,
+            eval_set=[(X_val_finish, y_val_finish)],
+            verbose=False
+        )
 
         # 5. Overall Model (Direct Goal Prediction for calibration)
         logger.info("Fitting Overall Model (P(Goal | Shot))...")
@@ -221,11 +255,17 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         # Never balance overall model, we want raw calibration
         p_overall['scale_pos_weight'] = 1.0 
         self.model_overall = XGBClassifier(**p_overall)
-        self.model_overall.fit(df[self.features], y_goal)
         
-        # Record Dtypes (excluding splines which are always float)
-        self.feature_dtypes = df[self.features].dtypes.to_dict()
-
+        y_val_overall = (df_val['event'] == 'goal').astype(int)
+        
+        self.model_overall.fit(
+            df[self.features], y_goal,
+            eval_set=[(df_val[self.features], y_val_overall)],
+            verbose=False
+        )
+        
+        # Note: self.feature_dtypes already recorded earlier in fit()
+        
         if self.use_calibration and df_calib is not None:
             self._fit_calibrators(df_calib)
 
@@ -264,7 +304,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         feature_list = feature_util.get_features('all_inclusive')
         clf = cls(
             features=feature_list,
-            n_estimators=300,
+            n_estimators=2000,
             max_depth=6,
             learning_rate=0.05,
             use_calibration=kwargs.get('use_calibration', False),
@@ -371,9 +411,9 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         b_score = base_scores.get(layer_name, 0.5)
 
         params = {
-            'n_estimators': 500 if layer_name == 'block' else int(self.n_estimators),
-            'max_depth': 8 if layer_name == 'block' else int(self.max_depth),
-            'learning_rate': 0.02 if layer_name == 'block' else float(self.learning_rate),
+            'n_estimators': 2000,
+            'max_depth': int(self.max_depth),
+            'learning_rate': float(self.learning_rate),
             'random_state': int(self.random_state),
             'enable_categorical': bool(self.enable_categorical),
             'objective': 'binary:logistic',
@@ -382,7 +422,10 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
             'eval_metric': 'logloss',
             'base_score': b_score,
             'min_child_weight': 1,
-            'gamma': 0
+            'gamma': 0,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'early_stopping_rounds': 50
         }
         if layer_name in self.layer_params:
             params.update(self.layer_params[layer_name])

@@ -35,6 +35,7 @@ from sklearn.calibration import calibration_curve
 from . import features as feature_util
 from . import config as puck_config
 from .spline_transformer import TensorSpline
+from .verify import verify_df
 
 try:
     import matplotlib.pyplot as plt
@@ -61,7 +62,8 @@ CATEGORICAL_VOCABS = {
     'relative_game_state': VOCAB_GAME_STATE,
     'last_event_type': [
         'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty'
-    ]
+    ],
+    'rebound_source': ['none', 'shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
 }
 
 # --- LOGGING SETUP ---
@@ -95,9 +97,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
     
     def __init__(self, 
                  features: Optional[List[str]] = None,
-                 n_estimators: int = 200,
+                 n_estimators: int = 2000,
                  max_depth: int = 6,
-                 learning_rate: float = 0.1,
+                 learning_rate: float = 0.05,
                  random_state: int = 42,
                  enable_categorical: bool = True,
                  enable_marginalization: bool = True,
@@ -148,11 +150,19 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             df_train, df_calib = train_test_split(X, test_size=0.2, random_state=self.random_state)
             logger.info(f"  Internal Split: Train={len(df_train)}, Calib={len(df_calib)}")
         else:
-            df_train = X
+            df_pool = X
             df_calib = None
 
-        df = self._prepare_training_df(df_train)
+        # Reserve 10% for early stopping from the training pool
+        df_train_raw, df_val_raw = train_test_split(df_pool, test_size=0.1, random_state=self.random_state)
+
+        df = self._prepare_training_df(df_train_raw)
         
+        # Record Dtypes so _prepare_inference_df can apply them to the validation set
+        self.feature_dtypes = df[self.features].dtypes.to_dict()
+        
+        df_val = self._prepare_inference_df(df_val_raw)
+
         # 1. Learn Priors for Marginalization
         self.categorical_priors_ = {}
         for col, vocab in CATEGORICAL_VOCABS.items():
@@ -165,6 +175,9 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                     self.categorical_priors_[col] = priors
         logger.info(f"Learned Categorical Priors: {list(self.categorical_priors_.keys())}")
 
+        # Run verification prior to fitting
+        verify_df(df, self.features, verify_blocked=True)
+
         # 2. Block Model (Trained on ALL shots)
         feat_block = list(self.features)
         if 'spatial_block' not in feat_block:
@@ -175,7 +188,15 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         p_block = self._get_xgb_params('block')
         logger.info(f"    XGB Params (Block): {p_block}")
         self.model_block = XGBClassifier(**p_block)
-        self.model_block.fit(df[feat_block], y_block)
+        
+        X_val_block = df_val[feat_block]
+        y_val_block = (df_val['event'] == 'blocked-shot').astype(int)
+        
+        self.model_block.fit(
+            df[feat_block], y_block,
+            eval_set=[(X_val_block, y_val_block)],
+            verbose=False
+        )
         
         # 3. Accuracy Model (Trained on Unblocked shots)
         mask_unblocked = df['event'] != 'blocked-shot'
@@ -184,7 +205,16 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
         
         p_acc = self._get_xgb_params('accuracy')
         self.model_acc = XGBClassifier(**p_acc)
-        self.model_acc.fit(df_unblocked[self.features], y_acc)
+        
+        mask_val_unblocked = df_val['event'] != 'blocked-shot'
+        X_val_acc = df_val[mask_val_unblocked][self.features]
+        y_val_acc = df_val[mask_val_unblocked]['event'].isin(['shot-on-goal', 'goal']).astype(int)
+        
+        self.model_acc.fit(
+            df_unblocked[self.features], y_acc,
+            eval_set=[(X_val_acc, y_val_acc)],
+            verbose=False
+        )
         
         # 4. Finish Model (Trained on Shots On Net)
         mask_on_net = df['event'].isin(['shot-on-goal', 'goal'])
@@ -199,10 +229,19 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
                 p_finish['scale_pos_weight'] = neg / pos
         
         self.model_finish = XGBClassifier(**p_finish)
-        self.model_finish.fit(df_on_net[self.features], y_finish)
+        
+        mask_val_on_net = df_val['event'].isin(['shot-on-goal', 'goal'])
+        X_val_finish = df_val[mask_val_on_net][self.features]
+        y_val_finish = (df_val[mask_val_on_net]['event'] == 'goal').astype(int)
+        
+        self.model_finish.fit(
+            df_on_net[self.features], y_finish,
+            eval_set=[(X_val_finish, y_val_finish)],
+            verbose=False
+        )
         
         # Record Dtypes for consistency
-        self.feature_dtypes = df[self.features].dtypes.to_dict()
+        # Already recorded before fit
 
         # 5. Internal Calibration
         if self.use_calibration and df_calib is not None:
@@ -338,8 +377,17 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
     # --- INTERNAL HELPERS ---
 
     def _get_xgb_params(self, layer_name: str) -> Dict[str, Any]:
+        # Determine base_score from historical averages to prevent OOD inflation
+        base_scores = {
+            'block': 0.26,
+            'accuracy': 0.70,
+            'finish': 0.10,
+            'overall': 0.05
+        }
+        b_score = base_scores.get(layer_name, 0.5)
+
         params = {
-            'n_estimators': int(self.n_estimators),
+            'n_estimators': 2000,
             'max_depth': int(self.max_depth),
             'learning_rate': float(self.learning_rate),
             'random_state': int(self.random_state),
@@ -348,7 +396,12 @@ class XGBNestedXGClassifier(BaseEstimator, ClassifierMixin):
             'tree_method': 'hist',
             'device': 'cpu',
             'eval_metric': 'logloss',
-            'base_score': 0.5
+            'base_score': b_score,
+            'min_child_weight': 1,
+            'gamma': 0,
+            'subsample': 0.8,
+            'colsample_bytree': 0.8,
+            'early_stopping_rounds': 50
         }
         if layer_name in self.layer_params:
             params.update(self.layer_params[layer_name])

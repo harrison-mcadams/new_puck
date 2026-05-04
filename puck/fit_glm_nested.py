@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import features as feature_util
 from . import config as puck_config
+from .verify import verify_df
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +74,9 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         
         logger.info(f"Final Feature Set ({len(self.features)}): {self.features}")
         
+        # Run verification prior to fitting
+        verify_df(df, self.features, verify_blocked=True)
+
         # 0. Learn Priors for Marginalization
         if self.enable_marginalization and 'shot_type' in df.columns:
             # Normalize to lowercase for counting
@@ -258,7 +262,7 @@ class NestedGLM(BaseEstimator, ClassifierMixin):
         features = features or self.features
         
         # 1. Categorical Features
-        cat_features = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state', 'relative_game_state']
+        cat_features = ['shot_type', 'shooter_role', 'shoots_catches', 'last_event_type', 'game_state', 'relative_game_state', 'rebound_source']
         cat_features = [f for f in cat_features if f in features]
         
         cat_trans = Pipeline([
