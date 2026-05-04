@@ -94,7 +94,8 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                  use_balancing: bool = False,
                  use_calibration: bool = False,
                  layer_params: Optional[Dict[str, Any]] = None,
-                 use_splines: bool = True):
+                 use_splines: bool = True,
+                 predict_mode: str = 'nested'):
         
         # Defensive copy to prevent bleeding from other model's modifications to the global feature set
         base_feats = features.copy() if features else feature_util.get_features('all_inclusive').copy()
@@ -113,6 +114,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         self.n_knots = 5
         self.spline_transformer_ = None
         self.spline_feature_names_ = []
+        self.predict_mode = predict_mode
         
         # Sub-models
         
@@ -328,17 +330,21 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
             
-        # USE OVERALL MODEL for xG to ensure calibration (Ratio ~1.0)
-        p_goal = self.model_overall.predict_proba(df[self.features])[:, 1]
-        
+        p_blocked = self._predict_marginalized(self.model_block, df, self.features_block)
+        p_unblocked = 1.0 - p_blocked
+        p_acc = self._predict_marginalized(self.model_acc, df, self.features_acc)
+        p_finish = self._predict_marginalized(self.model_finish, df, self.features_fin)
+        p_nested = p_unblocked * p_acc * p_finish
+
+        if getattr(self, 'predict_mode', 'nested') == 'nested':
+            p_goal = p_nested
+        else:
+            # Fallback to overall model if explicitly requested
+            p_goal = self.model_overall.predict_proba(df[self.features])[:, 1]
+            
         # [DIAGNOSTIC] Compare with nested product (for dashboard/breakdown awareness)
         if len(df) > 1000:
-            p_blocked = self._predict_marginalized(self.model_block, df, self.features_block)
-            p_unblocked = 1.0 - p_blocked
-            p_acc = self._predict_marginalized(self.model_acc, df, self.features_acc)
-            p_finish = self._predict_marginalized(self.model_finish, df, self.features_fin)
-            p_nested = p_unblocked * p_acc * p_finish
-            logger.info(f"  [CALIBRATION] Overall Mean xG: {p_goal.mean():.4f}")
+            logger.info(f"  [CALIBRATION] Overall Mean xG (from flat model): {self.model_overall.predict_proba(df[self.features])[:, 1].mean():.4f}")
             logger.info(f"  [CALIBRATION] Nested Mean xG:  {p_nested.mean():.4f}")
 
         return np.column_stack((1 - p_goal, p_goal))
