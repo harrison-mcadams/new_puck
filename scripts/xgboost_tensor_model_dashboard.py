@@ -41,10 +41,20 @@ def extract_booster_data(model, feature_names=None):
     trees_json = booster.get_dump(dump_format='json')
     trees = [json.loads(t) for t in trees_json]
     
+    try:
+        config = json.loads(booster.save_config())
+        base_score_str = config['learner']['learner_model_param']['base_score']
+        if base_score_str.startswith('[') and base_score_str.endswith(']'):
+            base_score = float(base_score_str[1:-1])
+        else:
+            base_score = float(base_score_str)
+    except Exception:
+        base_score = 0.5
+        
     return {
         'trees': trees,
         'feature_names': booster.feature_names or [],
-        'base_score': 0.5
+        'base_score': base_score
     }
 
 def get_rink_shapes(xref='x', yref='y'):
