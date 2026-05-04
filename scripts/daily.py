@@ -27,6 +27,7 @@ from puck import parse
 from puck import timing
 from puck import analyze
 from puck import config
+from puck import data_pipeline
 
 # Scripts in the same directory
 import run_player_analysis
@@ -108,11 +109,24 @@ def main():
             max_workers=fetch_workers,
             game_types=game_types
         )
-        # Manually save to target_season.csv
+        # Standardize orientation and features for ALL events
+        print("Standardizing season orientation (Right-Attack Standard)...")
+        df_season = data_pipeline.preprocess_features(
+            df_season, 
+            is_training=False, 
+            apply_filtering=False,
+            apply_imputation=True,
+            apply_arena_adjustments=True,
+            verbose=True
+        )
+
+        # Manually save to target_season/target_season_df.csv (Gold Standard Path)
         if not df_season.empty:
-            out_csv = os.path.join(config.DATA_DIR, f"{target_season}.csv")
+            season_dir = os.path.join(config.DATA_DIR, target_season)
+            os.makedirs(season_dir, exist_ok=True)
+            out_csv = os.path.join(season_dir, f"{target_season}_df.csv")
             df_season.to_csv(out_csv, index=False)
-            print(f"Saved freshly fetched data to {out_csv}")
+            print(f"Saved standardized Gold Standard data to {out_csv}")
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
     # 1b. Update Teams List (Ensure analysis/teams.json is fresh)

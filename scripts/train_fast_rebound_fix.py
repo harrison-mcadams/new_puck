@@ -30,8 +30,8 @@ def main():
 
     # 3. Train
     # We save to a TEMPORARY path first to verify
-    save_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_tensor_REBOUND_FIX_TEST.joblib')
-    out_dir = str(Path(config.ANALYSIS_DIR) / 'xgboost_tensor_xgs_REBOUND_FIX_TEST')
+    save_path = str(Path(config.ANALYSIS_DIR) / 'xgs' / 'xg_model_xgboost_tensor_PARITY.joblib')
+    out_dir = str(Path(config.ANALYSIS_DIR) / 'xgboost_tensor_xgs_PARITY')
     
     print("\nStarting training session...")
     fit_xgboost_tensor.train_xgboost_tensor(
@@ -40,7 +40,7 @@ def main():
         out_dir=out_dir,
         verbose=True,
         use_balancing=False,
-        apply_html_enrichment=True
+        apply_html_enrichment=False
     )
     
     print("\n============================================================")

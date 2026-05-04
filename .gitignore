@@ -30,6 +30,7 @@ Thumbs.db
 
 # --- Project Data & Models ---
 data/
+data_old/
 tmp/
 temp/
 shifts/

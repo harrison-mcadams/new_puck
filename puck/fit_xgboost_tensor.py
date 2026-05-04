@@ -88,7 +88,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                  learning_rate: float = 0.1,
                  random_state: int = 42,
                  enable_categorical: bool = True,
-                 enable_marginalization: bool = True,
+                 enable_marginalization: bool = False,
                  use_balancing: bool = False,
                  use_calibration: bool = False,
                  layer_params: Optional[Dict[str, Any]] = None,
@@ -118,6 +118,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         self.model_block = None
         self.model_acc = None
         self.model_finish = None
+        self.model_overall = None
         
         # Consistent Dtypes for Inference
         self.feature_dtypes = {}
@@ -134,8 +135,9 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
             df_train = X
             df_calib = None
 
-        # Initialize feature lists from core features
+        # Feature parity across all sub-models as requested by USER.
         core_feats = self.features.copy()
+        # Previously restricted leaky features (spatial sequence inconsistencies) are now included.
         self.features_block = core_feats.copy()
         self.features_acc = core_feats.copy()
         self.features_fin = core_feats.copy()
@@ -204,6 +206,15 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                 
         self.model_finish = XGBClassifier(**p_finish)
         self.model_finish.fit(df_on_net[self.features_fin], y_finish)
+
+        # 5. Overall Model (Direct Goal Prediction for calibration)
+        logger.info("Fitting Overall Model (P(Goal | Shot))...")
+        y_goal = (df['event'] == 'goal').astype(int)
+        p_overall = self._get_xgb_params('overall')
+        # Never balance overall model, we want raw calibration
+        p_overall['scale_pos_weight'] = 1.0 
+        self.model_overall = XGBClassifier(**p_overall)
+        self.model_overall.fit(df[self.features], y_goal)
         
         # Record Dtypes (excluding splines which are always float)
         self.feature_dtypes = df[self.features].dtypes.to_dict()
@@ -312,12 +323,19 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
             
-        p_blocked = self._predict_marginalized(self.model_block, df, self.features_block)
-        p_unblocked = 1.0 - p_blocked
-        p_acc = self._predict_marginalized(self.model_acc, df, self.features_acc)
-        p_finish = self._predict_marginalized(self.model_finish, df, self.features_fin)
+        # USE OVERALL MODEL for xG to ensure calibration (Ratio ~1.0)
+        p_goal = self.model_overall.predict_proba(df[self.features])[:, 1]
         
-        p_goal = p_unblocked * p_acc * p_finish
+        # [DIAGNOSTIC] Compare with nested product (for dashboard/breakdown awareness)
+        if len(df) > 1000:
+            p_blocked = self._predict_marginalized(self.model_block, df, self.features_block)
+            p_unblocked = 1.0 - p_blocked
+            p_acc = self._predict_marginalized(self.model_acc, df, self.features_acc)
+            p_finish = self._predict_marginalized(self.model_finish, df, self.features_fin)
+            p_nested = p_unblocked * p_acc * p_finish
+            logger.info(f"  [CALIBRATION] Overall Mean xG: {p_goal.mean():.4f}")
+            logger.info(f"  [CALIBRATION] Nested Mean xG:  {p_nested.mean():.4f}")
+
         return np.column_stack((1 - p_goal, p_goal))
 
     def predict_proba_layer(self, X: pd.DataFrame, layer: str) -> np.ndarray:
@@ -331,6 +349,16 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         raise ValueError(f"Unknown layer: {layer}")
 
     def _get_xgb_params(self, layer_name: str) -> Dict[str, Any]:
+        # Determine base_score from historical averages to prevent OOD inflation
+        # (XGBoost defaults to 0.5, which is way too high for NHL goal rates)
+        base_scores = {
+            'block': 0.26,
+            'accuracy': 0.70,
+            'finish': 0.10,
+            'overall': 0.05
+        }
+        b_score = base_scores.get(layer_name, 0.5)
+
         params = {
             'n_estimators': 500 if layer_name == 'block' else int(self.n_estimators),
             'max_depth': 8 if layer_name == 'block' else int(self.max_depth),
@@ -341,7 +369,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
             'tree_method': 'hist',
             'device': 'cpu',
             'eval_metric': 'logloss',
-            'base_score': 0.5,
+            'base_score': b_score,
             'min_child_weight': 1,
             'gamma': 0
         }

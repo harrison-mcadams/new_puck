@@ -318,6 +318,49 @@ def preprocess_features(df_input: pd.DataFrame,
             ang_diff = (sub['angle_deg'] - prev_angle).abs()
             df.loc[group_idx, 'rebound_angle_change'] = ang_diff.fillna(0.0)
 
+        # 6.6 SEQUENCE RECALCULATION
+        # [AUDIT FIX] Recalculate sequence features using updated (standardized/imputed) coordinates.
+        # This ensures that training features (previously from block location) match 
+        # inference features (calculated from shooter location).
+        
+        # We already sorted by game/time above.
+        # We need the last coordinate-bearing event for each game.
+        df['dist_from_last_event'] = np.nan
+        df['speed_from_last_event'] = np.nan
+        df['angle_change_last_event'] = np.nan
+        
+        # Group by game and period to ensure sequence integrity
+        for (gid, per), group_idx in df.groupby(['game_id', 'period_number']).groups.items():
+            # We need to iterate because each event depends on the one before it
+            # and we only want to track events that HAD coordinates.
+            last_x, last_y = None, None
+            last_t = None
+            
+            for idx in group_idx:
+                curr_x = df.at[idx, 'x']
+                curr_y = df.at[idx, 'y']
+                curr_t = df.at[idx, 'total_time_elapsed_s']
+                
+                if last_x is not None and not np.isnan(curr_x):
+                    dt = curr_t - last_t
+                    dist = np.sqrt((curr_x - last_x)**2 + (curr_y - last_y)**2)
+                    df.at[idx, 'dist_from_last_event'] = dist
+                    if dt > 0.01:
+                        df.at[idx, 'speed_from_last_event'] = dist / dt
+                    
+                    # Angle Change
+                    _, last_ang = rink.calculate_distance_and_angle(last_x, last_y, goal_x, 0.0)
+                    curr_ang = df.at[idx, 'angle_deg']
+                    if not np.isnan(last_ang) and not np.isnan(curr_ang):
+                        diff = abs(curr_ang - last_ang) % 360.0
+                        if diff > 180.0: diff = 360.0 - diff
+                        df.at[idx, 'angle_change_last_event'] = diff
+                        
+                # Update last event tracker if current event has coordinates
+                if not np.isnan(curr_x):
+                    last_x, last_y = curr_x, curr_y
+                    last_t = curr_t
+
     # 7. Filtering
     if apply_filtering:
         shot_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
