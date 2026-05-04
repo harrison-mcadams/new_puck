@@ -98,11 +98,12 @@ def _reset_api_counters():
 def _throttle():
     """Throttle requests to avoid hammering the API from tight loops."""
     global _LAST_REQUEST_TIME
-    now = time.time()
-    elapsed = now - _LAST_REQUEST_TIME
-    if elapsed < _MIN_REQUEST_INTERVAL:
-        time.sleep(_MIN_REQUEST_INTERVAL - elapsed + random.uniform(0, 0.05))
-    _LAST_REQUEST_TIME = time.time()
+    with _API_LOCK:
+        now = time.time()
+        elapsed = now - _LAST_REQUEST_TIME
+        if elapsed < _MIN_REQUEST_INTERVAL:
+            time.sleep(_MIN_REQUEST_INTERVAL - elapsed + random.uniform(0, 0.05))
+        _LAST_REQUEST_TIME = time.time()
 
 
 def _cache_path(kind: str, key: str) -> str:

@@ -600,6 +600,26 @@ def _period_time_to_seconds(t: Optional[str]) -> Optional[int]:
         return None
 
 
+def process_game_cpc(game_id: Any, feed_json: Dict[str, Any]) -> Optional[pd.DataFrame]:
+    """Canonical Processing Chain for a single game.
+    
+    1. Parse raw feed (_game)
+    2. HTML Enrichment (enrich_blocks_with_html)
+    3. Elaboration (_elaborate)
+    """
+    try:
+        df_game = _game(feed_json)
+        if df_game is None or df_game.empty:
+            return None
+        
+        df_enriched = html_enrichment.enrich_blocks_with_html(df_game, str(game_id))
+        df_final = _elaborate(df_enriched)
+        
+        return df_final
+    except Exception as e:
+        logging.error(f"Error processing game {game_id} in CPC: {e}")
+        return None
+
 def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str] = None,
             use_cache: bool = False, cache_limit_files: Optional[int] = 200,
             min_delay: float = 0.5, jitter: float = 0.2, max_workers: int = 4,
@@ -795,28 +815,18 @@ def _season(season: str = '20252026', team: str = 'all', out_path: Optional[str]
     total_feeds = len(feeds)
     parsed_count = 0
     for gm, game_feed in feeds:
-        try:
-            events_df = _game(game_feed)
-            
-            # Option A: Enrich blocked shots with HTML PBP during parsing
-            game_id = str(gm.get('id') or gm.get('gamePk'))
-            if not events_df.empty:
-                events_df = html_enrichment.enrich_blocks_with_html(events_df, game_id)
-        except Exception as e:
-            logging.warning('Parser error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
-            events_df = pd.DataFrame()
+        game_id = gm.get('id') or gm.get('gamePk')
+        elaborated_df = process_game_cpc(game_id, game_feed)
+        
         parsed_count += 1
         if verbose:
             print(f'Parsing feeds: {parsed_count}/{total_feeds}', flush=True)
         else:
             logging.info('Parsing feeds: %d/%d', parsed_count, total_feeds)
-        if events_df is None or events_df.empty:
+            
+        if elaborated_df is None or elaborated_df.empty:
             continue
-        try:
-            elaborated_df = _elaborate(events_df)
-        except Exception as e:
-            logging.exception('DEBUG_TRACE_ME Elaboration error for game %s: %s', gm.get('id') or gm.get('gamePk'), e)
-            continue
+            
         # extend records with dictionaries
         try:
             records.extend(elaborated_df.to_dict('records'))
@@ -1522,13 +1532,7 @@ def _scrape(season: str = '20252026', team: str = 'all', out_dir: str = 'data', 
         records: List[Dict[str, Any]] = []
         for item in feeds:
             try:
-                ev_df = _game(item['feed'])
-                if ev_df is None or ev_df.empty:
-                    continue
-                try:
-                    edf = _elaborate(ev_df)
-                except Exception:
-                    continue
+                edf = process_game_cpc(item['game_id'], item['feed'])
                 if edf is None or edf.empty:
                     continue
                 records.extend(edf.to_dict('records'))

@@ -377,14 +377,54 @@ def preprocess_features(df_input: pd.DataFrame,
     return df
 
 def _enrich_bios_if_needed(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
-    """Mock/Simplified Bio Enrichment if missing handedness."""
-    # Real implementation would call nhl_api.get_season_player_bios
-    # For now, we assume col exists or fill with Unknown
+    """Enrich dataframe with player bio data (handedness and role) from the API."""
+    from . import nhl_api
+    
+    # We want to enrich if either is missing or has NaNs
+    needs_handedness = 'shoots_catches' not in df.columns or df['shoots_catches'].isna().any()
+    needs_role = 'shooter_role' not in df.columns or df['shooter_role'].isna().any()
+    
+    if (needs_handedness or needs_role) and 'season' in df.columns and 'player_id' in df.columns:
+        seasons = df['season'].unique()
+        for s in seasons:
+            if pd.isna(s): continue
+            
+            if verbose:
+                print(f"  Fetching player bios for season {s}...")
+            bios = nhl_api.get_season_player_bios(str(int(s)))
+            if not bios:
+                continue
+            
+            # Apply to rows matching this season
+            mask = (df['season'] == s)
+            # Fix: Convert float IDs (e.g. 8475181.0) to clean strings (e.g. '8475181')
+            pids_raw = df.loc[mask, 'player_id']
+            pids = pids_raw.dropna().astype(int).astype(str)
+            
+            if 'shoots_catches' not in df.columns:
+                df['shoots_catches'] = np.nan
+            if 'shooter_role' not in df.columns:
+                df['shooter_role'] = np.nan
+            
+            # Map handedness
+            handedness = pids.map(lambda x: bios.get(x, {}).get('shootsCatches'))
+            df.loc[pids.index, 'shoots_catches'] = df.loc[pids.index, 'shoots_catches'].fillna(handedness)
+            
+            # Map role (Position Code)
+            roles = pids.map(lambda x: bios.get(x, {}).get('positionCode'))
+            # Standardize to F/D
+            roles = roles.map(lambda x: 'D' if x == 'D' else ('F' if x in ['L', 'R', 'C'] else x))
+            df.loc[pids.index, 'shooter_role'] = df.loc[pids.index, 'shooter_role'].fillna(roles)
+
+    # Defaults
     if 'shoots_catches' not in df.columns:
         df['shoots_catches'] = 'Unknown'
     if 'shooter_role' not in df.columns:
          df['shooter_role'] = 'Unknown'
+         
     return df
+
+
 
 def _format_features(df: pd.DataFrame, verbose: bool = False) -> pd.DataFrame:
     """Final formatting and default filling."""

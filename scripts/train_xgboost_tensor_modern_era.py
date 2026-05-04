@@ -12,7 +12,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from puck import fit_xgboost_tensor, config
+from puck import fit_xgboost_tensor, config, analyze
 from scripts.evaluate_predictive_power import DataUtils
 
 def main():
@@ -34,11 +34,14 @@ def main():
     dfs = []
     for s in modern_seasons:
         try:
-            from puck import analyze
             csv_path = analyze.locate_season_csv(s)
-            df_s = pd.read_csv(csv_path)
-            print(f"  [OK] {s}: {len(df_s)} events loaded.")
-            dfs.append(df_s)
+            if csv_path:
+                df_s = pd.read_csv(csv_path, low_memory=False)
+                df_s['season'] = int(s)
+                dfs.append(df_s)
+                print(f"  [OK] {s}: {len(df_s)} events loaded.")
+            else:
+                print(f"  [MISSING] {s}: CSV not found.")
         except Exception as e:
             print(f"  [Error] Failed to load {s}: {e}")
 

@@ -274,3 +274,27 @@ def calculate_distance_and_angle(x: float, y: float, goal_x: float, goal_y: floa
     angle_deg = (-math.degrees(angle_rad_ccw)) % 360.0
     
     return distance, angle_deg
+
+
+def calculate_distance_and_angle_vectorized(x, y, goal_x, goal_y=0.0):
+    """
+    Vectorized version of distance and angle calculation using numpy.
+    """
+    import numpy as np
+    x = np.asarray(x)
+    y = np.asarray(y)
+    goal_x = np.asarray(goal_x)
+    
+    distance = np.sqrt((x - goal_x)**2 + (y - goal_y)**2)
+    vx, vy = x - goal_x, y - goal_y
+    
+    # Orientation for reference vector
+    rx = np.zeros_like(goal_x)
+    ry = np.where(goal_x < 0, 1.0, -1.0)
+    
+    cross = rx * vy - ry * vx
+    dot = rx * vx + ry * vy
+    
+    angle_deg = (-np.degrees(np.arctan2(cross, dot))) % 360.0
+    return distance, angle_deg
+

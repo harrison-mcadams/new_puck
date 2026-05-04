@@ -41,6 +41,8 @@ try:
 except ImportError:
     plt = None
 
+from .verify import verify_df
+
 # --- STANDARD VOCABULARIES ---
 VOCAB_GAME_STATE = [
     '5v5', '5v4', '4v5', '4v4', '6v5', '5v6', '3v3', '5v3', '4v3', 
@@ -161,6 +163,9 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                 if total_prob > 0:
                     priors = {k: v/total_prob for k, v in priors.items()}
                     self.categorical_priors_[col] = priors
+
+        # Run verification prior to fitting
+        verify_df(df, self.features, verify_blocked=True)
 
         # 2. Block Model
         y_block = (df['event'] == 'blocked-shot').astype(int)

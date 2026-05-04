@@ -120,14 +120,17 @@ def enrich_blocks_with_html(api_df: pd.DataFrame, game_id: str) -> pd.DataFrame:
     
     # We need a time column in api_df for matching.
     # Typically 'periodTime_seconds_elapsed'
-    t_col = 'periodTime_seconds_elapsed'
+    t_col = 'time_elapsed_in_period_s'
     if t_col not in api_df.columns:
-        # Fallback to any time-like column
-        time_cols = [c for c in api_df.columns if 'time' in c.lower()]
-        if time_cols:
-            t_col = time_cols[0]
+        if 'periodTime_seconds_elapsed' in api_df.columns:
+            t_col = 'periodTime_seconds_elapsed'
         else:
-            return api_df
+            # Fallback to any time-like column
+            time_cols = [c for c in api_df.columns if 'time' in c.lower()]
+            if time_cols:
+                t_col = time_cols[0]
+            else:
+                return api_df
 
     # Attempt to match
     updated_count = 0

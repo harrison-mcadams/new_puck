@@ -18,23 +18,32 @@ _QUANTILE_MAPPINGS = None
 _GLOBAL_SHOT_PRIOR = None
 
 try:
-    from .rink import calculate_distance_and_angle
+    from .rink import calculate_distance_and_angle, calculate_distance_and_angle_vectorized
 except ImportError:
     # Fallback for scripts running from project root
-    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-    try:
-        from puck.rink import calculate_distance_and_angle
-    except ImportError:
-        # Minimal fallback definition if imports fail
-        def calculate_distance_and_angle(x, y, goal_x, goal_y=0.0):
-            distance = math.hypot(x - goal_x, y - goal_y)
-            vx, vy = x - goal_x, y - goal_y
-            if goal_x < 0: rx, ry = 0.0, 1.0
-            else: rx, ry = 0.0, -1.0
-            cross = rx * vy - ry * vx
-            dot = rx * vx + ry * vy
-            angle_deg = (-math.degrees(math.atan2(cross, dot))) % 360.0
-            return distance, angle_deg
+    def calculate_distance_and_angle(x, y, goal_x, goal_y=0.0):
+        distance = math.hypot(x - goal_x, y - goal_y)
+        vx, vy = x - goal_x, y - goal_y
+        if goal_x < 0: rx, ry = 0.0, 1.0
+        else: rx, ry = 0.0, -1.0
+        cross = rx * vy - ry * vx
+        dot = rx * vx + ry * vy
+        angle_deg = (-math.degrees(math.atan2(cross, dot))) % 360.0
+        return distance, angle_deg
+
+    def calculate_distance_and_angle_vectorized(x, y, goal_x, goal_y=0.0):
+        import numpy as np
+        x, y, goal_x = np.asarray(x), np.asarray(y), np.asarray(goal_x)
+        distance = np.sqrt((x - goal_x)**2 + (y - goal_y)**2)
+        vx, vy = x - goal_x, y - goal_y
+        rx = np.zeros_like(goal_x)
+        ry = np.where(goal_x < 0, 1.0, -1.0)
+        cross = rx * vy - ry * vx
+        dot = rx * vx + ry * vy
+        angle_deg = (-np.degrees(np.arctan2(cross, dot))) % 360.0
+        return distance, angle_deg
+
+
 
 def load_blocked_models():
     global _BLOCKED_SHOT_MODEL_F, _BLOCKED_SHOT_MODEL_D
@@ -318,16 +327,12 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
     if len(idxs) > 0:
         imputed_xs = df_out.loc[idxs, 'imputed_x'].values
         imputed_ys = df_out.loc[idxs, 'imputed_y'].values
-        new_dists, new_angles = [], []
-        for i in range(len(idxs)):
-            d, a = calculate_distance_and_angle(imputed_xs[i], imputed_ys[i], net_x[i], 0)
-            new_dists.append(d)
-            new_angles.append(a)
+        new_dists, new_angles = calculate_distance_and_angle_vectorized(imputed_xs, imputed_ys, net_x)
         df_out.loc[idxs, 'distance'] = new_dists
         df_out.loc[idxs, 'angle_deg'] = new_angles
 
     if '_adj' in x_col: return df_out
-    # (Arena Adj logic follows...)
+    
     col_season = 'season' if 'season' in df_out.columns else ('game_id' if 'game_id' in df_out.columns else None)
     col_team = 'home_team' if 'home_team' in df_out.columns else ('home_abb' if 'home_abb' in df_out.columns else None)
     
@@ -335,23 +340,35 @@ def impute_blocked_shot_origins(df_shots: pd.DataFrame, method: str = 'empirical
         try:
             from .arena_adjustments import adjust_shot
             subset = df_out[mask_blocked]
-            for (season_val, team_val), group in subset.groupby([col_season, col_team]):
-                true_season = f"{str(season_val)[:4]}{int(str(season_val)[:4])+1}" if col_season == 'game_id' else str(season_val)
-                res_adj = group.apply(lambda r: adjust_shot(r['imputed_x'], r['imputed_y'], str(team_val), true_season), axis=1)
-                df_out.loc[group.index, 'imputed_x'] = res_adj.apply(lambda t: t[0])
-                df_out.loc[group.index, 'imputed_y'] = res_adj.apply(lambda t: t[1])
+            # Optimization: Pre-calculate unique (season, team) pairs to avoid redundant lookups
+            unique_groups = subset[[col_season, col_team]].drop_duplicates()
+            
+            for _, row_g in unique_groups.iterrows():
+                s_val = row_g[col_season]
+                t_val = row_g[col_team]
+                
+                # Filter group
+                g_idx = subset[(subset[col_season] == s_val) & (subset[col_team] == t_val)].index
+                if len(g_idx) == 0: continue
+                
+                true_season = f"{str(s_val)[:4]}{int(str(s_val)[:4])+1}" if col_season == 'game_id' else str(s_val)
+                
+                # We still use a loop for adjust_shot because it's complex, 
+                # but we minimize the overhead by processing groups.
+                # However, let's just use vectorized logic for the distance recalculation at the end.
+                res_adj = subset.loc[g_idx].apply(lambda r: adjust_shot(r['imputed_x'], r['imputed_y'], str(t_val), true_season), axis=1)
+                df_out.loc[g_idx, 'imputed_x'] = res_adj.apply(lambda t: t[0])
+                df_out.loc[g_idx, 'imputed_y'] = res_adj.apply(lambda t: t[1])
             
             idxs = df_out[mask_blocked].index
             nx_new = np.where(df_out.loc[idxs, 'imputed_x'] > 0, 89, -89)
             vals_x, vals_y = df_out.loc[idxs, 'imputed_x'].values, df_out.loc[idxs, 'imputed_y'].values
-            dists_adj, angles_adj = [], []
-            for i in range(len(idxs)):
-                d, a = calculate_distance_and_angle(vals_x[i], vals_y[i], nx_new[i], 0)
-                dists_adj.append(d)
-                angles_adj.append(a)
+            
+            dists_adj, angles_adj = calculate_distance_and_angle_vectorized(vals_x, vals_y, nx_new)
             df_out.loc[idxs, 'distance'] = dists_adj
             df_out.loc[idxs, 'angle_deg'] = angles_adj
         except Exception as e:
             warnings.warn(f"Failed to apply arena adjustments during imputation: {e}")
             
     return df_out
+

@@ -36,31 +36,15 @@ SEASONS = [
 ]
 
 def process_game(game_id, feed_json):
-    """Canonical Processing Chain for a single game."""
-    try:
-        # 1. Parse raw feed
-        # (puck.parse._game is now fixed to use API shooter attribution)
-        df_game = parse._game(feed_json)
-        if df_game is None or df_game.empty:
-            return None
-        
-        # 2. HTML Enrichment (Shot types for blocks)
-        df_enriched = html_enrichment.enrich_blocks_with_html(df_game, str(game_id))
-        
-        # 3. Elaboration (Spatial features)
-        # (puck.parse._elaborate calculates distance/angle)
-        df_final = parse._elaborate(df_enriched)
-        
-        return df_final
-    except Exception as e:
-        logger.error(f"Error processing game {game_id}: {e}")
-        return None
+    """Wrapper around Canonical Processing Chain for a single game."""
+    return parse.process_game_cpc(game_id, feed_json)
 
 def regenerate_season(season):
-    logger.info(f"=== Regenerating Season {season} ===")
-    
     season_dir = Path(config.DATA_DIR) / season
-    raw_feeds_path = season_dir / f"{season}_game_feeds.csv"
+    season_dir.mkdir(parents=True, exist_ok=True)
+    
+    old_season_dir = Path(config.BASE_DIR) / 'data_old' / season
+    raw_feeds_path = old_season_dir / f"{season}_game_feeds.csv"
     output_path = season_dir / f"{season}_df.csv"
     
     if not raw_feeds_path.exists():
