@@ -11,9 +11,15 @@
     margin-bottom: 20px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
   }
-  #interactive-shot-plot, #interactive-game-worm {
+  #interactive-shot-plot {
     width: 100%;
-    height: 450px;
+    height: auto;
+    aspect-ratio: 200 / 85;
+    margin-top: -10px;
+  }
+  #interactive-game-worm {
+    width: 100%;
+    height: 350px;
   }
   .plot-mode-toggle {
     margin-bottom: 10px;
@@ -149,7 +155,7 @@
     <div class="card-header">
       <h2>Viz</h2>
     </div>
-    <div class="card-body plot-container" style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
+    <div class="card-body plot-container" style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
       {% if exists %}
       
       <div class="plot-mode-toggle">
@@ -160,7 +166,12 @@
       <!-- Interactive Plots -->
       <div id="interactive-viz" style="width: 100%;">
         <div class="interactive-plot-container">
-          <h4 style="text-align:center; margin: 10px 0;">Interactive Shot Map</h4>
+          <div id="shot-plot-summary" style="text-align: center; color: #000; font-family: sans-serif; margin: 0; height: auto;">
+             <div id="summary-score" style="font-size: 24px; font-weight: bold; margin: 2px 0; color: #000;"></div>
+             <div id="summary-time" style="font-size: 14px; font-weight: bold; color: #000; margin-bottom: 5px;"></div>
+             <div id="summary-xg" style="font-size: 14px; color: #000;"></div>
+             <div id="summary-sa" style="font-size: 14px; color: #000;"></div>
+          </div>
           <div id="interactive-shot-plot"></div>
         </div>
         <div class="interactive-plot-container">
@@ -559,7 +570,7 @@
   async function renderInteractivePlots() {
     console.log("Fetching interactive shot data...");
     try {
-      const response = await fetch('/api/last_shots');
+      const response = await fetch('/api/last_shots?t=' + Date.now());
       const shots = await response.json();
       console.log(`Received ${shots.length} shots for interactive plotting.`);
       
@@ -666,6 +677,94 @@
       return ['shot-on-goal', 'goal', 'missed-shot', 'blocked-shot'].includes(ev);
     });
 
+    // Summary calculation
+    let hGoals = 0, aGoals = 0, hXG = 0, aXG = 0, hAtt = 0, aAtt = 0;
+    let homeAbb = 'Home', awayAbb = 'Away';
+    let maxSeconds = 0;
+    
+    // Find homeId and abbreviations
+    for (const s of shots) {
+      if (s.home_id) {
+        homeId = s.home_id;
+        if (s.home_abb) homeAbb = s.home_abb;
+        if (s.away_abb) awayAbb = s.away_abb;
+        break;
+      }
+    }
+
+    plotShots.forEach(s => {
+      const isHome = String(s.team_id) === String(homeId);
+      const isGoal = (s.event || "").toLowerCase() === 'goal';
+      const xgVal = parseFloat(s.xgs || 0);
+      const sSec = parseFloat(s.total_time_elapsed_s || 0);
+      if (sSec > maxSeconds) maxSeconds = sSec;
+      
+      if (isHome) {
+        if (isGoal) hGoals++;
+        hXG += xgVal;
+        hAtt++;
+      } else {
+        if (isGoal) aGoals++;
+        aXG += xgVal;
+        aAtt++;
+      }
+    });
+
+    const totalGoals = hGoals + aGoals;
+    const totalXG = hXG + aXG;
+    const totalAtt = hAtt + aAtt;
+
+    // Time Formatting
+    const fmtTime = (s) => {
+      const m = Math.floor(s / 60);
+      const sec = Math.floor(s % 60);
+      return `${m}:${sec.toString().padStart(2, '0')}`;
+    };
+    const gameTimeStr = `Game Time: ${fmtTime(maxSeconds)}`;
+    
+    // Player Info
+    const playerSelect = document.getElementById('player_id');
+    const selectedPlayerName = playerSelect ? playerSelect.options[playerSelect.selectedIndex].text : '';
+    const isPlayerFiltered = playerSelect && playerSelect.value !== '';
+    const playerInfoStr = isPlayerFiltered ? ` | ${selectedPlayerName}: ${hAtt + aAtt} Shots` : '';
+
+    // Update HTML Summary
+    const summaryDiv = document.getElementById('shot-plot-summary');
+    if (summaryDiv) {
+      // Game Time Formatting (Time Remaining)
+      let timeStr = "";
+      if (shots.length > 0) {
+        // Find latest event in the FULL dataset
+        const latest = shots.reduce((prev, curr) => 
+          (parseFloat(curr.total_time_elapsed_s || 0) > parseFloat(prev.total_time_elapsed_s || 0)) ? curr : prev, shots[0]);
+        
+        const pNum = latest.period_number || 1;
+        const pSec = parseFloat(latest.time_elapsed_in_period_s || 0);
+        
+        // Hide if complete: 
+        // Goal in OT (pNum > 3) or end of any period >= 3
+        const isOTGoal = (pNum > 3 && (latest.event || '').toLowerCase() === 'goal');
+        const isEndOfPeriod = (pSec >= 1199.9); 
+        const isComplete = (pNum >= 3 && (isOTGoal || isEndOfPeriod));
+        
+        if (!isComplete) {
+          const perLen = 1200; // 20 min
+          let rem = Math.max(0, perLen - pSec);
+          // For OT (pNum 4+), if it's regular season it might be 5 min (300s).
+          // But NHL API often uses 20m periods for playoffs.
+          // Let's check if rem is > 1200, which shouldn't happen.
+          const remM = Math.floor(rem / 60);
+          const remS = Math.floor(rem % 60);
+          timeStr = `Period ${pNum} ${remM}:${remS.toString().padStart(2, '0')}`;
+        }
+      }
+
+      document.getElementById('summary-score').innerHTML = `<span style="margin-right:40px; color:#000;">${homeAbb}</span> <span style="color:#000;"><b>${hGoals} - ${aGoals}</b></span> <span style="margin-left:40px; color:#000;">${awayAbb}</span>`;
+      document.getElementById('summary-time').innerHTML = `<span style="color:#000;">${timeStr}${playerInfoStr}</span>`;
+      document.getElementById('summary-xg').innerHTML = `<span style="color:#000;"><b>${hXG.toFixed(2)}</b> (${totalXG > 0 ? (100*hXG/totalXG).toFixed(1) : 0}%) &nbsp; <b>xG</b> &nbsp; (${totalXG > 0 ? (100*aXG/totalXG).toFixed(1) : 0}%) <b>${aXG.toFixed(2)}</b></span>`;
+      document.getElementById('summary-sa').innerHTML = `<span style="color:#000;"><b>${hAtt}</b> (${totalAtt > 0 ? (100*hAtt/totalAtt).toFixed(1) : 0}%) &nbsp; <b>SA</b> &nbsp; (${totalAtt > 0 ? (100*aAtt/totalAtt).toFixed(1) : 0}%) <b>${aAtt}</b></span>`;
+    }
+
     // Home = Black, Away = Orange
     const groups = {
       'Home Goal': { x: [], y: [], text: [], color: '#000000', marker: 'star', size: 12, name: 'Home Goal' },
@@ -725,8 +824,8 @@
         showgrid: false, zeroline: false, showticklabels: false
       },
       shapes: getRinkShapes(),
-      margin: { l: 0, r: 0, t: 5, b: 60 },
-      legend: { orientation: 'h', y: -0.1 },
+      margin: { l: 0, r: 0, t: 0, b: 0 },
+      legend: { orientation: 'h', y: -0.01 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)'
     };
@@ -809,7 +908,7 @@
     const layout = {
       xaxis: { title: 'Game Time (minutes)', range: [0, 60], dtick: 20 },
       yaxis: { title: 'Cumulative xG', rangemode: 'nonnegative' },
-      margin: { l: 60, r: 20, t: 10, b: 60 },
+      margin: { l: 60, r: 30, t: 40, b: 60 },
       legend: { orientation: 'h', y: -0.1 },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',

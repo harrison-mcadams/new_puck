@@ -295,6 +295,7 @@ def preprocess_features(df_input: pd.DataFrame,
     if 'team_id' in df.columns:
         df = df.sort_values(['game_id', 'period_number', 'total_time_elapsed_s'])
         df['is_rebound'] = 0
+        df['is_rush'] = 0
         df['rebound_source'] = 'none'
         
         # Use groupby team_id and game_id to find previous same-team shots
@@ -348,6 +349,22 @@ def preprocess_features(df_input: pd.DataFrame,
                     if dt > 0.01:
                         df.at[idx, 'speed_from_last_event'] = dist / dt
                     
+                    # --- IS_RUSH RECALCULATION ---
+                    if dt <= 5.0:
+                        # Determine defending zone based on which goal is being attacked
+                        # If attacking Right (dist to 89,0), Defending Zone is X < -25
+                        # If attacking Left (dist to -89,0), Defending Zone is X > 25
+                        # Note: coordinates are already adjusted to be on the attacking half 
+                        # in terms of goal target, but raw X might still be negative if 
+                        # attacking left. 
+                        
+                        # However, in this pipeline, we assume standard orientation for 
+                        # attacking the RIGHT goal (89,0) after preprocess_features.
+                        # So Defending Zone is X < -25.5 (approx)
+                        from .rink import BLUE_LINE_X
+                        if last_x <= BLUE_LINE_X:
+                            df.at[idx, 'is_rush'] = 1
+                    
                     # Angle Change
                     _, last_ang = rink.calculate_distance_and_angle(last_x, last_y, goal_x, 0.0)
                     curr_ang = df.at[idx, 'angle_deg']
@@ -363,10 +380,31 @@ def preprocess_features(df_input: pd.DataFrame,
 
     # 7. Filtering
     if apply_filtering:
+        vprint("  Applying Situational Filtering (Step 7)...")
+        initial_len = len(df)
+        
+        # A. Keep only standard shot events
         shot_events = ['shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
-        df = df[df['event'].isin(shot_events)]
+        if 'event' in df.columns:
+            df = df[df['event'].isin(shot_events)]
+            
+        # B. Remove Empty Net shots
         if 'is_net_empty' in df.columns:
+            # removing rows where is_net_empty == 1
             df = df[df['is_net_empty'] != 1]
+            
+        # C. Remove Shootouts (Period 5+)
+        if 'period_number' in df.columns:
+            df = df[df['period_number'] <= 4]
+        elif 'period' in df.columns:
+            # Fallback if period_number missing
+            df = df[df['period'] <= 4]
+            
+        # D. Remove Extreme Game States (1v0, 0v1)
+        if 'game_state' in df.columns:
+             df = df[~df['game_state'].isin(['1v0', '0v1'])]
+             
+        vprint(f"    Filtered {initial_len - len(df)} rows. Final count: {len(df)}")
 
     # 8. Bio enrichment
     if apply_bio_enrichment:

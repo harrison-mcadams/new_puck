@@ -254,7 +254,7 @@ def main():
                 return evaluateTree(child, featureValues);
             }
         } else {
-            if (val <= node.split_condition) {
+            if (val < node.split_condition) {
                 const child = node.children.find(c => String(c.nodeid) == String(node.yes));
                 return evaluateTree(child, featureValues);
             } else {
@@ -289,6 +289,10 @@ def main():
                 if (baseFeatures[f] === undefined) {
                     baseFeatures[f] = MODEL.numeric_defaults[f] !== undefined ? MODEL.numeric_defaults[f] : 0.0;
                 }
+                
+                // --- HARDENED NUMERIC CASTING ---
+                // Features like is_rush, is_rebound, is_home, score_diff, period_number 
+                // come from <select> as strings. We must ensure they are numeric for the trees.
                 if (baseFeatures[f] !== null && baseFeatures[f] !== undefined && baseFeatures[f] !== 'Marginalized') {
                     if (!MODEL.vocabs[f]) {
                         const num = Number(baseFeatures[f]);
@@ -298,6 +302,10 @@ def main():
                     baseFeatures[f] = null;
                 }
             });
+
+            // Debug first pixel
+            console.log("Scenario Inputs:", inputs);
+            console.log("Processed Base Features:", baseFeatures);
 
             let H = Y_POINTS, W = X_POINTS;
             let Z_block = new Float32Array(H*W), Z_acc = new Float32Array(H*W), Z_fin = new Float32Array(H*W), Z_xg = new Float32Array(H*W);
@@ -315,6 +323,9 @@ def main():
                     
                     features.distance = dist;
                     features.angle_deg = angle_deg;
+                    // Sync raw x,y in case model uses them directly
+                    if (features.x !== undefined) features.x = x_safe;
+                    if (features.y !== undefined) features.y = y_safe;
                     
                     if (MODEL.spline.use && MODEL.spline.basis_lookup) {
                         const basis = MODEL.spline.basis_lookup[idx];

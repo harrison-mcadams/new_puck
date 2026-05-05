@@ -667,6 +667,10 @@ def main():
         
         let scenarios = [{{weight: 1.0, inputs: fixed_inputs}}];
         
+        console.log("Scenario Inputs:", inputs);
+        console.log("Marginalized Scenarios:", scenarios.length);
+        if (scenarios.length > 0) console.log("First Scenario Features:", scenarios[0].inputs);
+        
         for (const key of marg_keys) {{
             let new_scenarios = [];
             let opts = Object.keys(MODEL.priors[key] || {{}});

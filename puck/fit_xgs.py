@@ -485,7 +485,7 @@ def get_clf(out_path: str = None, behavior: str = 'load', *,
     # Resolve default path based on type
     if out_path is None:
         if model_type == 'nested':
-            out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_nested_20202021.joblib')
+            out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor.joblib')
         else:
             out_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_single.joblib')
 

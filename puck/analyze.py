@@ -881,7 +881,7 @@ def _predict_xtg(df: pd.DataFrame, behavior='load'):
 
 def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', csv_path=None, preprocess=True, impute_alpha: float = None, game_id: str = None):
     if model_path is None:
-        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib')
+        model_path = os.path.join(puck_config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor.joblib')
 
     """Load/train classifier if needed and predict xgs for df rows; returns (df_with_xgs, clf, meta).
 

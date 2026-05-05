@@ -99,6 +99,34 @@ def verify_df(df: pd.DataFrame, features: list, verify_blocked: bool = False):
                 std_ang_bl = df_blocked['angle_deg'].std()
                 logger.info(f"  [BLOCK CHECK] Angle Spread (Blocked): mean={mean_ang_bl:.1f}, std={std_ang_bl:.1f}")
 
+    # --- Situational Filtering Verification ---
+    logger.info("  --- Situational Filtering Verification ---")
+    filter_ok = True
+    
+    if 'game_state' in df.columns:
+        extreme_gs = df[df['game_state'].isin(['1v0', '0v1'])]
+        if len(extreme_gs) > 0:
+            logger.warning(f"  [FILTER CHECK] WARNING: {len(extreme_gs)} events found with extreme game state ('1v0' or '0v1'). These should be filtered out!")
+            filter_ok = False
+        else:
+            logger.info("  [FILTER CHECK] Extreme Game States: OK (None found)")
+            
+    if 'period_number' in df.columns:
+        shootout_per = df[df['period_number'] > 4]
+        if len(shootout_per) > 0:
+            logger.warning(f"  [FILTER CHECK] WARNING: {len(shootout_per)} events found in Period > 4 (Shootout). These should be filtered out!")
+            filter_ok = False
+        else:
+            logger.info("  [FILTER CHECK] Shootout Periods: OK (None found)")
+            
+    if 'is_net_empty' in df.columns:
+        empty_net = df[df['is_net_empty'] == 1]
+        if len(empty_net) > 0:
+            logger.warning(f"  [FILTER CHECK] WARNING: {len(empty_net)} events found against an Empty Net. These should be filtered out!")
+            filter_ok = False
+        else:
+            logger.info("  [FILTER CHECK] Empty Net Shots: OK (None found)")
+
     logger.info("=== SUMMARY ===")
     overall_nan_pct = (total_nans / total_cells * 100) if total_cells > 0 else 0
     logger.info(f"Total Missing Values in Features: {total_nans} ({overall_nan_pct:.2f}%)")
@@ -113,5 +141,7 @@ def verify_df(df: pd.DataFrame, features: list, verify_blocked: bool = False):
 
     if missing_features:
         logger.error(f"=== verify_df: FAILED. Missing features: {missing_features} ===")
+    elif not filter_ok:
+        logger.error("=== verify_df: FAILED. Situational filtering violations detected (Shootout/Extreme GS/Empty Net) ===")
     else:
         logger.info("=== verify_df: COMPLETE ===")
