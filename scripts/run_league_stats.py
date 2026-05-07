@@ -137,10 +137,15 @@ def run_league_analysis():
         
         # Files for this condition
         files = [f for f in os.listdir(cache_dir) if f.endswith(f"_{cond}.npz")]
+        
+        # Filter for Game Types: 02 (Regular Season) and 03 (Playoffs)
+        # Filename format: {game_id}_{cond}.npz. Game ID: YYYYGTXXXX where GT is 5th/6th digits.
+        files = sorted([f for f in files if f[4:6] in ['02', '03']])
+        
         if not files:
             continue
             
-        print(f"  Found {len(files)} game files.")
+        print(f"  Found {len(files)} qualifying game files (types 02, 03).")
         
         # Output Dir
         # out_root = os.path.join(config.get_analysis_dir(season), 'league', cond)
@@ -657,7 +662,8 @@ def run_league_analysis():
                 'other_xtgs': s.get('other_xtgs', 0.0),
                 'team_goals': s.get('team_goals', 0),
                 'other_goals': s.get('other_goals', 0),
-                'team_seconds': s.get('team_seconds', 0.0)
+                'team_seconds': s.get('team_seconds', 0.0),
+                'n_games': s.get('n_games', 0)
             })
             
             # 1. Raw Plot (Hybrid)

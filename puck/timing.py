@@ -194,12 +194,46 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: boo
         min_rows_threshold: Minimum number of shifts required to consider API response valid (default 5)
         force_refresh: If True, bypass in-memory cache and force API refresh (default False)
     """
+    # Helper to validate if shifts DataFrame is sufficient (both teams, full game duration)
+    def validate_shifts(df_to_check: pd.DataFrame) -> bool:
+        if df_to_check is None or df_to_check.empty:
+            return False
+        # 1. Must have at least 2 teams (unless it's a very weird game)
+        try:
+            if df_to_check['team_id'].nunique() < 2:
+                return False
+        except Exception: return False
+        # 2. Must have sufficient duration (regular season games are 3600s, allow 3200s cutoff)
+        try:
+            if df_to_check['end_total_seconds'].max() < 3200:
+                return False
+        except Exception: return False
+        # 3. Must have sufficient rows (typical games have 400+, use 150 as a safe floor for fallback)
+        if len(df_to_check) < 150:
+            return False
+        # 4. Check for "Full Roster Shift" bug (many players with shifts > 10 mins)
+        # Goalies have long shifts, but only 2 per game. If > 10 players have > 10 min shifts, it's garbage.
+        try:
+            durations = df_to_check['end_total_seconds'] - df_to_check['start_total_seconds']
+            long_shifts = (durations > 600).sum()
+            if long_shifts > 10:
+                return False
+        except Exception: pass
+        # 5. Check for negative durations
+        try:
+            if (durations < 0).any():
+                return False
+        except Exception: pass
+        return True
+
     # --- In-Memory Cache Check ---
     try:
         if not force_refresh:
             gid_int = int(game_id)
             if gid_int in _SHIFTS_CACHE:
-                return _SHIFTS_CACHE[gid_int].copy()
+                df_cached = _SHIFTS_CACHE[gid_int]
+                if validate_shifts(df_cached):
+                    return df_cached.copy()
     except Exception:
         pass
 
@@ -207,12 +241,9 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: boo
     cache_file = None
     try:
         gid_str = str(game_id)
-        # Derive season: first 4 digits are start year. 
-        # Heuristic: valid game IDs start with year.
         if season is None:
             if len(gid_str) >= 4 and gid_str.isdigit():
                 start_year = int(gid_str[:4])
-                # Basic validation to avoid creating weird directories for bad IDs
                 if 2000 < start_year < 2100:
                     season = f"{start_year}{start_year + 1}"
         
@@ -224,9 +255,12 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: boo
             if cache_file.exists() and not force_refresh:
                 try:
                     df = pd.read_pickle(cache_file)
-                    logging.info(f"Loaded cached shifts for game {game_id} from {cache_file}")
-                    _SHIFTS_CACHE[int(game_id)] = df.copy()
-                    return df
+                    if validate_shifts(df):
+                        logging.info(f"Loaded valid cached shifts for game {game_id} from {cache_file}")
+                        _SHIFTS_CACHE[int(game_id)] = df.copy()
+                        return df
+                    else:
+                        logging.warning(f"Cached shifts for game {game_id} failed validation (truncated/single-team); will re-fetch.")
                 except Exception as e:
                     logging.warning(f"Failed to load cached shifts for {game_id}: {e}")
     except Exception as e:
@@ -398,21 +432,24 @@ def _get_shifts_df(game_id: int, min_rows_threshold: int = 5, force_refresh: boo
     except Exception:
         pass
 
-    # Final check
-    if df_shifts is None or (hasattr(df_shifts, 'empty') and df_shifts.empty):
+    # HARDENING: Filter out Period 5 (Shootouts) for Regular Season games.
+    # In Regular Season, Period 5 is the shootout and shouldn't count for TOI.
+    # Game ID: YYYY 02 XXXX (02 is Regular Season)
+    try:
+        gid_str = str(game_id)
+        if len(gid_str) >= 6 and gid_str[4:6] == '02':
+            df_shifts = df_shifts[df_shifts['period'] < 5]
+    except Exception: pass
+
+    # FINAL VALIDATION: Ensure the result is high-integrity before returning/caching.
+    if not validate_shifts(df_shifts):
+        logging.warning(f"Final shifts for game {game_id} failed validation; returning empty DataFrame.")
         # Cache empty result to avoid re-fetching bad games
         try:
             _SHIFTS_CACHE[int(game_id)] = pd.DataFrame()
-        except: pass
-        
-        # PERSIST EMPTY RESULT TO DISK
-        try:
             if cache_file is not None:
                  pd.DataFrame().to_pickle(cache_file)
-                 logging.info(f"Saved EMPTY shifts cache for game {game_id} to {cache_file}")
-        except Exception as e:
-            logging.warning(f"Failed to save empty shifts cache for {game_id}: {e}")
-            
+        except: pass
         return pd.DataFrame()
 
     # --- Caching Save Start ---
@@ -1443,7 +1480,7 @@ if __name__ == '__main__':
             print(f'Wrote JSON debug output to {args.out}')
         except Exception as e:
             print('Failed to write JSON output:', e)
-def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> list:
+def get_game_intervals_cached(game_id: int, season: str, condition: dict, force_refresh: bool = False) -> list:
     """
     Get intersection intervals for a game, using a shared cache for standard conditions.
     
@@ -1459,6 +1496,7 @@ def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> lis
         game_id: Game ID.
         season: Season string.
         condition: Condition dictionary.
+        force_refresh: If True, bypass and update cache.
         
     Returns:
         List of (start, end) tuples representing the intersection of all conditions.
@@ -1475,12 +1513,7 @@ def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> lis
             if state in ['5v5', '5v4', '4v5']:
                 cache_key = state
                 
-    # 2. If not cacheable, just compute
-    if not cache_key:
-        res = compute_intervals_for_game(game_id, condition, season=season)
-        return res.get('intersection_intervals', [])
-        
-    # 3. Check Cache
+    # 2. Check Cache
     cache_dir = os.path.join('data', season, 'game_intervals')
     os.makedirs(cache_dir, exist_ok=True)
     cache_file = os.path.join(cache_dir, f"{game_id}.json")
@@ -1491,22 +1524,21 @@ def get_game_intervals_cached(game_id: int, season: str, condition: dict) -> lis
             with open(cache_file, 'r') as f:
                 cached_data = json.load(f)
         except Exception: pass
-        
-    if cache_key in cached_data:
+
+    if not force_refresh and cache_key and cache_key in cached_data:
         # Return cached
-        pass # print(f"DEBUG: get_game_intervals_cached HIT {game_id} key={cache_key} len={len(cached_data[cache_key])}", flush=True)
         return cached_data[cache_key]
         
-    # 4. Compute and Cache
-    pass # print(f"DEBUG: get_game_intervals_cached MISS {game_id} key={cache_key} -> Computing", flush=True)
-    res = compute_intervals_for_game(game_id, condition, season=season)
+    # 3. Compute and Cache
+    res = compute_intervals_for_game(game_id, condition, season=season, force_refresh=force_refresh)
     intervals = res.get('intersection_intervals', [])
     
-    # Update cache
-    cached_data[cache_key] = intervals
-    try:
-        with open(cache_file, 'w') as f:
-            json.dump(cached_data, f)
-    except Exception: pass
+    # Update cache if applicable
+    if cache_key:
+        cached_data[cache_key] = intervals
+        try:
+            with open(cache_file, 'w') as f:
+                json.dump(cached_data, f)
+        except Exception: pass
     
     return intervals

@@ -2412,16 +2412,31 @@ def get_shifts_from_nhl_html(game_id, force_refresh: bool = False, debug: bool =
                  mapped_pos = roster_map.get((str(team_code), str(p_num)))
                  if mapped_pos: p_pos = mapped_pos
             
-            pat_combined = re.compile(r'>(\d+)</td>[^<]*<td[^>]*>(\d{1,2}:\d{2})\s*/\s*(\d{1,2}:\d{2})</td>')
-            shifts_combined = list(pat_combined.finditer(block_html))
-            pat_separate = re.compile(r'>(\d+)</td>(?:[^<]*<[^>]+>)*?[^<]*>(\d{1,2}:\d{2})</td>(?:[^<]*<[^>]+>)*?[^<]*>(\d{1,2}:\d{2})</td>')
+            # Updated regex to handle "Elapsed / Remaining" format (e.g. 2:38 / 17:22)
+            # and standard single-time format (e.g. 2:38).
+            # We capture: Shift #, Period, Start (Elapsed), End (Elapsed), Duration.
+            pat_html_shifts = re.compile(
+                r'<td[^>]*>\s*(\d+)\s*</td>'  # Shift #
+                r'\s*<td[^>]*>\s*(\d+)\s*</td>'  # Period
+                r'\s*<td[^>]*>\s*(\d{1,2}:\d{2})(?:\s*/\s*\d{1,2}:\d{2})?\s*</td>'  # Start (Elapsed / Remaining)
+                r'\s*<td[^>]*>\s*(\d{1,2}:\d{2})(?:\s*/\s*\d{1,2}:\d{2})?\s*</td>'  # End (Elapsed / Remaining)
+                r'\s*<td[^>]*>\s*(\d{1,2}:\d{2})\s*</td>', # Duration
+                re.IGNORECASE | re.DOTALL
+            )
             
             current_shifts = []
-            if shifts_combined:
-                for sm in shifts_combined: current_shifts.append((sm.group(1), sm.group(2), sm.group(3)))
-            else:
-                shifts_separate = list(pat_separate.finditer(block_html))
-                for sm in shifts_separate: current_shifts.append((sm.group(1), sm.group(2), sm.group(3)))
+            for sm in pat_html_shifts.finditer(block_html):
+                per_str, start_str, end_str, dur_str = sm.group(2), sm.group(3), sm.group(4), sm.group(5)
+                s_sec = parse_time(start_str)
+                e_sec = parse_time(end_str)
+                d_sec = parse_time(dur_str)
+                if s_sec is not None and e_sec is not None and d_sec is not None:
+                    # VALIDATION 1: In the shift table, Start + Duration = End.
+                    # This reliably filters out summary table rows where this doesn't hold.
+                    if abs((s_sec + d_sec) - e_sec) <= 1:
+                        # VALIDATION 2: Period must be within reasonable bounds (1-6)
+                        if 1 <= int(per_str) <= 6:
+                            current_shifts.append((per_str, start_str, end_str))
             
             for per_str, start_str, end_str in current_shifts:
                 try:
@@ -2441,8 +2456,8 @@ def get_shifts_from_nhl_html(game_id, force_refresh: bool = False, debug: bool =
                             'player_id': pid, 
                             'team_id': team_code,
                             'period': per,
-                            'start_seconds': abs_start,
-                            'end_seconds': abs_end,
+                            'start_seconds': start_sec,
+                            'end_seconds': end_sec,
                             'start_raw': start_str,
                             'end_raw': end_str,
                             'raw': {'position': p_pos, 'source': 'html_fallback', 'side': side_code},

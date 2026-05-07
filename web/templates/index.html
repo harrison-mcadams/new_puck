@@ -5,24 +5,50 @@
 <style>
   .interactive-plot-container {
     width: 100%;
-    background: var(--bg-secondary);
+    background: var(--surface-color);
     border-radius: 8px;
     overflow: hidden;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+  }
+  #plot-summary-header {
+    width: 100%;
+    padding: 15px 10px 5px 10px;
+    text-align: center;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+  .summary-score {
+    font-size: 28px;
+    font-weight: 800;
+    color: var(--text-color);
+    line-height: 1.1;
+  }
+  .summary-stats {
+    font-size: 13px;
+    color: var(--text-secondary);
+    font-weight: 500;
   }
   #interactive-shot-plot {
     width: 100%;
-    height: auto;
-    aspect-ratio: 200 / 85;
-    margin-top: -10px;
+    flex: 0 0 auto;
+    aspect-ratio: 2.35 / 1;
   }
   #interactive-game-worm {
     width: 100%;
-    height: 350px;
+    height: 300px;
   }
   .plot-mode-toggle {
-    margin-bottom: 10px;
+    margin-bottom: 15px;
     display: flex;
     gap: 10px;
     justify-content: center;
@@ -155,7 +181,7 @@
     <div class="card-header">
       <h2>Viz</h2>
     </div>
-    <div class="card-body plot-container" style="display: flex; flex-direction: column; gap: 5px; align-items: center;">
+    <div class="card-body plot-container" style="display: flex; flex-direction: column; gap: 0; align-items: center; padding: 0; min-height: 0;">
       {% if exists %}
       
       <div class="plot-mode-toggle">
@@ -166,12 +192,7 @@
       <!-- Interactive Plots -->
       <div id="interactive-viz" style="width: 100%;">
         <div class="interactive-plot-container">
-          <div id="shot-plot-summary" style="text-align: center; color: #000; font-family: sans-serif; margin: 0; height: auto;">
-             <div id="summary-score" style="font-size: 24px; font-weight: bold; margin: 2px 0; color: #000;"></div>
-             <div id="summary-time" style="font-size: 14px; font-weight: bold; color: #000; margin-bottom: 5px;"></div>
-             <div id="summary-xg" style="font-size: 14px; color: #000;"></div>
-             <div id="summary-sa" style="font-size: 14px; color: #000;"></div>
-          </div>
+          <div id="plot-summary-header"></div>
           <div id="interactive-shot-plot"></div>
         </div>
         <div class="interactive-plot-container">
@@ -728,41 +749,20 @@
     const isPlayerFiltered = playerSelect && playerSelect.value !== '';
     const playerInfoStr = isPlayerFiltered ? ` | ${selectedPlayerName}: ${hAtt + aAtt} Shots` : '';
 
-    // Update HTML Summary
-    const summaryDiv = document.getElementById('shot-plot-summary');
-    if (summaryDiv) {
-      // Game Time Formatting (Time Remaining)
-      let timeStr = "";
-      if (shots.length > 0) {
-        // Find latest event in the FULL dataset
-        const latest = shots.reduce((prev, curr) => 
-          (parseFloat(curr.total_time_elapsed_s || 0) > parseFloat(prev.total_time_elapsed_s || 0)) ? curr : prev, shots[0]);
-        
-        const pNum = latest.period_number || 1;
-        const pSec = parseFloat(latest.time_elapsed_in_period_s || 0);
-        
-        // Hide if complete: 
-        // Goal in OT (pNum > 3) or end of any period >= 3
-        const isOTGoal = (pNum > 3 && (latest.event || '').toLowerCase() === 'goal');
-        const isEndOfPeriod = (pSec >= 1199.9); 
-        const isComplete = (pNum >= 3 && (isOTGoal || isEndOfPeriod));
-        
-        if (!isComplete) {
-          const perLen = 1200; // 20 min
-          let rem = Math.max(0, perLen - pSec);
-          // For OT (pNum 4+), if it's regular season it might be 5 min (300s).
-          // But NHL API often uses 20m periods for playoffs.
-          // Let's check if rem is > 1200, which shouldn't happen.
-          const remM = Math.floor(rem / 60);
-          const remS = Math.floor(rem % 60);
-          timeStr = `Period ${pNum} ${remM}:${remS.toString().padStart(2, '0')}`;
-        }
+    // Game Time Formatting (Time Remaining)
+    let timeStr = "";
+    if (shots.length > 0) {
+      const latest = shots.reduce((prev, curr) => 
+        (parseFloat(curr.total_time_elapsed_s || 0) > parseFloat(prev.total_time_elapsed_s || 0)) ? curr : prev, shots[0]);
+      const pNum = latest.period_number || 1;
+      const pSec = parseFloat(latest.time_elapsed_in_period_s || 0);
+      const isComplete = (pNum >= 3 && pSec >= 1199.9);
+      if (!isComplete) {
+        const rem = Math.max(0, 1200 - pSec);
+        const remM = Math.floor(rem / 60);
+        const remS = Math.floor(rem % 60);
+        timeStr = `Period ${pNum} ${remM}:${remS.toString().padStart(2, '0')}`;
       }
-
-      document.getElementById('summary-score').innerHTML = `<span style="margin-right:40px; color:#000;">${homeAbb}</span> <span style="color:#000;"><b>${hGoals} - ${aGoals}</b></span> <span style="margin-left:40px; color:#000;">${awayAbb}</span>`;
-      document.getElementById('summary-time').innerHTML = `<span style="color:#000;">${timeStr}${playerInfoStr}</span>`;
-      document.getElementById('summary-xg').innerHTML = `<span style="color:#000;"><b>${hXG.toFixed(2)}</b> (${totalXG > 0 ? (100*hXG/totalXG).toFixed(1) : 0}%) &nbsp; <b>xG</b> &nbsp; (${totalXG > 0 ? (100*aXG/totalXG).toFixed(1) : 0}%) <b>${aXG.toFixed(2)}</b></span>`;
-      document.getElementById('summary-sa').innerHTML = `<span style="color:#000;"><b>${hAtt}</b> (${totalAtt > 0 ? (100*hAtt/totalAtt).toFixed(1) : 0}%) &nbsp; <b>SA</b> &nbsp; (${totalAtt > 0 ? (100*aAtt/totalAtt).toFixed(1) : 0}%) <b>${aAtt}</b></span>`;
     }
 
     // Home = Black, Away = Orange
@@ -795,6 +795,19 @@
       groups[key].text.push(hoverText);
     });
 
+    // Render Summary to HTML Header
+    const header = document.getElementById('plot-summary-header');
+    if (header) {
+      header.innerHTML = `
+        <div class="summary-score">${homeAbb} &nbsp; ${hGoals} - ${aGoals} &nbsp; ${awayAbb}</div>
+        <div class="summary-stats">
+          ${timeStr}${playerInfoStr} | 
+          <b>${hXG.toFixed(2)}</b> (${totalXG > 0 ? (100*hXG/totalXG).toFixed(1) : 0}%) xG (${totalXG > 0 ? (100*aXG/totalXG).toFixed(1) : 0}%) <b>${aXG.toFixed(2)}</b> | 
+          <b>${hAtt}</b> (${totalAtt > 0 ? (100*hAtt/totalAtt).toFixed(1) : 0}%) SA (${totalAtt > 0 ? (100*aAtt/totalAtt).toFixed(1) : 0}%) <b>${aAtt}</b>
+        </div>
+      `;
+    }
+
     const data = Object.keys(groups).map(key => ({
       x: groups[key].x,
       y: groups[key].y,
@@ -810,22 +823,37 @@
       }
     }));
 
+    const plotDiv = document.getElementById('interactive-shot-plot');
+    const width = plotDiv.clientWidth;
+    const height = width / 2.35;
+
     const layout = {
+      width: width,
+      height: height,
+      autosize: false,
       hovermode: 'closest',
-      xaxis: { 
-        range: [-100, 100], 
-        fixedrange: true,
-        showgrid: false, zeroline: false, showticklabels: false
-      },
-      yaxis: { 
-        range: [-42.5, 42.5], 
-        scaleanchor: 'x', 
-        fixedrange: true,
-        showgrid: false, zeroline: false, showticklabels: false
-      },
       shapes: getRinkShapes(),
-      margin: { l: 0, r: 0, t: 0, b: 0 },
-      legend: { orientation: 'h', y: -0.01 },
+      margin: { l: 0, r: 0, t: 0, b: 0, pad: 0 },
+      yaxis: {
+        range: [-43.5, 43.5],
+        scaleanchor: 'x',
+        fixedrange: true,
+        showgrid: false, zeroline: false, showticklabels: false,
+        automargin: false
+      },
+      xaxis: {
+        range: [-102.2, 102.2], // 87 * 2.35 = 204.45. / 2 = 102.225
+        fixedrange: true,
+        showgrid: false, zeroline: false, showticklabels: false,
+        automargin: false
+      },
+      legend: { 
+        orientation: 'h', 
+        y: 0.05,
+        x: 0.5,
+        xanchor: 'center',
+        bgcolor: 'rgba(255,255,255,0.7)'
+      },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)'
     };
@@ -908,8 +936,13 @@
     const layout = {
       xaxis: { title: 'Game Time (minutes)', range: [0, 60], dtick: 20 },
       yaxis: { title: 'Cumulative xG', rangemode: 'nonnegative' },
-      margin: { l: 60, r: 30, t: 40, b: 60 },
-      legend: { orientation: 'h', y: -0.1 },
+      margin: { l: 60, r: 30, t: 20, b: 50 },
+      legend: { 
+        orientation: 'h', 
+        y: -0.2,
+        x: 0.5,
+        xanchor: 'center'
+      },
       paper_bgcolor: 'rgba(0,0,0,0)',
       plot_bgcolor: 'rgba(0,0,0,0)',
       hovermode: 'closest'

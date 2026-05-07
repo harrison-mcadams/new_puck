@@ -206,10 +206,14 @@ def run_analysis():
     # Resolve Partial Files
     cache_dir = os.path.join(config.get_cache_dir(season), 'partials')
     print(f"Checking cache dir: {cache_dir}")
-    all_partials = sorted([f for f in os.listdir(cache_dir) if f.endswith(f'_{COND}.npz')]) if os.path.exists(cache_dir) else []
+    all_partials = [f for f in os.listdir(cache_dir) if f.endswith(f"_{COND}.npz")] if os.path.exists(cache_dir) else []
+    
+    # Filter for Game Types: 02 (Regular Season) and 03 (Playoffs)
+    # Filename format: {game_id}_{cond}.npz. Game ID: YYYYGTXXXX where GT is 5th/6th digits.
+    all_partials = sorted([f for f in all_partials if f[4:6] in ['02', '03']])
     
     if not all_partials:
-        print(f"Warning: No partial files found for {COND} in {cache_dir}")
+        print(f"Warning: No qualifying partial files found for {COND} in {cache_dir}")
     
     # Map GameID -> Path
     # filename format: {game_id}_{cond}.npz

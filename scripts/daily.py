@@ -19,6 +19,7 @@ import subprocess
 import argparse
 import pandas as pd
 import gc
+import logging
 
 # Add project root to sys.path to allow importing puck package
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -28,12 +29,16 @@ from puck import timing
 from puck import analyze
 from puck import config
 from puck import data_pipeline
+from puck import playoffs
 
 # Scripts in the same directory
 import run_player_analysis
 import run_league_stats
 
 def main():
+    # Setup Logging to show verify_df output
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    
     parser = argparse.ArgumentParser(description="Daily NHL Analysis Update")
     parser.add_argument('--season', type=str, default='20252026', help='Season string (e.g., 20252026)')
     parser.add_argument('--force', action='store_true', help='Force full re-download/re-calc')
@@ -55,14 +60,23 @@ def main():
     if args.skip_fetch:
         print("Skipping data fetch as requested.")
         csv_path = os.path.join(config.DATA_DIR, f"{target_season}.csv")
+        # Also check Gold Standard path
+        alt_path = os.path.join(config.DATA_DIR, target_season, f"{target_season}_df.csv")
+        
+        load_path = None
         if os.path.exists(csv_path):
+            load_path = csv_path
+        elif os.path.exists(alt_path):
+            load_path = alt_path
+            
+        if load_path:
             try:
-                df_season = pd.read_csv(csv_path)
-                print(f"Loaded existing data from {csv_path}. Shape: {df_season.shape}")
+                df_season = pd.read_csv(load_path)
+                print(f"Loaded existing data from {load_path}. Shape: {df_season.shape}")
             except Exception as e:
                 print(f"Failed to load existing CSV: {e}")
         else:
-             print(f"Error: {csv_path} not found.")
+             print(f"Error: {csv_path} or {alt_path} not found.")
     if df_season.empty:
         # Standard Update Path
         # If force is true, clear the nhl_api cache to ensure fresh schedule
@@ -100,7 +114,8 @@ def main():
         # In Turbo mode, we increase workers for fetching
         fetch_workers = 16 if args.turbo else 4
         
-        game_types = ['03'] if args.playoffs else ['02']
+        # Fetch regular season ('02') and playoffs ('03') if in playoff mode
+        game_types = ['02', '03'] if args.playoffs else ['02']
         
         df_season = parse._season(
             season=season, 
@@ -130,12 +145,7 @@ def main():
     print(f"Season data updated. Total games: {len(df_season['game_id'].unique()) if not df_season.empty else 0}")
     
     # 1b. Update Teams List (Ensure analysis/teams.json is fresh)
-    if not args.skip_fetch:
-        print("Updating teams list...")
-        try:
-            subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'generate_teams.py')], check=False)
-        except Exception as e:
-            print(f"Warning: generate_teams.py failed: {e}")
+    # Note: generate_teams.py is deprecated/missing, skipping.
             
     if df_season.empty:
         print("No data found. Exiting.")
@@ -189,7 +199,7 @@ def main():
         
         # Run
         Parallel(n_jobs=-1, verbose=1)(
-            delayed(timing.get_game_intervals_cached)(gid, target_season, c) for gid, _, c in tasks
+            delayed(timing.get_game_intervals_cached)(gid, target_season, c, force_refresh=args.force) for gid, _, c in tasks
         )
         print("Interval cache updated (Parallel).")
         
@@ -198,7 +208,7 @@ def main():
         count = 0
         for game_id in game_ids:
             for cond in conditions_to_cache:
-                timing.get_game_intervals_cached(game_id, target_season, cond)
+                timing.get_game_intervals_cached(game_id, target_season, cond, force_refresh=args.force)
             count += 1
             if count % 50 == 0:
                 print(f"Processed intervals for {count}/{len(game_ids)} games...")
@@ -345,6 +355,14 @@ def main():
             subprocess.run([sys.executable, plot_mixed_script], check=True)
         except Exception as e:
             print(f"Warning: Failed to generate mixed effects summaries: {e}")
+
+    # 6. Playoff Plots
+    if args.playoffs:
+        print("\n[6/6] Generating Playoff Plots...")
+        try:
+            playoffs.generate_playoff_plots(season=season, force=args.force)
+        except Exception as e:
+            print(f"Warning: Playoff plotting failed: {e}")
 
     print("\n--- Daily Update Complete ---")
 

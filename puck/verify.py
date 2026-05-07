@@ -3,12 +3,16 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def verify_df(df: pd.DataFrame, features: list, verify_blocked: bool = False):
+def verify_df(df: pd.DataFrame, features: list, verify_blocked: bool = False, mode: str = 'train'):
     """
-    Evaluates the dataframe prior to model fitting.
+    Evaluates the dataframe prior to model fitting or inference.
     Checks every feature for sensible values, missing data, and logs the results.
+    
+    Args:
+        mode: 'train' or 'inference'. In 'inference' mode, situational filtering 
+              violations are logged as warnings but do not trigger a FAILED status.
     """
-    logger.info("=== verify_df: Checking Data Quality Before Model Fit ===")
+    logger.info(f"=== verify_df: Checking Data Quality ({mode.upper()}) ===")
     logger.info(f"DataFrame shape: {df.shape}")
     logger.info(f"Features count: {len(features)}")
     
@@ -141,7 +145,9 @@ def verify_df(df: pd.DataFrame, features: list, verify_blocked: bool = False):
 
     if missing_features:
         logger.error(f"=== verify_df: FAILED. Missing features: {missing_features} ===")
-    elif not filter_ok:
+    elif not filter_ok and mode == 'train':
         logger.error("=== verify_df: FAILED. Situational filtering violations detected (Shootout/Extreme GS/Empty Net) ===")
+    elif not filter_ok:
+        logger.warning("=== verify_df: COMPLETE (with situational filtering warnings) ===")
     else:
         logger.info("=== verify_df: COMPLETE ===")

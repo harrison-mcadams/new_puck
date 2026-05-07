@@ -95,7 +95,8 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                  use_calibration: bool = False,
                  layer_params: Optional[Dict[str, Any]] = None,
                  use_splines: bool = True,
-                 predict_mode: str = 'nested'):
+                 predict_mode: str = 'nested',
+                 enable_verification: bool = True):
         
         # Defensive copy to prevent bleeding from other model's modifications to the global feature set
         base_feats = features.copy() if features else feature_util.get_features('all_inclusive').copy()
@@ -115,6 +116,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         self.spline_transformer_ = None
         self.spline_feature_names_ = []
         self.predict_mode = predict_mode
+        self.enable_verification = enable_verification
         
         # Sub-models
         
@@ -362,11 +364,11 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
     def predict_proba(self, X: pd.DataFrame) -> np.ndarray:
         df = self._prepare_inference_df(X)
         
-        # [DIAGNOSTIC] Check coordinate bounds during inference to detect orientation issues
-        if 'x' in df.columns and len(df) > 0:
-            x_min, x_max = df['x'].min(), df['x'].max()
-            if abs(x_min) > 200 or abs(x_max) > 200:
-                logger.warning(f"  [INFERENCE WARNING] Extreme X coordinates detected: [{x_min:.1f}, {x_max:.1f}]")
+        # [DIAGNOSTIC] Deep Verification (Core Model Logic)
+        if self.enable_verification:
+            # We use verify_blocked=True to ensure blocks have sensible distance/orientation
+            verify_df(df, self.features, verify_blocked=True, mode='inference')
+
         if self.model_block is None:
             raise NotFittedError("Model not fitted.")
             

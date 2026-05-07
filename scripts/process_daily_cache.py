@@ -49,7 +49,7 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
             return True
 
         # Load Shifts
-        df_shifts = timing._get_shifts_df(int(game_id), season=season)
+        df_shifts = timing._get_shifts_df(int(game_id), season=season, force_refresh=force)
         if df_shifts.empty:
             np.savez_compressed(out_path, processed=True, empty=True)
             return True
@@ -84,8 +84,8 @@ def process_game(game_id, df_game, season, condition, partials_dir, condition_na
         global_cond_home = condition
         global_cond_away = flip_condition(condition)
         
-        intervals_home = timing.get_game_intervals_cached(game_id, season, global_cond_home)
-        intervals_away = timing.get_game_intervals_cached(game_id, season, global_cond_away)
+        intervals_home = timing.get_game_intervals_cached(game_id, season, global_cond_home, force_refresh=force)
+        intervals_away = timing.get_game_intervals_cached(game_id, season, global_cond_away, force_refresh=force)
 
         # Optimization: If both empty, skip game
         if not intervals_home and not intervals_away:
