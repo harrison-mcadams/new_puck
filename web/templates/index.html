@@ -17,7 +17,7 @@
   }
   #plot-summary-header {
     width: 100%;
-    padding: 15px 10px 5px 10px;
+    padding: 12px 10px 8px 10px;
     text-align: center;
     background: white;
     border-bottom: 1px solid var(--border-color);
@@ -25,7 +25,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 2px;
+    gap: 4px;
   }
   .summary-score {
     font-size: 28px;
@@ -45,7 +45,19 @@
   }
   #interactive-game-worm {
     width: 100%;
-    height: 300px;
+    flex: 0 0 auto;
+  }
+  .worm-header {
+    width: 100%;
+    padding: 10px;
+    text-align: center;
+    background: white;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
   }
   .plot-mode-toggle {
     margin-bottom: 15px;
@@ -196,7 +208,7 @@
           <div id="interactive-shot-plot"></div>
         </div>
         <div class="interactive-plot-container">
-          <h4 style="text-align:center; margin: 10px 0;">Expected Goals Worm</h4>
+          <div class="worm-header">Expected Goals Worm</div>
           <div id="interactive-game-worm"></div>
         </div>
       </div>
@@ -798,12 +810,16 @@
     // Render Summary to HTML Header
     const header = document.getElementById('plot-summary-header');
     if (header) {
+      const hXG60 = maxSeconds > 0 ? (hXG / (maxSeconds / 3600)) : 0;
+      const aXG60 = maxSeconds > 0 ? (aXG / (maxSeconds / 3600)) : 0;
+      
       header.innerHTML = `
         <div class="summary-score">${homeAbb} &nbsp; ${hGoals} - ${aGoals} &nbsp; ${awayAbb}</div>
         <div class="summary-stats">
-          ${timeStr}${playerInfoStr} | 
-          <b>${hXG.toFixed(2)}</b> (${totalXG > 0 ? (100*hXG/totalXG).toFixed(1) : 0}%) xG (${totalXG > 0 ? (100*aXG/totalXG).toFixed(1) : 0}%) <b>${aXG.toFixed(2)}</b> | 
-          <b>${hAtt}</b> (${totalAtt > 0 ? (100*hAtt/totalAtt).toFixed(1) : 0}%) SA (${totalAtt > 0 ? (100*aAtt/totalAtt).toFixed(1) : 0}%) <b>${aAtt}</b>
+          <div style="margin-bottom: 2px;">${timeStr}${playerInfoStr}</div>
+          <div><b>${hXG.toFixed(2)}</b> (${totalXG > 0 ? (100*hXG/totalXG).toFixed(1) : 0}%) xG (${totalXG > 0 ? (100*aXG/totalXG).toFixed(1) : 0}%) <b>${aXG.toFixed(2)}</b></div>
+          <div><b>${hXG60.toFixed(2)}</b> xG/60 <b>${aXG60.toFixed(2)}</b></div>
+          <div style="margin-top: 2px;"><b>${hAtt}</b> (${totalAtt > 0 ? (100*hAtt/totalAtt).toFixed(1) : 0}%) SA (${totalAtt > 0 ? (100*aAtt/totalAtt).toFixed(1) : 0}%) <b>${aAtt}</b></div>
         </div>
       `;
     }
@@ -933,13 +949,20 @@
 
     const data = [homeTrace, awayTrace];
 
+    const plotDiv = document.getElementById('interactive-game-worm');
+    const width = plotDiv.clientWidth;
+    const height = 300; // Fixed height for worm is usually fine, but we'll set it explicitly
+
     const layout = {
+      width: width,
+      height: height,
+      autosize: false,
       xaxis: { title: 'Game Time (minutes)', range: [0, 60], dtick: 20 },
       yaxis: { title: 'Cumulative xG', rangemode: 'nonnegative' },
       margin: { l: 60, r: 30, t: 20, b: 50 },
       legend: { 
         orientation: 'h', 
-        y: -0.2,
+        y: -0.25,
         x: 0.5,
         xanchor: 'center'
       },
