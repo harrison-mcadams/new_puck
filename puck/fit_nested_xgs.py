@@ -606,7 +606,7 @@ def preprocess_features(df: pd.DataFrame) -> pd.DataFrame:
     if 'game_id' in df.columns:
         df['game_id_str'] = df['game_id'].astype(str)
         # Game IDs are YYYYTTNNNN, where TT=02 is regular season.
-        mask_regular = (df['game_id_str'].str.len() >= 6) & (df['game_id_str'].str[4:6] == '02')
+        mask_regular = (df['game_id_str'].str.len() >= 6) & (df['game_id_str'].str[4:6].isin(['02', '03']))
         if not mask_regular.all():
             logger.info(f"Filtering {len(df) - mask_regular.sum()} events from non-regular season games.")
             df = df[mask_regular].copy()

@@ -58,13 +58,14 @@ def parse_html_pbp(html_text: str) -> List[Dict[str, Any]]:
         shot_type = "Unknown"
         
         # 1. Blocked shot pattern
-        # Handles: "...BLOCKED BY SMITH, Wrist, Def. Zone"
-        block_match = re.search(r'BLOCKED BY .*?,\s*([a-zA-Z\s\-]+),\s*(?:Off\.|Def\.|Neu\.)', description, re.IGNORECASE)
+        # Handles: "...BLOCKED BY SMITH, Wrist, Def. Zone" or "...BLOCKED BY SMITH, Wrist"
+        block_match = re.search(r'BLOCKED BY .*?,\s*([a-zA-Z\s\-]+)(?:,|$)', description, re.IGNORECASE)
         if block_match:
             shot_type = block_match.group(1).strip()
         else:
             # 2. General shot pattern: Event - ShotType
-            gen_match = re.search(r'-\s*([a-zA-Z\s\-]+),\s*(?:Off\.|Def\.|Neu\.)', description)
+            # Handles: "Shot - Wrist, Off. Zone" or "Shot - Wrist"
+            gen_match = re.search(r'-\s*([a-zA-Z\s\-]+)(?:,|$)', description)
             if gen_match:
                 shot_type = gen_match.group(1).strip()
             else:

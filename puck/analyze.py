@@ -1010,7 +1010,6 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
         
     # Treat GLM same as XGBoost for data flow (bypass legacy RF cleaning)
     is_xgboost = (type(clf).__name__ in ['XGBNestedXGClassifier', 'NestedGLM', 'XGBTensorXGClassifier'])
-    # print(f"DEBUG: is_nested={is_nested}, is_xgboost={is_xgboost}")
 
     if is_nested:
        
@@ -1114,7 +1113,11 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             # Map back updated features (distance, angle, imputed coords, raw coords, and flipped orientation)
             # This ensures that the returned DF matches the features used for prediction
             # and passes consistency verification against the training pipeline.
-            cols_to_update = ['distance', 'angle_deg', 'imputed_x', 'imputed_y', 'x_adj', 'y_adj', 'x', 'y', 'home_team_defending_side']
+            cols_to_update = [
+                'distance', 'angle_deg', 'imputed_x', 'imputed_y', 'x_adj', 'y_adj', 'x', 'y', 
+                'home_team_defending_side', 'shot_type', 'shoots_catches', 'shooter_role', 
+                'is_rebound', 'is_rush', 'relative_game_state', 'is_home'
+            ]
             for col in cols_to_update:
                 if col in df_imputed.columns:
                     # Only update if the column exists in the processed result
@@ -2535,11 +2538,17 @@ def xgs_map(season: Optional[str] = '20252026', *,
                     ev_df = _parse._game(feed)
                     if ev_df is not None and not ev_df.empty:
                         try:
-                            df_game = _parse._elaborate(ev_df)
-                        except Exception:
+                            # 1. HTML Enrichment for Blocked Shots (requires game_id)
+                            from . import html_enrichment
+                            df_enriched = html_enrichment.enrich_blocks_with_html(ev_df, str(game_id))
+                            
+                            # 2. Elaboration (calculate distance, angle, etc.)
+                            df_game = _parse._elaborate(df_enriched)
+                        except Exception as e:
+                            print(f"xgs_map: elaboration failed for live feed: {e}", flush=True)
                             df_game = ev_df.copy()
                         df_all = df_game.copy()
-                        print(f"xgs_map: loaded {len(df_all)} event rows for game {game_id}", flush=True)
+                        print(f"xgs_map: loaded {len(df_all)} enriched event rows for game {game_id}", flush=True)
                     else:
                         print(f"xgs_map: parsed feed but got empty events for game {game_id}", flush=True)
                 except Exception as e:
@@ -3096,7 +3105,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
                 team_for_heatmap=team_val,
                 summary_stats=summary_stats,
                 title=title,
-                events_to_plot=['shot-on-goal', 'goal', 'xGs'],
+                events_to_plot=['shot-on-goal', 'goal', 'xgs'],
                 total_seconds=total_seconds,
             )
             if len(ret) >= 3:
@@ -3126,7 +3135,7 @@ def xgs_map(season: Optional[str] = '20252026', *,
             summary_stats=summary_stats,
             title=title,
             events_to_plot=['shot-on-goal', 'goal',
-                            'xGs'],
+                            'xgs'],
         )
         # Fix for tuple index out of range
         # Ensure the `ret` object has enough elements before unpacking

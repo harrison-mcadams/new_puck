@@ -603,17 +603,12 @@
   async function renderInteractivePlots() {
     console.log("Fetching interactive shot data...");
     try {
-      const response = await fetch('/api/last_shots?t=' + Date.now());
-      const shots = await response.json();
-      console.log(`Received ${shots.length} shots for interactive plotting.`);
-      
-      if (!shots || shots.length === 0) {
-        console.warn("No shot data available for interactive plot.");
-        document.getElementById('interactive-shot-plot').innerHTML = '<div style="padding:20px; text-align:center;">No interactive data available for this game.</div>';
-        return;
-      }
-
-      renderShotPlot(shots);
+      const [shots, heatmaps] = await Promise.all([
+        fetch('/api/last_shots?t=' + Date.now()).then(r => r.json()),
+        fetch('/api/last_heatmaps?t=' + Date.now()).then(r => r.json())
+      ]);
+      console.log(`Received ${shots.length} shots and ${Object.keys(heatmaps).length} heatmaps for interactive plotting.`);
+      renderShotPlot(shots, heatmaps);
       renderGameWorm(shots);
     } catch (err) {
       console.error("Failed to render interactive plots:", err);
@@ -691,7 +686,7 @@
     return shapes;
   }
 
-  function renderShotPlot(shots) {
+  function renderShotPlot(shots, heatmaps = {}) {
     const container = document.getElementById('interactive-shot-plot');
     if (!container) return;
 
@@ -798,8 +793,14 @@
       const xG = s.xgs ? s.xgs.toFixed(3) : '0.000';
       const dist = s.distance ? s.distance.toFixed(1) : 'N/A';
       
-      let hoverText = `<b>${s.player_name || 'Unknown'}</b> (${isHome ? 'Home' : 'Away'})<br>` +
-                      `Event: ${s.event}<br>` +
+      const hand = s.shoots_catches ? ` (${s.shoots_catches})` : '';
+      const role = s.shooter_role ? ` - ${s.shooter_role}` : '';
+      const sit = s.relative_game_state ? ` [${s.relative_game_state}]` : '';
+      const rush = s.is_rush ? ' (Rush)' : '';
+      const reb = s.is_rebound ? ' (Rebound)' : '';
+      
+      let hoverText = `<b>${s.player_name || 'Unknown'}</b>${hand}${role} (${isHome ? 'Home' : 'Away'})<br>` +
+                      `Event: ${s.event}${rush}${reb}${sit}<br>` +
                       `xG: ${xG}<br>` +
                       `Distance: ${dist} ft<br>` +
                       `Type: ${s.shot_type || 'Unknown'}`;
@@ -824,20 +825,54 @@
       `;
     }
 
-    const data = Object.keys(groups).map(key => ({
-      x: groups[key].x,
-      y: groups[key].y,
-      text: groups[key].text,
-      mode: 'markers',
-      name: groups[key].name,
-      hoverinfo: 'text',
-      marker: {
-        color: groups[key].color,
-        symbol: groups[key].marker,
-        size: groups[key].size,
-        line: { color: 'white', width: 1 }
-      }
-    }));
+    const gx = []; for (let x = -100; x <= 100; x += 1.0) gx.push(x);
+    const gy = []; for (let y = -42.5; y <= 42.5; y += 1.0) gy.push(y);
+
+    const data = [];
+
+    // Add Heatmap Traces
+    const hHeat = heatmaps.home || heatmaps.team;
+    if (hHeat && hHeat.length > 0) {
+      data.push({
+        z: hHeat, x: gx, y: gy,
+        type: 'contour', showscale: false,
+        contours: { coloring: 'heatmap', showlines: false },
+        ncontours: 30,
+        colorscale: [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.3)']],
+        line: { width: 0 }, hoverinfo: 'skip', zmin: 0,
+        zmax: 0.05 // Cap at 0.05 for visibility
+      });
+    }
+    const aHeat = heatmaps.away || heatmaps.other;
+    if (aHeat && aHeat.length > 0) {
+      data.push({
+        z: aHeat, x: gx, y: gy,
+        type: 'contour', showscale: false,
+        contours: { coloring: 'heatmap', showlines: false },
+        ncontours: 30,
+        colorscale: [[0, 'rgba(247,73,2,0)'], [1, 'rgba(247,73,2,0.3)']],
+        line: { width: 0 }, hoverinfo: 'skip', zmin: 0,
+        zmax: 0.05
+      });
+    }
+
+    // Add Shot Markers
+    Object.keys(groups).forEach(key => {
+      data.push({
+        x: groups[key].x,
+        y: groups[key].y,
+        text: groups[key].text,
+        mode: 'markers',
+        name: groups[key].name,
+        hoverinfo: 'text',
+        marker: {
+          color: groups[key].color,
+          symbol: groups[key].marker,
+          size: groups[key].size,
+          line: { color: 'white', width: 1 }
+        }
+      });
+    });
 
     const plotDiv = document.getElementById('interactive-shot-plot');
     const width = plotDiv.clientWidth;

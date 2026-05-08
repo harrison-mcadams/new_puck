@@ -20,11 +20,15 @@ import pandas as pd
 import logging
 import subprocess
 import sys
+import numpy as np
+import json
 import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 logger = logging.getLogger(__name__)
+_LAST_GAME_SHOTS = None
+_LAST_GAME_HEATMAPS = None
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO)
 
@@ -211,7 +215,7 @@ def replot():
             out_path=out_path,
             show=False,
             # Ensure we don't try to open a window
-            return_heatmaps=False,
+            return_heatmaps=True,
             # Default behavior: show only shots on goal and goals, plus the xG heatmap
             events_to_plot=['shot-on-goal', 'goal', 'xgs'],
             return_filtered_df=True,
@@ -221,12 +225,26 @@ def replot():
         # Explicitly close the figure to prevent memory leaks and plot stacking
         # in the persistent web server process.
         # xgs_map returns (out_path, heatmaps, df, summary_stats)
-        # It closes the figure internally now (via my fix in analyze.py), so we don't strictly need to here,
-        # but the return signature is different from what I thought earlier.
-        # Earlier I thought it returned (fig, ax).
-        # But analyze.py returns (out_path, ret_heat, ret_df, summary_stats).
-        # So ret[0] is out_path. plt.close(ret[0]) would be wrong.
-        # Since I fixed analyze.py to close the figure, I can remove the plt.close logic here or just call plt.close('all').
+        heatmaps = ret[1] if isinstance(ret, tuple) and len(ret) >= 2 else None
+        
+        # Convert heatmaps (numpy arrays) to lists for JSON serialization
+        global _LAST_GAME_HEATMAPS
+        _LAST_GAME_HEATMAPS = {}
+        if heatmaps:
+            for k, v in heatmaps.items():
+                if v is not None:
+                    # Replace NaN with 0 for JSON serialization
+                    v_clean = np.nan_to_num(v, nan=0.0)
+                    _LAST_GAME_HEATMAPS[k] = v_clean.tolist()
+        
+        # Save heatmaps to file
+        if _LAST_GAME_HEATMAPS:
+            try:
+                with open(os.path.join(ANALYSIS_DIR, "last_heatmaps.json"), 'w') as f:
+                    json.dump(_LAST_GAME_HEATMAPS, f)
+            except Exception as e:
+                logger.error(f"Failed to save heatmaps JSON: {e}")
+
         plt.close('all')
 
         # Extract metadata from returned DataFrame (ret[2])
@@ -243,7 +261,7 @@ def replot():
 
             if df is not None and not df.empty:
                 # Defensive cleaning: ensure coordinates and xG are numeric and have no NaNs
-                for col in ['x_adj', 'y_adj', 'xgs', 'distance', 'angle_deg']:
+                for col in ['x_adj', 'y_adj', 'xgs', 'distance', 'angle_deg', 'prob_block', 'prob_accuracy', 'prob_finish', 'is_rush', 'is_rebound']:
                     if col in df.columns:
                         df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
                         
@@ -322,22 +340,53 @@ def api_last_shots():
                 logger.error(f"Failed to load shots JSON: {e}")
     
     if shots:
-        # Debug Summary
+        # Debug Summary: Track enrichment success
         event_counts = {}
+        shot_type_counts = {}
+        has_handedness = 0
         for s in shots:
             ev = s.get('event', 'unknown')
+            st = s.get('shot_type', 'Unknown')
             event_counts[ev] = event_counts.get(ev, 0) + 1
+            shot_type_counts[st] = shot_type_counts.get(st, 0) + 1
+            if s.get('shoots_catches'):
+                has_handedness += 1
         
         has_coords = all('x_adj' in s and 'y_adj' in s for s in shots[:10])
-        logger.info(f"Serving {len(shots)} shots. Event summary: {event_counts}. Coords present in samples: {has_coords}")
+        logger.info(f"Serving {len(shots)} shots. Events: {event_counts}")
+        logger.info(f"Shot Types: {shot_type_counts}")
+        logger.info(f"Handedness present in {has_handedness}/{len(shots)} records. Coords: {has_coords}")
+        
         if len(shots) > 0:
             sample = shots[0]
-            logger.info(f"Sample record keys: {list(sample.keys())}")
-            logger.info(f"Sample coords: x_adj={sample.get('x_adj')}, y_adj={sample.get('y_adj')}, x_a={sample.get('x_a')}")
+            logger.info(f"Sample keys: {list(sample.keys())}")
     else:
         logger.warning("Serving EMPTY shot list.")
             
     return jsonify(shots)
+    
+
+@app.route("/api/last_heatmaps")
+def api_last_heatmaps():
+    """Return the heatmaps from the last generated game as JSON."""
+    global _LAST_GAME_HEATMAPS
+    
+    heatmaps = {}
+    # Try memory cache first
+    if _LAST_GAME_HEATMAPS is not None:
+        heatmaps = _LAST_GAME_HEATMAPS
+    else:
+        # Fallback to file
+        json_path = os.path.join(ANALYSIS_DIR, "last_heatmaps.json")
+        if os.path.exists(json_path):
+            try:
+                with open(json_path, 'r') as f:
+                    heatmaps = json.load(f)
+                _LAST_GAME_HEATMAPS = heatmaps
+            except Exception as e:
+                logger.error(f"Failed to load heatmaps JSON: {e}")
+    
+    return jsonify(heatmaps)
 
 
 @app.route("/api/log_error", methods=['POST'])

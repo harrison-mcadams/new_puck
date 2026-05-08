@@ -25,7 +25,6 @@ import json
 import sys
 import time
 import os
-print("DEBUG: LOADED PUCK.FIT_XGS modification check")
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any, Tuple
@@ -661,7 +660,7 @@ def clean_df_for_model(df: pd.DataFrame, feature_cols, fixed_categorical_levels:
         df['game_id_str'] = df['game_id'].astype(str)
         # Handle cases where game_id might be malformed or too short
         mask_regular = df['game_id_str'].str.len() >= 6
-        mask_regular &= df['game_id_str'].str[4:6] == '02'
+        mask_regular &= df['game_id_str'].str[4:6].isin(['02', '03'])
         if not mask_regular.all():
             # print(f"clean_df_for_model: Filtering {len(df) - mask_regular.sum()} events from non-regular season games.")
             df = df[mask_regular].copy()
