@@ -65,7 +65,8 @@ CATEGORICAL_VOCABS = {
     'last_event_type': [
         'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty', 'stoppage', 'period-start', 'period-end'
     ],
-    'rebound_source': ['none', 'shot-on-goal', 'missed-shot', 'blocked-shot', 'goal']
+    'rebound_source': ['none', 'shot-on-goal', 'missed-shot', 'blocked-shot', 'goal'],
+    'season': [int(f"{y}{y+1}") for y in range(2009, 2026)]
 }
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
     
     def __init__(self, 
                  features: Optional[List[str]] = None,
-                 n_estimators: int = 2000,
+                 n_estimators: int = 3000,
                  max_depth: int = 6,
                  learning_rate: float = 0.05,
                  random_state: int = 42,
@@ -365,7 +366,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         df = self._prepare_inference_df(X)
         
         # [DIAGNOSTIC] Deep Verification (Core Model Logic)
-        if self.enable_verification:
+        if getattr(self, 'enable_verification', True):
             # We use verify_blocked=True to ensure blocks have sensible distance/orientation
             verify_df(df, self.features, verify_blocked=True, mode='inference')
 
@@ -459,22 +460,24 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
     def _prepare_inference_df(self, df: pd.DataFrame) -> pd.DataFrame:
         df = df.copy()
         
-        if self.use_splines and self.spline_transformer_:
+        use_splines = getattr(self, 'use_splines', True)
+        if use_splines and getattr(self, 'spline_transformer_', None):
             coords = df[['x', 'y']].astype(float).fillna(0)
             basis = self.spline_transformer_.transform(coords)
             df_basis = pd.DataFrame(basis, columns=self.spline_feature_names_, index=df.index)
             df = pd.concat([df, df_basis], axis=1)
             
-        for col, dt in self.feature_dtypes.items():
+        feature_dtypes = getattr(self, 'feature_dtypes', {})
+        for col, dt in feature_dtypes.items():
             if col not in df.columns:
                 df[col] = np.nan
+            
             if isinstance(dt, pd.CategoricalDtype):
                 df[col] = pd.Categorical(df[col], categories=dt.categories)
-            elif col in CATEGORICAL_VOCABS:
-                 df[col] = pd.Categorical(df[col], categories=CATEGORICAL_VOCABS[col])
             else:
+                # If it's not categorical in the model, keep it as numeric (even if in CATEGORICAL_VOCABS)
                 try:
-                    df[col] = df[col].astype(float)
+                    df[col] = pd.to_numeric(df[col], errors='coerce')
                 except:
                     pass
         return df
@@ -482,12 +485,13 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
     def _predict_marginalized(self, model, df, features):
         p_base = model.predict_proba(df[features])[:, 1]
         col = 'shot_type'
-        if col not in df.columns or col not in self.categorical_priors_:
+        priors_map = getattr(self, 'categorical_priors_', {})
+        if col not in df.columns or col not in priors_map:
             return p_base
         mask_nan = df[col].isna()
         if not mask_nan.any():
             return p_base
-        priors = self.categorical_priors_[col]
+        priors = priors_map[col]
         df_nan = df[mask_nan].copy()
         weighted_prob = np.zeros(len(df_nan))
         for val, weight in priors.items():

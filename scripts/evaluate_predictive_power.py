@@ -249,7 +249,9 @@ class ModelRegistry:
             'xgboost_non_nested': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_modern_era.joblib'),
             'non_nested_xg': os.path.join('analysis', 'xgs', 'xg_model_xgboost_non_nested_modern_era.joblib'),
             'non_nested': os.path.join('analysis', 'xgs', 'xg_model_non_nested_tensor_modern_era.joblib'),
-            'xgboost_tensor': os.path.join('analysis', 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib')
+            'xgboost_tensor': os.path.join('analysis', 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib'),
+            'xgboost_alternate': os.path.join('analysis', 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib'),
+            'xgboost_tensor_full': os.path.join('analysis', 'xgs', 'xg_model_xgboost_tensor_full_history.joblib')
         }
         
         path = paths.get(model_name)
@@ -278,7 +280,7 @@ class ModelRegistry:
         elif model_name == 'non_nested':
             model = fit_glm.NonNestedGLM(features=feature_list, use_splines=True, enable_marginalization=True)
             model.fit(train_df[train_df['event'] != 'blocked-shot'])
-        elif model_name == 'xgboost_tensor':
+        elif model_name in ['xgboost_tensor', 'xgboost_alternate']:
             from puck import fit_xgboost_tensor
             model = fit_xgboost_tensor.XGBTensorXGClassifier(features=feature_list)
             model.fit(train_df)
@@ -325,7 +327,12 @@ class TeamAbilitySummarizer:
                 df = df.copy()
                 # BUG 2 Fix: Nested models should score ALL events because they handle blocks internally.
                 # Only non-nested GLM/XGBoost models should be filtered to outcome events.
-                if pure_model_name.startswith('mixed_effects') or 'nested' in pure_model_name.lower():
+                is_nested = pure_model_name.startswith('mixed_effects') or \
+                            'nested' in pure_model_name.lower() or \
+                            'tensor' in pure_model_name.lower() or \
+                            'alternate' in pure_model_name.lower()
+                
+                if is_nested:
                     df['eval_xg'] = model.predict_proba(df)[:, 1]
                 else:
                     mask = df['event'].isin(['shot-on-goal', 'missed-shot', 'goal'])
@@ -1238,14 +1245,30 @@ class PredictiveEvaluator:
         # but realistically we just compare side.
         if isinstance(y, (np.ndarray, pd.Series)):
             # Vectorized version
-            correct = ((p > 0.5) == (y > 0.5)).astype(float)
-            # BUG 5 Fix: Skip ties in accuracy calculation to avoid sign-match bias
+            # Use a small epsilon to handle 0.5 ties symmetrically
+            # Accuracy is 1.0 if prediction side matches outcome side
+            # Accuracy is 0.5 if prediction is exactly 0.5
+            p_side = (p > 0.5).astype(float)
+            p_side[np.abs(p - 0.5) < 1e-7] = 0.5
+            y_side = (y > 0.5).astype(float)
+            y_side[np.abs(y - 0.5) < 1e-7] = 0.5
+            
+            correct = (p_side == y_side).astype(float)
+            # Handle the 0.5 vs 0 or 1 case as 0.5 correct
+            mask_half = (p_side == 0.5) & (y_side != 0.5)
+            correct[mask_half] = 0.5
+            # Handle the 0.5 vs 0.5 case (regulation tie) as 1.0 correct if p=0.5
+            mask_both_half = (p_side == 0.5) & (y_side == 0.5)
+            correct[mask_both_half] = 1.0
+            
+            # BUG 5 Fix: Skip outcome ties (y=0.5) from the denominator if requested
             tie_mask = (y == 0.5)
             if tie_mask.any() and not tie_mask.all():
                 return float(np.mean(correct[~tie_mask]))
             return float(np.mean(correct))
         
-        if y == 0.5: return 0.5 # Single tie case
+        if np.abs(p - 0.5) < 1e-7: return 0.5
+        if y == 0.5: return 0.5 
         return float((p > 0.5) == (y > 0.5))
 
 def _get_config_palette(configurations):
@@ -1742,16 +1765,39 @@ def main():
             if not args.predict_season and len(sweep_results) > 1:
                 total_games = sum(r['Test_Games'] for r in sweep_results)
                 if total_games > 0:
-                    # Calculate aggregate distribution by concatenating raw results
-                    combined_raw = pd.concat([r['Raw_Results'] for r in sweep_results], ignore_index=True)
-                    combined_metrics = evaluator.calculate_metrics(combined_raw)
+                    # FIX: Instead of bootstrapping a giant pool (which underestimates variance),
+                    # we calculate the weighted average of the per-repetition distributions.
+                    # This preserves the experimental variance across the whole modern era.
+                    
+                    # 1. Calculate Aggregate Means
+                    comb_brier = sum(r['Brier'] * r['Test_Games'] for r in sweep_results) / total_games
+                    comb_acc = sum(r['Accuracy'] * r['Test_Games'] for r in sweep_results) / total_games
+                    
+                    # 2. Calculate Aggregate Distributions (Rep-by-Rep)
+                    # We assume all seasons have the same number of reps (n_reps)
+                    comb_brier_dist = np.zeros_like(sweep_results[0]['Brier_dist'])
+                    comb_acc_dist = np.zeros_like(sweep_results[0]['Accuracy_dist'])
+                    
+                    for r in sweep_results:
+                        weight = r['Test_Games'] / total_games
+                        # Ensure distributions are same length
+                        if len(r['Brier_dist']) == len(comb_brier_dist):
+                            comb_brier_dist += r['Brier_dist'] * weight
+                            comb_acc_dist += r['Accuracy_dist'] * weight
                     
                     combined = {
                         'Season': 'Combined',
                         'Model': m,
                         'Filter': f,
                         'Metric': args.metric,
-                        **combined_metrics,
+                        'Brier': comb_brier,
+                        'Brier_lo': np.percentile(comb_brier_dist, 2.5),
+                        'Brier_hi': np.percentile(comb_brier_dist, 97.5),
+                        'Brier_dist': comb_brier_dist,
+                        'Accuracy': comb_acc,
+                        'Accuracy_lo': np.percentile(comb_acc_dist, 2.5),
+                        'Accuracy_hi': np.percentile(comb_acc_dist, 97.5),
+                        'Accuracy_dist': comb_acc_dist,
                         'Test_Games': total_games
                     }
                     all_results.append(combined)

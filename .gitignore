@@ -31,6 +31,7 @@ Thumbs.db
 # --- Project Data & Models ---
 data/
 data_old/
+sbr_data/
 tmp/
 temp/
 shifts/
@@ -40,6 +41,8 @@ shifts/
 *.joblibx
 *.npz
 *.npy
+*.xlsx
+*.csv
 
 # Allow specific package data models
 !puck/data/*.json
