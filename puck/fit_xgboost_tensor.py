@@ -424,8 +424,10 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
             'device': 'cpu',
             'eval_metric': 'logloss',
             'base_score': b_score,
-            'min_child_weight': 1,
-            'gamma': 0,
+            'min_child_weight': 500,
+            'gamma': 5.0,
+            'reg_lambda': 15.0,
+            'reg_alpha': 2.0,
             'subsample': 0.8,
             'colsample_bytree': 0.8,
             'early_stopping_rounds': 50

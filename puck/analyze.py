@@ -75,6 +75,7 @@ def locate_season_csv(season: str, csv_path: str = None) -> str:
     candidates, then a recursive search of data/ if necessary.
     """
     from pathlib import Path
+    season = str(season)
     if csv_path:
         p = Path(csv_path)
         if p.exists():

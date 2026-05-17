@@ -105,7 +105,7 @@ def main():
             'shot_type': 'wrist', 'shooter_role': 'F', 'shoots_catches': 'L',
             'is_rush': 0, 'is_rebound': 0, 'is_home': 1, 'score_diff': 0,
             'period_number': 2, 'speed_from_last_event': 7.5, 'last_event_type': 'giveaway',
-            'dist_from_last_event': 15.0, 'last_event_time_diff': 2.0
+            'dist_from_last_event': 15.0, 'last_event_time_diff': 2.0, 'season': 20242025
         },
         'numeric_defaults': data_pipeline.NUMERIC_DEFAULTS,
         'options': {str(k): list(v) + ['Marginalized'] for k, v in fit_xgboost_tensor.CATEGORICAL_VOCABS.items()},
@@ -280,8 +280,9 @@ def main():
             for (const fName in MODEL.vocabs) {
                 const val = baseFeatures[fName];
                 if (val === 'Marginalized') baseFeatures[fName] = null;
-                else if (typeof val === 'string') {
-                    const v_idx = MODEL.vocabs[fName].indexOf(val);
+                else if (val !== undefined && val !== null) {
+                    // Match against vocab (handle string/int equality)
+                    const v_idx = MODEL.vocabs[fName].findIndex(v => String(v) === String(val));
                     baseFeatures[fName] = (v_idx === -1) ? null : v_idx;
                 }
             }
@@ -368,7 +369,7 @@ def main():
         inputDiv.appendChild(presetWrap);
 
         const groups = {
-            'Context': ['game_state', 'relative_game_state', 'is_home', 'score_diff', 'period_number'],
+            'Context': ['season', 'game_state', 'relative_game_state', 'is_home', 'score_diff', 'period_number'],
             'Shooter': ['shooter_role', 'shoots_catches', 'shot_type'],
             'Play Info': ['is_rush', 'is_rebound', 'last_event_type', 'speed_from_last_event', 'dist_from_last_event', 'last_event_time_diff']
         };

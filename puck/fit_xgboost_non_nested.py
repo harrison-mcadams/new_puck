@@ -58,10 +58,7 @@ CATEGORICAL_VOCABS = {
     'last_event_type': [
         'faceoff', 'hit', 'giveaway', 'takeaway', 'missed-shot', 'blocked-shot', 'shot-on-goal', 'goal', 'penalty'
     ],
-    'season': [
-        20142015, 20152016, 20162017, 20172018, 20182019, 20192020,
-        20202021, 20212022, 20222023, 20232024, 20242025, 20252026
-    ]
+    'season': [int(f"{y}{y+1}") for y in range(2009, 2026)]
 }
 
 logger = logging.getLogger(__name__)
@@ -144,7 +141,11 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
             tree_method='hist',
             device='cpu',
             eval_metric='logloss',
-            base_score=0.5
+            base_score=0.5,
+            min_child_weight=500,
+            gamma=5.0,
+            reg_lambda=15.0,
+            reg_alpha=2.0
         )
         
         if len(df_valid) > 0:
