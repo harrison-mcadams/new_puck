@@ -48,9 +48,13 @@ def main():
     parser.add_argument('--teams-only', action='store_true', help='Only process team intermediates and plots')
     parser.add_argument('--players-only', action='store_true', help='Only process player intermediates and plots')
     parser.add_argument('--playoffs', action='store_true', help='Process playoff games (Game Type 03)')
+    parser.add_argument('--model-path', type=str, default=None, help='Path to joblib model')
     args = parser.parse_args()
     
     season = args.season
+    model_path = args.model_path
+    if model_path is None:
+        model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor_final.joblib')
     target_season = f"{season}_playoffs" if args.playoffs else season
     
     print(f"--- Starting Daily Update for {target_season} (Turbo={'ON' if args.turbo else 'OFF'}) ---")
@@ -158,8 +162,7 @@ def main():
     if run_xg_calc and not df_season.empty:
         print(f"\n[1c/4] Running Centralized xG Prediction (20202021+ Nested Model)...")
         try:
-            # Predict using the modern era Nested Model
-            model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor_modern_era.joblib')
+            # Predict using the active model
             df_season, _, _ = analyze._predict_xgs(df_season, model_path=model_path, behavior='overwrite')
             
             # Save back to CSV to be used by subprocesses
@@ -235,7 +238,7 @@ def main():
     for cond in conditions_to_process:
         print(f"  -> Processing {cond} cache...")
         try:
-            cmd = [sys.executable, cache_script, '--season', target_season, '--condition', cond]
+            cmd = [sys.executable, cache_script, '--season', target_season, '--condition', cond, '--model-path', model_path]
             if args.force:
                 cmd.append('--force')
             if args.turbo:

@@ -142,8 +142,8 @@ class DataUtils:
                         
                     if not so_goals.empty:
                         # Find which team has the most SO goals (usually one team is awarded the "deciding" goal)
-                        home_so_wins = len(so_goals[so_goals['team_id'] == group['home_id']])
-                        away_so_wins = len(so_goals[so_goals['team_id'] == group['away_id']])
+                        home_so_wins = len(so_goals[so_goals['team_id'] == group['home_id'].iloc[0]])
+                        away_so_wins = len(so_goals[so_goals['team_id'] == group['away_id'].iloc[0]])
                         if home_so_wins > away_so_wins: home_goals_final += 1
                         elif away_so_wins > home_so_wins: away_goals_final += 1
                 

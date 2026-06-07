@@ -97,10 +97,15 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                  layer_params: Optional[Dict[str, Any]] = None,
                  use_splines: bool = True,
                  predict_mode: str = 'nested',
-                 enable_verification: bool = True):
+                 enable_verification: bool = True,
+                 season_mode: str = 'numerical'):
         
+        self.season_mode = season_mode
         # Defensive copy to prevent bleeding from other model's modifications to the global feature set
         base_feats = features.copy() if features else feature_util.get_features('all_inclusive').copy()
+        if self.season_mode == 'none' and 'season' in base_feats:
+            base_feats.remove('season')
+            
         self.features = [f for f in base_feats if f not in ['spatial_block', 'spatial_acc', 'spatial_fin']]
         
         self.n_estimators = n_estimators
@@ -152,6 +157,15 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         self.features_acc = core_feats.copy()
         self.features_fin = core_feats.copy()
         
+        # Dynamically expand CATEGORICAL_VOCABS['season'] if new seasons are present
+        if 'season' in X.columns:
+            observed_seasons = X['season'].dropna().unique()
+            for s in observed_seasons:
+                s_int = int(s)
+                if s_int not in CATEGORICAL_VOCABS['season']:
+                    CATEGORICAL_VOCABS['season'].append(s_int)
+            CATEGORICAL_VOCABS['season'] = sorted(list(set(CATEGORICAL_VOCABS['season'])))
+
         # Prepare DFs
         df = self._prepare_training_df(df_train_raw)
         
@@ -312,7 +326,8 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
             learning_rate=0.05,
             use_calibration=kwargs.get('use_calibration', False),
             use_balancing=kwargs.get('use_balancing', False),
-            use_splines=kwargs.get('use_splines', True)
+            use_splines=kwargs.get('use_splines', True),
+            season_mode=kwargs.get('season_mode', 'numerical')
         )
 
         vprint(f"Training on {len(df_train)} rows with {len(clf.features)} features...")
@@ -342,6 +357,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         meta = {
             'final_features': clf.features,
             'model_type': 'xgboost_tensor',
+            'season_mode': clf.season_mode,
             'train_params': {
                 'n_estimators': clf.n_estimators,
                 'max_depth': clf.max_depth,
@@ -359,6 +375,12 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
         
         vprint("Generating model summary...")
         model_summary.generate_model_summary(model_path=save_path, test_df=df_test, output_dir=str(diag_dir), verbose=verbose)
+
+        # Generate and save modeled season DFs for all seasons in df_raw
+        try:
+            save_modeled_seasons(clf, df_raw, save_path, verbose=verbose)
+        except Exception as e:
+            vprint(f"Warning: Failed to save modeled season DFs: {e}")
 
         return clf
 
@@ -454,7 +476,7 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
                         
         for col in self.features:
             if col in df.columns:
-                if df[col].dtype == 'object' or col in CATEGORICAL_VOCABS:
+                if (df[col].dtype == 'object' or col in CATEGORICAL_VOCABS) and not (col == 'season' and getattr(self, 'season_mode', 'categorical') == 'numerical'):
                     vocab = CATEGORICAL_VOCABS.get(col)
                     df[col] = pd.Categorical(df[col], categories=vocab) if vocab else df[col].astype('category')
         return df
@@ -486,24 +508,133 @@ class XGBTensorXGClassifier(BaseEstimator, ClassifierMixin):
 
     def _predict_marginalized(self, model, df, features):
         p_base = model.predict_proba(df[features])[:, 1]
-        col = 'shot_type'
         priors_map = getattr(self, 'categorical_priors_', {})
-        if col not in df.columns or col not in priors_map:
+        if not priors_map:
             return p_base
-        mask_nan = df[col].isna()
-        if not mask_nan.any():
+            
+        # Discover categorical columns in features that have NaNs in df.
+        # We ensure they are actually categorical in the fitted model using self.feature_dtypes.
+        feature_dtypes = getattr(self, 'feature_dtypes', {})
+        nan_cols = []
+        for col in CATEGORICAL_VOCABS.keys():
+            if col in features and col in df.columns and col in priors_map and df[col].isna().any():
+                dt = feature_dtypes.get(col)
+                if dt is not None and isinstance(dt, pd.CategoricalDtype):
+                    nan_cols.append(col)
+                    
+        if not nan_cols:
             return p_base
-        priors = priors_map[col]
-        df_nan = df[mask_nan].copy()
-        weighted_prob = np.zeros(len(df_nan))
-        for val, weight in priors.items():
-            df_nan[col] = pd.Categorical([val]*len(df_nan), categories=CATEGORICAL_VOCABS[col])
-            weighted_prob += model.predict_proba(df_nan[features])[:, 1] * weight
-        p_base[mask_nan] = weighted_prob
+            
+        # Find rows that have at least one NaN in the discovered columns
+        nan_rows_mask = df[nan_cols].isna().any(axis=1)
+        if not nan_rows_mask.any():
+            return p_base
+            
+        nan_indices = df.index[nan_rows_mask]
+        df_nan_subset = df.loc[nan_indices].copy()
+        
+        from collections import defaultdict
+        import itertools
+        
+        # Group rows by their specific pattern of NaNs
+        pattern_groups = defaultdict(list)
+        for idx, row in df_nan_subset.iterrows():
+            pattern = tuple(col for col in nan_cols if pd.isna(row[col]))
+            pattern_groups[pattern].append(idx)
+            
+        # Compute marginalized prediction for each pattern group
+        marginalized_probs = pd.Series(index=nan_indices, dtype=float)
+        
+        for pattern_cols, group_indices in pattern_groups.items():
+            if not pattern_cols:
+                # No NaNs in this pattern (should not occur due to nan_rows_mask, but safe check)
+                marginalized_probs.loc[group_indices] = p_base[df.index.get_indexer(group_indices)]
+                continue
+                
+            df_group = df.loc[group_indices].copy()
+            weighted_prob = np.zeros(len(df_group))
+            
+            # Generate Cartesian product of priors for pattern_cols
+            prior_lists = [list(priors_map[c].items()) for c in pattern_cols]
+            total_joint_weight = 0.0
+            
+            for comb in itertools.product(*prior_lists):
+                joint_weight = 1.0
+                for c, (val, weight) in zip(pattern_cols, comb):
+                    joint_weight *= weight
+                
+                total_joint_weight += joint_weight
+                
+                # Assign categorical values for this combination
+                for c, (val, weight) in zip(pattern_cols, comb):
+                    dt = feature_dtypes.get(c)
+                    if isinstance(dt, pd.CategoricalDtype):
+                        df_group[c] = pd.Categorical([val] * len(df_group), categories=dt.categories)
+                    else:
+                        vocab = CATEGORICAL_VOCABS.get(c)
+                        df_group[c] = pd.Categorical([val] * len(df_group), categories=vocab) if vocab else pd.Series([val] * len(df_group)).astype('category')
+                        
+                pred_comb = model.predict_proba(df_group[features])[:, 1]
+                weighted_prob += pred_comb * joint_weight
+                
+            if total_joint_weight > 0:
+                weighted_prob = weighted_prob / total_joint_weight
+            else:
+                weighted_prob = p_base[df.index.get_indexer(group_indices)]
+                
+            marginalized_probs.loc[group_indices] = weighted_prob
+            
+        p_base[nan_rows_mask] = marginalized_probs.values
         return p_base
 
     def _fit_calibrators(self, df_calib_raw: pd.DataFrame):
         pass
+
+def save_modeled_seasons(clf, df_raw, save_path, verbose=True):
+    def vprint(*args):
+        if verbose: print(*args)
+
+    if 'season' not in df_raw.columns:
+        vprint("No season column found in training data, skipping modeled season DF generation.")
+        return
+
+    seasons = df_raw['season'].dropna().unique()
+    for s in seasons:
+        # Convert to string and handle formatting (e.g. float representation '20252026.0')
+        try:
+            season_str = str(int(float(s)))
+        except:
+            season_str = str(s)
+            
+        # Standard format is 8 digits (e.g., 20252026)
+        if not (season_str.isdigit() and len(season_str) == 8):
+            continue
+
+        season_dir = Path(puck_config.DATA_DIR) / season_str
+        season_df_path = season_dir / f"{season_str}_df.csv"
+        
+        if season_df_path.exists():
+            vprint(f"Generating modeled predictions for season {season_str}...")
+            try:
+                # Load original season DF
+                df_season = pd.read_csv(season_df_path, low_memory=False)
+                
+                # Predict using the newly saved model
+                from . import analyze
+                df_modeled, _, _ = analyze._predict_xgs(df_season, model_path=save_path, behavior='load')
+                
+                # Add a reference to the model that predicted the results
+                model_ref = Path(save_path).name
+                df_modeled['xg_model_ref'] = model_ref
+                
+                # Save modeled season DF
+                modeled_csv = season_dir / f"{season_str}_df_modeled.csv"
+                df_modeled.to_csv(modeled_csv, index=False)
+                vprint(f"  Saved modeled season DF to {modeled_csv}")
+            except Exception as ex:
+                vprint(f"  [ERROR] Failed to save modeled season DF for {season_str}: {ex}")
+        else:
+            vprint(f"  [MISSING] Season CSV not found at {season_df_path}, skipping.")
 
 def train_xgboost_tensor(df_raw, **kwargs):
     return XGBTensorXGClassifier.train(df_raw, **kwargs)

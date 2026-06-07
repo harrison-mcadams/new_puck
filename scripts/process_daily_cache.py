@@ -281,10 +281,18 @@ def main():
     parser.add_argument('--turbo', action='store_true', help='Enable parallel processing')
     parser.add_argument('--teams-only', action='store_true', help='Only process team intermediates')
     parser.add_argument('--players-only', action='store_true', help='Only process player intermediates')
+    parser.add_argument('--model-path', type=str, default=None, help='Path to joblib model')
     args = parser.parse_args()
     
     season = args.season
     cond_name = args.condition
+    model_path = args.model_path
+    if model_path is None:
+        model_path = os.path.join(config.ANALYSIS_DIR, 'xgs', 'xg_model_xgboost_tensor_final.joblib')
+        
+    model_mtime = 0.0
+    if os.path.exists(model_path):
+        model_mtime = os.path.getmtime(model_path)
     
     # Resolve condition dict
     conditions_map = {
@@ -310,11 +318,9 @@ def main():
         return
         
     # Ensure xGs
-    # Optimization: Use 'load' behavior.
-    # If run via daily.py, xG is already in CSV -> Skips prediction (Fast).
-    # If run standalone and xG missing -> Runs prediction (Robust).
-    xg_behavior = 'skip' if str(season).startswith('fake') else 'load'
-    df_data, _, _ = analyze._predict_xgs(df_data, behavior=xg_behavior)
+    # Force direct model evaluation: use 'overwrite' for real seasons to prevent drift
+    xg_behavior = 'skip' if str(season).startswith('fake') else 'overwrite'
+    df_data, _, _ = analyze._predict_xgs(df_data, model_path=model_path, behavior=xg_behavior)
     
     partials_dir = ensure_dirs(season)
     
@@ -324,7 +330,12 @@ def main():
     
     for gid in all_game_ids:
         path = get_game_partials_path(partials_dir, gid, cond_name)
-        if args.force or not os.path.exists(path):
+        need_proc = args.force or not os.path.exists(path)
+        if not need_proc and model_mtime > 0:
+            cache_mtime = os.path.getmtime(path)
+            if model_mtime > cache_mtime:
+                need_proc = True
+        if need_proc:
             games_to_process.append(gid)
             
     print(f"Found {len(games_to_process)} games to process out of {len(all_game_ids)} total.")
@@ -354,7 +365,7 @@ def main():
              # Slice here (cheap view usually)
              df_game = df_data[df_data['game_id'] == gid]
              if not df_game.empty:
-                 tasks.append((gid, df_game, season, condition, partials_dir, cond_name, args.force, args.teams_only, args.players_only))
+                 tasks.append((gid, df_game, season, condition, partials_dir, cond_name, True, args.teams_only, args.players_only))
         
         # Execute
         results = Parallel(n_jobs=-1, verbose=5)(
@@ -373,7 +384,7 @@ def main():
             if df_game.empty: continue
             
             success = process_game(gid, df_game, season, condition, partials_dir, cond_name, 
-                                  force=args.force, teams_only=args.teams_only, players_only=args.players_only)
+                                  force=True, teams_only=args.teams_only, players_only=args.players_only)
             
             if success:
                 count += 1

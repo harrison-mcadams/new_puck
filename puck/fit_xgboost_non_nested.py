@@ -315,6 +315,13 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         col = 'shot_type'
         if col not in df.columns or col not in self.categorical_priors_:
             return p_base
+            
+        # Ensure it is actually a categorical feature in the fitted model
+        feature_dtypes = getattr(self, 'feature_dtypes', {})
+        dt = feature_dtypes.get(col)
+        if dt is None or not isinstance(dt, pd.CategoricalDtype):
+            return p_base
+            
         mask_nan = df[col].isna()
         if not mask_nan.any():
             return p_base
@@ -322,7 +329,7 @@ class XGBNonNestedXGClassifier(BaseEstimator, ClassifierMixin):
         df_nan = df[mask_nan].copy()
         weighted_prob = np.zeros(len(df_nan))
         for val, weight in priors.items():
-            df_nan[col] = pd.Categorical([val]*len(df_nan), categories=CATEGORICAL_VOCABS[col])
+            df_nan[col] = pd.Categorical([val]*len(df_nan), categories=dt.categories)
             weighted_prob += model.predict_proba(df_nan[features])[:, 1] * weight
         p_base[mask_nan] = weighted_prob
         return p_base

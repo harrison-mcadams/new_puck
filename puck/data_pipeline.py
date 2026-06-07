@@ -164,7 +164,7 @@ def preprocess_features(df_input: pd.DataFrame,
                     g_id_str, sub_df = args
                     return html_enrichment.enrich_blocks_with_html(sub_df, g_id_str)
                 enriched_frames = Parallel(n_jobs=-1)(delayed(process_group)(arg) for arg in game_groups)
-                df = pd.concat(enriched_frames, ignore_index=True)
+                df = pd.concat(enriched_frames, ignore_index=False)
 
     # 2. Standardize Orientation (Canonical "Right-Attack" Frame)
     # We rotate/flip all shots so that the shooting team is attacking the goal at x=89.0.

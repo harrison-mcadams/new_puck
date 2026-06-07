@@ -1,15 +1,13 @@
 """xgboost_tensor_model_dashboard.py
 
 Generates an interactive HTML dashboard for the XGBoost Alternate xG model.
-Functional Parity: Uses a client-side JavaScript tree inference engine.
-No GLM Baselines: Relies on pure XGBoost spatial features.
+Evaluates predictions dynamically using the same Python backend prediction routines to prevent drift.
+Supports Full Bipartite Marginalization (categorical joint priors and numerical native default paths).
 """
 
 import sys
 import os
 import joblib
-import numpy as np
-import pandas as pd
 import json
 from pathlib import Path
 
@@ -19,6 +17,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from puck import fit_xgboost_tensor, config as puck_config, data_pipeline
 
 def json_serializable(obj):
+    import numpy as np
     if isinstance(obj, dict):
         return {k: json_serializable(v) for k, v in obj.items()}
     elif isinstance(obj, (list, tuple)):
@@ -31,45 +30,33 @@ def json_serializable(obj):
         return obj.tolist()
     return obj
 
-def extract_booster_data(model, feature_names=None):
-    """Extracts JSON dump and feature names from an XGBClassifier."""
-    if model is None:
-        return None
-    booster = model.get_booster()
-    if feature_names:
-        booster.feature_names = feature_names
-    trees_json = booster.get_dump(dump_format='json')
-    trees = [json.loads(t) for t in trees_json]
-    
-    try:
-        config = json.loads(booster.save_config())
-        base_score_str = config['learner']['learner_model_param']['base_score']
-        if base_score_str.startswith('[') and base_score_str.endswith(']'):
-            base_score = float(base_score_str[1:-1])
-        else:
-            base_score = float(base_score_str)
-    except Exception:
-        base_score = 0.5
-        
-    return {
-        'trees': trees,
-        'feature_names': booster.feature_names or [],
-        'base_score': base_score
-    }
-
 def get_rink_shapes(xref='x', yref='y'):
     """Full rink shapes for offensive zone."""
     shapes = []
-    line_color = "rgba(0, 0, 0, 0.3)"
-    red_line_color = "rgba(255, 0, 0, 0.3)"
-    blue_line_color = "rgba(0, 0, 255, 0.3)"
+    line_color = "rgba(255, 255, 255, 0.15)"
+    red_line_color = "rgba(255, 0, 0, 0.25)"
+    blue_line_color = "rgba(0, 132, 255, 0.25)"
+    
+    # Outer Boards
     shapes.append(dict(type="line", x0=0, y0=42.5, x1=100, y1=42.5, xref=xref, yref=yref, line=dict(color=line_color, width=2)))
     shapes.append(dict(type="line", x0=0, y0=-42.5, x1=100, y1=-42.5, xref=xref, yref=yref, line=dict(color=line_color, width=2)))
     shapes.append(dict(type="line", x0=100, y0=-42.5, x1=100, y1=42.5, xref=xref, yref=yref, line=dict(color=line_color, width=2)))
-    shapes.append(dict(type="line", x0=0, y0=-42.5, x1=0, y1=42.5, xref=xref, yref=yref, line=dict(color=red_line_color, width=2)))
-    shapes.append(dict(type="line", x0=25, y0=-42.5, x1=25, y1=42.5, xref=xref, yref=yref, line=dict(color=blue_line_color, width=2)))
-    shapes.append(dict(type="line", x0=89, y0=-42.5, x1=89, y1=42.5, xref=xref, yref=yref, line=dict(color=red_line_color, width=1)))
-    shapes.append(dict(type="circle", x0=89-4, y0=-4, x1=89+4, y1=4, xref=xref, yref=yref, line=dict(color=red_line_color, width=1)))
+    
+    # Center Red Line and Blue Line
+    shapes.append(dict(type="line", x0=0, y0=-42.5, x1=0, y1=42.5, xref=xref, yref=yref, line=dict(color=red_line_color, width=3)))
+    shapes.append(dict(type="line", x0=25, y0=-42.5, x1=25, y1=42.5, xref=xref, yref=yref, line=dict(color=blue_line_color, width=3)))
+    
+    # Goal Line and Net Crease
+    shapes.append(dict(type="line", x0=89, y0=-42.5, x1=89, y1=42.5, xref=xref, yref=yref, line=dict(color=red_line_color, width=2)))
+    shapes.append(dict(type="circle", x0=83, y0=-6, x1=95, y1=6, xref=xref, yref=yref, fillcolor="rgba(0, 132, 255, 0.1)", line=dict(color=red_line_color, width=1.5)))
+    
+    # Faceoff Circles Top & Bottom (r=15, dots at x=69, y=22 and y=-22)
+    shapes.append(dict(type="circle", x0=54, y0=7, x1=84, y1=37, xref=xref, yref=yref, line=dict(color=red_line_color, width=1.5)))
+    shapes.append(dict(type="circle", x0=68.5, y0=21.5, x1=69.5, y1=22.5, xref=xref, yref=yref, fillcolor=red_line_color, line=dict(width=0)))
+    
+    shapes.append(dict(type="circle", x0=54, y0=-37, x1=84, y1=-7, xref=xref, yref=yref, line=dict(color=red_line_color, width=1.5)))
+    shapes.append(dict(type="circle", x0=68.5, y0=-22.5, x1=69.5, y1=-21.5, xref=xref, yref=yref, fillcolor=red_line_color, line=dict(width=0)))
+    
     return shapes
 
 def main():
@@ -89,17 +76,6 @@ def main():
         'model_name': base_name,
         'features': model.features,
         'vocabs': fit_xgboost_tensor.CATEGORICAL_VOCABS,
-        'priors': model.categorical_priors_,
-        'layers': {
-            'block': extract_booster_data(model.model_block, getattr(model, 'features_block', model.features)),
-            'accuracy': extract_booster_data(model.model_acc, getattr(model, 'features_acc', model.features)),
-            'finish': extract_booster_data(model.model_finish, getattr(model, 'features_fin', model.features))
-        },
-        'spline': {
-            'use': getattr(model, 'use_splines', False),
-            'feature_names': getattr(model, 'spline_feature_names_', [])
-        },
-        'calibrators': {},
         'defaults': {
             'distance': 25.0, 'angle_deg': 0.0, 'game_state': '5v5', 'relative_game_state': '5v5',
             'shot_type': 'wrist', 'shooter_role': 'F', 'shoots_catches': 'L',
@@ -115,6 +91,18 @@ def main():
                 'is_rush': 0, 'is_rebound': 0, 'period_number': 2, 'score_diff': 0,
                 'last_event_type': 'giveaway', 'last_event_time_diff': 2.0, 'dist_from_last_event': 30.0, 'speed_from_last_event': 15.0
             },
+            'Flyers Rebound Goal (Owen Tippett)': {
+                'x': 84.0, 'y': 0.0, 'shot_type': 'bat', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 1, 'period_number': 2.0, 'score_diff': 2.0,
+                'last_event_type': 'shot-on-goal', 'last_event_time_diff': 2.0, 'dist_from_last_event': 9.22, 'speed_from_last_event': 4.61,
+                'rebound_angle_change': 26.57, 'rebound_time_diff': 2.0, 'rebound_source': 'none'
+            },
+            'Flyers Rebound Goal (Denver Barkey)': {
+                'x': 86.0, 'y': 4.0, 'shot_type': 'snap', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 1, 'period_number': 2.0, 'score_diff': 2.0,
+                'last_event_type': 'shot-on-goal', 'last_event_time_diff': 2.0, 'dist_from_last_event': 25.50, 'speed_from_last_event': 12.75,
+                'rebound_angle_change': 83.71, 'rebound_time_diff': 2.0, 'rebound_source': 'none'
+            },
             'Classic Point Shot': {
                 'x': 28, 'y': 25, 'shot_type': 'slap', 'game_state': '5v5', 'relative_game_state': '5v5',
                 'is_rush': 0, 'is_rebound': 0, 'period_number': 1, 'score_diff': 0,
@@ -125,10 +113,17 @@ def main():
                 'is_rush': 1, 'is_rebound': 0, 'period_number': 3, 'score_diff': -1,
                 'last_event_type': 'takeaway', 'last_event_time_diff': 3.0, 'dist_from_last_event': 60.0, 'speed_from_last_event': 35.0
             },
-            'Rebound Scramble': {
+            'High-Danger Rebound (Goalie Displaced)': {
                 'x': 85, 'y': 2, 'shot_type': 'backhand', 'game_state': '5v5', 'relative_game_state': '5v5',
-                'is_rush': 0, 'is_rebound': 1, 'period_number': 2, 'score_diff': 1,
-                'last_event_type': 'shot-on-goal', 'last_event_time_diff': 0.8, 'dist_from_last_event': 5.0, 'speed_from_last_event': 5.0
+                'is_rush': 0, 'is_rebound': 1, 'period_number': 2, 'score_diff': 0,
+                'last_event_type': 'shot-on-goal', 'last_event_time_diff': 0.6, 'dist_from_last_event': 5.0, 'speed_from_last_event': 8.0,
+                'rebound_angle_change': 65.0, 'rebound_time_diff': 0.6, 'rebound_source': 'shot-on-goal'
+            },
+            'Typical Rebound (Goalie Recovered)': {
+                'x': 83, 'y': -6, 'shot_type': 'snap', 'game_state': '5v5', 'relative_game_state': '5v5',
+                'is_rush': 0, 'is_rebound': 1, 'period_number': 2, 'score_diff': 0,
+                'last_event_type': 'shot-on-goal', 'last_event_time_diff': 1.8, 'dist_from_last_event': 8.0, 'speed_from_last_event': 4.0,
+                'rebound_angle_change': 15.0, 'rebound_time_diff': 1.8, 'rebound_source': 'shot-on-goal'
             }
         }
     }
@@ -144,21 +139,6 @@ def main():
     for k, v in extra_options.items():
         export_data['options'][k] = v
 
-    # --- Pre-calculate Basis Grid ---
-    if export_data['spline']['use']:
-        print("Calculating Spline Basis Lookup Table...")
-        # Mirror grid from JS: X_POINTS=50, Y_POINTS=43
-        grid_x = np.linspace(0, 100, 50)
-        grid_y = np.linspace(-42.5, 42.5, 43)
-        
-        # Flattened grid for transformer
-        xx, yy = np.meshgrid(grid_x, grid_y)
-        points = np.column_stack([xx.ravel(), yy.ravel()])
-        
-        basis = model.spline_transformer_.transform(pd.DataFrame(points, columns=['x', 'y']))
-        # basis shape: (50*43, 49)
-        export_data['spline']['basis_lookup'] = basis.tolist() # [pixel_idx][basis_idx]
-
     json_data = json.dumps(json_serializable(export_data))
     rink_shapes_json = json.dumps(get_rink_shapes())
 
@@ -166,41 +146,68 @@ def main():
 <!DOCTYPE html>
 <html>
 <head>
-    <title>XGBoost Alternate Dashboard | __MODEL_NAME__</title>
+    <title>XGBoost Model Explorer Dashboard | __MODEL_NAME__</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <style>
-        body { margin: 0; background: #111; color: white; font-family: 'Inter', system-ui, -apple-system, sans-serif; overflow: hidden; }
+        body { margin: 0; background: #0c0f16; color: white; font-family: 'Inter', system-ui, -apple-system, sans-serif; overflow: hidden; }
         #container { display: flex; height: 100vh; }
-        #controls { width: 320px; background: #1a1a1a; padding: 20px; overflow-y: auto; border-right: 1px solid #333; box-shadow: 2px 0 10px rgba(0,0,0,0.5); z-index: 10; }
-        #plot-area { flex: 1; position: relative; background: #111; }
+        #controls { width: 330px; background: #131924; padding: 20px; overflow-y: auto; border-right: 1px solid #232e42; box-shadow: 4px 0 15px rgba(0,0,0,0.6); z-index: 10; }
+        #plot-area { flex: 1; position: relative; background: #0c0f16; }
         #plot { width: 100%; height: 100%; }
-        .ctrl-group { margin-bottom: 20px; padding: 15px; border: 1px solid #333; border-radius: 8px; background: #222; }
-        .ctrl-group legend { padding: 0 10px; font-weight: bold; color: #aaa; font-size: 0.9em; text-transform: uppercase; }
-        .field { margin-bottom: 12px; }
-        label { display: block; font-size: 0.8em; color: #888; margin-bottom: 4px; }
-        select { width: 100%; background: #333; color: white; border: 1px solid #444; padding: 6px; border-radius: 4px; box-sizing: border-box; }
-        input[type=range] { width: 100%; margin-top: 8px; -webkit-appearance: none; background: #444; height: 4px; border-radius: 2px; outline: none; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; background: #00ff88; border-radius: 50%; cursor: pointer; }
-        .field label span { font-weight: bold; color: #00ff88; float: right; }
+        .ctrl-group { margin-bottom: 20px; padding: 15px; border: 1px solid #232e42; border-radius: 12px; background: #192130; }
+        .ctrl-group legend { padding: 0 10px; font-weight: bold; color: #a0aec0; font-size: 0.85em; text-transform: uppercase; letter-spacing: 0.05em; }
+        .field { margin-bottom: 16px; }
+        .field-label-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+        label { display: block; font-size: 0.8em; color: #a0aec0; }
+        .toggle-container { font-size: 0.8em; color: #718096; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+        .toggle-container input[type=checkbox] { cursor: pointer; accent-color: #00ff88; margin: 0; }
+        select { width: 100%; background: #232e42; color: white; border: 1px solid #2d3d57; padding: 8px; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+        select:focus { outline: none; border-color: #00ff88; }
+        input[type=range] { width: 100%; margin-top: 8px; -webkit-appearance: none; background: #2d3d57; height: 6px; border-radius: 3px; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; background: #00ff88; border-radius: 50%; cursor: pointer; box-shadow: 0 0 5px rgba(0,255,136,0.5); }
+        .field-label-row label span { font-weight: bold; color: #00ff88; }
+        .field.marginalized input[type=range] { opacity: 0.25; pointer-events: none; }
+        .field.marginalized .field-label-row label span { color: #4a5568 !important; text-decoration: line-through; }
         .btn-row { display: flex; gap: 10px; margin-top: 20px; }
-        button { flex: 1; padding: 10px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; }
+        button { flex: 1; padding: 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: opacity 0.2s; font-family: inherit; }
         .btn-baseline { background: #2d5a27; color: #fff; }
         .btn-clear { background: #5a2727; color: #fff; }
-        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); display: flex; justify-content: center; align-items: center; z-index: 1000; font-size: 1.5em; }
+        #loading { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(12,15,22,0.9); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 1000; font-size: 1.5em; gap: 10px; }
+        .spinner { width: 40px; height: 40px; border: 4px solid rgba(0,255,136,0.1); border-top-color: #00ff88; border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
-    <div id="loading">Initializing Engine...</div>
+    <div id="loading">
+        <div class="spinner"></div>
+        <div>Initializing Prediction Engine...</div>
+    </div>
     <div id="container">
         <div id="controls">
-            <h2 style="margin-top:0; color: #00ff88; font-size: 1.2em;">XGBoost Alternate (Pure Spatial)</h2>
+            <h2 style="margin-top:0; color: #00ff88; font-size: 1.25em; border-bottom: 1px solid #232e42; padding-bottom: 10px;">XGBoost Model Explorer</h2>
             <div id="inputs-container"></div>
             <div class="btn-row">
                 <button class="btn-baseline" onclick="setBaseline()">Set Baseline</button>
                 <button class="btn-clear" onclick="clearBaseline()">Clear Δ</button>
             </div>
-            <div style="margin-top: 20px; font-size: 0.7em; color: #555;">
-                Engine: Client-Side Tree Traversal (Pure Spatial)
+            <div class="ctrl-group" style="margin-top: 20px;">
+                <legend>Color Scale Settings</legend>
+                <div class="field">
+                    <div class="field-label-row">
+                        <label>Max xG Color Limit: <span id="val_max_xg">0.40</span></label>
+                    </div>
+                    <input type="range" id="in_max_xg" min="0.05" max="1.00" step="0.05" value="0.40" oninput="document.getElementById('val_max_xg').innerText = parseFloat(this.value).toFixed(2); updatePlot();">
+                </div>
+                <div class="field" style="margin-bottom: 0;">
+                    <div class="field-label-row">
+                        <label>Max Δ Color Limit: <span id="val_max_delta">0.30</span></label>
+                    </div>
+                    <input type="range" id="in_max_delta" min="0.01" max="0.50" step="0.01" value="0.30" oninput="document.getElementById('val_max_delta').innerText = parseFloat(this.value).toFixed(2); updatePlot();">
+                </div>
+            </div>
+            <div style="margin-top: 25px; font-size: 0.75em; color: #4a5568; line-height: 1.4;">
+                <b>Engine</b>: Dynamic Flask Prediction Backend<br>
+                <b>Marginalization</b>: Bipartite (Continuous Numerical + Prior-Weighted Categorical)
             </div>
         </div>
         <div id="plot-area">
@@ -218,142 +225,41 @@ def main():
     for(let i=0; i<Y_POINTS; i++) gridY.push(-42.5 + i * (85/(Y_POINTS-1)));
     
     let baselineData = null;
+    let currentRequestId = 0;
 
-    function sigmoid(z) { return 1 / (1 + Math.exp(-z)); }
-
-    function evaluateTree(node, featureValues) {
-        if (!node) return 0;
-        if (node.leaf !== undefined) return node.leaf;
-        
-        const fName = node.split;
-        const val = featureValues[fName];
-        
-        if (val === null || val === undefined || isNaN(val)) {
-            const defId = node.default;
-            const child = node.children.find(c => String(c.nodeid) == String(defId));
-            return evaluateTree(child, featureValues);
-        }
-        
-        if (Array.isArray(node.split_condition)) {
-            if (node.split_condition.includes(val)) {
-                const child = node.children.find(c => String(c.nodeid) == String(node.yes));
-                return evaluateTree(child, featureValues);
-            } else {
-                const child = node.children.find(c => String(c.nodeid) == String(node.no));
-                return evaluateTree(child, featureValues);
-            }
-        }
-        
-        if (node.split_type === 'categorical') {
-            const cats = node.split_categories || [];
-            if (cats.includes(val)) {
-                const child = node.children.find(c => String(c.nodeid) == String(node.yes));
-                return evaluateTree(child, featureValues);
-            } else {
-                const child = node.children.find(c => String(c.nodeid) == String(node.no));
-                return evaluateTree(child, featureValues);
-            }
-        } else {
-            if (val < node.split_condition) {
-                const child = node.children.find(c => String(c.nodeid) == String(node.yes));
-                return evaluateTree(child, featureValues);
-            } else {
-                const child = node.children.find(c => String(c.nodeid) == String(node.no));
-                return evaluateTree(child, featureValues);
-            }
-        }
-    }
-
-    function evaluateForest(layerName, featureValues) {
-        const forest = MODEL.layers[layerName];
-        if (!forest) return 0;
-        let margin = Math.log(forest.base_score / (1 - forest.base_score));
-        for (const tree of forest.trees) {
-            margin += evaluateTree(tree, featureValues);
-        }
-        return margin;
-    }
-
-    function predictScenario(inputs) {
+    async function predictScenario(inputs) {
+        const requestId = ++currentRequestId;
         try {
-            let baseFeatures = {...inputs};
-            for (const fName in MODEL.vocabs) {
-                const val = baseFeatures[fName];
-                if (val === 'Marginalized') baseFeatures[fName] = null;
-                else if (val !== undefined && val !== null) {
-                    // Match against vocab (handle string/int equality)
-                    const v_idx = MODEL.vocabs[fName].findIndex(v => String(v) === String(val));
-                    baseFeatures[fName] = (v_idx === -1) ? null : v_idx;
-                }
-            }
-            MODEL.features.forEach(f => {
-                if (baseFeatures[f] === undefined) {
-                    baseFeatures[f] = MODEL.numeric_defaults[f] !== undefined ? MODEL.numeric_defaults[f] : 0.0;
-                }
-                
-                // --- HARDENED NUMERIC CASTING ---
-                // Features like is_rush, is_rebound, is_home, score_diff, period_number 
-                // come from <select> as strings. We must ensure they are numeric for the trees.
-                if (baseFeatures[f] !== null && baseFeatures[f] !== undefined && baseFeatures[f] !== 'Marginalized') {
-                    if (!MODEL.vocabs[f]) {
-                        const num = Number(baseFeatures[f]);
-                        if (!isNaN(num)) baseFeatures[f] = num;
-                    }
-                } else if (baseFeatures[f] === 'Marginalized') {
-                    baseFeatures[f] = null;
-                }
-            });
-
-            // Debug first pixel
-            console.log("Scenario Inputs:", inputs);
-            console.log("Processed Base Features:", baseFeatures);
-
-            let H = Y_POINTS, W = X_POINTS;
-            let Z_block = new Float32Array(H*W), Z_acc = new Float32Array(H*W), Z_fin = new Float32Array(H*W), Z_xg = new Float32Array(H*W);
+            const isLocalFile = window.location.protocol === 'file:';
+            const predictUrl = isLocalFile ? 'http://localhost:8000/predict_model' : '/predict_model';
             
-            for(let r=0; r<H; r++) {
-                for(let c=0; c<W; c++) {
-                    const idx = r*W + c;
-                    let features = {...baseFeatures};
-                    const x = gridX[c], y = gridY[r];
-                    const x_safe = Math.max(0, Math.min(x, 100));
-                    const y_safe = Math.max(-42.5, Math.min(y, 42.5));
-                    const dist = Math.sqrt((x_safe - 89)**2 + y_safe**2);
-                    const angle_rad = Math.atan2(x_safe - 89, -y_safe);
-                    let angle_deg = ((-angle_rad * 180 / Math.PI) % 360 + 360) % 360;
-                    
-                    features.distance = dist;
-                    features.angle_deg = angle_deg;
-                    // Sync raw x,y in case model uses them directly
-                    if (features.x !== undefined) features.x = x_safe;
-                    if (features.y !== undefined) features.y = y_safe;
-                    
-                    if (MODEL.spline.use && MODEL.spline.basis_lookup) {
-                        const basis = MODEL.spline.basis_lookup[idx];
-                        MODEL.spline.feature_names.forEach((name, i) => {
-                            features[name] = basis[i];
-                        });
-                    }
-
-                    const m_block = evaluateForest('block', features);
-                    const m_acc = evaluateForest('accuracy', features);
-                    const m_fin = evaluateForest('finish', features);
-                    
-                    const p_block = sigmoid(m_block);
-                    const p_acc = sigmoid(m_acc);
-                    const p_fin = sigmoid(m_fin);
-                    const p_xg = (1 - p_block) * p_acc * p_fin;
-
-                    Z_block[idx] = p_block;
-                    Z_acc[idx] = p_acc;
-                    Z_fin[idx] = p_fin;
-                    Z_xg[idx] = p_xg;
-                }
+            const response = await fetch(predictUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model_name: MODEL.model_name,
+                    inputs: inputs
+                })
+            });
+            const data = await response.json();
+            
+            // Abort if a newer request is already in flight
+            if (requestId !== currentRequestId) return null;
+            
+            if (data.error) {
+                console.error("Prediction Backend Error:", data.error);
+                return null;
             }
-            return [Z_block, Z_acc, Z_fin, Z_xg];
+            
+            return [
+                new Float32Array(data.block),
+                new Float32Array(data.accuracy),
+                new Float32Array(data.finish),
+                new Float32Array(data.xg)
+            ];
         } catch (e) {
-            console.error("Predict Error:", e);
-            throw e;
+            console.error("Fetch Error:", e);
+            return null;
         }
     }
 
@@ -382,25 +288,72 @@ def main():
             'period_number': {min: 1, max: 4, step: 1}
         };
 
+        // GATHER ALL OTHER FEATURES DYNAMICALLY FROM ACTIVE MODEL
+        const predefinedFields = new Set();
+        for(const fields of Object.values(groups)) {
+            fields.forEach(f => predefinedFields.add(f));
+        }
+        
+        const otherFields = [];
+        MODEL.features.forEach(f => {
+            if (!predefinedFields.has(f) && f !== 'distance' && f !== 'angle_deg' && f !== 'x' && f !== 'y') {
+                otherFields.push(f);
+            }
+        });
+        
+        if (otherFields.length > 0) {
+            groups['Other Features'] = otherFields;
+        }
+
+        // Dynamically add default numeric ranges for other numeric fields
+        otherFields.forEach(f => {
+            if (!MODEL.options[f] && !numericRanges[f]) {
+                const defVal = MODEL.defaults[f] !== undefined ? MODEL.defaults[f] : 0.0;
+                let min = 0, max = 100, step = 1;
+                if (f.includes('time') || f.includes('diff') || f.includes('speed')) {
+                    min = 0; max = 50; step = 0.5;
+                } else if (f.includes('dist')) {
+                    min = 0; max = 150; step = 1;
+                } else if (f.includes('angle')) {
+                    min = 0; max = 180; step = 1;
+                } else if (defVal < 0) {
+                    min = -10; max = 10; step = 0.1;
+                } else if (defVal <= 1.0) {
+                    min = 0; max = 1.0; step = 0.05;
+                }
+                numericRanges[f] = {min: min, max: max, step: step};
+            }
+        });
+
+        // BUILD RENDERED FIELDS
         for(const [gname, fields] of Object.entries(groups)) {
             let fs = document.createElement('fieldset');
             fs.className = 'ctrl-group';
             fs.innerHTML = `<legend>${gname}</legend>`;
+            
             fields.forEach(f => {
                  if (!MODEL.features.includes(f) && !MODEL.options[f] && !numericRanges[f]) return;
                  let wrap = document.createElement('div');
                  wrap.className = 'field';
+                 wrap.id = 'field_' + f;
+                 
                  if (numericRanges[f]) {
                     let r = numericRanges[f];
-                    wrap.innerHTML = `<label>${f}: <span id="val_${f}"></span></label>`;
+                    const defVal = MODEL.defaults[f] !== undefined ? MODEL.defaults[f] : (r.min + r.max) / 2;
+                    wrap.innerHTML = `<div class="field-label-row">
+                        <label>${f}: <span id="val_${f}"></span></label>
+                        <label class="toggle-container">
+                            <input type="checkbox" id="chk_${f}" onchange="toggleMarginalize('${f}')"> Auto
+                        </label>
+                    </div>`;
+                    
                     let sli = document.createElement('input');
                     sli.type = 'range'; sli.id = 'in_' + f;
-                    sli.min = r.min; sli.max = r.max; sli.step = r.step;
-                    sli.oninput = () => { document.getElementById('val_' + f).innerText = sli.value; updatePlot(); };
-                    if (MODEL.defaults[f] !== undefined) sli.value = MODEL.defaults[f];
+                    sli.min = r.min; sli.max = r.max; sli.step = r.step; sli.value = defVal;
+                    sli.oninput = () => { onSliderInput(f); };
                     wrap.appendChild(sli);
                  } else if (MODEL.options[f]) {
-                    wrap.innerHTML = `<label>${f}</label>`;
+                    wrap.innerHTML = `<div class="field-label-row"><label>${f}</label></div>`;
                     let sel = document.createElement('select');
                     sel.id = 'in_' + f;
                     sel.onchange = updatePlot;
@@ -417,6 +370,7 @@ def main():
             inputDiv.appendChild(fs);
         }
 
+        // Initialize slider numerical text badges
         Object.keys(numericRanges).forEach(f => {
             let el = document.getElementById('in_' + f);
             if (el) document.getElementById('val_' + f).innerText = el.value;
@@ -426,15 +380,50 @@ def main():
         updatePlot();
     }
 
+    function toggleMarginalize(f) {
+        const wrap = document.getElementById('field_' + f);
+        const chk = document.getElementById('chk_' + f);
+        const sli = document.getElementById('in_' + f);
+        const valSpan = document.getElementById('val_' + f);
+        
+        if (chk.checked) {
+            wrap.classList.add('marginalized');
+            valSpan.innerText = 'Auto';
+        } else {
+            wrap.classList.remove('marginalized');
+            valSpan.innerText = sli.value;
+        }
+        updatePlot();
+    }
+
+    function onSliderInput(f) {
+        const sli = document.getElementById('in_' + f);
+        const valSpan = document.getElementById('val_' + f);
+        valSpan.innerText = sli.value;
+        updatePlot();
+    }
+
     function applyPreset(name) {
         if (!name || !MODEL.presets[name]) return;
         const p = MODEL.presets[name];
         for (const [key, val] of Object.entries(p)) {
             const el = document.getElementById('in_' + key);
+            const chk = document.getElementById('chk_' + key);
             if (el) {
-                el.value = val;
-                const lbl = document.getElementById('val_' + key);
-                if (lbl) lbl.innerText = val;
+                if (chk) {
+                    if (val === 'Marginalized') {
+                        chk.checked = true;
+                        document.getElementById('field_' + key).classList.add('marginalized');
+                        document.getElementById('val_' + key).innerText = 'Auto';
+                    } else {
+                        chk.checked = false;
+                        document.getElementById('field_' + key).classList.remove('marginalized');
+                        el.value = val;
+                        document.getElementById('val_' + key).innerText = val;
+                    }
+                } else {
+                    el.value = val;
+                }
             }
         }
         updatePlot();
@@ -442,8 +431,21 @@ def main():
 
     function getInputs() {
         let inp = {};
-        document.querySelectorAll('select, input[type="range"]').forEach(s => {
+        // Read selects
+        document.querySelectorAll('select').forEach(s => {
             if (s.id.startsWith('in_')) inp[s.id.substring(3)] = s.value;
+        });
+        // Read range sliders (supporting numerical marginalization checked state)
+        document.querySelectorAll('input[type="range"]').forEach(s => {
+            if (s.id.startsWith('in_')) {
+                const f = s.id.substring(3);
+                const chk = document.getElementById('chk_' + f);
+                if (chk && chk.checked) {
+                    inp[f] = 'Marginalized';
+                } else {
+                    inp[f] = s.value;
+                }
+            }
         });
         return inp;
     }
@@ -455,12 +457,19 @@ def main():
     }
 
     let plotRevision = 0;
-    function updatePlot() {
+    async function updatePlot() {
         try {
             const inputs = getInputs();
-            const [zb, za, zf, zxg] = predictScenario(inputs);
+            const preds = await predictScenario(inputs);
+            if (!preds) return; // Aborted due to newer request or error
+            
+            const maxXg = parseFloat(document.getElementById('in_max_xg')?.value || 0.40);
+            const maxDelta = parseFloat(document.getElementById('in_max_delta')?.value || 0.30);
+            
+            const [zb, za, zf, zxg] = preds;
             const czb = convertTo2D(zb), cza = convertTo2D(za), czf = convertTo2D(zf), czxg = convertTo2D(zxg);
             let dzb = czb, dza = cza, dzf = czf, dzxg = czxg;
+            
             if (baselineData) {
                 dzb = czb.map((row, r) => row.map((val, c) => val - baselineData[0][r][c]));
                 dza = cza.map((row, r) => row.map((val, c) => val - baselineData[1][r][c]));
@@ -469,35 +478,39 @@ def main():
             } else {
                 dzb = dza = dzf = dzxg = czb.map(r => r.map(c => 0));
             }
+            
             const layout = {
                 grid: {rows: 2, columns: 4, pattern: 'independent'},
-                paper_bgcolor: '#111', plot_bgcolor: '#111',
+                paper_bgcolor: '#0c0f16', plot_bgcolor: '#0c0f16',
                 font: {color: 'white', size: 10},
-                margin: {t: 60, b: 30, l: 30, r: 30},
+                margin: {t: 60, b: 30, l: 30, r: 85},
                 showlegend: false,
                 shapes: [],
                 datarevision: plotRevision++
             };
+            
             layout.annotations = [
-                {text: 'Block Layer', x: 0.1, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#ff5555'}},
-                {text: 'Accuracy Layer', x: 0.37, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#55ff55'}},
-                {text: 'Finish Layer', x: 0.63, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#5555ff'}},
-                {text: 'Final xG Score', x: 0.9, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:14, color:'#ffff55'}},
-                {text: 'Δ Block', x: 0.1, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
-                {text: 'Δ Accuracy', x: 0.37, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
-                {text: 'Δ Finish', x: 0.63, y: 0.48, xref:'paper', yref:'paper', showarrow:false},
-                {text: 'Δ xG', x: 0.9, y: 0.48, xref:'paper', yref:'paper', showarrow:false}
+                {text: 'Block Layer', x: 0.1, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:13, color:'#ff5555', bold:true}},
+                {text: 'Accuracy Layer', x: 0.37, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:13, color:'#00ff88', bold:true}},
+                {text: 'Finish Layer', x: 0.63, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:13, color:'#00aaff', bold:true}},
+                {text: 'Final xG Score', x: 0.9, y: 1.05, xref:'paper', yref:'paper', showarrow:false, font:{size:13, color:'#ffff55', bold:true}},
+                {text: 'Δ Block', x: 0.1, y: 0.48, xref:'paper', yref:'paper', showarrow:false, font:{color: '#a0aec0'}},
+                {text: 'Δ Accuracy', x: 0.37, y: 0.48, xref:'paper', yref:'paper', showarrow:false, font:{color: '#a0aec0'}},
+                {text: 'Δ Finish', x: 0.63, y: 0.48, xref:'paper', yref:'paper', showarrow:false, font:{color: '#a0aec0'}},
+                {text: 'Δ xG', x: 0.9, y: 0.48, xref:'paper', yref:'paper', showarrow:false, font:{color: '#a0aec0'}}
             ];
+            
             const traces = [
-                {type:'heatmap', x: gridX, y: gridY, z:czb, colorscale:'Magma', zmin:0, zmax:1, xaxis:'x', yaxis:'y', name:'Block', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:cza, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x2', yaxis:'y2', name:'Acc', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:czf, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x3', yaxis:'y3', name:'Fin', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:czxg, colorscale:'Hot', zmin:0, zmax:0.4, xaxis:'x4', yaxis:'y4', name:'xG', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:dzb, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x5', yaxis:'y5', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:dza, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x6', yaxis:'y6', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:dzf, colorscale:'RdBu', zmid:0, zmin:-0.3, zmax:0.3, xaxis:'x7', yaxis:'y7', zsmooth:'best'},
-                {type:'heatmap', x: gridX, y: gridY, z:dzxg, colorscale:'RdBu', zmid:0, zmin:-0.1, zmax:0.1, xaxis:'x8', yaxis:'y8', zsmooth:'best'}
+                {type:'heatmap', x: gridX, y: gridY, z:czb, colorscale:'Magma', zmin:0, zmax:1, xaxis:'x', yaxis:'y', name:'Block', zsmooth:'best', showscale:false},
+                {type:'heatmap', x: gridX, y: gridY, z:cza, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x2', yaxis:'y2', name:'Acc', zsmooth:'best', showscale:false},
+                {type:'heatmap', x: gridX, y: gridY, z:czf, colorscale:'Viridis', zmin:0, zmax:1, xaxis:'x3', yaxis:'y3', name:'Fin', zsmooth:'best', showscale:false},
+                {type:'heatmap', x: gridX, y: gridY, z:czxg, colorscale:'Hot', zmin:0, zmax:maxXg, xaxis:'x4', yaxis:'y4', name:'xG', zsmooth:'best', showscale:true, colorbar:{title:'xG', thickness:15, len:0.35, y:0.75, x:1.02}},
+                {type:'heatmap', x: gridX, y: gridY, z:dzb, colorscale:'RdBu', zmid:0, zmin:-maxDelta, zmax:maxDelta, xaxis:'x5', yaxis:'y5', zsmooth:'best', showscale:false},
+                {type:'heatmap', x: gridX, y: gridY, z:dza, colorscale:'RdBu', zmid:0, zmin:-maxDelta, zmax:maxDelta, xaxis:'x6', yaxis:'y6', zsmooth:'best', showscale:false},
+                {type:'heatmap', x: gridX, y: gridY, z:dzf, colorscale:'RdBu', zmid:0, zmin:-maxDelta, zmax:maxDelta, xaxis:'x7', yaxis:'y7', zsmooth:'best', showscale:false},
+                {type:'heatmap', x: gridX, y: gridY, z:dzxg, colorscale:'RdBu', zmid:0, zmin:-maxDelta/3.0, zmax:maxDelta/3.0, xaxis:'x8', yaxis:'y8', zsmooth:'best', showscale:true, colorbar:{title:'Δ xG', thickness:15, len:0.35, y:0.25, x:1.02}}
             ];
+            
             ['','2','3','4','5','6','7','8'].forEach((s) => {
                 layout['xaxis'+s] = {range:[0, 100], visible:false, fixedrange:true};
                 layout['yaxis'+s] = {range:[-42.5, 42.5], visible:false, scaleanchor:'x'+s, fixedrange:true};
@@ -506,15 +519,19 @@ def main():
                     layout.shapes.push(sh2);
                 });
             });
+            
             Plotly.react('plot', traces, layout);
         } catch (e) {
             console.error("Plot Update Error:", e);
         }
     }
 
-    function setBaseline() {
-        const [zb, za, zf, zxg] = predictScenario(getInputs());
-        baselineData = [convertTo2D(zb), convertTo2D(za), convertTo2D(zf), convertTo2D(zxg)];
+    async function setBaseline() {
+        const inputs = getInputs();
+        const preds = await predictScenario(inputs);
+        if (!preds) return;
+        
+        baselineData = [convertTo2D(preds[0]), convertTo2D(preds[1]), convertTo2D(preds[2]), convertTo2D(preds[3])];
         updatePlot();
     }
 
@@ -527,7 +544,7 @@ def main():
  
     with open(output_path, 'w', encoding='utf-8') as f:
         f.write(html_template)
-    print(f"Alternate Dashboard saved to: {output_path}")
+    print(f"Alternate Dynamic Dashboard saved to: {output_path}")
 
 if __name__ == "__main__":
     main()

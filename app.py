@@ -64,6 +64,119 @@ def analysis_file(filename):
         return f"File not found: {filename}", 404
     return send_from_directory(ANALYSIS_DIR, filename)
 
+_MODEL_CACHE = {}
+
+def _get_cached_model(path):
+    if path not in _MODEL_CACHE:
+        import joblib
+        logger.info(f"Loading model into memory cache: {path}")
+        _MODEL_CACHE[path] = joblib.load(path)
+    return _MODEL_CACHE[path]
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type,Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET,PUT,POST,DELETE,OPTIONS'
+    return response
+
+@app.route('/predict_model', methods=['POST', 'OPTIONS'])
+def predict_model():
+    if request.method == 'OPTIONS':
+        return '', 204
+    """Dynamic expected goals prediction backend for Model Explorer dashboard.
+    
+    Evaluates the model directly using standard Python prediction routines to prevent drift.
+    Supports full bipartite marginalization (continuous numerical & categorical).
+    """
+    try:
+        req = request.json or {}
+        model_name = req.get('model_name', 'xg_model_xgboost_tensor')
+        inputs = req.get('inputs', {})
+        
+        # Resolve model path. Check both 'xgs' and the filename directly
+        model_path = os.path.join(ANALYSIS_DIR, 'xgs', f"{model_name}.joblib")
+        if not os.path.exists(model_path):
+            # Try direct path
+            model_path = os.path.join(ANALYSIS_DIR, 'xgboost_tensor_xgs', f"{model_name}.joblib")
+            
+        if not os.path.exists(model_path):
+            return jsonify({'error': f"Model file not found: {model_name}.joblib"}), 404
+            
+        clf = _get_cached_model(model_path)
+        
+        # Build 50x43 physical meshgrid matching offensive zone exactly
+        X_POINTS = 50
+        Y_POINTS = 43
+        grid_x = np.linspace(0, 100, X_POINTS)
+        grid_y = np.linspace(-42.5, 42.5, Y_POINTS)
+        xx, yy = np.meshgrid(grid_x, grid_y)
+        
+        df_grid = pd.DataFrame({
+            'x': xx.ravel(),
+            'y': yy.ravel()
+        })
+        
+        # Vectorized coordinate calculations (matching dashboard geometry exactly)
+        goal_x = 89
+        dx = df_grid['x'] - goal_x
+        dy = df_grid['y']
+        df_grid['distance'] = np.sqrt(dx**2 + dy**2)
+        
+        angle_rad = np.arctan2(dx, -dy)
+        df_grid['angle_deg'] = ((-np.degrees(angle_rad)) % 360.0 + 360.0) % 360.0
+        
+        # Populate other situational features
+        for k, v in inputs.items():
+            # Skip coordinate keys as they are defined by the grid
+            if k in ['x', 'y', 'distance', 'angle_deg']:
+                continue
+                
+            if v == 'Marginalized':
+                df_grid[k] = np.nan
+            else:
+                # If numeric, cast to float/int
+                try:
+                    num = float(v)
+                    if num.is_integer():
+                        df_grid[k] = int(num)
+                    else:
+                        df_grid[k] = num
+                except ValueError:
+                    df_grid[k] = v
+                    
+        # Apply standard numerical defaults for any missing features in the model's feature set
+        from puck import data_pipeline
+        for f in clf.features:
+            if f not in df_grid.columns:
+                df_grid[f] = data_pipeline.NUMERIC_DEFAULTS.get(f, 0.0)
+                
+        # Perform predictions directly on the model's actual python layers
+        # Categoricals with NaN will combinatorially marginalize over priors in _predict_marginalized.
+        # Numericals with NaN will traverse the learned default paths natively in XGBoost.
+        p_block = clf.predict_proba_layer(df_grid, 'block')
+        p_acc = clf.predict_proba_layer(df_grid, 'accuracy')
+        p_finish = clf.predict_proba_layer(df_grid, 'finish')
+        
+        # PHYSICS MASK: Force xG to 0 behind goal line to prevent ghost hotspots
+        mask_behind = df_grid['x'] > 89
+        p_block[mask_behind] = 0.0
+        p_acc[mask_behind] = 0.0
+        p_finish[mask_behind] = 0.0
+        
+        # Compute nested expected goals
+        p_xg = (1.0 - p_block) * p_acc * p_finish
+        
+        return jsonify({
+            'block': p_block.tolist(),
+            'accuracy': p_acc.tolist(),
+            'finish': p_finish.tolist(),
+            'xg': p_xg.tolist()
+        })
+    except Exception as e:
+        logger.exception("Error in /predict_model route")
+        return jsonify({'error': str(e)}), 500
+
 # Small default team list fallback (abbr,name). This is used when the NHL
 # schedule API is unavailable or returns 'access denied' so the UI remains
 # functional for manual Game ID entry.

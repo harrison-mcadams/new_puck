@@ -1165,6 +1165,16 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
             # Predict
             try:
                 preds = clf.predict_proba(df_model)[:, 1]
+                
+                # Fetch Layer probabilities for diagnostics
+                if hasattr(clf, 'predict_proba_layer'):
+                    prob_block = clf.predict_proba_layer(df_model, 'block')
+                    prob_acc = clf.predict_proba_layer(df_model, 'accuracy')
+                    prob_fin = clf.predict_proba_layer(df_model, 'finish')
+                else:
+                    prob_block = np.full(len(preds), np.nan)
+                    prob_acc = np.full(len(preds), np.nan)
+                    prob_fin = np.full(len(preds), np.nan)
             except Exception as e:
                 print(f"Prediction failed: {e}")
                 return df, clf, (feature_names, cat_levels)
@@ -1175,6 +1185,23 @@ def _predict_xgs(df_filtered: pd.DataFrame, model_path=None, behavior='load', cs
                 df['xgs'] = np.nan
             df.loc[pred_series.index, 'xgs'] = pred_series
             
+            # Map back layers
+            df.loc[pred_series.index, 'prob_block'] = pd.Series(prob_block, index=df_model.index)
+            df.loc[pred_series.index, 'prob_accuracy'] = pd.Series(prob_acc, index=df_model.index)
+            df.loc[pred_series.index, 'prob_finish'] = pd.Series(prob_fin, index=df_model.index)
+            
+            # Map back updated features (distance, angle, imputed coords, raw coords, and flipped orientation)
+            cols_to_update = [
+                'distance', 'angle_deg', 'imputed_x', 'imputed_y', 'x_adj', 'y_adj', 'x', 'y', 
+                'home_team_defending_side', 'shot_type', 'shoots_catches', 'shooter_role', 
+                'is_rebound', 'is_rush', 'relative_game_state', 'is_home'
+            ]
+            for col in cols_to_update:
+                if col in df_imputed.columns:
+                    if col not in df.columns:
+                        df[col] = np.nan
+                    df.loc[df_imputed.index, col] = df_imputed[col]
+
             # Metadata pass-through
             final_features = list(df_model.columns)
             cat_levels = cat_map_game
