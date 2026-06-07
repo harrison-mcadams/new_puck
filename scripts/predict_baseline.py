@@ -11,7 +11,7 @@ import numpy as np
 import joblib
 import logging
 from pathlib import Path
-from scipy.stats import poisson
+from scipy.stats import poisson, ttest_rel
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -396,6 +396,49 @@ def main():
     seasons_summary_path = analysis_dir / 'predict_baseline_seasons_summary.csv'
     df_seasons_summary.to_csv(seasons_summary_path, index=False)
     logger.info(f"Season summary saved to {seasons_summary_path}")
+    
+    # Compute significance stars for the 'all' filter (xG vs Actual)
+    accuracy_stars = {}
+    brier_stars = {}
+    
+    df_xg = results.get(('skill_biased', 'xg', 'all'))
+    df_actual = results.get(('skill_biased', 'actual', 'all'))
+    
+    if df_xg is not None and df_actual is not None:
+        logger.info("Computing statistical significance (paired t-test) between xG (All) and Actual (All)...")
+        for n in range(1, max_n + 1):
+            df_xg_n = df_xg[df_xg['N'] == n].sort_values(['season', 'game_id']).reset_index(drop=True)
+            df_actual_n = df_actual[df_actual['N'] == n].sort_values(['season', 'game_id']).reset_index(drop=True)
+            
+            merged_n = pd.merge(
+                df_xg_n[['season', 'game_id', 'correct', 'brier']],
+                df_actual_n[['season', 'game_id', 'correct', 'brier']],
+                on=['season', 'game_id'],
+                suffixes=('_xg', '_actual')
+            )
+            
+            if len(merged_n) < 10:
+                continue
+                
+            # Accuracy
+            stat_acc, p_acc = ttest_rel(merged_n['correct_xg'], merged_n['correct_actual'])
+            if p_acc < 0.05:
+                mean_xg = merged_n['correct_xg'].mean()
+                mean_actual = merged_n['correct_actual'].mean()
+                if mean_xg > mean_actual:
+                    accuracy_stars[n] = '#1f77b4'  # Blue
+                elif mean_actual > mean_xg:
+                    accuracy_stars[n] = '#d62728'  # Red
+                    
+            # Brier
+            stat_br, p_br = ttest_rel(merged_n['brier_xg'], merged_n['brier_actual'])
+            if p_br < 0.05:
+                mean_xg = merged_n['brier_xg'].mean()
+                mean_actual = merged_n['brier_actual'].mean()
+                if mean_xg < mean_actual:  # Lower is better
+                    brier_stars[n] = '#1f77b4'  # Blue
+                elif mean_actual < mean_xg:
+                    brier_stars[n] = '#d62728'  # Red
         
     # --- VISUALIZATION GENERATION (PLOT 1: Curves vs N) ---
     logger.info("Generating curves vs N plots (Skill-Biased Only, Clean Rolling 7)...")
@@ -430,8 +473,22 @@ def main():
         ax.set_xlim(1, 50)
         if metric_type == 'Accuracy':
             ax.set_ylim(0.48, 0.63)
+            # Plot significance stars
+            for n, color in accuracy_stars.items():
+                ax.plot(n, 0.49, marker='*', color=color, markersize=10, linestyle='none', markeredgecolor='white', markeredgewidth=0.5)
+            # Add annotation explaining the stars
+            ax.text(0.5, 0.95, '* p < 0.05 (paired t-test, blue=xG outperforms, red=Actual outperforms)', 
+                    transform=ax.transAxes, fontsize=9, fontstyle='italic', 
+                    ha='center', va='top', color='#7f8c8d')
         else:
             ax.set_ylim(0.20, 0.26)
+            # Plot significance stars
+            for n, color in brier_stars.items():
+                ax.plot(n, 0.205, marker='*', color=color, markersize=10, linestyle='none', markeredgecolor='white', markeredgewidth=0.5)
+            # Add annotation explaining the stars
+            ax.text(0.5, 0.95, '* p < 0.05 (paired t-test, blue=xG outperforms, red=Actual outperforms)', 
+                    transform=ax.transAxes, fontsize=9, fontstyle='italic', 
+                    ha='center', va='top', color='#7f8c8d')
             
         ax.grid(True, linestyle=':', alpha=0.6, color='#bdc3c7')
         ax.legend(loc='upper left' if metric_type == 'Accuracy' else 'upper right', 
