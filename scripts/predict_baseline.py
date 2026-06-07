@@ -273,11 +273,14 @@ def plot_clean_rolling_curve(ax, x, y, yerr, label, color, linestyle='-', smooth
     # Plot the rolling average line
     ax.plot(df_temp['x'], rolling_y, color=color, linewidth=2.5, label=label, linestyle=linestyle)
     
-    # Plot vertical error bars subtly (every 4th N to keep the visual clean)
-    ax.errorbar(
-        df_temp['x'], rolling_y, yerr=rolling_yerr, 
-        color=color, fmt='none', elinewidth=1.2, capsize=3.0, 
-        alpha=0.6, errorevery=4, label='_nolegend_'
+    # Plot shaded error band representing SEM
+    ax.fill_between(
+        df_temp['x'], 
+        rolling_y - rolling_yerr, 
+        rolling_y + rolling_yerr, 
+        color=color, 
+        alpha=0.15, 
+        label='_nolegend_'
     )
 
 def main():
@@ -294,9 +297,7 @@ def main():
     # Format: (metric, situation, label, color, linestyle)
     configs = [
         ('xg', 'all', 'xG Model (All)', '#1f77b4', '-'),      # Solid Blue
-        ('xg', '5v5', 'xG Model (5v5)', '#1f77b4', ':'),      # Dotted Blue
-        ('actual', 'all', 'Actual Goals (All)', '#d62728', '-'), # Solid Red
-        ('actual', '5v5', 'Actual Goals (5v5)', '#d62728', ':')  # Dotted Red
+        ('actual', 'all', 'Actual Goals (All)', '#d62728', '-') # Solid Red
     ]
     
     tie_breakers = ['skill_biased']
@@ -472,19 +473,19 @@ def main():
             
         ax.set_xlim(1, 50)
         if metric_type == 'Accuracy':
-            ax.set_ylim(0.48, 0.63)
+            ax.set_ylim(0.50, 0.60)
             # Plot significance stars
             for n, color in accuracy_stars.items():
-                ax.plot(n, 0.49, marker='*', color=color, markersize=10, linestyle='none', markeredgecolor='white', markeredgewidth=0.5)
+                ax.plot(n, 0.505, marker='*', color=color, markersize=10, linestyle='none', markeredgecolor='white', markeredgewidth=0.5)
             # Add annotation explaining the stars
             ax.text(0.5, 0.95, '* p < 0.05 (paired t-test, blue=xG outperforms, red=Actual outperforms)', 
                     transform=ax.transAxes, fontsize=9, fontstyle='italic', 
                     ha='center', va='top', color='#7f8c8d')
         else:
-            ax.set_ylim(0.20, 0.26)
+            ax.set_ylim(0.23, 0.29)
             # Plot significance stars
             for n, color in brier_stars.items():
-                ax.plot(n, 0.205, marker='*', color=color, markersize=10, linestyle='none', markeredgecolor='white', markeredgewidth=0.5)
+                ax.plot(n, 0.235, marker='*', color=color, markersize=10, linestyle='none', markeredgecolor='white', markeredgewidth=0.5)
             # Add annotation explaining the stars
             ax.text(0.5, 0.95, '* p < 0.05 (paired t-test, blue=xG outperforms, red=Actual outperforms)', 
                     transform=ax.transAxes, fontsize=9, fontstyle='italic', 
