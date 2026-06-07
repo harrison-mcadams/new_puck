@@ -141,11 +141,12 @@ def get_scored_season_data(season, model, metric, situation):
     scored_cache[cache_key] = df_filtered
     return df_filtered
 
-def run_season_chronological(season, model, metric='xg', situation='all', tie_breaker='flat_50', min_games=5):
+def run_season_sliding(season, model, metric='xg', situation='all', tie_breaker='skill_biased', max_n=50):
     """
-    Runs chronological evaluation for a single season under one configuration.
+    Runs sliding window rate estimation for a single season under one configuration.
+    Estimates team rates over exactly the most recent N games prior to the game.
     """
-    logger.info(f"Running Season {season} | Metric: {metric} | Situation: {situation} | Tie-Breaker: {tie_breaker}...")
+    logger.info(f"Running Season {season} | Metric: {metric} | Situation: {situation} | Tie-Breaker: {tie_breaker} (Sliding Windows)...")
     
     # Get preprocessed and scored/filtered data (cached)
     df = get_preprocessed_season_data(season)
@@ -155,7 +156,7 @@ def run_season_chronological(season, model, metric='xg', situation='all', tie_br
     sched_df = DataUtils.process_schedule(df)
     sched_df = sched_df.sort_values('game_id').reset_index(drop=True)
     
-    # Pre-calculate game-level totals to speed up chronological loop
+    # Map each game_id to the filtered values for home and away teams
     game_totals = {}
     grouped = df_filtered.groupby(['game_id', 'shooting_team_abb'])['eval_val'].sum().reset_index()
     for _, row in grouped.iterrows():
@@ -166,112 +167,118 @@ def run_season_chronological(season, model, metric='xg', situation='all', tie_br
             game_totals[gid] = {}
         game_totals[gid][team] = val
         
-    # Track team history: stats accumulated so far
-    # keys: 'for_sum', 'against_sum', 'games_played'
     teams = pd.concat([sched_df['home_team'], sched_df['away_team']]).unique()
-    team_stats = {t: {'for_sum': 0.0, 'against_sum': 0.0, 'games_played': 0} for t in teams}
+    team_sequences = {t: [] for t in teams}
     
-    predictions = []
-    
+    game_home_vals = []
+    game_away_vals = []
     for _, row in sched_df.iterrows():
         gid = row['game_id']
         h, a = row['home_team'], row['away_team']
-        
-        h_goals = row['home_goals_final']
-        a_goals = row['away_goals_final']
-        
-        # Get actual results in this game for situation updating
         h_val = game_totals.get(gid, {}).get(h, 0.0)
         a_val = game_totals.get(gid, {}).get(a, 0.0)
+        game_home_vals.append(h_val)
+        game_away_vals.append(a_val)
         
-        m_H = team_stats[h]['games_played']
-        m_A = team_stats[a]['games_played']
+        team_sequences[h].append({'game_id': gid, 'for': h_val, 'against': a_val})
+        team_sequences[a].append({'game_id': gid, 'for': a_val, 'against': h_val})
         
-        # Prior games info available (average)
-        N = int(np.round((m_H + m_A) / 2))
-        
-        # Predict winner probability
-        if m_H < min_games or m_A < min_games:
-            p_win_home = 0.5
-        else:
-            # Rates per game
-            off_H = team_stats[h]['for_sum'] / m_H
-            def_H = team_stats[h]['against_sum'] / m_H
-            off_A = team_stats[a]['for_sum'] / m_A
-            def_A = team_stats[a]['against_sum'] / m_A
+    sched_df['home_val'] = game_home_vals
+    sched_df['away_val'] = game_away_vals
+    
+    # Pre-calculate league average
+    cumulative_goals = (sched_df['home_val'] + sched_df['away_val']).cumsum()
+    cumulative_games = (sched_df.index + 1) * 2
+    sched_df['league_avg'] = cumulative_goals / cumulative_games
+    
+    team_dfs = {t: pd.DataFrame(seq) for t, seq in team_sequences.items()}
+    
+    game_seq_indices = {}
+    for t, t_df in team_dfs.items():
+        for idx, gid in enumerate(t_df['game_id']):
+            game_seq_indices[(gid, t)] = idx
             
-            # League average rate so far
-            total_for = sum(t['for_sum'] for t in team_stats.values())
-            total_games = sum(t['games_played'] for t in team_stats.values())
-            # Each game counts as 2 team-games of play
-            league_avg = total_for / total_games if total_games > 0 else 3.0
+    all_predictions = []
+    
+    for N in range(1, max_n + 1):
+        # Pre-compute rolling sums for all teams for this N
+        rolling_data = {}
+        for t, t_df in team_dfs.items():
+            rolling_data[t] = {
+                'for': t_df['for'].shift(1).rolling(N).sum().values,
+                'against': t_df['against'].shift(1).rolling(N).sum().values
+            }
             
-            # Matchup expectations
+        for idx, row in sched_df.iterrows():
+            gid = row['game_id']
+            h, a = row['home_team'], row['away_team']
+            
+            h_idx = game_seq_indices[(gid, h)]
+            a_idx = game_seq_indices[(gid, a)]
+            
+            if h_idx < N or a_idx < N:
+                continue
+                
+            h_for = rolling_data[h]['for'][h_idx]
+            h_against = rolling_data[h]['against'][h_idx]
+            a_for = rolling_data[a]['for'][a_idx]
+            a_against = rolling_data[a]['against'][a_idx]
+            
+            off_H = h_for / N
+            def_H = h_against / N
+            off_A = a_for / N
+            def_A = a_against / N
+            
+            league_avg = row['league_avg']
+            
             lambda_H = (off_H * def_A) / league_avg if league_avg > 0 else 0.0
             lambda_A = (off_A * def_H) / league_avg if league_avg > 0 else 0.0
             
             p_win_home = calculate_poisson_win_prob(lambda_H, lambda_A, tie_breaker=tie_breaker)
             
-        # Actual outcome
-        actual_winner = 1.0 if h_goals > a_goals else 0.0
-        
-        # Accuracy
-        if p_win_home > 0.5:
-            correct = 1.0 if actual_winner == 1.0 else 0.0
-        elif p_win_home < 0.5:
-            correct = 1.0 if actual_winner == 0.0 else 0.0
-        else:
-            correct = 0.5
+            h_goals = row['home_goals_final']
+            a_goals = row['away_goals_final']
+            actual_winner = 1.0 if h_goals > a_goals else 0.0
             
-        brier = (actual_winner - p_win_home) ** 2
-        
-        predictions.append({
-            'season': season,
-            'game_id': gid,
-            'N': N,
-            'p_home': p_win_home,
-            'y_actual': actual_winner,
-            'correct': correct,
-            'brier': brier
-        })
-        
-        # Update team stats with this game's filtered outputs
-        team_stats[h]['for_sum'] += h_val
-        team_stats[h]['against_sum'] += a_val
-        team_stats[h]['games_played'] += 1
-        
-        team_stats[a]['for_sum'] += a_val
-        team_stats[a]['against_sum'] += h_val
-        team_stats[a]['games_played'] += 1
-        
-    return pd.DataFrame(predictions)
+            if p_win_home > 0.5:
+                correct = 1.0 if actual_winner == 1.0 else 0.0
+            elif p_win_home < 0.5:
+                correct = 1.0 if actual_winner == 0.0 else 0.0
+            else:
+                correct = 0.5
+                
+            brier = (actual_winner - p_win_home) ** 2
+            
+            all_predictions.append({
+                'season': season,
+                'game_id': gid,
+                'N': N,
+                'p_home': p_win_home,
+                'y_actual': actual_winner,
+                'correct': correct,
+                'brier': brier
+            })
+            
+    return pd.DataFrame(all_predictions)
 
-def plot_fitted_trendline(ax, x, y, label, color, linestyle='-', smooth_window=7):
+def plot_clean_rolling_curve(ax, x, y, yerr, label, color, linestyle='-', smooth_window=7):
     """
-    Plots the rolling average as a smooth line, raw points (lightly), 
-    and a fitted lowess or polynomial trendline.
+    Plots a clean rolling average curve with vertical error bars,
+    omitting raw scatter points and complex trendlines.
     """
-    # 1. Roll average
-    df_temp = pd.DataFrame({'x': x, 'y': y}).sort_values('x')
+    df_temp = pd.DataFrame({'x': x, 'y': y, 'yerr': yerr}).sort_values('x')
     rolling_y = df_temp['y'].rolling(smooth_window, min_periods=1, center=True).mean()
-    ax.plot(df_temp['x'], rolling_y, color=color, linewidth=2.5, label=f"{label} (Rolling {smooth_window})", linestyle=linestyle)
+    rolling_yerr = df_temp['yerr'].rolling(smooth_window, min_periods=1, center=True).mean()
     
-    # 2. Scatter raw points (lightly)
-    ax.scatter(df_temp['x'], df_temp['y'], color=color, alpha=0.1, s=15, label='_nolegend_')
+    # Plot the rolling average line
+    ax.plot(df_temp['x'], rolling_y, color=color, linewidth=2.5, label=label, linestyle=linestyle)
     
-    # 3. Fit and plot trendline (LOWESS if statsmodels available, else polynomial)
-    try:
-        from statsmodels.api import nonparametric
-        lowess_fit = nonparametric.lowess(df_temp['y'], df_temp['x'], frac=0.4)
-        ax.plot(lowess_fit[:, 0], lowess_fit[:, 1], color=color, linewidth=1.5, linestyle='--', alpha=0.8, label=f"{label} (LOWESS)")
-    except ImportError:
-        # Fallback to 3rd degree polynomial fit
-        try:
-            poly_coefs = np.polyfit(df_temp['x'], df_temp['y'], deg=3)
-            poly_fit = np.poly1d(poly_coefs)
-            ax.plot(df_temp['x'], poly_fit(df_temp['x']), color=color, linewidth=1.5, linestyle='--', alpha=0.8, label=f"{label} (Poly Fit)")
-        except Exception as e:
-            logger.warning(f"Could not fit trendline: {e}")
+    # Plot vertical error bars subtly (every 4th N to keep the visual clean)
+    ax.errorbar(
+        df_temp['x'], rolling_y, yerr=rolling_yerr, 
+        color=color, fmt='none', elinewidth=1.2, capsize=3.0, 
+        alpha=0.6, errorevery=4, label='_nolegend_'
+    )
 
 def main():
     logger.info("=================================================================")
@@ -284,12 +291,12 @@ def main():
     model = None
     
     # Define configurations to compare
-    # Format: (metric, situation, label, color)
+    # Format: (metric, situation, label, color, linestyle)
     configs = [
-        ('xg', 'all', 'xG Model (All)', '#1f77b4'),      # Blue
-        ('xg', '5v5', 'xG Model (5v5)', '#3498db'),      # Light Blue
-        ('actual', 'all', 'Actual Goals (All)', '#d62728'), # Red
-        ('actual', '5v5', 'Actual Goals (5v5)', '#e74c3c')  # Light Red
+        ('xg', 'all', 'xG Model (All)', '#1f77b4', '-'),      # Solid Blue
+        ('xg', '5v5', 'xG Model (5v5)', '#1f77b4', ':'),      # Dotted Blue
+        ('actual', 'all', 'Actual Goals (All)', '#d62728', '-'), # Solid Red
+        ('actual', '5v5', 'Actual Goals (5v5)', '#d62728', ':')  # Dotted Red
     ]
     
     tie_breakers = ['skill_biased']
@@ -299,11 +306,11 @@ def main():
     results = {}
     
     for tb in tie_breakers:
-        for metric, situation, label, color in configs:
+        for metric, situation, label, color, linestyle in configs:
             all_preds = []
             for season in seasons_to_run:
                 try:
-                    preds_df = run_season_chronological(season, model, metric=metric, situation=situation, tie_breaker=tb)
+                    preds_df = run_season_sliding(season, model, metric=metric, situation=situation, tie_breaker=tb, max_n=50)
                     all_preds.append(preds_df)
                 except Exception as e:
                     logger.error(f"Failed to process season {season} for config {label}/{tb}: {e}")
@@ -320,20 +327,22 @@ def main():
     
     # Prepare comparative summary statistics
     # Aggregate stats at each game N
-    max_n = 81
+    max_n = 50
     
     for tb in tie_breakers:
         summary_rows = []
-        for metric, situation, label, color in configs:
+        for metric, situation, label, color, linestyle in configs:
             df_config = results.get((tb, metric, situation))
             if df_config is None: continue
             
-            for n in range(max_n + 1):
+            for n in range(1, max_n + 1):
                 df_n = df_config[df_config['N'] == n]
                 if len(df_n) == 0: continue
                 
                 acc = df_n['correct'].mean()
                 brier = df_n['brier'].mean()
+                acc_sem = df_n['correct'].sem()
+                brier_sem = df_n['brier'].sem()
                 summary_rows.append({
                     'Tie_Breaker': tb,
                     'Metric': metric,
@@ -342,7 +351,9 @@ def main():
                     'N': n,
                     'Games': len(df_n),
                     'Accuracy': acc,
-                    'Brier': brier
+                    'Brier': brier,
+                    'Accuracy_SEM': acc_sem,
+                    'Brier_SEM': brier_sem
                 })
         
         df_summary = pd.DataFrame(summary_rows)
@@ -351,18 +362,23 @@ def main():
         logger.info(f"Summary saved to {summary_path}")
         
     # --- SEASON-BY-SEASON SUMMARY STATISTICS ---
-    logger.info("Computing season-by-season statistics...")
+    logger.info("Computing season-by-season statistics (using N=20 representative window)...")
     season_results = []
     for tb in tie_breakers:
-        for metric, situation, label, color in configs:
+        for metric, situation, label, color, linestyle in configs:
             df_config = results.get((tb, metric, situation))
             if df_config is None: continue
             
+            # Select predictions for representative window size N = 20
+            df_rep = df_config[df_config['N'] == 20]
+            
             # Group by season
-            grouped = df_config.groupby('season')
+            grouped = df_rep.groupby('season')
             for season, group in grouped:
                 acc = group['correct'].mean()
                 brier = group['brier'].mean()
+                acc_sem = group['correct'].sem()
+                brier_sem = group['brier'].sem()
                 season_results.append({
                     'Tie_Breaker': tb,
                     'Metric': metric,
@@ -371,7 +387,9 @@ def main():
                     'Season': int(season),
                     'Games': len(group),
                     'Accuracy': acc,
-                    'Brier': brier
+                    'Brier': brier,
+                    'Accuracy_SEM': acc_sem,
+                    'Brier_SEM': brier_sem
                 })
                 
     df_seasons_summary = pd.DataFrame(season_results)
@@ -380,7 +398,7 @@ def main():
     logger.info(f"Season summary saved to {seasons_summary_path}")
         
     # --- VISUALIZATION GENERATION (PLOT 1: Curves vs N) ---
-    logger.info("Generating curves vs N plots (Skill-Biased Only)...")
+    logger.info("Generating curves vs N plots (Skill-Biased Only, Clean Rolling 7)...")
     fig, axes = plt.subplots(1, 2, figsize=(20, 8), facecolor='#f8f9fa')
     
     for col_idx, metric_type in enumerate(['Accuracy', 'Brier']):
@@ -398,18 +416,18 @@ def main():
         if not summary_path.exists(): continue
         df_summary = pd.read_csv(summary_path)
         
-        for metric, situation, label, color in configs:
+        for metric, situation, label, color, linestyle in configs:
             df_sub = df_summary[(df_summary['Metric'] == metric) & (df_summary['Situation'] == situation)]
             if df_sub.empty: continue
             
             y_vals = df_sub['Accuracy'] if metric_type == 'Accuracy' else df_sub['Brier']
-            plot_fitted_trendline(
-                ax, df_sub['N'].values, y_vals.values, 
-                label=label, color=color, 
-                linestyle='-' if 'xG' in label else ':'
+            yerr_vals = df_sub['Accuracy_SEM'] if metric_type == 'Accuracy' else df_sub['Brier_SEM']
+            plot_clean_rolling_curve(
+                ax, df_sub['N'].values, y_vals.values, yerr_vals.values,
+                label=label, color=color, linestyle=linestyle
             )
             
-        ax.set_xlim(1, 82)
+        ax.set_xlim(1, 50)
         if metric_type == 'Accuracy':
             ax.set_ylim(0.48, 0.63)
         else:
@@ -438,7 +456,7 @@ def main():
         
         title_suffix = "Accuracy (Higher is Better)" if metric_type == 'Accuracy' else "Brier Score (Lower is Better)"
         
-        ax.set_title(f"Season-by-Season {title_suffix}\n(Skill-Biased Proportional OT Split)", fontsize=14, fontweight='bold', color='#2c3e50')
+        ax.set_title(f"Season-by-Season {title_suffix} (N=20)\n(Skill-Biased Proportional OT Split)", fontsize=14, fontweight='bold', color='#2c3e50')
         ax.set_xlabel("Season", fontsize=11, fontweight='bold')
         ax.set_ylabel(f"Predictive {metric_type}", fontsize=11, fontweight='bold')
         
@@ -451,7 +469,7 @@ def main():
             s_str = str(s)
             seasons_labels.append(f"{s_str[:4]}-{s_str[6:]}")
         
-        for metric, situation, label, color in configs:
+        for metric, situation, label, color, linestyle in configs:
             df_sub = df_sub_summary[(df_sub_summary['Metric'] == metric) & (df_sub_summary['Situation'] == situation)]
             if df_sub.empty: continue
             
@@ -459,15 +477,22 @@ def main():
             
             # Align values with sorted seasons
             y_vals = []
+            yerr_vals = []
             for s in all_summary_seasons:
                 row_s = df_sub[df_sub['Season'] == s]
                 if not row_s.empty:
                     y_vals.append(row_s['Accuracy'].values[0] if metric_type == 'Accuracy' else row_s['Brier'].values[0])
+                    yerr_vals.append(row_s['Accuracy_SEM'].values[0] if metric_type == 'Accuracy' else row_s['Brier_SEM'].values[0])
                 else:
                     y_vals.append(np.nan)
+                    yerr_vals.append(np.nan)
                     
-            ax.plot(range(len(all_summary_seasons)), y_vals, color=color, marker='o', linewidth=2.5, label=label,
-                    linestyle='-' if 'xG' in label else ':')
+            # Plot the line with error bars
+            ax.errorbar(
+                range(len(all_summary_seasons)), y_vals, yerr=yerr_vals, 
+                color=color, marker='o', linewidth=2.0, elinewidth=1.0, capsize=2.0,
+                alpha=0.8, label=label, linestyle=linestyle
+            )
             
         ax.grid(True, linestyle=':', alpha=0.6, color='#bdc3c7')
         ax.set_xticks(range(len(all_summary_seasons)))
